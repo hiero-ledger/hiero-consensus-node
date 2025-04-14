@@ -47,7 +47,7 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
     @Nullable
     @Override
     public StakingNodeInfo get(final long nodeId) {
-        return stakingInfoState.get(EntityNumber.newBuilder().number(nodeId).build());
+        return stakingInfoState.get(new EntityNumber(nodeId));
     }
 
     @NonNull
