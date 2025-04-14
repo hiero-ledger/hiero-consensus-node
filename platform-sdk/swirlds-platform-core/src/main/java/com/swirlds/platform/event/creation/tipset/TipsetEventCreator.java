@@ -245,15 +245,7 @@ public class TipsetEventCreator implements EventCreator {
         // reach consensus if the self parent is also the other parent.
         // Unexpected, but harmless. So just use the same event
         // as both parents until that issue is resolved.
-        return buildAndProcessEvent(lastSelfEventDescriptorOrNull());
-    }
-
-    /**
-     * Get the descriptor of the last self event if present, or return null.
-     */
-    @Nullable
-    private EventDescriptorWrapper lastSelfEventDescriptorOrNull() {
-        return lastSelfEvent == null ? null : lastSelfEvent.getDescriptor();
+        return buildAndProcessEvent(lastSelfEvent);
     }
 
     /**
@@ -297,7 +289,7 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         tipsetMetrics.getTipsetParentMetric(bestOtherParent.getCreatorId()).cycle();
-        return buildAndProcessEvent(bestOtherParent.getDescriptor());
+        return buildAndProcessEvent(bestOtherParent);
     }
 
     /**
@@ -366,7 +358,7 @@ public class TipsetEventCreator implements EventCreator {
             if (choice < runningSum) {
                 final PlatformEvent ignoredNode = ignoredNodes.get(i);
                 tipsetMetrics.getPityParentMetric(ignoredNode.getCreatorId()).cycle();
-                return buildAndProcessEvent(ignoredNode.getDescriptor());
+                return buildAndProcessEvent(ignoredNode);
             }
         }
 
@@ -380,8 +372,9 @@ public class TipsetEventCreator implements EventCreator {
      * @param otherParent the other parent, or null if there is no other parent
      * @return the new event
      */
-    private UnsignedEvent buildAndProcessEvent(@Nullable final EventDescriptorWrapper otherParent) {
-        final UnsignedEvent event = assembleEventObject(otherParent);
+    private UnsignedEvent buildAndProcessEvent(@Nullable final PlatformEvent otherParent) {
+        final EventDescriptorWrapper otherParentDescriptor = otherParent == null ? null : otherParent.getDescriptor();
+        final UnsignedEvent event = assembleEventObject(otherParentDescriptor);
 
         tipsetTracker.addSelfEvent(event.getDescriptor(), event.getMetadata().getAllParents());
         final TipsetAdvancementWeight advancementWeight =
@@ -391,7 +384,7 @@ public class TipsetEventCreator implements EventCreator {
         tipsetMetrics.getTipsetAdvancementMetric().update(weightRatio);
 
         if (otherParent != null) {
-            childlessOtherEventTracker.registerSelfEventParents(List.of(otherParent));
+            childlessOtherEventTracker.registerSelfEventParents(List.of(otherParentDescriptor));
         }
 
         return event;
@@ -417,7 +410,7 @@ public class TipsetEventCreator implements EventCreator {
         final UnsignedEvent event = new UnsignedEvent(
                 softwareVersion,
                 selfId,
-                lastSelfEventDescriptorOrNull(),
+                lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.getAncientMode() == AncientMode.BIRTH_ROUND_THRESHOLD
                         ? eventWindow.getPendingConsensusRound()
