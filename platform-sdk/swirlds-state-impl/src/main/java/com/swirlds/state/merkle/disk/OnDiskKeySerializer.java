@@ -12,7 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * An implementation of {@link KeySerializer}, responsible for converting an {@link OnDiskKey} into

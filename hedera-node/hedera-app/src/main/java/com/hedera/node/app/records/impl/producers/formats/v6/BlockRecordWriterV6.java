@@ -75,7 +75,6 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     /** The maximum size of a sidecar file in bytes. */
     private final int maxSideCarSizeInBytes;
     /** Whether to compress the record file and sidecar files. */
-    private final boolean compressFiles;
     /** The node-specific path to the directory where record files are written */
     private final Path nodeScopedRecordDir;
     /**
@@ -162,7 +161,6 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
 
         this.state = State.UNINITIALIZED;
         this.signer = requireNonNull(signer);
-        this.compressFiles = config.compressFilesOnCreation();
         this.maxSideCarSizeInBytes = config.sidecarMaxSizeMb() * 1024 * 1024;
 
         // Compute directories for record and sidecar files
@@ -208,12 +206,8 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
         this.recordFilePath = getRecordFilePath(startConsensusTime);
         try {
             fileOutputStream = Files.newOutputStream(recordFilePath);
-            if (compressFiles) {
-                gzipOutputStream = new GZIPOutputStream(fileOutputStream);
-                hashingOutputStream = new HashingOutputStream(createWholeFileMessageDigest(), gzipOutputStream);
-            } else {
-                hashingOutputStream = new HashingOutputStream(createWholeFileMessageDigest(), fileOutputStream);
-            }
+            gzipOutputStream = new GZIPOutputStream(fileOutputStream);
+            hashingOutputStream = new HashingOutputStream(createWholeFileMessageDigest(), gzipOutputStream);
             bufferedOutputStream = new BufferedOutputStream(hashingOutputStream);
             outputStream = new WritableStreamingData(bufferedOutputStream);
 
@@ -372,7 +366,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
 
     @NonNull
     private SidecarWriterV6 createSidecarFileWriter(final int id) throws IOException {
-        return new SidecarWriterV6(getSidecarFilePath(id), compressFiles, maxSideCarSizeInBytes, id);
+        return new SidecarWriterV6(getSidecarFilePath(id), maxSideCarSizeInBytes, id);
     }
 
     private void closeSidecarFileWriter() {
@@ -405,7 +399,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     @NonNull
     private Path getRecordFilePath(final Instant consensusTime) {
         return nodeScopedRecordDir.resolve(convertInstantToStringWithPadding(consensusTime) + "." + RECORD_EXTENSION
-                + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : ""));
+                + COMPRESSION_ALGORITHM_EXTENSION);
     }
 
     /**
@@ -421,7 +415,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                 + String.format("%02d", sidecarId)
                 + "."
                 + RECORD_EXTENSION
-                + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : ""));
+                + COMPRESSION_ALGORITHM_EXTENSION);
     }
 
     /**

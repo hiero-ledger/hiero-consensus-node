@@ -19,7 +19,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * A stream that performs the same role as a {@link MerkleDataInputStream} but with extra debug functionality. This

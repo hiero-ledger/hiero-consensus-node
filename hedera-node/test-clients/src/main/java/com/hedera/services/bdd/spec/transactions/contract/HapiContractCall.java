@@ -41,7 +41,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
     public static final String DEFAULT_ID_SENTINEL = "<DEFAULT_ID>";

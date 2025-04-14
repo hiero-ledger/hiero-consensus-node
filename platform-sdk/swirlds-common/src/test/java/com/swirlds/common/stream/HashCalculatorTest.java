@@ -13,8 +13,8 @@ import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
+import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.SelfSerializable;
 import org.junit.jupiter.api.Test;
 
 class HashCalculatorTest {

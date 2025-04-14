@@ -11,9 +11,9 @@ import com.swirlds.merkle.test.fixtures.map.pta.MapValue;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Objects;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 public class MapValueData extends PartialMerkleLeaf implements Keyed<MapKey>, MapValue, Serializable, MerkleLeaf {
     private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();

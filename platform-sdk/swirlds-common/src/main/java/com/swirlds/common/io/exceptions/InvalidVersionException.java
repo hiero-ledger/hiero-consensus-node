@@ -2,7 +2,7 @@
 package com.swirlds.common.io.exceptions;
 
 import java.io.IOException;
-import org.hiero.consensus.model.io.SerializableDet;
+import org.hiero.base.io.SerializableDet;
 
 /**
  * Exception that is caused when illegal version is read from the stream

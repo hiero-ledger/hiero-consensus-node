@@ -4,9 +4,9 @@ package com.swirlds.common.test.fixtures.dummy;
 import com.swirlds.common.FastCopyable;
 import java.io.IOException;
 import java.util.Arrays;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class Key implements SelfSerializable, FastCopyable {
 

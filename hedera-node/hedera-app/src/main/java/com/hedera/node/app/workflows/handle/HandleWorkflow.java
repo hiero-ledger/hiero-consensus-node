@@ -17,6 +17,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.consensus.ConsensusUtils.coin;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
@@ -24,6 +25,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
+import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -92,13 +94,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -300,10 +306,7 @@ public class HandleWorkflow {
         boolean transactionsDispatched = false;
         for (final var event : round) {
             if (streamMode != RECORDS) {
-                final var headerItem = BlockItem.newBuilder()
-                        .eventHeader(new EventHeader(event.getEventCore(), event.getSignature()))
-                        .build();
-                blockStreamManager.writeItem(headerItem);
+                writeEventHeader(event);
             }
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
             if (creator == null) {
@@ -370,6 +373,42 @@ public class HandleWorkflow {
         // Update all throttle metrics once per round
         throttleServiceManager.updateAllMetrics();
         return transactionsDispatched;
+    }
+
+    /**
+     * Writes an event header to the block stream. The event header contains:
+     * 1. The event core data
+     * 2. References to parent events (either as event descriptors or indices)
+     * 3. A boolean, which if true, the middle bit of the event's signature is set.
+     * <p>
+     * The method first tracks the event hash in the block stream manager, then builds a list of parent
+     * event references. For each parent event, it either:
+     * - Uses the full event descriptor if the parent is not in the current block
+     * - Uses an index reference if the parent is in the current block
+     *
+     * @param event the consensus event to write the header for
+     */
+    private void writeEventHeader(ConsensusEvent event) {
+        blockStreamManager.trackEventHash(event.getHash());
+        List<ParentEventReference> parents = new ArrayList<>();
+        final Iterator<EventDescriptorWrapper> iterator = event.allParentsIterator();
+        while (iterator.hasNext()) {
+            final EventDescriptorWrapper parent = iterator.next();
+            Optional<Integer> parentHash = blockStreamManager.getEventIndex(parent.hash());
+            if (parentHash.isEmpty()) {
+                parents.add(ParentEventReference.newBuilder()
+                        .eventDescriptor(parent.eventDescriptor())
+                        .build());
+            } else {
+                parents.add(ParentEventReference.newBuilder()
+                        .index(parentHash.get())
+                        .build());
+            }
+        }
+        final BlockItem headerItem = BlockItem.newBuilder()
+                .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
+                .build();
+        blockStreamManager.writeItem(headerItem);
     }
 
     /**
