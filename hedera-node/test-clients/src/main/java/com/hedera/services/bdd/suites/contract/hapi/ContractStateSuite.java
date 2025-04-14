@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAnyLogAfter;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static java.lang.Integer.MAX_VALUE;
@@ -14,7 +15,6 @@ import static java.lang.Integer.MAX_VALUE;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import java.math.BigInteger;
 import java.time.Duration;
@@ -27,7 +27,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@OrderedInIsolation
 @Tag(SMART_CONTRACT)
 public class ContractStateSuite {
     private static final String CONTRACT = "StateContract";
@@ -38,6 +37,7 @@ public class ContractStateSuite {
     final Stream<DynamicTest> netZeroSlotUsageUpdateLogsNoErrors() {
         final var contract = "ThreeSlots";
         return hapiTest(
+                overriding("contracts.maxGasPerSec", "15_000_000"),
                 uploadInitCode(contract),
                 contractCreate(contract).gas(500_000),
                 // Use slot 'b' only
