@@ -9,7 +9,7 @@ import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.UpgradeHelperSuite;
 import com.hedera.services.yahcli.suites.Utils;
 import java.util.concurrent.Callable;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(

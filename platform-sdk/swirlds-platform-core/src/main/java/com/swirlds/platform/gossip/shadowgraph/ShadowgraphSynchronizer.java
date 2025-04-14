@@ -339,6 +339,8 @@ public class ShadowgraphSynchronizer {
         final List<PlatformEvent> eventsTheyMayNeed =
                 sendSet.stream().map(ShadowEvent::getEvent).collect(Collectors.toCollection(ArrayList::new));
 
+        SyncUtils.sort(eventsTheyMayNeed);
+
         List<PlatformEvent> sendList;
         if (filterLikelyDuplicates) {
             final long startFilterTime = time.nanoTime();
@@ -348,8 +350,6 @@ public class ShadowgraphSynchronizer {
         } else {
             sendList = eventsTheyMayNeed;
         }
-
-        SyncUtils.sort(eventsTheyMayNeed);
 
         if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
             sendList = sendList.subList(0, maximumEventsPerSync);

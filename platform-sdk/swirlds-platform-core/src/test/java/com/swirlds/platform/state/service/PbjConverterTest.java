@@ -5,10 +5,10 @@ import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHa
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.base.utility.CommonUtils.fromPbjTimestamp;
+import static org.hiero.base.utility.CommonUtils.toPbjTimestamp;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
-import static org.hiero.consensus.model.utility.CommonUtils.fromPbjTimestamp;
-import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;

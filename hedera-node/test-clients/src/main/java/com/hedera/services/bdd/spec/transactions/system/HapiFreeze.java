@@ -5,7 +5,7 @@ import static com.hederahashgraph.api.proto.java.FreezeType.UNKNOWN_FREEZE_TYPE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.Freeze;
 import static java.time.temporal.ChronoUnit.MINUTES;
 import static java.time.temporal.ChronoUnit.SECONDS;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;

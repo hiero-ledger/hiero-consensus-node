@@ -4,8 +4,8 @@ package com.hedera.node.app.utils;
 import com.swirlds.common.merkle.utility.Keyed;
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class LongMerkleLeaf extends LongLeaf implements Keyed<Long> {
     // For serialization

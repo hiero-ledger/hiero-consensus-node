@@ -3,9 +3,9 @@ package com.swirlds.common.io;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import org.hiero.consensus.model.io.SerializableDet;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SerializableDet;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * <p>

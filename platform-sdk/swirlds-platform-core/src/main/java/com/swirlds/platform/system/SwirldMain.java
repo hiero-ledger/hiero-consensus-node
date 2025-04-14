@@ -86,13 +86,6 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      * @return the current version
      */
     @NonNull
-    SoftwareVersion getSoftwareVersion();
-
-    /**
-     * Get the current semantic version of the software.
-     *
-     * @return the current semantic version
-     */
     SemanticVersion getSemanticVersion();
 
     /**
