@@ -569,10 +569,8 @@ public class DefaultIssDetector implements IssDetector {
             hashFinder.writePartitionData(sb);
             writeSkippedLogCount(sb, skipCount);
 
-            final String mnemonic = selfHash == null? "null" : Mnemonics.generateMnemonic(selfHash);
-            logger.fatal(
-                    EXCEPTION.getMarker(),
-                    new IssPayload(sb.toString(), round, mnemonic, "", true));
+            final String mnemonic = selfHash == null ? "null" : Mnemonics.generateMnemonic(selfHash);
+            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true));
         }
     }
 
