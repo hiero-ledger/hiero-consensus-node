@@ -77,9 +77,7 @@ public class ChildlessEventTracker {
                 keysToRemove.add(event);
             }
         }
-        for (final EventDescriptorWrapper event : keysToRemove) {
-            removeEvent(event);
-        }
+        keysToRemove.forEach(this::removeEvent);
     }
 
     /**

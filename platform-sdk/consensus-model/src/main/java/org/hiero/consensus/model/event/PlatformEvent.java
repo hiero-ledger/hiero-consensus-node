@@ -47,15 +47,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     private NodeId senderId;
 
-    /**
-     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
-     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
-     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
-     * higher number indicates the event is higher in the hashgraph). NGen will be
-     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
-     */
-    private long nGen = EventConstants.GENERATION_UNDEFINED;
-
     /** The consensus data for this event */
     private EventConsensusData consensusData;
     /**
@@ -68,6 +59,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * This latch counts down when prehandle has been called on all application transactions contained in this event.
      */
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
+
+    /**
+     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
+     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
+     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
+     * higher number indicates the event is higher in the hashgraph). NGen will be
+     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
+     */
+    private long nGen = EventConstants.GENERATION_UNDEFINED;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -198,6 +198,10 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     public long getNGen() {
         return nGen;
+    }
+
+    public boolean hasNGen() {
+        return nGen != EventConstants.GENERATION_UNDEFINED;
     }
 
     /**
@@ -387,6 +391,11 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getOtherParents();
     }
 
+    /**
+     * Check if the event has other parents.
+     *
+     * @return true if the event has other parents
+     */
     public boolean hasOtherParent() {
         return metadata.hasOtherParent();
     }

@@ -10,7 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -222,9 +221,9 @@ public class TipsetWeightCalculator {
                             EXCEPTION.getMarker(),
                             "When looking at possible parents, we should never "
                                     + "consider ancient parents that are not self parents. "
-                                    + "Parent ID = {}, parent generation = {}, minimum generation non-ancient = {}",
+                                    + "Parent ID = {}, parent ancient threshold = {}, minimum threshold non-ancient = {}",
                             parent.creator(),
-                            parent.eventDescriptor().generation(),
+                            tipsetTracker.getEventWindow().getAncientMode().selectIndicator(parent.eventDescriptor()),
                             tipsetTracker.getEventWindow());
                 }
                 continue;

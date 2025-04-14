@@ -162,9 +162,12 @@ public class TipsetEventCreator implements EventCreator {
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (this.lastSelfEvent == null || this.lastSelfEvent.getNGen() < event.getNGen()) {
+            if (this.lastSelfEvent == null
+                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
                 // Normally we will ingest self events before we get to this point, but it's possible
-                // to learn of self events for the first time here if we are loading from a restart or reconnect.
+                // to learn of self events for the first time here if we are loading from a restart (via PCES)
+                // or reconnect (via gossip). In either of these cases, the self event passed to this method
+                // will have an nGen value assigned by the orphan buffer.
                 lastSelfEvent = event;
                 childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
                 tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
@@ -175,9 +178,6 @@ public class TipsetEventCreator implements EventCreator {
             }
         } else {
             tipsetTracker.addPeerEvent(event);
-        }
-
-        if (!selfEvent) {
             childlessOtherEventTracker.addEvent(event);
         }
     }
@@ -245,7 +245,15 @@ public class TipsetEventCreator implements EventCreator {
         // reach consensus if the self parent is also the other parent.
         // Unexpected, but harmless. So just use the same event
         // as both parents until that issue is resolved.
-        return buildAndProcessEvent(lastSelfEvent == null ? null : lastSelfEvent.getDescriptor());
+        return buildAndProcessEvent(lastSelfEventDescriptorOrNull());
+    }
+
+    /**
+     * Get the descriptor of the last self event if present, or return null.
+     */
+    @Nullable
+    private EventDescriptorWrapper lastSelfEventDescriptorOrNull() {
+        return lastSelfEvent == null ? null : lastSelfEvent.getDescriptor();
     }
 
     /**
@@ -314,12 +322,12 @@ public class TipsetEventCreator implements EventCreator {
             final List<EventDescriptorWrapper> theoreticalParents = new ArrayList<>(2);
             theoreticalParents.add(possibleIgnoredNode.getDescriptor());
             if (lastSelfEvent == null) {
-                throw new IllegalStateException("no known self parent");
+                throw new IllegalStateException("lastSelfEvent is null");
             }
             theoreticalParents.add(lastSelfEvent.getDescriptor());
 
-            final TipsetAdvancementWeight advancementWeight = tipsetWeightCalculator.getTheoreticalAdvancementWeight(
-                    theoreticalParents);
+            final TipsetAdvancementWeight advancementWeight =
+                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(theoreticalParents);
 
             if (selfishness > 1) {
                 if (advancementWeight.isNonZero()) {
@@ -409,7 +417,7 @@ public class TipsetEventCreator implements EventCreator {
         final UnsignedEvent event = new UnsignedEvent(
                 softwareVersion,
                 selfId,
-                lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
+                lastSelfEventDescriptorOrNull(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.getAncientMode() == AncientMode.BIRTH_ROUND_THRESHOLD
                         ? eventWindow.getPendingConsensusRound()

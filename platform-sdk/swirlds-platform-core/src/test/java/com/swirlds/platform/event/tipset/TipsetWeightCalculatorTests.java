@@ -37,10 +37,8 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -113,14 +111,13 @@ class TipsetWeightCalculatorTests {
         Tipset previousSnapshot = calculator.getSnapshot();
 
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
-            System.out.println(eventIndex);
             final NodeId creator = NodeId.of(
                     roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
             final long nGen;
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
             } else {
-                nGen = 1; // TODO should this change to be 0?
+                nGen = EventConstants.FIRST_GENERATION;
             }
 
             // Select some nodes we'd like to be our parents.
@@ -285,8 +282,7 @@ class TipsetWeightCalculatorTests {
 
         // Check the advancement weight for A2
         assertEquals(
-                TipsetAdvancementWeight.of(2, 0),
-                calculator.getTheoreticalAdvancementWeight(eventA2.getAllParents()));
+                TipsetAdvancementWeight.of(2, 0), calculator.getTheoreticalAdvancementWeight(eventA2.getAllParents()));
         assertEquals(
                 TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA2.getDescriptor()));
 
@@ -315,8 +311,7 @@ class TipsetWeightCalculatorTests {
         childlessEventTracker.addEvent(eventD3);
 
         assertEquals(
-                TipsetAdvancementWeight.of(2, 0),
-                calculator.getTheoreticalAdvancementWeight(eventA3.getAllParents()));
+                TipsetAdvancementWeight.of(2, 0), calculator.getTheoreticalAdvancementWeight(eventA3.getAllParents()));
         assertEquals(
                 TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA3.getDescriptor()));
 
@@ -344,8 +339,7 @@ class TipsetWeightCalculatorTests {
         childlessEventTracker.addEvent(eventD4);
 
         assertEquals(
-                TipsetAdvancementWeight.of(2, 0),
-                calculator.getTheoreticalAdvancementWeight(eventA4.getAllParents()));
+                TipsetAdvancementWeight.of(2, 0), calculator.getTheoreticalAdvancementWeight(eventA4.getAllParents()));
         assertEquals(
                 TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA4.getDescriptor()));
 
@@ -370,8 +364,7 @@ class TipsetWeightCalculatorTests {
         childlessEventTracker.addEvent(eventC5);
 
         assertEquals(
-                TipsetAdvancementWeight.of(3, 0),
-                calculator.getTheoreticalAdvancementWeight(eventA5.getAllParents()));
+                TipsetAdvancementWeight.of(3, 0), calculator.getTheoreticalAdvancementWeight(eventA5.getAllParents()));
         assertEquals(
                 TipsetAdvancementWeight.of(3, 0), calculator.addEventAndGetAdvancementWeight(eventA5.getDescriptor()));
 
@@ -396,8 +389,7 @@ class TipsetWeightCalculatorTests {
         childlessEventTracker.addEvent(eventC6);
 
         assertEquals(
-                TipsetAdvancementWeight.of(2, 0),
-                calculator.getTheoreticalAdvancementWeight(eventA6.getAllParents()));
+                TipsetAdvancementWeight.of(2, 0), calculator.getTheoreticalAdvancementWeight(eventA6.getAllParents()));
         assertEquals(
                 TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA6.getDescriptor()));
 
@@ -421,8 +413,7 @@ class TipsetWeightCalculatorTests {
         childlessEventTracker.addEvent(eventC7);
 
         assertEquals(
-                TipsetAdvancementWeight.of(2, 0),
-                calculator.getTheoreticalAdvancementWeight(eventA7.getAllParents()));
+                TipsetAdvancementWeight.of(2, 0), calculator.getTheoreticalAdvancementWeight(eventA7.getAllParents()));
         assertEquals(
                 TipsetAdvancementWeight.of(2, 0), calculator.addEventAndGetAdvancementWeight(eventA7.getDescriptor()));
 
@@ -470,8 +461,8 @@ class TipsetWeightCalculatorTests {
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster,
-                AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker builder =
+                new TipsetTracker(Time.getCurrent(), nodeA, roster, AncientMode.GENERATION_THRESHOLD);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
@@ -495,8 +486,8 @@ class TipsetWeightCalculatorTests {
         // Create a node "on top of" B1.
         final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1));
         builder.addPeerEvent(eventA2);
-        final TipsetAdvancementWeight advancement1 = calculator.addEventAndGetAdvancementWeight(
-                eventA2.getDescriptor());
+        final TipsetAdvancementWeight advancement1 =
+                calculator.addEventAndGetAdvancementWeight(eventA2.getDescriptor());
         assertEquals(TipsetAdvancementWeight.of(1, 0), advancement1);
 
         // Snapshot should not have advanced.
@@ -507,8 +498,8 @@ class TipsetWeightCalculatorTests {
         // advance. Build on top of node D.
         final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventD1));
         builder.addSelfEvent(eventA3.getDescriptor(), eventA3.getAllParents());
-        final TipsetAdvancementWeight advancement2 = calculator.addEventAndGetAdvancementWeight(
-                eventA3.getDescriptor());
+        final TipsetAdvancementWeight advancement2 =
+                calculator.addEventAndGetAdvancementWeight(eventA3.getDescriptor());
         assertEquals(TipsetAdvancementWeight.of(0, 1), advancement2);
 
         // Snapshot should not have advanced.
@@ -517,8 +508,8 @@ class TipsetWeightCalculatorTests {
         // Now, build on top of C. This should push us into the next snapshot.
         final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventC1));
         builder.addSelfEvent(eventA4.getDescriptor(), eventA4.getAllParents());
-        final TipsetAdvancementWeight advancement3 = calculator.addEventAndGetAdvancementWeight(
-                eventA4.getDescriptor());
+        final TipsetAdvancementWeight advancement3 =
+                calculator.addEventAndGetAdvancementWeight(eventA4.getDescriptor());
         assertEquals(TipsetAdvancementWeight.of(1, 0), advancement3);
 
         final Tipset snapshot2 = calculator.getSnapshot();
@@ -546,8 +537,8 @@ class TipsetWeightCalculatorTests {
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster,
-                AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker builder =
+                new TipsetTracker(Time.getCurrent(), nodeA, roster, AncientMode.GENERATION_THRESHOLD);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
@@ -590,20 +581,5 @@ class TipsetWeightCalculatorTests {
             builder.addSelfEvent(eventA1.getDescriptor(), eventA1.getAllParents());
             calculator.addEventAndGetAdvancementWeight(eventA1.getDescriptor());
         });
-    }
-
-    private UnsignedEvent toUnsignedEvent(final PlatformEvent potentialEvent) {
-        final UnsignedEvent event = new UnsignedEvent(
-                potentialEvent.getSoftwareVersion(),
-                potentialEvent.getCreatorId(),
-                potentialEvent.getSelfParent(),
-                potentialEvent.getOtherParents(),
-                potentialEvent.getBirthRound(),
-                potentialEvent.getTimeCreated(),
-                potentialEvent.getTransactions().stream()
-                        .map(TransactionWrapper::getApplicationTransaction)
-                        .toList());
-        event.setHash(potentialEvent.getHash());
-        return event;
     }
 }

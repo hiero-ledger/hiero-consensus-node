@@ -46,7 +46,7 @@ class ChildlessEventTrackerTests {
                     .setNGen(0)
                     .build();
 
-            final NodeId nonExistentParentId2 = NodeId.of(nodeId + 100);
+            final NodeId nonExistentParentId2 = NodeId.of(nodeId + 110);
             final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
                     .setCreatorId(nonExistentParentId2)
                     .setNGen(0)
@@ -128,9 +128,9 @@ class ChildlessEventTrackerTests {
         assertThat(tracker.getChildlessEvents())
                 .withFailMessage("Tracker should contain the single initial event that was not used as a parent")
                 .contains(initialEvents.get(2));
-        assertThat(tracker.getChildlessEvents().size())
+        assertThat(tracker.getChildlessEvents())
                 .withFailMessage("There should now be two childless events")
-                .isEqualTo(2);
+                .hasSize(2);
 
         // Create a new event who uses the final initial event as both parents
         final PlatformEvent eventWithSameParents = new TestingEventBuilder(random)
@@ -147,9 +147,9 @@ class ChildlessEventTrackerTests {
         assertThat(tracker.getChildlessEvents())
                 .withFailMessage("Tracker should contain the single initial event that was not used as a parent")
                 .contains(eventWithTwoParents);
-        assertThat(tracker.getChildlessEvents().size())
+        assertThat(tracker.getChildlessEvents())
                 .withFailMessage("There should still be two childless events")
-                .isEqualTo(2);
+                .hasSize(2);
     }
 
     @ParameterizedTest
@@ -217,9 +217,9 @@ class ChildlessEventTrackerTests {
             assertThat(tracker.getChildlessEvent(event.getDescriptor()))
                     .withFailMessage("Tracker should have pruned event {}", event.getDescriptor())
                     .isNull();
-            assertThat(tracker.getChildlessEvents().size())
+            assertThat(tracker.getChildlessEvents())
                     .withFailMessage("A single event should be pruned each time the event window is incremented")
-                    .isEqualTo(numNodes - nodeId - 1);
+                    .hasSize((int) (numNodes - nodeId - 1));
         }
     }
 
@@ -241,7 +241,7 @@ class ChildlessEventTrackerTests {
         tracker.addEvent(e1);
         tracker.addEvent(e2);
 
-        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents()).hasSize(1);
         assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e2);
 
         final PlatformEvent e3 = new TestingEventBuilder(random)
@@ -259,7 +259,7 @@ class ChildlessEventTrackerTests {
         tracker.addEvent(e3);
         tracker.addEvent(e3Branch);
 
-        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents()).hasSize(1);
         assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e3);
 
         // Branch with a lower generation, existing event should not be discarded.
@@ -270,7 +270,7 @@ class ChildlessEventTrackerTests {
                 .build();
         tracker.addEvent(e2Branch);
 
-        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents()).hasSize(1);
         assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e3);
 
         // Branch with a higher generation, existing event should be discarded.
@@ -278,7 +278,7 @@ class ChildlessEventTrackerTests {
                 new TestingEventBuilder(random).setCreatorId(nodeId).setNGen(99).build();
         tracker.addEvent(e99Branch);
 
-        assertThat(tracker.getChildlessEvents().size()).isEqualTo(1);
+        assertThat(tracker.getChildlessEvents()).hasSize(1);
         assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e99Branch);
     }
 

@@ -183,6 +183,7 @@ class OrphanBufferTests {
             parentCandidates.add(bootstrapEvent);
             tips.put(nodeId, bootstrapEvent);
         }
+
         // Create events on top of the bootstrap events
         for (long i = 0; i < TEST_EVENT_COUNT - NODE_ID_COUNT; i++) {
             final PlatformEvent newEvent = createRandomEvent(parentCandidates, tips);

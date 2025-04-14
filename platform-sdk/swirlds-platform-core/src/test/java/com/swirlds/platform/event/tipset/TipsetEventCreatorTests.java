@@ -24,15 +24,12 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
-import com.swirlds.platform.event.creation.tipset.Tipset;
 import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
-import com.swirlds.platform.sequence.map.SequenceMap;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -193,7 +190,6 @@ class TipsetEventCreatorTests {
                     .addEventAndGetAdvancementWeight(descriptor)
                     .isNonZero());
         } else {
-            // TODO the instance of the tipset tracker is not the same between the event creator and the tipsetwegith calculator, real vs. simulated
             simulatedNode.tipsetWeightCalculator.addEventAndGetAdvancementWeight(descriptor);
         }
 
@@ -211,7 +207,7 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * Link the event into its parents and distribute to all nodes in the network.
+     * Calculate and assign the nGen value to the event and distribute to all nodes in the network.
      */
     private void assignNGenAndDistributeEvent(
             @NonNull final Map<NodeId, SimulatedNode> nodeMap,
@@ -222,7 +218,7 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * Link an event to its parents.
+     * Calculate and assign the nGen value to the event
      */
     @NonNull
     private PlatformEvent assignNGen(
@@ -425,8 +421,7 @@ class TipsetEventCreatorTests {
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get,
-                        AncientMode.GENERATION_THRESHOLD);
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, AncientMode.GENERATION_THRESHOLD);
 
         for (int i = 0; i < 5; i++) {
             final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
@@ -557,9 +552,9 @@ class TipsetEventCreatorTests {
     @CsvSource({"false, false", "false, true", "true, false", "true, true"})
     @DisplayName("Zero Weight Node Test")
     void zeroWeightNodeTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed(0L);
+        final Random random = getRandomPrintSeed();
 
-        final int networkSize = 3;
+        final int networkSize = 10;
 
         Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
 
@@ -658,7 +653,7 @@ class TipsetEventCreatorTests {
     void zeroWeightSlowNodeTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
         final Random random = getRandomPrintSeed();
 
-        final int networkSize = 3;
+        final int networkSize = 10;
 
         Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
 
@@ -740,7 +735,9 @@ class TipsetEventCreatorTests {
                         // Most of the time, we don't immediately distribute the slow events.
                         assignNGen(nodes, allEvents, newEvent);
                         // Register the event with the creator node's test tipsetTracker
-                        nodes.get(nodeId).tipsetTracker.addSelfEvent(newEvent.getDescriptor(), newEvent.getAllParents());
+                        nodes.get(nodeId)
+                                .tipsetTracker
+                                .addSelfEvent(newEvent.getDescriptor(), newEvent.getAllParents());
                         slowNodeEvents.add(newEvent);
                     }
                 } else {
@@ -772,7 +769,8 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 1;
 
-        final Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final FakeTime time = new FakeTime();
 
@@ -814,28 +812,16 @@ class TipsetEventCreatorTests {
 
     @NonNull
     private PlatformEvent createTestEvent(
-            @NonNull final Random random,
-            @NonNull final NodeId creator,
-//            @Nullable final NodeId otherParentId,
-            final long nGen) {
+            @NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
 
         final PlatformEvent selfParent =
                 new TestingEventBuilder(random).setCreatorId(creator).build();
 
-        final TestingEventBuilder eventBuilder = new TestingEventBuilder(random)
+        return new TestingEventBuilder(random)
                 .setCreatorId(creator)
                 .setNGen(nGen)
-                .setSelfParent(selfParent);
-//                .overrideSelfParentGeneration(selfParentGeneration);
-
-//        if (otherParentId != null) {
-//            final PlatformEvent otherParent =
-//                    new TestingEventBuilder(random).setCreatorId(otherParentId).build();
-//
-//            eventBuilder.setOtherParent(otherParent).overrideOtherParentGeneration(otherParentGeneration);
-//        }
-
-        return eventBuilder.build();
+                .setSelfParent(selfParent)
+                .build();
     }
 
     /**
@@ -917,69 +903,65 @@ class TipsetEventCreatorTests {
     /**
      * Event from nodes not in the address book should not be used as parents for creating new events.
      */
-//    @Test
-//    @DisplayName("Not Registering Events From NodeIds Not In AddressBook")
-//    void notRegisteringEventsFromNodesNotInAddressBook() {
-//        final Random random = getRandomPrintSeed();
-//
-//        final int networkSize = 4;
-//
-//        final Roster roster = RandomRosterBuilder.create(random)
-//                .withMinimumWeight(1)
-//                .withMaximumWeight(1)
-//                .withSize(networkSize)
-//                .build();
-//
-//        final FakeTime time = new FakeTime();
-//
-//        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
-//        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-//        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-//        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
-//        // Node 4 (E) is not in the address book.
-//        final NodeId nodeE = NodeId.of(nodeD.id() + 1);
-//
-//        // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
-//        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
-//
-//        // Create some genesis events
-//        final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
-//        assertNotNull(eventA1);
-//
-//        final PlatformEvent eventB1 = createTestEvent(
-//                random, nodeB, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-//        final PlatformEvent eventC1 = createTestEvent(
-//                random, nodeC, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-//        final PlatformEvent eventD1 = createTestEvent(
-//                random, nodeD, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-//        final PlatformEvent eventE1 = createTestEvent(
-//                random, nodeE, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-//
-//        eventCreator.registerEvent(eventB1);
-//        eventCreator.registerEvent(eventC1);
-//        eventCreator.registerEvent(eventD1);
-//        // Attempt to register event from a node not in the address book.
-//        eventCreator.registerEvent(eventE1);
-//
-//        // Create the next several events.
-//        // We should be able to create a total of 3 before we exhaust all possible parents in the address book.
-//
-//        // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
-//        final PlatformEvent eventA2 = eventCreator.maybeCreateEvent();
-//        assertNotNull(eventA2);
-//
-//        // This will advance the snapshot, total advancement weight is 2 (2+1/4 > 2/3)
-//        final PlatformEvent eventA3 = eventCreator.maybeCreateEvent();
-//        assertNotNull(eventA3);
-//
-//        // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
-//        final PlatformEvent eventA4 = eventCreator.maybeCreateEvent();
-//        assertNotNull(eventA4);
-//
-//        // It should not be possible to create another event since we have exhausted all possible other parents in
-//        // the address book.
-//        assertNull(eventCreator.maybeCreateEvent());
-//    }
+    @Test
+    @DisplayName("Not Registering Events From NodeIds Not In AddressBook")
+    void notRegisteringEventsFromNodesNotInAddressBook() {
+        final Random random = getRandomPrintSeed();
+
+        final int networkSize = 4;
+
+        final Roster roster = RandomRosterBuilder.create(random)
+                .withMinimumWeight(1)
+                .withMaximumWeight(1)
+                .withSize(networkSize)
+                .build();
+
+        final FakeTime time = new FakeTime();
+
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+        // Node 4 (E) is not in the address book.
+        final NodeId nodeE = NodeId.of(nodeD.id() + 1);
+
+        // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+
+        // Create some genesis events
+        final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
+        assertNotNull(eventA1);
+
+        final PlatformEvent eventB1 = createTestEvent(random, nodeB, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventC1 = createTestEvent(random, nodeC, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventD1 = createTestEvent(random, nodeD, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventE1 = createTestEvent(random, nodeE, EventConstants.FIRST_GENERATION);
+
+        eventCreator.registerEvent(eventB1);
+        eventCreator.registerEvent(eventC1);
+        eventCreator.registerEvent(eventD1);
+        // Attempt to register event from a node not in the address book.
+        eventCreator.registerEvent(eventE1);
+
+        // Create the next several events.
+        // We should be able to create a total of 3 before we exhaust all possible parents in the address book.
+
+        // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
+        final PlatformEvent eventA2 = eventCreator.maybeCreateEvent();
+        assertNotNull(eventA2);
+
+        // This will advance the snapshot, total advancement weight is 2 (2+1/4 > 2/3)
+        final PlatformEvent eventA3 = eventCreator.maybeCreateEvent();
+        assertNotNull(eventA3);
+
+        // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
+        final PlatformEvent eventA4 = eventCreator.maybeCreateEvent();
+        assertNotNull(eventA4);
+
+        // It should not be possible to create another event since we have exhausted all possible other parents in
+        // the address book.
+        assertNull(eventCreator.maybeCreateEvent());
+    }
 
     /**
      * There was once a bug where it was possible to create a self event that was stale at the moment of its creation
@@ -1025,9 +1007,9 @@ class TipsetEventCreatorTests {
     @CsvSource({"true, true", "true, false", "false, true", "false, false"})
     @DisplayName("Check setting of birthRound on new events.")
     void checkSettingEventBirthRound(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed(0);
+        final Random random = getRandomPrintSeed();
 
-        final int networkSize = 3;
+        final int networkSize = 10;
 
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
@@ -1078,13 +1060,10 @@ class TipsetEventCreatorTests {
 
                 final PlatformEvent event = eventCreator.maybeCreateEvent();
 
-                System.out.println("Created event " + (event == null ? "null" : event.getDescriptor().shortString()));
-
                 // In this test, it should be impossible for a node to be unable to create an event.
                 assertNotNull(event);
 
                 assignNGenAndDistributeEvent(nodes, events, event);
-//                printKnownTipsets(nodes);
 
                 if (advancingClock) {
                     assertEquals(event.getTimeCreated(), time.now());
@@ -1105,22 +1084,74 @@ class TipsetEventCreatorTests {
         }
     }
 
-    private void printKnownTipsets(final Map<NodeId, SimulatedNode> nodes) {
-        final StringBuilder sb = new StringBuilder();
-        for (final NodeId nodeId : nodes.keySet()) {
-            final SimulatedNode node = nodes.get(nodeId);
-            sb.append("\nNode: ").append(nodeId);
-            final SequenceMap<EventDescriptorWrapper, Tipset> tipsets = node.tipsetTracker.getTipsets();
-            for (long i = tipsets.getFirstSequenceNumberInWindow(); i <= tipsets.getLastSequenceNumberInWindow(); i++) {
-                if (tipsets.getKeysWithSequenceNumber(i) != null && !tipsets.getKeysWithSequenceNumber(i).isEmpty()) {
-                    sb.append("\n\t").append("Gen ").append(i);
-                    for (final EventDescriptorWrapper desc : tipsets.getKeysWithSequenceNumber(i)) {
-                        sb.append("\n\t\t").append(desc.shortString());
-                        sb.append(" - ").append(tipsets.get(desc));
-                    }
-                }
+    /**
+     * During PCES replay, the node will learn of self events it created in the past. This test creates a single node
+     * network, sends the event creator self events (with nGen values assigned), then creates a new event. The new event
+     * should have the proper self parent.
+     */
+    @Test
+    @DisplayName("Self event with highest nGen is used as latest self event on startup")
+    void lastSelfEventUpdatedDuringPCESReplay() {
+        final Random random = getRandomPrintSeed();
+        final int networkSize = 1;
+        final int numEvents = 100;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, () -> Collections.EMPTY_LIST);
+
+        final List<PlatformEvent> pcesEvents = new ArrayList<>();
+        PlatformEvent eventWithHighestNGen = null;
+        for (int i = 0; i < numEvents; i++) {
+            final PlatformEvent event = createTestEvent(random, selfId, i++);
+            if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
+                eventWithHighestNGen = event;
             }
+            pcesEvents.add(event);
         }
-        System.out.println(sb);
+
+        // Add the events to the creator in a random order
+        Collections.shuffle(pcesEvents, random);
+        pcesEvents.forEach(eventCreator::registerEvent);
+
+        // Verify that the new event created uses a self parent that is the event with the highest nGen.
+        // This new event should not have an nGen assigned.
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(eventWithHighestNGen.getDescriptor(), newEvent.getSelfParent());
+        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
+    }
+
+    /**
+     * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
+     * self event for the first time from the intake pipeline.
+     */
+    @Test
+    @DisplayName("Last Self Event just created is not overwritten")
+    void lastSelfEventNotOverwritten() {
+        final Random random = getRandomPrintSeed();
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, () -> Collections.EMPTY_LIST);
+
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
+
+        // Create a self event with an nGen value set and register it with the event creator. This can happen
+        // if we are forced to reconnect and learn of an event we created a long time ago after we started creating
+        // the events. This is a branch, but not necessarily an intentional branch. This old event should be discarded
+        // because we want to favor any self event last created by the event creator even though it does not have an
+        // nGen set.
+        final PlatformEvent oldSelfEvent = createTestEvent(random, selfId, EventConstants.FIRST_GENERATION);
+        eventCreator.registerEvent(oldSelfEvent);
+        final PlatformEvent newEvent2 = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
+        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
     }
 }

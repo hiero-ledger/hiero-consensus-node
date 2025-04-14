@@ -12,7 +12,6 @@ import com.swirlds.platform.sequence.map.StandardSequenceMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -20,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -107,17 +105,19 @@ public class TipsetTracker {
      * @return the tipset for the new self event
      */
     @NonNull
-    public Tipset addSelfEvent(@NonNull final EventDescriptorWrapper selfEventDesc,
-            @NonNull final List<EventDescriptorWrapper> parents) {
+    public Tipset addSelfEvent(
+            @NonNull final EventDescriptorWrapper selfEventDesc, @NonNull final List<EventDescriptorWrapper> parents) {
         logIfNotSelfEvent(selfEventDesc);
         logIfAncient(selfEventDesc);
 
         final List<Tipset> parentTipsets = getParentTipsets(parents);
 
         // Do not advance the self generation in the tipset for two reasons:
-        // 1. We just created this event, and it does not yet have a generation to use because it
-        // will be assigned by the orphan buffer later.
-        // 2. Self advancement does not contribute to the advancement score
+        // 1. Self advancement does not contribute to the advancement score
+        // 2. We just created this event, and it does not yet have a generation to use because it
+        // will be assigned by the orphan buffer later. Furthermore, we do not want to assign it
+        // here because the orphan buffer might disagree about the value given that event windows
+        // are process asynchronously.
         final Tipset eventTipset;
         if (parentTipsets.isEmpty()) {
             eventTipset = new Tipset(roster);
@@ -131,7 +131,7 @@ public class TipsetTracker {
     }
 
     /**
-     * Add a new event, not created by this node, to the tracker created by another node.
+     * Add a new event, not created by this node, to the tracker.
      *
      * @param event the peer event to add
      * @return the tipset for the event that was added
@@ -178,14 +178,7 @@ public class TipsetTracker {
 
     @NonNull
     private List<Tipset> getParentTipsets(@NonNull final List<EventDescriptorWrapper> parents) {
-        final List<Tipset> parentTipsets = new ArrayList<>(parents.size());
-        for (final EventDescriptorWrapper parent : parents) {
-            final Tipset parentTipset = tipsets.get(parent);
-            if (parentTipset != null) {
-                parentTipsets.add(parentTipset);
-            }
-        }
-        return parentTipsets;
+        return parents.stream().map(tipsets::get).filter(Objects::nonNull).toList();
     }
 
     private void logIfAncient(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {
@@ -237,10 +230,5 @@ public class TipsetTracker {
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
         latestGenerations = new Tipset(roster);
         tipsets.clear();
-    }
-
-    // TODO remove this
-    public SequenceMap<EventDescriptorWrapper, Tipset> getTipsets() {
-        return tipsets;
     }
 }

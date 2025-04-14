@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -52,8 +53,8 @@ public class TestingEventBuilder {
     /**
      * The time created of the event.
      * <p>
-     * If not set, defaults to the time created of the self parent, plus a random number of milliseconds between
-     * 1 and 99 inclusive. If the self parent is not set, defaults to {@link #DEFAULT_TIMESTAMP}.
+     * If not set, defaults to the time created of the self parent, plus a random number of milliseconds between 1 and
+     * 99 inclusive. If the self parent is not set, defaults to {@link #DEFAULT_TIMESTAMP}.
      */
     private Instant timeCreated;
 
@@ -158,7 +159,11 @@ public class TestingEventBuilder {
      */
     private Long consensusOrder;
 
-    private long nGen;
+    /**
+     * The non-deterministic generation of the event. This value is calculated by the orphan buffer in production.
+     * Defaults to {@link EventConstants#GENERATION_UNDEFINED}
+     */
+    private long nGen = EventConstants.GENERATION_UNDEFINED;
 
     /**
      * Constructor
@@ -183,6 +188,12 @@ public class TestingEventBuilder {
         return this;
     }
 
+    /**
+     * Set the non-deterministic generation to use. If not set, default to {@link EventConstants#GENERATION_UNDEFINED}
+     *
+     * @param nGen the ngen
+     * @return this instance
+     */
     public @NonNull TestingEventBuilder setNGen(final long nGen) {
         this.nGen = nGen;
         return this;
@@ -205,8 +216,8 @@ public class TestingEventBuilder {
     /**
      * Set the time created of an event.
      * <p>
-     * If not set, defaults to the time created of the self parent, plus a random number of milliseconds between
-     * 1 and 99 inclusive. If the self parent is not set, defaults to {@link #DEFAULT_TIMESTAMP}.
+     * If not set, defaults to the time created of the self parent, plus a random number of milliseconds between 1 and
+     * 99 inclusive. If the self parent is not set, defaults to {@link #DEFAULT_TIMESTAMP}.
      *
      * @param timeCreated the time created
      * @return this instance
