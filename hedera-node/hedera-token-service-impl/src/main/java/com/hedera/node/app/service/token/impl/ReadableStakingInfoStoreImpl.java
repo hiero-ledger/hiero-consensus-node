@@ -16,12 +16,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of {@link ReadableStakingInfoStore}.
  */
 public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
 
+    private static final Logger log = LogManager.getLogger(ReadableStakingInfoStoreImpl.class);
     /**
      * The underlying data storage class that holds node staking data.
      */
@@ -32,7 +35,7 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
     /**
      * Create a new {@link ReadableStakingInfoStoreImpl} instance.
      *
-     * @param states         The state to use.
+     * @param states The state to use.
      * @param entityCounters
      */
     public ReadableStakingInfoStoreImpl(
@@ -56,9 +59,11 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
         }
         final var nodeIds = new HashSet<Long>();
         for (var i = 0; i < numStakingInfo; i++) {
-            final var nodeId = EntityNumber.newBuilder().number(i).build();
+            final var nodeId = new EntityNumber(i);
             if (stakingInfoState.contains(nodeId)) {
                 nodeIds.add(nodeId.number());
+            } else {
+                log.warn("Staking info for node {} not found in state", nodeId.number());
             }
         }
         return nodeIds;
