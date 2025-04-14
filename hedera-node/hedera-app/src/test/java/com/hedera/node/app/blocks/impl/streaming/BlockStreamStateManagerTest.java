@@ -108,7 +108,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testPublishStreamRequestNotCreatedWhenBatchSizeIsNotMetAndBlockItemsAddedToBlockState() {
+    void testPublishStreamRequestIsNotCreatedWhenBatchSizeIsNotMet() {
         // given
         // mock the number of batch items by modifying the default config
         var mockConfig = HederaTestConfigBuilder.create()
@@ -144,7 +144,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testPublishStreamRequestCreatedWhenBatchSizeIsMet() {
+    void testPublishStreamRequestIsCreatedWhenBatchSizeIsMet() {
         // given
         // mock the number of batch items by modifying the default config
         var mockConfig = HederaTestConfigBuilder.create()
@@ -218,7 +218,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testPublishStreamRequestCreatedWithRemainingItemsOnBlockProof() {
+    void testPublishStreamRequestIsCreatedWithRemainingItemsAndBlockProof() {
         // given
         // mock the number of batch items by modifying the default config
         var mockConfig = HederaTestConfigBuilder.create()
@@ -245,6 +245,35 @@ class BlockStreamStateManagerTest {
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockProof);
+        var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.createRequestFromCurrentItems(blockState);
+
+        // then
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
+                .hasSize(1);
+    }
+
+    @Test
+    void testPublishStreamRequestIsCreatedWithBlockProofOnly() {
+        // given
+        // mock the number of batch items by modifying the default config
+        var mockConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.blockItemBatchSize", 5)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
+
+        // make blockStreamStateManager use the mocked config
+        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        var blockProof = BlockItem.newBuilder()
+                .blockProof(BlockProof.newBuilder().build())
+                .build();
+
+        // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockProof);
         var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
         blockStreamStateManager.createRequestFromCurrentItems(blockState);
@@ -366,6 +395,25 @@ class BlockStreamStateManagerTest {
                 .hasSize(0);
     }
 
+    @Test
+    void testGetCurrentBlockNumberWhenNoNewBlockIsOpened() {
+        // given
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // when and then
+        assertThat(blockStreamStateManager.getBlockNumber()).isEqualTo(0L);
+    }
+
+    @Test
+    void testGetCurrentBlockNumberWhenNewBlockIsOpened() {
+        // given
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER2);
+
+        // when and then
+        assertThat(blockStreamStateManager.getBlockNumber()).isEqualTo(TEST_BLOCK_NUMBER2);
+    }
+
     // Negative And Edge Test Cases
     @Test
     void testOpenBlockWithNegativeBlockNumber() {
@@ -399,6 +447,37 @@ class BlockStreamStateManagerTest {
         // when and then
         assertThatThrownBy(() -> blockStreamStateManager.addItem(
                         TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
+    }
+
+    @Test
+    void testCloseBlockForNonExistentBlockState() {
+        // given
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // when and then
+        assertThatThrownBy(() -> blockStreamStateManager.closeBlock(TEST_BLOCK_NUMBER))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
+    }
+
+    @Test
+    void testGetNonExistentBlockState() {
+        // given
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // when and then
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
+    }
+
+    @Test
+    void testStreamPreBlockProofItemsForNonExistentBlockState() {
+        // given
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // when and then
+        assertThatThrownBy(() -> blockStreamStateManager.streamPreBlockProofItems(TEST_BLOCK_NUMBER))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
     }
