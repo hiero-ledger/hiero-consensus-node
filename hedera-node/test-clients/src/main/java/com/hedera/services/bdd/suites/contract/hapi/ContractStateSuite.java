@@ -37,7 +37,7 @@ public class ContractStateSuite {
         final var contract = "ThreeSlots";
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).gas(7_000_000),
                 // Use slot 'b' only
                 contractCall(contract, "setAB", BigInteger.ZERO, BigInteger.ONE),
                 // Clear slot 'b', use slot 'a' (net-zero slot usage but first key impact)
