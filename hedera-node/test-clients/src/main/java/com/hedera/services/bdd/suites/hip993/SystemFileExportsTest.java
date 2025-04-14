@@ -31,13 +31,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.given;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingDirs;
@@ -61,7 +59,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -105,7 +103,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -170,40 +168,6 @@ public class SystemFileExportsTest {
                 cryptoCreate("secondUser").via("addressBookExport"),
                 // Trigger block closure to ensure block is closed
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
-    }
-
-    @GenesisHapiTest
-    final Stream<DynamicTest> syntheticAddressBookCreatedAtGenesis() {
-        final AtomicReference<Bytes> addressBookContent = new AtomicReference<>();
-        return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(visibleItems(
-                        validatorSpecificSysFileFor(addressBookContent, "files.addressBook", "genesisTxn"),
-                        "genesisTxn")),
-                sourcingContextual(spec ->
-                        getSystemFiles(spec.startupProperties().getLong("files.addressBook"), addressBookContent::set)),
-                cryptoCreate("firstUser").via("genesisTxn"),
-                // Assert the first created entity still has the expected number
-                withOpContext((spec, opLog) -> assertEquals(
-                        spec.startupProperties().getLong("hedera.firstUserEntity"),
-                        spec.registry().getAccountID("firstUser").getAccountNum(),
-                        "First user entity num doesn't match config")));
-    }
-
-    @GenesisHapiTest
-    final Stream<DynamicTest> syntheticNodeDetailsCreatedAtGenesis() {
-        final AtomicReference<Bytes> addressBookContent = new AtomicReference<>();
-        return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(visibleItems(
-                        validatorSpecificSysFileFor(addressBookContent, "files.nodeDetails", "genesisTxn"),
-                        "genesisTxn")),
-                sourcingContextual(spec ->
-                        getSystemFiles(spec.startupProperties().getLong("files.nodeDetails"), addressBookContent::set)),
-                cryptoCreate("firstUser").via("genesisTxn"),
-                // Assert the first created entity still has the expected number
-                withOpContext((spec, opLog) -> assertEquals(
-                        spec.startupProperties().getLong("hedera.firstUserEntity"),
-                        spec.registry().getAccountID("firstUser").getAccountNum(),
-                        "First user entity num doesn't match config")));
     }
 
     @GenesisHapiTest

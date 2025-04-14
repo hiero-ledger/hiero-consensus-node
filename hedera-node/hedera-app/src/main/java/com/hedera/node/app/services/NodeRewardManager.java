@@ -9,6 +9,7 @@ import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNe
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
+import static java.util.stream.Collectors.toMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -19,6 +20,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.metrics.NodeMetrics;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
@@ -36,6 +38,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.HashSet;
@@ -44,6 +47,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Manages the node rewards for the network. This includes tracking the number of rounds in the current staking
@@ -53,6 +58,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class NodeRewardManager {
+    private static final Logger log = LogManager.getLogger(NodeRewardManager.class);
     private final ConfigProvider configProvider;
     private final EntityIdFactory entityIdFactory;
     private final ExchangeRateManager exchangeRateManager;
@@ -62,15 +68,18 @@ public class NodeRewardManager {
     // The number of rounds each node missed creating judge. This is updated from state at the start of every round
     // and will be written back to state at the end of every block
     private final SortedMap<Long, Long> missedJudgeCounts = new TreeMap<>();
+    private final NodeMetrics metrics;
 
     @Inject
     public NodeRewardManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final EntityIdFactory entityIdFactory,
-            @NonNull final ExchangeRateManager exchangeRateManager) {
+            @NonNull final ExchangeRateManager exchangeRateManager,
+            @Nullable final NodeMetrics metrics) {
         this.configProvider = requireNonNull(configProvider);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
+        this.metrics = metrics;
     }
 
     public void onOpenBlock(@NonNull final State state) {
@@ -88,7 +97,8 @@ public class NodeRewardManager {
 
     /**
      * Updates node rewards state at the end of a block given the collected node fees.
-     * @param state the state
+     *
+     * @param state             the state
      * @param nodeFeesCollected the fees collected into node accounts in the block
      */
     public void onCloseBlock(@NonNull final State state, final long nodeFeesCollected) {
@@ -167,19 +177,20 @@ public class NodeRewardManager {
      * @param state              the state
      * @param now                the current consensus time
      * @param systemTransactions the system transactions
+     * @return whether the node rewards were paid
      */
-    public void maybeRewardActiveNodes(
+    public boolean maybeRewardActiveNodes(
             @NonNull final State state, @NonNull final Instant now, final SystemTransactions systemTransactions) {
         final var config = configProvider.getConfiguration();
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (!nodesConfig.nodeRewardsEnabled()) {
-            return;
+            return false;
         }
         final var lastNodeRewardsPaymentTime = classifyLastNodeRewardsPaymentTime(state, now);
         // If we're in the same staking period as the last time node rewards were paid, we don't
         // need to do anything
         if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.CURRENT_PERIOD) {
-            return;
+            return false;
         }
         final var writableStates = state.getWritableStates(TokenService.NAME);
         final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
@@ -191,6 +202,8 @@ public class NodeRewardManager {
                     requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
             final var activeNodeIds =
                     nodeRewardStore.getActiveNodeIds(currentRoster, nodesConfig.activeRoundsPercent());
+            // Update metrics for the nodes that were active in the last staking period
+            updateNodeMetrics(currentRoster, nodeRewardStore);
 
             // And pay whatever rewards the network can afford
             final var rewardsAccountId = entityIdFactory.newAccountId(
@@ -203,18 +216,18 @@ public class NodeRewardManager {
                     ? nodeRewardStore.get().nodeFeesCollected() / currentRoster.size()
                     : 0L;
 
-            final var targetPayInTinyCents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
+            final var targetPayInTinycents = BigInteger.valueOf(nodesConfig.targetYearlyNodeRewardsUsd())
                     .multiply(USD_TO_TINYCENTS.toBigInteger())
                     .divide(BigInteger.valueOf(nodesConfig.numPeriodsToTargetUsd()));
-            final var minimumRewardInTinyCents = exchangeRateManager.getTinybarsFromTinyCents(
+            final var minimumRewardInTinycents = exchangeRateManager.getTinybarsFromTinycents(
                     Math.max(
                             0L,
                             BigInteger.valueOf(nodesConfig.minPerPeriodNodeRewardUsd())
                                     .multiply(USD_TO_TINYCENTS.toBigInteger())
                                     .longValue()),
                     now);
-            final long nodeReward = exchangeRateManager.getTinybarsFromTinyCents(targetPayInTinyCents.longValue(), now);
-            final var perActiveNodeReward = Math.max(minimumRewardInTinyCents, nodeReward - prePaidRewards);
+            final long nodeReward = exchangeRateManager.getTinybarsFromTinycents(targetPayInTinycents.longValue(), now);
+            final var perActiveNodeReward = Math.max(minimumRewardInTinycents, nodeReward - prePaidRewards);
 
             systemTransactions.dispatchNodeRewards(
                     state,
@@ -223,7 +236,7 @@ public class NodeRewardManager {
                     perActiveNodeReward,
                     rewardsAccountId,
                     rewardAccountBalance,
-                    minimumRewardInTinyCents,
+                    minimumRewardInTinycents,
                     rosterStore.getActiveRoster().rosterEntries());
         }
         // Record this as the last time node rewards were paid
@@ -236,6 +249,22 @@ public class NodeRewardManager {
         nodeRewardStore.resetForNewStakingPeriod();
         resetNodeRewards();
         ((CommittableWritableStates) writableStates).commit();
+        return true;
+    }
+
+    private void updateNodeMetrics(
+            final List<RosterEntry> rosterEntries, final WritableNodeRewardsStoreImpl nodeRewardStore) {
+        final long roundsLastPeriod = nodeRewardStore.get().numRoundsInStakingPeriod();
+        metrics.registerNodeMetrics(rosterEntries);
+        final var missedJudgeCounts = nodeRewardStore.get().nodeActivities().stream()
+                .collect(toMap(NodeActivity::nodeId, NodeActivity::numMissedJudgeRounds));
+        rosterEntries.forEach(node -> {
+            final var nodeId = node.nodeId();
+            final var missedJudges = missedJudgeCounts.getOrDefault(nodeId, 0L);
+            final var activeRounds = Math.max(roundsLastPeriod - missedJudges, 0);
+            final var activePercent = activeRounds == 0 ? 0 : ((double) ((activeRounds * 100) / roundsLastPeriod));
+            metrics.updateNodeActiveMetrics(nodeId, activePercent);
+        });
     }
 
     /**

@@ -74,8 +74,9 @@ public class ThrottleServiceManager {
      */
     public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions) {
         requireNonNull(state);
-        // Apply configuration for gas throttles
+        // Apply configuration for gas and bytes throttles
         applyGasConfig();
+        applyBytesConfig();
         // Create backend/frontend throttles from the configured system file
         rebuildThrottlesFrom(throttleDefinitions);
         // Reset multiplier expectations
@@ -114,6 +115,7 @@ public class ThrottleServiceManager {
      */
     public void refreshThrottleConfiguration() {
         applyGasConfig();
+        applyBytesConfig();
         congestionMultipliers.resetExpectations();
     }
 
@@ -186,6 +188,10 @@ public class ThrottleServiceManager {
     private void applyGasConfig() {
         ingestThrottle.applyGasConfig();
         backendThrottle.applyGasConfig();
+    }
+
+    private void applyBytesConfig() {
+        ingestThrottle.applyBytesConfig();
     }
 
     private void syncFromCongestionLevelStarts(@NonNull final ReadableStates serviceStates) {

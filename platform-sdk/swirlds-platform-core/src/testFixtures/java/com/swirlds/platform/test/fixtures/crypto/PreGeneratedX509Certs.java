@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.crypto;
 
 import static com.swirlds.platform.crypto.CryptoStatic.generateKeysAndCerts;
-import static org.hiero.consensus.utility.test.fixtures.RandomUtils.getRandom;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandom;
 
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
@@ -40,8 +40,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

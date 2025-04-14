@@ -6,9 +6,9 @@ import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.crypto.TransactionSignature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.crypto.SerializableHashable;
-import org.hiero.consensus.model.io.SelfSerializable;
 
 public class DoNothingCryptoEngine implements Cryptography {
 

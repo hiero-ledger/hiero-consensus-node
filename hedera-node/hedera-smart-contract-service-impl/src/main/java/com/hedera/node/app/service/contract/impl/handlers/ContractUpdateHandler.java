@@ -191,7 +191,7 @@ public class ContractUpdateHandler implements TransactionHandler {
                 op.hasExpirationTime() ? op.expirationTimeOrThrow().seconds() : NA,
                 op.hasAutoRenewPeriod() ? op.autoRenewPeriodOrThrow().seconds() : NA,
                 null);
-        context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta, false);
+        context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta);
 
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)

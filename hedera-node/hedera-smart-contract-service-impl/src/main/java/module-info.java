@@ -26,7 +26,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive tuweni.units;
     requires com.swirlds.base;
     requires com.swirlds.common;
-    requires org.hiero.consensus.model;
+    requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires com.google.protobuf;

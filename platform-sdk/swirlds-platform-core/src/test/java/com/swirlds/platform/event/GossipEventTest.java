@@ -15,16 +15,17 @@ import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.Test;
 
 public class GossipEventTest {
 
     /**
      * Tests the serialization of a {@link GossipEvent} object alonside legacy
-     * {@link org.hiero.consensus.model.io.SelfSerializable} objects.
+     * {@link SelfSerializable} objects.
      */
     @Test
     void pbjSerializationTest() throws IOException {
