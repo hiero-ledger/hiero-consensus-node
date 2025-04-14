@@ -157,7 +157,7 @@ class TipsetWeightCalculatorTests {
             latestEvents.put(creator, event);
 
             if (creator.equals(selfId)) {
-                tipsetTracker.addSelfEvent(toUnsignedEvent(event));
+                tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
             } else {
                 tipsetTracker.addPeerEvent(event);
             }
@@ -255,7 +255,7 @@ class TipsetWeightCalculatorTests {
 
         // Each node creates an event.
         final PlatformEvent eventA1 = newEvent(random, nodeA, 1);
-        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA1));
+        tipsetTracker.addSelfEvent(eventA1.getDescriptor(), eventA1.getAllParents());
         final PlatformEvent eventB1 = newEvent(random, nodeB, 1);
         tipsetTracker.addPeerEvent(eventB1);
         childlessEventTracker.addEvent(eventB1);
@@ -272,7 +272,7 @@ class TipsetWeightCalculatorTests {
 
         // Each node creates another event. All nodes use all available other parents except the event from D.
         final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1, eventC1));
-        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA2));
+        tipsetTracker.addSelfEvent(eventA2.getDescriptor(), eventA2.getAllParents());
         final PlatformEvent eventB2 = newEvent(random, 2, eventB1, List.of(eventA1, eventC1));
         tipsetTracker.addPeerEvent(eventB2);
         childlessEventTracker.addEvent(eventB2);
@@ -303,7 +303,7 @@ class TipsetWeightCalculatorTests {
 
         // Create another batch of events where D is bullied.
         final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventB2, eventC2));
-        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA3));
+        tipsetTracker.addSelfEvent(eventA3.getDescriptor(), eventA3.getAllParents());
         final PlatformEvent eventB3 = newEvent(random, 3, eventB2, List.of(eventA2, eventC2));
         tipsetTracker.addPeerEvent(eventB3);
         childlessEventTracker.addEvent(eventB3);
@@ -332,7 +332,7 @@ class TipsetWeightCalculatorTests {
 
         // Create a batch of events that don't ignore D. Let's all ignore C, because C is a jerk.
         final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventB3, eventD3));
-        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA4));
+        tipsetTracker.addSelfEvent(eventA4.getDescriptor(), eventA4.getAllParents());
         final PlatformEvent eventB4 = newEvent(random, 4, eventB3, List.of(eventA3, eventD3));
         tipsetTracker.addPeerEvent(eventB4);
         childlessEventTracker.addEvent(eventB4);
@@ -361,7 +361,7 @@ class TipsetWeightCalculatorTests {
 
         // Stop ignoring C. D stops creating events.
         final PlatformEvent eventA5 = newEvent(random, 5, eventA4, List.of(eventB4, eventC4, eventD4));
-        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA5));
+        tipsetTracker.addSelfEvent(eventA5.getDescriptor(), eventA5.getAllParents());
         final PlatformEvent eventB5 = newEvent(random, 5, eventB4, List.of(eventA4, eventC4, eventD4));
         tipsetTracker.addPeerEvent(eventB5);
         childlessEventTracker.addEvent(eventB5);
@@ -387,7 +387,7 @@ class TipsetWeightCalculatorTests {
         // D still is not creating events. Since there is no legal event from D to use as a parent, this doesn't
         // count as being selfish.
         final PlatformEvent eventA6 = newEvent(random, 6, eventA5, List.of(eventB5, eventC5));
-        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA6));
+        tipsetTracker.addSelfEvent(eventA6.getDescriptor(), eventA6.getAllParents());
         final PlatformEvent eventB6 = newEvent(random, 6, eventB5, List.of(eventA5, eventC5));
         tipsetTracker.addPeerEvent(eventB6);
         childlessEventTracker.addEvent(eventB6);
@@ -412,7 +412,7 @@ class TipsetWeightCalculatorTests {
 
         // Rinse and repeat.
         final PlatformEvent eventA7 = newEvent(random, 7, eventA6, List.of(eventB6, eventC6));
-        tipsetTracker.addSelfEvent(toUnsignedEvent(eventA7));
+        tipsetTracker.addSelfEvent(eventA7.getDescriptor(), eventA7.getAllParents());
         final PlatformEvent eventB7 = newEvent(random, 7, eventB6, List.of(eventA6, eventC6));
         tipsetTracker.addPeerEvent(eventB7);
         childlessEventTracker.addEvent(eventB7);
@@ -480,7 +480,7 @@ class TipsetWeightCalculatorTests {
 
         // Each node creates an event.
         final PlatformEvent eventA1 = newEvent(random, nodeA, 1);
-        builder.addSelfEvent(toUnsignedEvent(eventA1));
+        builder.addSelfEvent(eventA1.getDescriptor(), eventA1.getAllParents());
         final PlatformEvent eventB1 = newEvent(random, nodeB, 1);
         builder.addPeerEvent(eventB1);
         final PlatformEvent eventC1 = newEvent(random, nodeC, 1);
@@ -506,7 +506,7 @@ class TipsetWeightCalculatorTests {
         // on top of a zero stake node will not contribute to this and the snapshot will not
         // advance. Build on top of node D.
         final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventD1));
-        builder.addSelfEvent(toUnsignedEvent(eventA3));
+        builder.addSelfEvent(eventA3.getDescriptor(), eventA3.getAllParents());
         final TipsetAdvancementWeight advancement2 = calculator.addEventAndGetAdvancementWeight(
                 eventA3.getDescriptor());
         assertEquals(TipsetAdvancementWeight.of(0, 1), advancement2);
@@ -516,7 +516,7 @@ class TipsetWeightCalculatorTests {
 
         // Now, build on top of C. This should push us into the next snapshot.
         final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventC1));
-        builder.addSelfEvent(toUnsignedEvent(eventA4));
+        builder.addSelfEvent(eventA4.getDescriptor(), eventA4.getAllParents());
         final TipsetAdvancementWeight advancement3 = calculator.addEventAndGetAdvancementWeight(
                 eventA4.getDescriptor());
         assertEquals(TipsetAdvancementWeight.of(1, 0), advancement3);
@@ -554,7 +554,7 @@ class TipsetWeightCalculatorTests {
 
         // Create generation 1 events.
         final PlatformEvent eventA0 = newEvent(random, nodeA, 0);
-        builder.addSelfEvent(toUnsignedEvent(eventA0));
+        builder.addSelfEvent(eventA0.getDescriptor(), eventA0.getAllParents());
         final PlatformEvent eventB0 = newEvent(random, nodeB, 0);
         builder.addPeerEvent(eventB0);
         final PlatformEvent eventC0 = newEvent(random, nodeC, 0);
@@ -587,7 +587,7 @@ class TipsetWeightCalculatorTests {
         assertDoesNotThrow(() -> {
             final PlatformEvent eventA1 = newEvent(random, 1, eventA0, List.of(eventB0, eventC0, eventD0));
             calculator.getTheoreticalAdvancementWeight(eventA1.getAllParents());
-            builder.addSelfEvent(toUnsignedEvent(eventA1));
+            builder.addSelfEvent(eventA1.getDescriptor(), eventA1.getAllParents());
             calculator.addEventAndGetAdvancementWeight(eventA1.getDescriptor());
         });
     }

@@ -167,14 +167,15 @@ public class TipsetEventCreator implements EventCreator {
                 // to learn of self events for the first time here if we are loading from a restart or reconnect.
                 lastSelfEvent = event;
                 childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
+                tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
             } else {
                 // We already ingested this self event (when it was created),
                 // or it is older than the event we are already tracking.
                 return;
             }
+        } else {
+            tipsetTracker.addPeerEvent(event);
         }
-
-        tipsetTracker.addPeerEvent(event);
 
         if (!selfEvent) {
             childlessOtherEventTracker.addEvent(event);
@@ -260,8 +261,14 @@ public class TipsetEventCreator implements EventCreator {
         PlatformEvent bestOtherParent = null;
         TipsetAdvancementWeight bestAdvancementWeight = ZERO_ADVANCEMENT_WEIGHT;
         for (final PlatformEvent otherParent : possibleOtherParents) {
-            final TipsetAdvancementWeight advancementWeight = tipsetWeightCalculator.getTheoreticalAdvancementWeight(
-                    List.of(lastSelfEvent.getDescriptor(), otherParent.getDescriptor()));
+            final List<EventDescriptorWrapper> parents = new ArrayList<>(2);
+            parents.add(otherParent.getDescriptor());
+            if (lastSelfEvent != null) {
+                parents.add(lastSelfEvent.getDescriptor());
+            }
+
+            final TipsetAdvancementWeight advancementWeight =
+                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(parents);
             if (advancementWeight.isGreaterThan(bestAdvancementWeight)) {
                 bestOtherParent = otherParent;
                 bestAdvancementWeight = advancementWeight;
@@ -368,7 +375,7 @@ public class TipsetEventCreator implements EventCreator {
     private UnsignedEvent buildAndProcessEvent(@Nullable final EventDescriptorWrapper otherParent) {
         final UnsignedEvent event = assembleEventObject(otherParent);
 
-        tipsetTracker.addSelfEvent(event);
+        tipsetTracker.addSelfEvent(event.getDescriptor(), event.getMetadata().getAllParents());
         final TipsetAdvancementWeight advancementWeight =
                 tipsetWeightCalculator.addEventAndGetAdvancementWeight(event.getDescriptor());
         final double weightRatio = advancementWeight.advancementWeight()

@@ -125,7 +125,7 @@ class TipsetTrackerTests {
 
             final Tipset newTipset;
             if (creator.equals(selfId)) {
-                newTipset = tracker.addSelfEvent(toUnsignedEvent(event));
+                newTipset = tracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
             } else {
                 newTipset = tracker.addPeerEvent(event);
             }

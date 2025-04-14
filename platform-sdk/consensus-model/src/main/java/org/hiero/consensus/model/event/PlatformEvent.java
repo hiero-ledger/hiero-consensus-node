@@ -210,15 +210,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Determines if the nGen value of this event is set.
-     *
-     * @return {@code true} if the value is set, {@code false} otherwise
-     */
-    public boolean isNGenSet() {
-        return getNGen() > EventConstants.GENERATION_UNDEFINED;
-    }
-
-    /**
      * Get the birth round of the event.
      *
      * @return the birth round of the event
@@ -394,6 +385,10 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @NonNull
     public List<EventDescriptorWrapper> getOtherParents() {
         return metadata.getOtherParents();
+    }
+
+    public boolean hasOtherParent() {
+        return metadata.hasOtherParent();
     }
 
     /** @return a list of all parents, self parent (if any), + all other parents */

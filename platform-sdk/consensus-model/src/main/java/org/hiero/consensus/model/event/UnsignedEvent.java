@@ -48,7 +48,6 @@ public class UnsignedEvent implements Hashable {
      * @param selfParent      self parent event descriptor
      * @param otherParents    other parent event descriptors
      * @param birthRound      the round in which this event was created.
-     * @param nGen            the non-deterministic generation of this event
      * @param timeCreated     creation time, as claimed by its creator
      * @param transactions    list of transactions included in this event instance
      */

@@ -107,11 +107,12 @@ public class TipsetTracker {
      * @return the tipset for the new self event
      */
     @NonNull
-    public Tipset addSelfEvent(@NonNull final UnsignedEvent event) {
-        logIfNotSelfEvent(event.getDescriptor());
-        logIfAncient(event.getDescriptor());
+    public Tipset addSelfEvent(@NonNull final EventDescriptorWrapper selfEventDesc,
+            @NonNull final List<EventDescriptorWrapper> parents) {
+        logIfNotSelfEvent(selfEventDesc);
+        logIfAncient(selfEventDesc);
 
-        final List<Tipset> parentTipsets = getParentTipsets(event.getMetadata().getAllParents());
+        final List<Tipset> parentTipsets = getParentTipsets(parents);
 
         // Do not advance the self generation in the tipset for two reasons:
         // 1. We just created this event, and it does not yet have a generation to use because it
@@ -124,7 +125,7 @@ public class TipsetTracker {
             eventTipset = merge(parentTipsets);
         }
 
-        tipsets.put(event.getDescriptor(), eventTipset);
+        tipsets.put(selfEventDesc, eventTipset);
 
         return eventTipset;
     }
@@ -236,5 +237,10 @@ public class TipsetTracker {
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
         latestGenerations = new Tipset(roster);
         tipsets.clear();
+    }
+
+    // TODO remove this
+    public SequenceMap<EventDescriptorWrapper, Tipset> getTipsets() {
+        return tipsets;
     }
 }
