@@ -89,7 +89,7 @@ public class V0490FileSchema extends Schema {
      * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
      * not found.
      */
-    private static final String DEFAULT_THROTTLES_RESOURCE = "genesis/throttles.json";
+    private static final String DEFAULT_THROTTLES_RESOURCE = "/genesis/throttles.json";
 
     /**
      * A hint to the database system of the maximum number of files we will store. This MUST NOT BE CHANGED. If it is
@@ -274,7 +274,7 @@ public class V0490FileSchema extends Schema {
      */
     public Bytes genesisFeeSchedules(@NonNull final Configuration config) {
         final var resourceName = config.getConfigData(BootstrapConfig.class).feeSchedulesJsonResource();
-        try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+        try (final var in = V0490FileSchema.class.getResourceAsStream(resourceName)) {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
@@ -587,8 +587,7 @@ public class V0490FileSchema extends Schema {
 
         if (throttleDefinitionsContent == null) {
             // Load the default throttle definitions resource
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(DEFAULT_THROTTLES_RESOURCE)) {
+            try (final var in = V0490FileSchema.class.getResourceAsStream(DEFAULT_THROTTLES_RESOURCE)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info(
                         "Throttle definitions loaded from default fallback classpath resource {}",

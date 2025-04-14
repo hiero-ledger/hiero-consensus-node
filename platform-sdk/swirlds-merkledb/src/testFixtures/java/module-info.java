@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.merkledb.test.fixtures {
     exports com.swirlds.merkledb.test.fixtures;
+    exports com.swirlds.merkledb.test.fixtures.files;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.common;

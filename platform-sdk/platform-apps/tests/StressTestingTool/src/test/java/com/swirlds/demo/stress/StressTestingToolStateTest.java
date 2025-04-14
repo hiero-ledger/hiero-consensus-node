@@ -12,7 +12,7 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.internal.MerkleCryptoEngine;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -97,7 +97,7 @@ class StressTestingToolStateTest {
                 .withConfigDataType(StressTestingToolConfig.class)
                 .build();
         final var metrics = mock(DefaultPlatformMetrics.class);
-        final var cryptography = mock(MerkleCryptoEngine.class);
+        final var cryptography = mock(MerkleCryptography.class);
         when(platform.getContext()).thenReturn(platformContext);
         when(platformContext.getConfiguration()).thenReturn(config);
         when(platformContext.getMetrics()).thenReturn(metrics);

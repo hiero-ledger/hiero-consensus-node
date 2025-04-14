@@ -24,6 +24,7 @@ testModuleInfo {
     requires("com.google.protobuf")
     requires("com.google.common.jimfs")
     requires("com.hedera.node.app")
+    requires("com.hedera.node.app.test.fixtures")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.config.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
@@ -43,6 +44,10 @@ testModuleInfo {
     requires("tuweni.bytes")
     requires("uk.org.webcompere.systemstubs.core")
     requires("uk.org.webcompere.systemstubs.jupiter")
+
+    exportsTo("org.hiero.base.utility") // access package "utils" (maybe rename to "util")
+    opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
+    opensTo("com.swirlds.common") // instantiation via reflection
 }
 
 jmhModuleInfo {
