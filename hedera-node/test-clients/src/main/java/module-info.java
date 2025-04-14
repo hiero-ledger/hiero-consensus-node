@@ -89,6 +89,7 @@ module com.hedera.node.test.clients {
     requires com.swirlds.state.api;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
+    requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
     requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;

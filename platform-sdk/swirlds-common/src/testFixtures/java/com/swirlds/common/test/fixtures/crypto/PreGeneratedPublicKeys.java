@@ -8,7 +8,7 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.List;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class PreGeneratedPublicKeys {
     public static List<String> rsaPublicKeys = List.of(

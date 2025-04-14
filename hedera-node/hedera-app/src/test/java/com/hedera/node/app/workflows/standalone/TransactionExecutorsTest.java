@@ -43,9 +43,10 @@ import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
@@ -73,7 +74,6 @@ import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -396,11 +396,7 @@ public class TransactionExecutorsTest {
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
                 new AppThrottleFactory(
-                        () -> config,
-                        () -> state,
-                        () -> ThrottleDefinitions.DEFAULT,
-                        ThrottleAccumulator::new,
-                        v -> new ServicesSoftwareVersion()),
+                        () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
         registerServices(appContext, servicesRegistry);
@@ -410,8 +406,7 @@ public class TransactionExecutorsTest {
                 state,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion()),
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
                 NO_OP_METRICS,
@@ -430,7 +425,8 @@ public class TransactionExecutorsTest {
         ((CommittableWritableStates) nodeWritableStates).commit();
         final var writableStates = state.getWritableStates(FileService.NAME);
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
-        final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
+        entityIdStore.adjustEntityCount(EntityType.NODE, 1);
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.BLOBS_KEY);
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {

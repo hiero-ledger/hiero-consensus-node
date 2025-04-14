@@ -15,6 +15,7 @@ tasks.withType<JavaCompile>().configureEach {
 application.mainClass = "com.swirlds.demo.platform.PlatformTestingToolMain"
 
 testModuleInfo {
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.apache.logging.log4j.core")
     requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.params")

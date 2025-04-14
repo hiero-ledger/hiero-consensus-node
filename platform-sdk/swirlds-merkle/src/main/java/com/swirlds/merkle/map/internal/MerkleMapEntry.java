@@ -8,7 +8,7 @@ import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
 import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.merkle.map.MerkleMap;
 import java.util.Objects;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * A wrapper class designed to be used as a value in a {@link MerkleMap MerkleMap}. Useful when it is inconvenient to

@@ -24,9 +24,9 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.zip.GZIPInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A Record File Version 6 Reader that can be used in tests to read record files and validate then and return the contents

@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.emitter.CollectingEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
@@ -21,6 +20,7 @@ import com.swirlds.platform.test.fixtures.event.emitter.PriorityEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.ShuffledEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;

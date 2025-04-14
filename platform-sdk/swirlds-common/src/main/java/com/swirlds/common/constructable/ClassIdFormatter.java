@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.constructable;
 
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
-import org.hiero.consensus.model.io.SerializableDet;
+import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.io.SerializableDet;
 
 /**
  * This class provides utility methods for converting class IDs into human readable strings.

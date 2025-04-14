@@ -2,7 +2,7 @@
 package com.swirlds.common.constructable;
 
 import java.util.function.Supplier;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
  * A central registry of constructors for {@link RuntimeConstructable} classes. This central registry has a set of

@@ -148,6 +148,7 @@ public class PlatformWiring {
     private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
+    private OutputWire<ReservedSignedState> allReservedSignedStatesWire;
 
     /**
      * Constructor.
@@ -470,7 +471,7 @@ public class PlatformWiring {
                 .getOutputWire()
                 .buildSplitter("reservedStateSplitter", "reserved state lists");
         // Add another reservation to the signed states since we are soldering to two different input wires
-        final OutputWire<ReservedSignedState> allReservedSignedStatesWire =
+        allReservedSignedStatesWire =
                 splitReservedSignedStateWire.buildAdvancedTransformer(new SignedStateReserver("allStatesReserver"));
 
         // Future work: this should be a full component in its own right or folded in with the state file manager.
@@ -854,6 +855,16 @@ public class PlatformWiring {
     @NonNull
     public ComponentWiring<AppNotifier, Void> getNotifierWiring() {
         return notifierWiring;
+    }
+
+    /**
+     * Get output wiring streaming ReservedSignedState instances that are coming from `{@link StateSignatureCollector}`.
+     *
+     * @return output wiring that contains split and reserved signed states
+     */
+    @NonNull
+    public OutputWire<ReservedSignedState> getReservedSignedStateCollectorOutputWire() {
+        return allReservedSignedStatesWire;
     }
 
     /**

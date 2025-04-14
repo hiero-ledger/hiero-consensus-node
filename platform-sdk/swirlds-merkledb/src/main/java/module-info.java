@@ -17,6 +17,7 @@ open module com.swirlds.merkledb {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
     requires com.swirlds.config.extensions;
