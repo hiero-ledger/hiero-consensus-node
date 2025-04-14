@@ -193,6 +193,7 @@ class TipsetEventCreatorTests {
                     .addEventAndGetAdvancementWeight(descriptor)
                     .isNonZero());
         } else {
+            // TODO the instance of the tipset tracker is not the same between the event creator and the tipsetwegith calculator, real vs. simulated
             simulatedNode.tipsetWeightCalculator.addEventAndGetAdvancementWeight(descriptor);
         }
 
@@ -652,10 +653,10 @@ class TipsetEventCreatorTests {
      * that they do not get transitive tipset score improvements by using it.
      */
     @ParameterizedTest
-    @CsvSource({"false, false"})//, "false, true", "true, false", "true, true"})
+    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
     @DisplayName("Zero Weight Slow Node Test")
     void zeroWeightSlowNodeTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed(0L);
+        final Random random = getRandomPrintSeed();
 
         final int networkSize = 3;
 
@@ -737,8 +738,10 @@ class TipsetEventCreatorTests {
                         assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                     } else {
                         // Most of the time, we don't immediately distribute the slow events.
-                        final PlatformEvent linkedEvent = assignNGen(nodes, allEvents, newEvent);
-                        slowNodeEvents.add(linkedEvent);
+                        assignNGen(nodes, allEvents, newEvent);
+                        // Register the event with the creator node's test tipsetTracker
+                        nodes.get(nodeId).tipsetTracker.addSelfEvent(newEvent.getDescriptor(), newEvent.getAllParents());
+                        slowNodeEvents.add(newEvent);
                     }
                 } else {
                     // immediately distribute all events not created by the zero stake node
