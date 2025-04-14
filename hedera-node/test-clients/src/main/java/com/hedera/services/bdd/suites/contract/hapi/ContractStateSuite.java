@@ -76,7 +76,8 @@ public class ContractStateSuite {
                                                 .map(type -> contractCall(
                                                         CONTRACT, "setVar" + type, integralTypes.get(type))),
                                         Stream.of(contractCall(CONTRACT, "setVarAddress", randomHeadlongAddress())),
-                                        Stream.of(contractCall(CONTRACT, "setVarContractType")),
+                                        Stream.of(contractCall(CONTRACT, "setVarContractType")
+                                                .gas(5_000_000)),
                                         Stream.of(contractCall(CONTRACT, "setVarBytes32", randomBytes32())),
                                         Stream.of(contractCall(CONTRACT, "setVarString", randomString())),
                                         Stream.of(contractCall(CONTRACT, "setVarEnum", randomEnum())),

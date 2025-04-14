@@ -34,10 +34,10 @@ import org.junit.jupiter.api.TestMethodOrder;
 @TestMethodOrder(OrderAnnotation.class)
 public class TransferTokenTest {
 
-    @Contract(contract = "TokenTransferContract", creationGas = 1_000_000L)
+    @Contract(contract = "TokenTransferContract", creationGas = 4_000_000L)
     static SpecContract tokenTransferContract;
 
-    @Contract(contract = "NestedHTSTransferrer", creationGas = 1_000_000L)
+    @Contract(contract = "NestedHTSTransferrer", creationGas = 4_000_000L)
     static SpecContract tokenReceiverContract;
 
     @FungibleToken(name = "fungibleToken")

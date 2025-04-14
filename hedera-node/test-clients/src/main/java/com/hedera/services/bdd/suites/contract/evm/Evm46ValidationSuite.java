@@ -1122,7 +1122,7 @@ public class Evm46ValidationSuite {
         final var withAmount = "makeCallWithAmount";
         return hapiTest(
                 uploadInitCode(MAKE_CALLS_CONTRACT),
-                contractCreate(MAKE_CALLS_CONTRACT).gas(GAS_LIMIT_FOR_CALL * 4),
+                contractCreate(MAKE_CALLS_CONTRACT).gas(400_000L),
                 balanceSnapshot("initialBalance", MAKE_CALLS_CONTRACT),
                 contractCall(
                                 MAKE_CALLS_CONTRACT,
@@ -1145,7 +1145,7 @@ public class Evm46ValidationSuite {
         final var withoutAmount = "makeCallWithoutAmount";
         return hapiTest(
                 uploadInitCode(MAKE_CALLS_CONTRACT),
-                contractCreate(MAKE_CALLS_CONTRACT).gas(GAS_LIMIT_FOR_CALL * 4),
+                contractCreate(MAKE_CALLS_CONTRACT).gas(400_000L),
                 balanceSnapshot("initialBalance", MAKE_CALLS_CONTRACT),
                 contractCall(
                                 MAKE_CALLS_CONTRACT,
