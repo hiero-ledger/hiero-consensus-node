@@ -45,7 +45,7 @@ public class ContractStateSuite {
                 // And now use slot 'c' (will trigger ERROR log unless first key is 'a')
                 contractCall(contract, "setC", BigInteger.ONE),
                 // Ensure there are still no problems in the logs
-                validateAnyLogAfter(Duration.ofMillis(250)));
+                validateAnyLogAfter(Duration.ofMillis(450)));
     }
 
     @HapiTest
