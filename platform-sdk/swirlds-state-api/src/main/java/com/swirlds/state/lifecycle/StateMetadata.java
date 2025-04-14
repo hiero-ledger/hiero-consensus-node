@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
-import static org.hiero.consensus.model.utility.CommonUtils.getNormalisedStringBytes;
+import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.utility.NonCryptographicHashing;

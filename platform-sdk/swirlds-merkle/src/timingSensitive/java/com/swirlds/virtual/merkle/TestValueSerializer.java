@@ -4,7 +4,7 @@ package com.swirlds.virtual.merkle;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class TestValueSerializer implements ValueSerializer<TestValue> {
 

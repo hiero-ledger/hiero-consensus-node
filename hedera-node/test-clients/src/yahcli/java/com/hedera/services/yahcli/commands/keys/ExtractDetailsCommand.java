@@ -18,7 +18,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.util.concurrent.Callable;
 import javax.crypto.ShortBufferException;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(
