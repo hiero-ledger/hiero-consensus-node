@@ -5,11 +5,10 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 
 /** Sorts consensus events into their consensus order */
-public class ConsensusSorter implements Comparator<EventImpl> {
+public class ConsensusSorter {
     /** an XOR of the hashes of unique famous witnesses in a round, used during sorting */
     final byte[] whitening;
 
@@ -20,12 +19,17 @@ public class ConsensusSorter implements Comparator<EventImpl> {
         this.whitening = whitening;
     }
 
+    public void sort(@NonNull final List<EventImpl> events) {
+        LocalConsensusGeneration.assignCGen(events);
+        events.sort(this::compare);
+        LocalConsensusGeneration.clearCGen(events);
+    }
+
     /**
      * consensus order is to sort by roundReceived, then consensusTimestamp, then generation, then
      * whitened signature.
      */
-    @Override
-    public int compare(@NonNull final EventImpl e1, @NonNull final EventImpl e2) {
+    private int compare(@NonNull final EventImpl e1, @NonNull final EventImpl e2) {
         int c;
 
         // sort by consensus timestamp
@@ -50,7 +54,7 @@ public class ConsensusSorter implements Comparator<EventImpl> {
         }
 
         // subsort ties by generation
-        c = Long.compare(e1.getGeneration(), e2.getGeneration());
+        c = Long.compare(e1.getCGen(), e2.getCGen());
         if (c != 0) {
             return c;
         }

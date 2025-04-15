@@ -14,7 +14,7 @@ import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
 import com.swirlds.platform.gui.GuiEventStorage;
-import com.swirlds.platform.gui.SimpleLinker;
+import com.swirlds.platform.event.linking.SimpleLinker;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.internal.EventImpl;

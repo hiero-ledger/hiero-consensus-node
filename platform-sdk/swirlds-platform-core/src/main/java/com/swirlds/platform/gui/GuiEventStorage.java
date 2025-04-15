@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui;
 
+import com.swirlds.platform.event.linking.SimpleLinker;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;

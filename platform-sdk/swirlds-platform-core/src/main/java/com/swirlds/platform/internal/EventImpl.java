@@ -80,6 +80,9 @@ public class EventImpl implements Clearable {
      */
     private boolean[] votes;
 
+    /** Local consensus generation, for more info, see {@link com.swirlds.platform.consensus.LocalConsensusGeneration} */
+    private int cGen;
+
     public EventImpl(
             @NonNull final PlatformEvent platformEvent,
             @Nullable final EventImpl selfParent,
@@ -535,6 +538,27 @@ public class EventImpl implements Clearable {
     @NonNull
     public NodeId getCreatorId() {
         return baseEvent.getCreatorId();
+    }
+
+
+    /**
+     * Returns the local consensus generation (cGen) of this event.
+     *
+     * @return the local consensus generation
+     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     */
+    public int getCGen() {
+        return cGen;
+    }
+
+    /**
+     * Sets the local consensus generation (cGen) of this event.
+     *
+     * @param cGen the local consensus generation to set
+     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     */
+    public void setCGen(final int cGen) {
+        this.cGen = cGen;
     }
 
     //

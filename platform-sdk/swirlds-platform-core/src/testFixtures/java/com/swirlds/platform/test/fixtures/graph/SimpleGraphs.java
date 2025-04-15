@@ -42,11 +42,6 @@ public class SimpleGraphs {
                 .setSelfParent(e1)
                 .setOtherParent(e2)
                 .build();
-        System.out.println("e0 " + e0.getDescriptor());
-        System.out.println("e1 " + e1.getDescriptor());
-        System.out.println("e2 " + e2.getDescriptor());
-        System.out.println("e3 " + e3.getDescriptor());
-        System.out.println("e4 " + e4.getDescriptor());
         return List.of(e0, e1, e2, e3, e4);
     }
 
