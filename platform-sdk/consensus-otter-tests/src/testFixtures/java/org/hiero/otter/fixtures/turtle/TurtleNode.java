@@ -104,6 +104,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         log.info(
                 "Dump of node {}: {}",
                 nodeId,
-                turtleNode.getConsensusRoundsTestCollector().getCollectedRounds());
+                turtleNode.getConsensusRoundsHolder().getCollectedRounds());
     }
 }
