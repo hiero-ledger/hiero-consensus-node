@@ -65,7 +65,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
             rootLoggerConfig.setLevel(org.apache.logging.log4j.Level.ALL);
 
             final Layout<?> layout = PatternLayout.newBuilder()
-                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg %X%n")
+                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%X] [%t] %-5level %logger{36} - %msg %n")
                     .withConfiguration(loggerContextConfig)
                     .build();
 
