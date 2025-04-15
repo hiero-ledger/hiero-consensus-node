@@ -63,6 +63,7 @@ class AliasUtilsTest {
 
     @Test
     void isOfEvmAddressSizeReturnsFalseForNonEvmAddress() {
+        // An EVM address is _derived from_ the public key, but is not equal to it
         var nonEvmAddress = Bytes.wrap(HexFormat.of().parseHex(SAMPLE_ECDSA_PUBLIC_KEY));
         assertFalse(AliasUtils.isOfEvmAddressSize(nonEvmAddress));
     }
