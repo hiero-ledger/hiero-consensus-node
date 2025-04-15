@@ -22,8 +22,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
@@ -974,12 +972,12 @@ class VirtualMapTests extends VirtualTestBase {
         assertVirtualMapsEqual(map0, map1);
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
+        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         // serialize the existing maps
         map0.serialize(out, testDirectory);
 
-        final SerializableDataInputStream in =
-                new SerializableDataInputStreamImpl(new ByteArrayInputStream(byteOut.toByteArray()));
+        final org.hiero.base.io.streams.SerializableDataInputStream in =
+                new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final VirtualMap<TestKey, TestValue> map2 = createMap();
         // read the serialized map back into map2

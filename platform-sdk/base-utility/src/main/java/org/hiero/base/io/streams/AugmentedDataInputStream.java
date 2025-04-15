@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.streams;
+package org.hiero.base.io.streams;
 
-import static com.swirlds.common.io.streams.SerializableStreamConstants.DEFAULT_CHECKSUM;
-import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_INSTANT_EPOCH_SECOND;
-import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_LIST_ARRAY_LENGTH;
+import static org.hiero.base.io.streams.SerializableStreamConstants.DEFAULT_CHECKSUM;
+import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_INSTANT_EPOCH_SECOND;
+import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_LIST_ARRAY_LENGTH;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,28 +15,26 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.io.exceptions.BadIOException;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.utility.CommonUtils;
 
 /**
  * This data input stream provides additional functionality for deserializing various basic data structures.
  */
-public abstract class AugmentedDataInputStream extends SerializableDataInputStream {
+public class AugmentedDataInputStream extends InputStream implements DataInput {
 
     private final DataInputStream baseStream;
 
     /**
      * Create an input stream capable of deserializing a variety of useful objects.
      *
-     * @param in
-     * 		the base input stream
+     * @param in the base input stream
      */
-    protected AugmentedDataInputStream(final InputStream in) {
+    public AugmentedDataInputStream(@NonNull final InputStream in) {
         baseStream = new DataInputStream(in);
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#available()}.
      */
     @Override
     public int available() throws IOException {
@@ -42,7 +42,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Closes the stream.
      */
     @Override
     public void close() throws IOException {
@@ -50,7 +50,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#read()}.
      */
     @Override
     public int read() throws IOException {
@@ -58,15 +58,15 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#read(byte[], int, int)}.
      */
     @Override
-    public int read(final byte[] b, final int off, final int len) throws IOException {
+    public int read(@NonNull final byte[] b, final int off, final int len) throws IOException {
         return baseStream.read(b, off, len);
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#skip(long)}.
      */
     @Override
     public long skip(final long n) throws IOException {
@@ -74,42 +74,43 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#readAllBytes()}.
      */
     @Override
+    @NonNull
     public byte[] readAllBytes() throws IOException {
         return baseStream.readAllBytes();
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#readNBytes(int)}.
      */
     @Override
+    @NonNull
     public byte[] readNBytes(final int len) throws IOException {
         return baseStream.readNBytes(len);
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#readNBytes(byte[], int, int)}.
      */
     @Override
-    public int readNBytes(final byte[] b, final int off, final int len) throws IOException {
+    public int readNBytes(@NonNull final byte[] b, final int off, final int len) throws IOException {
         return baseStream.readNBytes(b, off, len);
     }
 
     /**
-     * {@inheritDoc}
+     * Corresponds to {@link DataInputStream#skipNBytes(long)}.
      */
     @Override
     public void skipNBytes(final long n) throws IOException {
         baseStream.skipNBytes(n);
     }
-
     /**
      * {@inheritDoc}
      */
     @Override
-    public void readFully(final byte[] b) throws IOException {
+    public void readFully(@NonNull final byte[] b) throws IOException {
         baseStream.readFully(b);
     }
 
@@ -117,7 +118,7 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
      * {@inheritDoc}
      */
     @Override
-    public void readFully(final byte[] b, final int off, final int len) throws IOException {
+    public void readFully(@NonNull final byte[] b, final int off, final int len) throws IOException {
         baseStream.readFully(b, off, len);
     }
 
@@ -128,7 +129,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public int skipBytes(final int n) throws IOException {
         return baseStream.skipBytes(n);
     }
-
     /**
      * {@inheritDoc}
      */
@@ -136,7 +136,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public boolean readBoolean() throws IOException {
         return baseStream.readBoolean();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -144,7 +143,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public byte readByte() throws IOException {
         return baseStream.readByte();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -152,7 +150,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public int readUnsignedByte() throws IOException {
         return baseStream.readUnsignedByte();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -160,7 +157,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public short readShort() throws IOException {
         return baseStream.readShort();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -168,7 +164,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public int readUnsignedShort() throws IOException {
         return baseStream.readUnsignedShort();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -176,7 +171,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public char readChar() throws IOException {
         return baseStream.readChar();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -184,7 +178,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public int readInt() throws IOException {
         return baseStream.readInt();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -192,7 +185,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public long readLong() throws IOException {
         return baseStream.readLong();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -200,7 +192,6 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public float readFloat() throws IOException {
         return baseStream.readFloat();
     }
-
     /**
      * {@inheritDoc}
      */
@@ -208,28 +199,32 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     public double readDouble() throws IOException {
         return baseStream.readDouble();
     }
-
     /**
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public String readUTF() throws IOException {
         return baseStream.readUTF();
     }
-
     /**
      * {@inheritDoc}
      */
     @Override
     @Deprecated
+    @Nullable
     public String readLine() throws IOException {
         return baseStream.readLine();
     }
 
     /**
-     * {@inheritDoc}
+     * Reads a byte array from the stream.
+     *
+     * @param maxLength the maximum expected length of the array
+     * @param readChecksum whether to read the checksum or not
+     * @return the byte[] read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public byte[] readByteArray(final int maxLength, final boolean readChecksum) throws IOException {
         int len = this.readInt();
@@ -248,23 +243,29 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         checkLengthLimit(len, maxLength);
         bytes = new byte[len];
         this.readFully(bytes);
-
         return bytes;
     }
 
     /**
-     * {@inheritDoc}
+     * Reads a byte array from the stream. Same as {@link #readByteArray(int, boolean)} with {@code readChecksum} set to
+     * false
+     *
+     * @param maxLength the maximum expected length of the array
+     * @return the byte[] read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public byte[] readByteArray(final int maxLength) throws IOException {
         return readByteArray(maxLength, DEFAULT_CHECKSUM);
     }
 
     /**
-     * {@inheritDoc}
+     * Reads an int array from the stream.
+     *
+     * @param maxLength the maximum expected length of the array
+     * @return the int[] read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public int[] readIntArray(final int maxLength) throws IOException {
         int len = readInt();
@@ -281,9 +282,12 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads an int list from the stream.
+     *
+     * @param maxLength the maximum expected length of the list
+     * @return the list read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public List<Integer> readIntList(final int maxLength) throws IOException {
         int len = readInt();
@@ -300,9 +304,12 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads a long array from the stream.
+     *
+     * @param maxLength the maximum expected length of the array
+     * @return the long[] read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public long[] readLongArray(final int maxLength) throws IOException {
         int len = readInt();
@@ -319,9 +326,12 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads an long list from the stream.
+     *
+     * @param maxLength the maximum expected length of the list
+     * @return the list read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public List<Long> readLongList(final int maxLength) throws IOException {
         int len = readInt();
@@ -338,9 +348,12 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads an boolean list from the stream.
+     *
+     * @param maxLength the maximum expected length of the list
+     * @return the list read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public List<Boolean> readBooleanList(final int maxLength) throws IOException {
         int len = readInt();
@@ -357,9 +370,12 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads a float array from the stream.
+     *
+     * @param maxLength the maximum expected length of the array
+     * @return the float[] read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public float[] readFloatArray(final int maxLength) throws IOException {
         int len = readInt();
@@ -372,14 +388,16 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
         for (int i = 0; i < len; i++) {
             data[i] = readFloat();
         }
-
         return data;
     }
 
     /**
-     * {@inheritDoc}
+     * Reads an float list from the stream.
+     *
+     * @param maxLength the maximum expected length of the list
+     * @return the list read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public List<Float> readFloatList(final int maxLength) throws IOException {
         int len = readInt();
@@ -396,9 +414,12 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads a double array from the stream.
+     *
+     * @param maxLength the maximum expected length of the array
+     * @return the double[] read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public double[] readDoubleArray(final int maxLength) throws IOException {
         int len = readInt();
@@ -415,9 +436,12 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads an double list from the stream.
+     *
+     * @param maxLength the maximum expected length of the list
+     * @return the list read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public List<Double> readDoubleList(final int maxLength) throws IOException {
         int len = readInt();
@@ -434,9 +458,13 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads a String array from the stream.
+     *
+     * @param maxLength the maximum expected length of the array
+     * @param maxStringLength The maximum expected length of a string in the array.
+     * @return the String[] read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public String[] readStringArray(final int maxLength, final int maxStringLength) throws IOException {
         int len = readInt();
@@ -453,9 +481,13 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads an String list from the stream.
+     *
+     * @param maxLength the maximum expected length of the list
+     * @param maxStringLength The maximum expected length of a string in the array.
+     * @return the list read or null if null was written
+     * @throws IOException thrown if any problems occur
      */
-    @Override
     @Nullable
     public List<String> readStringList(final int maxLength, final int maxStringLength) throws IOException {
         int len = readInt();
@@ -472,16 +504,17 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Read an Instant from the stream
+     *
+     * @return the Instant that was read
+     * @throws IOException thrown if there are any problems during the operation
      */
-    @Override
     @Nullable
     public Instant readInstant() throws IOException {
         long epochSecond = this.readLong(); // from getEpochSecond()
         if (epochSecond == NULL_INSTANT_EPOCH_SECOND) {
             return null;
         }
-
         long nanos = this.readLong();
         if (nanos < 0 || nanos > 999_999_999) {
             throw new IOException("Instant.nanosecond is not within the allowed range!");
@@ -490,16 +523,18 @@ public abstract class AugmentedDataInputStream extends SerializableDataInputStre
     }
 
     /**
-     * {@inheritDoc}
+     * Reads a String encoded in the Swirlds default charset (UTF8) from the input stream
+     *
+     * @param maxLength the maximum length of the String in bytes
+     * @return the String read
+     * @throws IOException thrown if there are any problems during the operation
      */
-    @Override
     @Nullable
     public String readNormalisedString(final int maxLength) throws IOException {
         byte[] data = readByteArray(maxLength);
         if (data == null) {
             return null;
         }
-
         return CommonUtils.getNormalisedStringFromBytes(data);
     }
 

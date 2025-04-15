@@ -17,7 +17,6 @@ import com.hedera.services.stream.proto.SignatureObject;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.common.stream.internal.StreamTypeFromJson;
@@ -308,9 +307,9 @@ public class FileSignTool {
             LOGGER.info(MARKER, "Record stream file header is {}", fileHeaderString);
         }
 
-        try (final SerializableDataOutputStream dosMeta =
-                        new SerializableDataOutputStreamImpl(new HashingOutputStream(metadataStreamDigest));
-                final SerializableDataOutputStream dos = new SerializableDataOutputStreamImpl(
+        try (final org.hiero.base.io.streams.SerializableDataOutputStream dosMeta =
+                        new SerializableDataOutputStream(new HashingOutputStream(metadataStreamDigest));
+                final org.hiero.base.io.streams.SerializableDataOutputStream dos = new SerializableDataOutputStream(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest)))) {
             // parse record file
             final Pair<Integer, Optional<RecordStreamFile>> recordResult =

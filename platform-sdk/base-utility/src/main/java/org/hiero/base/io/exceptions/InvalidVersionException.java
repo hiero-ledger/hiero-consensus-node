@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.exceptions;
+package org.hiero.base.io.exceptions;
 
 import java.io.IOException;
 import org.hiero.base.io.SerializableDet;

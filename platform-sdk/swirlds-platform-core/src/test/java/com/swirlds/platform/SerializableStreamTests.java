@@ -8,9 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.io.streams.AugmentedDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.ByteArrayInputStream;
@@ -34,6 +31,7 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.AugmentedDataOutputStream;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.io.SelfSerializableExample;
@@ -97,7 +95,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeIntArray(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readIntArray(2));
     }
 
@@ -132,7 +130,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeIntList(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readIntArray(2));
     }
 
@@ -164,7 +162,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeLongArray(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readLongArray(2));
     }
 
@@ -199,7 +197,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeLongList(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readLongList(2));
     }
 
@@ -231,7 +229,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeFloatArray(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readFloatArray(2));
     }
 
@@ -266,7 +264,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeFloatList(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readFloatList(2));
     }
 
@@ -298,7 +296,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeDoubleArray(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readDoubleArray(2));
     }
 
@@ -333,7 +331,7 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeDoubleList(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readDoubleList(2));
     }
 
@@ -365,13 +363,13 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeStringArray(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readStringArray(2, Integer.MAX_VALUE));
 
         io = new InputOutputStream();
         io.getOutput().writeStringArray(data);
         io.startReading();
-        final SerializableDataInputStream in2 = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in2 = io.getInput();
         assertThrows(IOException.class, () -> in2.readStringArray(Integer.MAX_VALUE, 2));
     }
 
@@ -407,13 +405,13 @@ public class SerializableStreamTests {
         io = new InputOutputStream();
         io.getOutput().writeStringList(data);
         io.startReading();
-        final SerializableDataInputStream in = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in = io.getInput();
         assertThrows(IOException.class, () -> in.readStringList(2, Integer.MAX_VALUE));
 
         io = new InputOutputStream();
         io.getOutput().writeStringList(data);
         io.startReading();
-        final SerializableDataInputStream in2 = io.getInput();
+        final org.hiero.base.io.streams.SerializableDataInputStream in2 = io.getInput();
         assertThrows(IOException.class, () -> in2.readStringList(Integer.MAX_VALUE, 2));
     }
 
@@ -634,10 +632,10 @@ public class SerializableStreamTests {
     @Tag(TestComponentTags.IO)
     @DisplayName("serializedLengthNullArray")
     void serializedLengthNullArray() throws IOException {
-        final int length = SerializableDataOutputStreamImpl.getSerializedLength(null, true, false);
+        final int length = SerializableDataOutputStream.getSerializedLength(null, true, false);
 
         try (final ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            try (final SerializableDataOutputStreamImpl dos = new SerializableDataOutputStreamImpl(bos)) {
+            try (final SerializableDataOutputStream dos = new SerializableDataOutputStream(bos)) {
                 dos.writeSerializableArray(null, true, false);
                 checkExpectedSize(dos.size(), length);
             }
@@ -649,7 +647,7 @@ public class SerializableStreamTests {
     }
 
     /**
-     * Tests class ID restrictions for {@link SerializableDataInputStream#readSerializable(Set)}
+     * Tests class ID restrictions for {@link org.hiero.base.io.streams.SerializableDataInputStream#readSerializable(Set)}
      */
     @Test
     void testRestrictedReadSerializable() throws IOException {
@@ -658,23 +656,26 @@ public class SerializableStreamTests {
         final SerializableLong data = new SerializableLong(random.nextLong());
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
+        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializable(data, true);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStream in1 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in1 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final SerializableLong deserialized1 = in1.readSerializable(null);
         assertEquals(data, deserialized1);
         assertNotSame(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStream in2 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in2 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         assertThrows(IOException.class, () -> in2.readSerializable(Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStream in3 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in3 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final SerializableLong deserialized3 = in3.readSerializable(Set.of(1L, 2L, 3L, 4L, SerializableLong.CLASS_ID));
         assertEquals(data, deserialized3);
         assertNotSame(data, deserialized3);
@@ -682,7 +683,7 @@ public class SerializableStreamTests {
 
     /**
      * Tests class ID restrictions for
-     * {@link SerializableDataInputStream#readSerializableIterableWithSize(int, boolean, Supplier, Consumer, Set)}.
+     * {@link org.hiero.base.io.streams.SerializableDataInputStream#readSerializableIterableWithSize(int, boolean, Supplier, Consumer, Set)}.
      */
     @Test
     void testRestrictedReadSerializableIterableWithSize() throws IOException {
@@ -694,25 +695,28 @@ public class SerializableStreamTests {
         }
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
+        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializableIterableWithSize(data.iterator(), data.size(), true, false);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStream in1 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in1 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized1 = new ArrayList<>();
         in1.readSerializableIterableWithSize(data.size(), x -> deserialized1.add((SerializableLong) x), null);
         assertEquals(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStream in2 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in2 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         assertThrows(
                 IOException.class,
                 () -> in2.readSerializableIterableWithSize(data.size(), x -> {}, Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStream in3 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in3 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized3 = new ArrayList<>();
         in3.readSerializableIterableWithSize(
                 data.size(),
@@ -731,22 +735,25 @@ public class SerializableStreamTests {
         }
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
+        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializableList(data, true, false);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStream in1 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in1 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized1 = in1.readSerializableList(data.size(), null);
         assertEquals(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStream in2 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in2 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         assertThrows(IOException.class, () -> in2.readSerializableList(data.size(), Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStream in3 = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final org.hiero.base.io.streams.SerializableDataInputStream in3 =
+                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final List<SerializableLong> deserialized3 =
                 in3.readSerializableList(data.size(), Set.of(1L, 2L, 3L, 4L, SerializableLong.CLASS_ID));
         assertEquals(data, deserialized3);
@@ -762,28 +769,25 @@ public class SerializableStreamTests {
         }
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStreamImpl out = new SerializableDataOutputStreamImpl(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializableArray(data, true, false);
         final byte[] bytes = byteOut.toByteArray();
 
         // Should work if the class id is not restricted
-        final SerializableDataInputStreamImpl in1 =
-                new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in1 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final SerializableLong[] deserialized1 =
                 in1.readSerializableArray(SerializableLong[]::new, data.length, true, (Set<Long>) null);
         assertArrayEquals(data, deserialized1);
 
         // Should not work if the class id is restricted to other classIDs
-        final SerializableDataInputStreamImpl in2 =
-                new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in2 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         assertThrows(
                 IOException.class,
                 () -> in2.readSerializableArray(SerializableLong[]::new, data.length, true, Set.of(1L, 2L, 3L, 4L)));
 
         // Should work if class ID is in the restricted set
-        final SerializableDataInputStreamImpl in3 =
-                new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in3 = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         final SerializableLong[] deserialized3 = in3.readSerializableArray(
                 SerializableLong[]::new, data.length, true, Set.of(1L, 2L, 3L, 4L, SerializableLong.CLASS_ID));
         assertArrayEquals(data, deserialized3);

@@ -10,7 +10,6 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
@@ -105,7 +104,8 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
      */
     public Hash computeNextHash(final Hash prevHash, final VirtualLeafNode<K, V> leaf) throws IOException {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(bout)) {
+                final org.hiero.base.io.streams.SerializableDataOutputStream out =
+                        new SerializableDataOutputStream(bout)) {
 
             if (prevHash != null) {
                 // add Previous Hash
