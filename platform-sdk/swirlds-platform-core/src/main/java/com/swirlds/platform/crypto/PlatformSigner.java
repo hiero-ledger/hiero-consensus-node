@@ -2,8 +2,6 @@
 package com.swirlds.platform.crypto;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.base.crypto.CryptographyException;
-import org.hiero.base.crypto.SignatureType;
 import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.logging.legacy.LogMarker;
@@ -15,7 +13,9 @@ import java.security.NoSuchProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.util.Objects;
+import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SignatureType;
 
 /**
  * An instance capable of signing data with the platforms private signing key. This class is not thread safe.

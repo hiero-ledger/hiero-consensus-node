@@ -12,20 +12,17 @@ testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto")
-    requires("org.hiero.base.utility")
-    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }
 
 timingSensitiveModuleInfo {
-    requires("com.swirlds.base")
+    requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.crypto.test.fixtures")
-    requires("org.hiero.base.utility.test.fixtures")
+    requires("org.apache.logging.log4j")
     requires("org.apache.logging.log4j.core")
-    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }

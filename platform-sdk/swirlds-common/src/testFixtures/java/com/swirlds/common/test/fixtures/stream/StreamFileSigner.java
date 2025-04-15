@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.stream;
 
-import static org.hiero.base.crypto.internal.CryptoUtils.getDetRandom;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.base.crypto.internal.CryptoUtils.getDetRandom;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import org.hiero.base.crypto.SignatureType;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.utility.CommonUtils;
 import java.security.InvalidKeyException;
@@ -21,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.crypto.SignatureType;
 
 public class StreamFileSigner implements Signer {
     public static final String SIG_ALGORITHM = SignatureType.RSA.signingAlgorithm();
@@ -77,8 +77,7 @@ public class StreamFileSigner implements Signer {
         } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException | SignatureException e) {
             logger.error(EXCEPTION.getMarker(), "Failed to sign data", e);
         }
-        return new org.hiero.base.crypto.Signature(
-                SignatureType.RSA, new byte[SignatureType.RSA.signatureLength()]);
+        return new org.hiero.base.crypto.Signature(SignatureType.RSA, new byte[SignatureType.RSA.signatureLength()]);
     }
 
     public PublicKey getPublicKey() {

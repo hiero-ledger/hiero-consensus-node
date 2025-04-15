@@ -15,8 +15,6 @@ tasks.withType<JavaCompile>().configureEach {
 application.mainClass = "com.swirlds.demo.platform.PlatformTestingToolMain"
 
 testModuleInfo {
-    requires("org.hiero.base.crypto")
-    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.apache.logging.log4j.core")
     requires("org.bouncycastle.provider")
@@ -36,6 +34,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.merkle.test.fixtures")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
+    requires("org.hiero.base.crypto")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.model")

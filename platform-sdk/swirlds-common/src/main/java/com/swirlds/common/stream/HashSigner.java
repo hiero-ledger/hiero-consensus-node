@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
-import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
 
 /**
  * Capable of signing a {@link Hash}

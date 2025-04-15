@@ -4,12 +4,12 @@ package org.hiero.base.crypto.test.fixtures;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomByteArray;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.base.crypto.Signature;
-import org.hiero.base.crypto.SignatureType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 
 /**
  * A collection of utilities for generating random crypto data used for unit testing.

@@ -7,8 +7,6 @@ import com.goterl.lazysodium.LazySodiumJava;
 import com.goterl.lazysodium.SodiumJava;
 import com.goterl.lazysodium.interfaces.Sign;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.base.crypto.SignatureType;
-import org.hiero.base.crypto.TransactionSignature;
 import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,6 +16,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed with Ed25519 signatures.

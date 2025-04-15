@@ -7,8 +7,6 @@ import static org.hiero.base.crypto.test.fixtures.EcdsaUtils.asRawEcdsaSecp256k1
 import static org.hiero.base.crypto.test.fixtures.EcdsaUtils.signDigestWithEcdsaSecp256k1;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.base.crypto.SignatureType;
-import org.hiero.base.crypto.TransactionSignature;
 import java.security.KeyPair;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -16,6 +14,8 @@ import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
 import java.util.SplittableRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed with ECDSA(secp256k1) signatures.

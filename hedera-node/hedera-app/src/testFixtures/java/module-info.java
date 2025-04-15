@@ -12,6 +12,7 @@ module com.hedera.node.app.test.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api.test.fixtures;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.node.app.hapi.utils;
@@ -24,7 +25,6 @@ module com.hedera.node.app.test.fixtures {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.impl.test.fixtures;
     requires com.swirlds.state.impl;
-    requires org.hiero.base.crypto;
     requires org.apache.logging.log4j;
     requires org.assertj.core;
     requires static transitive com.github.spotbugs.annotations;

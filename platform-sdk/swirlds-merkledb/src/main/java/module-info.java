@@ -16,13 +16,12 @@ open module com.swirlds.merkledb {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires org.hiero.base.crypto;
     requires java.management;
     requires jdk.management;
     requires jdk.unsupported;

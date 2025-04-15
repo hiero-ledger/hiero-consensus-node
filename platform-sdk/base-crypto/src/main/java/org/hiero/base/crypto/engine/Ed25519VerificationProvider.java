@@ -7,10 +7,10 @@ import static org.hiero.base.utility.CommonUtils.hex;
 import com.goterl.lazysodium.LazySodiumJava;
 import com.goterl.lazysodium.SodiumJava;
 import com.goterl.lazysodium.interfaces.Sign;
-import org.hiero.base.crypto.SignatureType;
-import org.hiero.base.crypto.TransactionSignature;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
 
 /**
  * Implementation of an Ed25519 signature verification provider. This implementation only supports

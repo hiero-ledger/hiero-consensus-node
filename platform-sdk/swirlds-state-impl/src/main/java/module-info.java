@@ -18,7 +18,6 @@ module com.swirlds.state.impl {
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
-    requires org.hiero.consensus.model;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }
