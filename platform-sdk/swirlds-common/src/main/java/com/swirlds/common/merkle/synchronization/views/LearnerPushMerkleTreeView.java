@@ -27,7 +27,7 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Implementation for a view of a standard in memory merkle tree.

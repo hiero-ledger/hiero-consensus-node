@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHash;
 import org.junit.jupiter.api.Test;
 
 public class RunningHashTest {

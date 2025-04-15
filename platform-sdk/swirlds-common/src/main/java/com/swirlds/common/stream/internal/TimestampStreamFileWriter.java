@@ -9,7 +9,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM_FILE;
-import static org.hiero.consensus.model.crypto.DigestType.SHA_384;
+import static org.hiero.base.crypto.DigestType.SHA_384;
 import static org.hiero.consensus.model.stream.StreamAligned.NO_ALIGNMENT;
 
 import com.swirlds.common.crypto.HashingOutputStream;
@@ -29,10 +29,10 @@ import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHash;
-import org.hiero.consensus.model.crypto.RunningHashable;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHash;
+import org.hiero.base.crypto.RunningHashable;
+import org.hiero.base.crypto.SerializableHashable;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
 

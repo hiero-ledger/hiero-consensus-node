@@ -2,7 +2,7 @@
 package com.swirlds.common.stream;
 
 import com.swirlds.common.crypto.Signature;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Capable of signing a {@link Hash}

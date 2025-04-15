@@ -63,8 +63,8 @@ import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHashable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

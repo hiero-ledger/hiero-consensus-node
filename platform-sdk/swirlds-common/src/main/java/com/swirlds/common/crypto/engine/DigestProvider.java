@@ -5,7 +5,7 @@ import com.swirlds.common.crypto.Message;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Implementation of a message digest provider. This implementation depends on the JCE {@link MessageDigest} providers

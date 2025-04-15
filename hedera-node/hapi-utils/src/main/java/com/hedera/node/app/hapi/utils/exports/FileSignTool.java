@@ -54,7 +54,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * This is a standalone utility tool to generate signature files for event/record stream, and

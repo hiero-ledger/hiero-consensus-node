@@ -21,9 +21,9 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * A threadsafe fast-copyable queue, each of whose elements is fast-copyable. Elements must always be inserted at the

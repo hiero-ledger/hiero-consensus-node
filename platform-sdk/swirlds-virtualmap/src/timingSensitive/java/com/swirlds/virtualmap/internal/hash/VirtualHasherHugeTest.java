@@ -12,7 +12,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import java.util.function.LongFunction;
 import java.util.stream.LongStream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

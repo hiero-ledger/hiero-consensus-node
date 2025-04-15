@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.crypto;
+package org.hiero.base.crypto;
 
 /**
  * Each RunningHashable instance contains a RunningHash instance, which encapsulates a Hash object

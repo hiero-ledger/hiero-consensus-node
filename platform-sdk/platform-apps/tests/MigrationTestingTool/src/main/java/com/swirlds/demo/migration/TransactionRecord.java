@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.Random;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
+import org.hiero.base.crypto.AbstractSerializableHashable;
 
 public class TransactionRecord extends AbstractSerializableHashable implements FastCopyable {
 

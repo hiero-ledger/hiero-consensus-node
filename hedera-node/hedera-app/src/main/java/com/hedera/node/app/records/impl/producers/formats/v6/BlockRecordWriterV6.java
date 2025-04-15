@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * An incremental file-based {@link BlockRecordWriter} that writes a single {@link RecordStreamItem} at a time. It also

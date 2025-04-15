@@ -24,7 +24,7 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

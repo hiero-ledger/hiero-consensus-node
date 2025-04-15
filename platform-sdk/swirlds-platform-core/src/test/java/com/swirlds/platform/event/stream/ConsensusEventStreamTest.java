@@ -17,7 +17,7 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

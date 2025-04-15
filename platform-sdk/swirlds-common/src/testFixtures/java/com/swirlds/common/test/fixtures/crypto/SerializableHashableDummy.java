@@ -4,7 +4,7 @@ package com.swirlds.common.test.fixtures.crypto;
 import java.io.IOException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.AbstractSerializableHashable;
+import org.hiero.base.crypto.AbstractSerializableHashable;
 
 public class SerializableHashableDummy extends AbstractSerializableHashable {
     private static final long CLASS_ID = 0xeecd8387d5496ba3L;

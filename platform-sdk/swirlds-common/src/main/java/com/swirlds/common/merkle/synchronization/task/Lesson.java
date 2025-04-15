@@ -13,7 +13,7 @@ import org.hiero.base.Releasable;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Used during the synchronization protocol to send data needed to reconstruct a single node.

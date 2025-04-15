@@ -10,9 +10,9 @@ import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import java.util.List;
 import java.util.concurrent.Future;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * Cryptography service that provides specific functions for merkle classes.

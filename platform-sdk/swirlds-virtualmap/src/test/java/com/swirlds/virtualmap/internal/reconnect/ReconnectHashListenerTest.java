@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

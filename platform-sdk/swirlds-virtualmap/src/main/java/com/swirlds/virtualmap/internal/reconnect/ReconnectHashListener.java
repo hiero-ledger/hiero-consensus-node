@@ -8,7 +8,7 @@ import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A {@link VirtualHashListener} implementation used by the learner during reconnect. During reconnect,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.crypto;
+package org.hiero.base.crypto;
 
 import org.hiero.base.concurrent.futures.StandardFuture;
 

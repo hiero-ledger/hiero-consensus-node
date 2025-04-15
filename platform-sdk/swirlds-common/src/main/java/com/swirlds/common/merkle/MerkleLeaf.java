@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * A Merkle Leaf has only data and does not have children.

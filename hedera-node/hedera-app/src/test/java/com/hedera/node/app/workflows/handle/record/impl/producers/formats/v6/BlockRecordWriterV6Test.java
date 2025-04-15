@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;

@@ -18,7 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends PartialMerkleLeaf
         implements VirtualRoot<K, V>, MerkleLeaf {

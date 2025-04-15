@@ -6,7 +6,7 @@ import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Utility methods for testing signature verification.

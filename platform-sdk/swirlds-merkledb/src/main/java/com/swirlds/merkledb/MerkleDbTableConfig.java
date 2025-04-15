@@ -18,7 +18,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Virtual database table configuration. It describes how to store virtual keys and values

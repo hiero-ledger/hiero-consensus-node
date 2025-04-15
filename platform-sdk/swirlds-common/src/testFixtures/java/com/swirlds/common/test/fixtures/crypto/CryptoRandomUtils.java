@@ -8,8 +8,8 @@ import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A collection of utilities for generating random crypto data used for unit testing.
