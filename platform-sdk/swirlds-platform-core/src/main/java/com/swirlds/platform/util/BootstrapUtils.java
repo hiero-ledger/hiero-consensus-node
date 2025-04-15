@@ -9,9 +9,6 @@ import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVi
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -65,6 +62,9 @@ import javax.swing.UnsupportedLookAndFeelException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.StackTrace;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

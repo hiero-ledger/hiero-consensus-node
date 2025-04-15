@@ -24,6 +24,7 @@ module com.hedera.node.app {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive dagger;
     requires transitive io.grpc.stub;
@@ -47,7 +48,6 @@ module com.hedera.node.app {
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
-    requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;

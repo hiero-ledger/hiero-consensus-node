@@ -16,8 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
@@ -28,6 +26,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

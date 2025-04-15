@@ -11,10 +11,10 @@ package com.swirlds.demo.stats.signing;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the

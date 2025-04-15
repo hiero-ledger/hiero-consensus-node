@@ -8,8 +8,6 @@ import static com.swirlds.common.stream.internal.TimestampStreamFileWriter.OBJEC
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamFilesIterator;
@@ -271,8 +269,8 @@ public final class LinkedObjectStreamUtilities {
                     "parseSigFile : fail to read signature from File %s, its extension doesn't match %s",
                     file.getName(), streamType.getSigExtension()));
         } else {
-            try (SerializableDataInputStream inputStream =
-                    new SerializableDataInputStreamImpl(new BufferedInputStream(new FileInputStream(file)))) {
+            try (org.hiero.base.io.streams.SerializableDataInputStream inputStream =
+                    new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(file)))) {
                 // read signature file header
                 for (int i = 0; i < streamType.getSigFileHeader().length; i++) {
                     inputStream.readByte();
@@ -329,8 +327,8 @@ public final class LinkedObjectStreamUtilities {
     public static Hash computeMetaHash(final File file, final StreamType streamType)
             throws IOException, NoSuchAlgorithmException, InvalidStreamFileException {
         MessageDigest md = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-        try (SerializableDataOutputStream outputStream =
-                new SerializableDataOutputStreamImpl(new HashingOutputStream(md))) {
+        try (org.hiero.base.io.streams.SerializableDataOutputStream outputStream =
+                new SerializableDataOutputStream(new HashingOutputStream(md))) {
             // digest file header
             for (int num : streamType.getFileHeader()) {
                 outputStream.writeInt(num);
@@ -357,7 +355,8 @@ public final class LinkedObjectStreamUtilities {
      */
     public static int readFirstIntFromFile(final File file) throws IOException {
         try (FileInputStream fis = new FileInputStream(file);
-                SerializableDataInputStream inputStream = new SerializableDataInputStreamImpl(fis)) {
+                org.hiero.base.io.streams.SerializableDataInputStream inputStream =
+                        new SerializableDataInputStream(fis)) {
             return inputStream.readInt();
         }
     }

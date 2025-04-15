@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.VirtualKey;
@@ -9,6 +8,7 @@ import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 

@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.base.constructable.constructables;
+
+import org.hiero.base.constructable.RuntimeConstructable;
+
+public class NoArgsConstructable implements RuntimeConstructable {
+    public static final long CLASS_ID = 0x508db0a39e0e8e05L;
+
+    @Override
+    public long getClassId() {
+        return CLASS_ID;
+    }
+}

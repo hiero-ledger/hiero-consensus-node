@@ -10,7 +10,6 @@ import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -68,6 +67,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * An implementation of {@link State}.

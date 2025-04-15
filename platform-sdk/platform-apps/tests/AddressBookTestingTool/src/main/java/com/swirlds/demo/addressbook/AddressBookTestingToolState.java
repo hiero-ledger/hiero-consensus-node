@@ -13,7 +13,6 @@ package com.swirlds.demo.addressbook;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -22,6 +21,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.utility.ByteUtils;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;

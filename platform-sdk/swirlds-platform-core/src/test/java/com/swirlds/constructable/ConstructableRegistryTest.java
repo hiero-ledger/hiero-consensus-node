@@ -4,12 +4,12 @@ package com.swirlds.constructable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.constructable.ConstructableRegistryFactory;
-import com.swirlds.common.constructable.ConstructorRegistry;
-import com.swirlds.common.constructable.NoArgsConstructor;
 import com.swirlds.common.merkle.utility.MerkleLong;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.constructable.ConstructableRegistryFactory;
+import org.hiero.base.constructable.ConstructorRegistry;
+import org.hiero.base.constructable.NoArgsConstructor;
 import org.junit.jupiter.api.Test;
 
 public class ConstructableRegistryTest {

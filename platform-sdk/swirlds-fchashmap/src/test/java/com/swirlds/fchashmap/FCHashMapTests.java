@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.test.fixtures.fcqueue.FCInt;
 import java.util.Collection;
 import java.util.HashMap;
@@ -21,6 +20,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import org.hiero.base.exceptions.ReferenceCountException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

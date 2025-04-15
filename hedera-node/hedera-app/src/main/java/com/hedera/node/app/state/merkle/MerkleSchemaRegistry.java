@@ -14,7 +14,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -49,6 +48,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.consensus.model.crypto.DigestType;
 
 /**

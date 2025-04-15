@@ -6,11 +6,8 @@ import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
-import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -18,7 +15,6 @@ import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.common.utility.ValueReference;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -38,6 +34,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import org.hiero.base.ValueReference;
+import org.hiero.base.constructable.ConstructableClass;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -322,7 +320,8 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      * {@inheritDoc}
      */
     @Override
-    public void serialize(final SerializableDataOutputStream out, final Path outputDirectory) throws IOException {
+    public void serialize(final org.hiero.base.io.streams.SerializableDataOutputStream out, final Path outputDirectory)
+            throws IOException {
 
         // Create and write to state the name of the file we will expect later on deserialization
         final String outputFileName = state.getLabel() + ".vmap";
@@ -332,8 +331,8 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
 
         // Write the virtual map and sub nodes
         final Path outputFile = outputDirectory.resolve(outputFileName);
-        try (SerializableDataOutputStream serout = new SerializableDataOutputStreamImpl(
-                new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
+        try (org.hiero.base.io.streams.SerializableDataOutputStream serout =
+                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
             serout.writeSerializable(state, true);
             serout.writeInt(root.getVersion());
             root.serialize(serout, outputDirectory);
@@ -344,7 +343,10 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      * {@inheritDoc}
      */
     @Override
-    public void deserialize(final SerializableDataInputStream in, final Path inputDirectory, final int version)
+    public void deserialize(
+            final org.hiero.base.io.streams.SerializableDataInputStream in,
+            final Path inputDirectory,
+            final int version)
             throws IOException {
 
         if (version == ClassVersion.ORIGINAL) {
@@ -375,8 +377,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
         final ValueReference<VirtualRootNode<K, V>> virtualRootNode = new ValueReference<>();
 
         deserializeAndDebugOnFailure(
-                () -> new SerializableDataInputStreamImpl(
-                        new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
+                () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
                     virtualMapState.setValue(stream.readSerializable());
                     virtualRootNode.setValue(

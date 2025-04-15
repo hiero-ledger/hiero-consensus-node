@@ -8,7 +8,6 @@ import static com.swirlds.merkledb.test.fixtures.TestType.fixed_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -23,6 +22,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;

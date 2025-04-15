@@ -3,11 +3,11 @@ package com.swirlds.common.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

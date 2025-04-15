@@ -14,12 +14,9 @@ import com.hedera.services.stream.proto.HashObject;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SignatureFile;
 import com.hedera.services.stream.proto.SignatureObject;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.common.stream.internal.StreamTypeFromJson;
@@ -54,6 +51,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.DigestType;
 
@@ -308,9 +307,9 @@ public class FileSignTool {
             LOGGER.info(MARKER, "Record stream file header is {}", fileHeaderString);
         }
 
-        try (final SerializableDataOutputStream dosMeta =
-                        new SerializableDataOutputStreamImpl(new HashingOutputStream(metadataStreamDigest));
-                final SerializableDataOutputStream dos = new SerializableDataOutputStreamImpl(
+        try (final org.hiero.base.io.streams.SerializableDataOutputStream dosMeta =
+                        new SerializableDataOutputStream(new HashingOutputStream(metadataStreamDigest));
+                final org.hiero.base.io.streams.SerializableDataOutputStream dos = new SerializableDataOutputStream(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest)))) {
             // parse record file
             final Pair<Integer, Optional<RecordStreamFile>> recordResult =

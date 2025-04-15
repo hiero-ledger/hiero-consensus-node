@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.swirldapp;
 
-import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import com.swirlds.platform.system.SwirldMain;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.nio.file.Path;
+import org.hiero.base.constructable.URLClassLoaderWithLookup;
 
 public class SwirldAppLoader {
     /** the name of the app class inheriting from {@link SwirldMain} */

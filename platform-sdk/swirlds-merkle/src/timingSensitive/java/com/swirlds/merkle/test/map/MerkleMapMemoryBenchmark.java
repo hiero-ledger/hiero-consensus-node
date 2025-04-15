@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.map;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.merkle.utility.KeyedMerkleLong;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkle.map.MerkleMap;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

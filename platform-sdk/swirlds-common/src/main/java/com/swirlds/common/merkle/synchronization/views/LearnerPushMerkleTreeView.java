@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import static com.swirlds.common.constructable.ClassIdFormatter.classIdString;
+import static org.hiero.base.constructable.ClassIdFormatter.classIdString;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -26,6 +25,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.crypto.Hash;
 

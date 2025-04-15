@@ -7,12 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;

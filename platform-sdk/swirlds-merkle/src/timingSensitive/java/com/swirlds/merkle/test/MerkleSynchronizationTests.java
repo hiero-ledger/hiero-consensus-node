@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.copy.MerkleCopy;
@@ -31,6 +29,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;

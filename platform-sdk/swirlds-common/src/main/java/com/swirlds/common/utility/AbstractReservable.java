@@ -2,13 +2,14 @@
 package com.swirlds.common.utility;
 
 import com.swirlds.common.Reservable;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
+import org.hiero.base.Releasable;
+import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
- * An implementation of {@link com.swirlds.common.Releasable Releasable}.
+ * An implementation of {@link Releasable Releasable}.
  */
 public abstract class AbstractReservable implements Reservable {
 

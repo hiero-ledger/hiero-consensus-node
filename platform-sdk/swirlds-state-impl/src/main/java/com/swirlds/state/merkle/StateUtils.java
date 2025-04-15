@@ -5,9 +5,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskKey;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
@@ -25,6 +22,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 
 /** Utility class for working with states. */
 public final class StateUtils {

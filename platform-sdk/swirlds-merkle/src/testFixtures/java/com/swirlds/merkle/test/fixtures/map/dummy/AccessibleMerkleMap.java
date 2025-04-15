@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.fixtures.map.dummy;
 
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.fchashmap.FCHashMap;
 import com.swirlds.merkle.map.MerkleMap;
+import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * A MerkleMap with several methods publicly exposed.

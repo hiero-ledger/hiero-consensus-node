@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.openjdk.jmh.annotations.Setup;
 
 public class CryptoBenchMerkleDb extends CryptoBench {

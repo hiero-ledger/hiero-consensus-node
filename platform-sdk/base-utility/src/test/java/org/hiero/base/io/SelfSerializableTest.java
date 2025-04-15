@@ -4,9 +4,9 @@ package org.hiero.base.io;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.IOException;
+import org.hiero.base.io.exceptions.InvalidVersionException;
 import org.hiero.base.utility.test.fixtures.io.SelfSerializableExample;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;

@@ -10,10 +10,10 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.fixtures.TestService;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -3,10 +3,10 @@ package com.swirlds.common.stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.test.fixtures.io.SerializationUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import java.time.Instant;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.junit.jupiter.api.Test;
 
 class ObjectForTestStreamTest {

@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.utility.ValueReference;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
@@ -21,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.hiero.base.CompareTo;
+import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.interrupt.InterruptableSupplier;
 

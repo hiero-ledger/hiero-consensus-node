@@ -4,7 +4,6 @@ package com.swirlds.fchashmap;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.fchashmap.internal.FCHashMapEntrySet;
 import com.swirlds.fchashmap.internal.FCHashMapFamily;
 import com.swirlds.fchashmap.internal.Mutation;
@@ -13,6 +12,7 @@ import java.util.AbstractMap;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
  * <p>
