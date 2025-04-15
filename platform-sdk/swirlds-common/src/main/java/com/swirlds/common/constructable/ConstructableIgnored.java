@@ -5,8 +5,8 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.hiero.consensus.model.constructable.RuntimeConstructable;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * Classes/subclasses annotated with {@link ConstructableIgnored} will not be

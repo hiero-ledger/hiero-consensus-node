@@ -11,9 +11,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
 
 /**
  * Iterates over the events in a single preconsensus event file.

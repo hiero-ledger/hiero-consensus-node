@@ -4,8 +4,8 @@ package com.swirlds.common.threading.pool;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.base.state.Mutable;
 import com.swirlds.base.state.Startable;
-import com.swirlds.common.threading.utility.ThrowingRunnable;
 import java.util.concurrent.Callable;
+import org.hiero.base.concurrent.ThrowingRunnable;
 
 /**
  * Used for executing tasks in parallel

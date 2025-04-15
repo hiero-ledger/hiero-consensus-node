@@ -14,7 +14,7 @@ module com.hedera.node.app.service.file.impl {
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
     requires com.swirlds.common;
-    requires org.hiero.consensus.model;
+    requires org.hiero.base.utility;
     requires com.fasterxml.jackson.databind;
     requires com.google.protobuf;
     requires org.apache.commons.lang3;

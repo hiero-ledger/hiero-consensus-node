@@ -10,7 +10,7 @@ import java.nio.file.Path;
 import java.util.Set;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Describes a serialization operation.

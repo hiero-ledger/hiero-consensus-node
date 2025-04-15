@@ -28,7 +28,6 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -56,18 +55,15 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.AutoCreationConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -81,7 +77,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.tuple.Pair;
@@ -110,8 +105,6 @@ public class ThrottleAccumulator {
     @Nullable
     private final ThrottleMetrics throttleMetrics;
 
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
-
     private final Supplier<Configuration> configSupplier;
     private final IntSupplier capacitySplitSource;
     private final ThrottleType throttleType;
@@ -128,9 +121,8 @@ public class ThrottleAccumulator {
     public ThrottleAccumulator(
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final IntSupplier capacitySplitSource,
-            @NonNull final ThrottleType throttleType,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
-        this(capacitySplitSource, configSupplier, throttleType, null, Verbose.NO, softwareVersionFactory);
+            @NonNull final ThrottleType throttleType) {
+        this(capacitySplitSource, configSupplier, throttleType, null, Verbose.NO);
     }
 
     public ThrottleAccumulator(
@@ -138,14 +130,12 @@ public class ThrottleAccumulator {
             @NonNull final Supplier<Configuration> configSupplier,
             @NonNull final ThrottleType throttleType,
             @Nullable final ThrottleMetrics throttleMetrics,
-            @NonNull final Verbose verbose,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final Verbose verbose) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.verbose = requireNonNull(verbose);
         this.throttleMetrics = throttleMetrics;
-        this.softwareVersionFactory = softwareVersionFactory;
     }
 
     // For testing purposes, in practice the gas throttle is
@@ -158,14 +148,12 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleType throttleType,
             @NonNull final ThrottleMetrics throttleMetrics,
             @NonNull final LeakyBucketDeterministicThrottle gasThrottle,
-            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle,
-            @NonNull Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.gasThrottle = requireNonNull(gasThrottle, "gasThrottle must not be null");
         this.bytesThrottle = requireNonNull(bytesThrottle, "bytesThrottle must not be null");
-        this.softwareVersionFactory = softwareVersionFactory;
 
         this.throttleMetrics = throttleMetrics;
         this.throttleMetrics.setupGasThrottleMetric(gasThrottle, configSupplier.get());
@@ -451,8 +439,7 @@ public class ThrottleAccumulator {
             }
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                final var implicitCreations = getImplicitCreationsCount(txnInfo.txBody(), accountStore);
-                yield shouldThrottleEthTxn(manager, now, configuration, implicitCreations);
+                yield shouldThrottleEthTxn(manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore));
             }
             default -> !manager.allReqsMetAt(now);
         };
@@ -481,14 +468,7 @@ public class ThrottleAccumulator {
         final var config = configSupplier.get();
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         if (!schedulingConfig.longTermEnabled()) {
-            final boolean isAutoCreationEnabled =
-                    config.getConfigData(AutoCreationConfig.class).enabled();
-            final boolean isLazyCreationEnabled =
-                    config.getConfigData(LazyCreationConfig.class).enabled();
-
-            // we check for CryptoTransfer because implicit creations (i.e. auto- or lazy-creation) may happen in it,
-            // and we need to throttle those separately
-            if ((isAutoCreationEnabled || isLazyCreationEnabled) && scheduledFunction == CRYPTO_TRANSFER) {
+            if (scheduledFunction == CRYPTO_TRANSFER) {
                 final var transfer = scheduled.cryptoTransfer();
                 if (usesAliases(transfer)) {
                     final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
@@ -609,13 +589,9 @@ public class ThrottleAccumulator {
             @NonNull final Configuration configuration,
             final int implicitCreationsCount,
             final int autoAssociationsCount) {
-        final boolean isAutoCreationEnabled =
-                configuration.getConfigData(AutoCreationConfig.class).enabled();
-        final boolean isLazyCreationEnabled =
-                configuration.getConfigData(LazyCreationConfig.class).enabled();
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        if ((isAutoCreationEnabled || isLazyCreationEnabled) && implicitCreationsCount > 0) {
+        if (implicitCreationsCount > 0) {
             return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
         } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
             return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now);
@@ -625,19 +601,8 @@ public class ThrottleAccumulator {
     }
 
     private boolean shouldThrottleEthTxn(
-            @NonNull final ThrottleReqsManager manager,
-            @NonNull final Instant now,
-            @NonNull final Configuration configuration,
-            final int implicitCreationsCount) {
-        final boolean isAutoCreationEnabled =
-                configuration.getConfigData(AutoCreationConfig.class).enabled();
-        final boolean isLazyCreationEnabled =
-                configuration.getConfigData(LazyCreationConfig.class).enabled();
-        if (isAutoCreationEnabled && isLazyCreationEnabled) {
-            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
-        } else {
-            return !manager.allReqsMetAt(now);
-        }
+            @NonNull final ThrottleReqsManager manager, @NonNull final Instant now, final int implicitCreationsCount) {
+        return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
     }
 
     public int getImplicitCreationsCount(

@@ -16,7 +16,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THR
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_NOT_PROVIDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
@@ -70,7 +69,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.CryptoCreateWithAliasConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -121,10 +119,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
         validateTruePreCheck(op.autoRenewPeriodOrThrow().seconds() >= 0, INVALID_RENEWAL_PERIOD);
         if (op.hasShardID()) {
-            validateTruePreCheck(op.shardIDOrThrow().shardNum() == 0, INVALID_ACCOUNT_ID);
+            validateTruePreCheck(op.shardIDOrThrow().shardNum() >= 0, INVALID_ACCOUNT_ID);
         }
         if (op.hasRealmID()) {
-            validateTruePreCheck(op.realmIDOrThrow().realmNum() == 0, INVALID_ACCOUNT_ID);
+            validateTruePreCheck(op.realmIDOrThrow().realmNum() >= 0, INVALID_ACCOUNT_ID);
         }
         // HIP 904 now allows for unlimited auto-associations
         validateTruePreCheck(
@@ -308,14 +306,21 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final CryptoCreateTransactionBody op,
             final boolean stillCreatingSystemEntities) {
-        final var cryptoCreateWithAliasConfig =
-                context.configuration().getConfigData(CryptoCreateWithAliasConfig.class);
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var alias = op.alias();
+
+        // Don't allow creation of accounts that don't match the configured shard and realm
+        if (op.hasShardID()) {
+            validateTrue(op.shardIDOrThrow().shardNum() == hederaConfig.shard(), INVALID_ACCOUNT_ID);
+        }
+        if (op.hasRealmID()) {
+            validateTrue(op.realmIDOrThrow().realmNum() == hederaConfig.realm(), INVALID_ACCOUNT_ID);
+        }
+
         // You can never set the alias to be an "entity num alias" (sometimes called "long-zero").
         validateFalse(isEntityNumAlias(alias, hederaConfig.shard(), hederaConfig.realm()), INVALID_ALIAS_KEY);
 
@@ -325,16 +330,11 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             throw new HandleException(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         }
 
-        // Aliases are fully supported in mainnet, but we still have this feature flag. If it is disabled, then
-        // you cannot create an account with an alias. FUTURE: We may be able to remove this flag.
-        final var hasAlias = alias.length() > 0;
-        if (hasAlias && !cryptoCreateWithAliasConfig.enabled()) {
-            throw new HandleException(NOT_SUPPORTED);
-        }
-
         // We have to check the memo, which may be too long or in some other way be invalid.
         context.attributeValidator().validateMemo(op.memo());
 
+        // Aliases are fully supported in mainnet.
+        final var hasAlias = alias.length() > 0;
         // If there is an alias, then we need to make sure no other account or contract account is using that alias.
         if (hasAlias) {
             final var config = context.configuration().getConfigData(HederaConfig.class);

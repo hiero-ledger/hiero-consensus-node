@@ -7,4 +7,9 @@ plugins {
 
 description = "Base Utility"
 
-testModuleInfo { requires("org.junit.jupiter.api") }
+testModuleInfo {
+    requires("com.swirlds.common.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
+    requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+}
