@@ -72,27 +72,57 @@ class ChildlessEventTrackerTests {
         assertThat(tracker.getChildlessEvents())
                 .withFailMessage("Only the new events with higher generations should be tracked")
                 .containsAll(batch2);
+    }
 
-        // Create events with a lower generation for all nodes. Each creator will create a new event,
-        // with a lower non-deterministic generation and unknown parents. None of these events should
-        // be tracked because they have a lower nGen.
+    @Test
+    @DisplayName("Older events by creator are ignored")
+    void testOlderEventsByCreatorAreIgnored() {
+        final Random random = getRandomPrintSeed();
+        final int numNodes = random.nextInt(10, 100);
+
+        final ChildlessEventTracker tracker = new ChildlessEventTracker();
+
+        // Add some events with no parents
+        loadTrackerWithInitialEvents(random, tracker, numNodes);
+
+        // Add some generation 1 events to the tracker
         for (int nodeId = 0; nodeId < numNodes; nodeId++) {
-            final NodeId nonExistentParentId1 = NodeId.of(nodeId + 100);
-            final PlatformEvent nonExistentParent1 = new TestingEventBuilder(random)
-                    .setCreatorId(nonExistentParentId1)
-                    .setNGen(0)
-                    .build();
+            final NodeId parent1 = NodeId.of(nodeId);
+            final PlatformEvent parentEvent1 =
+                    new TestingEventBuilder(random).setCreatorId(parent1).build();
 
-            final NodeId nonExistentParentId2 = NodeId.of(nodeId + 100);
-            final PlatformEvent nonExistentParent2 = new TestingEventBuilder(random)
-                    .setCreatorId(nonExistentParentId2)
-                    .setNGen(0)
-                    .build();
+            final NodeId parent2 = NodeId.of(nodeId);
+            final PlatformEvent parentEvent2 =
+                    new TestingEventBuilder(random).setCreatorId(parent2).build();
 
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
-                    .setSelfParent(nonExistentParent1)
-                    .setOtherParent(nonExistentParent2)
+                    .setSelfParent(parentEvent1)
+                    .setOtherParent(parentEvent2)
+                    .setNGen(1)
+                    .build();
+            tracker.addEvent(event);
+            assertThat(tracker.getChildlessEvents()).contains(event);
+        }
+
+        final Collection<PlatformEvent> childlessEvents = new ArrayList<>(tracker.getChildlessEvents());
+
+        // Create events with a lower generation for all nodes. Each creator will create a new event,
+        // with a lower non-deterministic generation. None of these events should
+        // be tracked because they have a lower nGen.
+        for (int nodeId = 0; nodeId < numNodes; nodeId++) {
+            final NodeId parent1 = NodeId.of(nodeId);
+            final PlatformEvent parentEvent1 =
+                    new TestingEventBuilder(random).setCreatorId(parent1).build();
+
+            final NodeId parent2 = NodeId.of(nodeId);
+            final PlatformEvent parentEvent2 =
+                    new TestingEventBuilder(random).setCreatorId(parent2).build();
+
+            final PlatformEvent event = new TestingEventBuilder(random)
+                    .setCreatorId(NodeId.of(nodeId))
+                    .setSelfParent(parentEvent1)
+                    .setOtherParent(parentEvent2)
                     .setNGen(0)
                     .build();
 
@@ -101,10 +131,11 @@ class ChildlessEventTrackerTests {
             assertThat(getChildlessEvent(tracker, event.getDescriptor())).isNotEqualTo(event);
         }
 
-        assertThat(tracker.getChildlessEvents().size()).isEqualTo(batch2.size());
+        // Verify that the original events are unmodified in the tracker
         assertThat(tracker.getChildlessEvents())
                 .withFailMessage("Tracked events should not have changed after adding older events")
-                .containsAll(batch2);
+                .containsAll(childlessEvents);
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(childlessEvents.size());
     }
 
     @Test
@@ -149,7 +180,6 @@ class ChildlessEventTrackerTests {
     void testSelfEventParentsNotDoNotExist() {
         final Random random = getRandomPrintSeed();
         final int numNodes = random.nextInt(10, 100);
-        final NodeId selfId = NodeId.of(random.nextLong(numNodes));
 
         final ChildlessEventTracker tracker = new ChildlessEventTracker();
 
