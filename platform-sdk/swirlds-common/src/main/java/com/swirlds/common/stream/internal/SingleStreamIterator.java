@@ -30,7 +30,7 @@ public class SingleStreamIterator<T extends SelfSerializable> implements Iterato
 
     private static final Marker LOGM_EXCEPTION = LogMarker.EXCEPTION.getMarker();
 
-    private org.hiero.base.io.streams.SerializableDataInputStream stream;
+    private SerializableDataInputStream stream;
 
     /**
      * stream is closed or stream is null
