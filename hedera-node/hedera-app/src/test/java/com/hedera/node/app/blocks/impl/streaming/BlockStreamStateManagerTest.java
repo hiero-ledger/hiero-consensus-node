@@ -178,7 +178,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testWIthMoreBlockItemsThanBlockItemBatchSize() {
+    void testWithMoreBlockItemsThanBlockItemBatchSize() {
         // given
         // mock the number of batch items by modifying the default config
         var mockConfig = HederaTestConfigBuilder.create()
