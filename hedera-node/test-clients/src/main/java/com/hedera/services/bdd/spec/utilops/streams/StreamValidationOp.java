@@ -62,12 +62,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final String ERROR_PREFIX = "\n  - ";
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
 
-    private static final List<RecordStreamValidator> RECORD_STREAM_VALIDATORS = List.of(
-            new BlockNoValidator(),
-            new TransactionBodyValidator(),
-            new ExpiryRecordsValidator(),
-            new BalanceReconciliationValidator(),
-            new TokenReconciliationValidator());
+    private final List<RecordStreamValidator> recordStreamValidators;
 
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
@@ -84,6 +79,12 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     public StreamValidationOp(final int historyProofsToWaitFor, @Nullable final Duration historyProofTimeout) {
         this.historyProofsToWaitFor = historyProofsToWaitFor;
         this.historyProofTimeout = historyProofTimeout;
+        this.recordStreamValidators = List.of(
+                new BlockNoValidator(),
+                new TransactionBodyValidator(),
+                new ExpiryRecordsValidator(),
+                new BalanceReconciliationValidator(),
+                new TokenReconciliationValidator());
     }
 
     @Override
@@ -102,7 +103,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
                         data -> {
-                            final var maybeErrors = RECORD_STREAM_VALIDATORS.stream()
+                            final var maybeErrors = recordStreamValidators.stream()
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
                                     .map(Throwable::getMessage)

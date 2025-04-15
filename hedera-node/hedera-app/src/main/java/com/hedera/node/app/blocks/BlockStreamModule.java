@@ -11,10 +11,13 @@ import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.NoOpBlockNodeConfigExtractor;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.Module;
 import dagger.Provides;
@@ -48,11 +51,19 @@ public interface BlockStreamModule {
     @Singleton
     static BlockNodeConnectionManager provideBlockNodeConnectionManager(
             @NonNull final BlockNodeConfigExtractor blockNodeConfigExtractor,
-            @NonNull final BlockStreamStateManager blockStreamStateManager) {
+            @NonNull final BlockStreamStateManager blockStreamStateManager,
+            @NonNull final BlockStreamMetrics blockStreamMetrics) {
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(blockNodeConfigExtractor, blockStreamStateManager);
+                new BlockNodeConnectionManager(blockNodeConfigExtractor, blockStreamStateManager, blockStreamMetrics);
         blockStreamStateManager.setBlockNodeConnectionManager(manager);
         return manager;
+    }
+
+    @Provides
+    @Singleton
+    static BlockStreamMetrics provideBlockStreamMetrics(
+            @NonNull final NetworkInfo networkInfo, @NonNull final Metrics metrics) {
+        return new BlockStreamMetrics(metrics, networkInfo);
     }
 
     @Provides

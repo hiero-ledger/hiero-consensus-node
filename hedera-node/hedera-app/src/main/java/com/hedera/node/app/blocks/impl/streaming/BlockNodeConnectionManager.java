@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -41,6 +42,8 @@ public class BlockNodeConnectionManager {
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
     private static final String GRPC_END_POINT =
             BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
+    // Maximum retry delay to prevent excessively long waits
+    private static final Duration MAX_RETRY_DELAY = Duration.ofMinutes(1);
 
     // Add a random number generator for jitter
     private final Random random = new Random();
@@ -52,9 +55,10 @@ public class BlockNodeConnectionManager {
     private final BlockStreamStateManager blockStreamStateManager;
 
     private final Object connectionLock = new Object();
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(
+            Thread.ofVirtual().factory()); // Use virtual threads for scheduler too
     private final ExecutorService streamingExecutor = Executors.newSingleThreadExecutor();
-    private final ExecutorService retryExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final BlockStreamMetrics blockStreamMetrics;
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
@@ -63,13 +67,15 @@ public class BlockNodeConnectionManager {
      */
     public BlockNodeConnectionManager(
             @NonNull final BlockNodeConfigExtractor blockNodeConfigExtractor,
-            @NonNull final BlockStreamStateManager blockStreamStateManager) {
+            @NonNull final BlockStreamStateManager blockStreamStateManager,
+            @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.blockNodeConfigurations =
                 requireNonNull(blockNodeConfigExtractor, "blockNodeConfigExtractor must not be null");
         this.blockStreamStateManager =
                 requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
         this.activeConnections = new ConcurrentHashMap<>();
         this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
+        this.blockStreamMetrics = blockStreamMetrics;
     }
 
     /**
@@ -113,7 +119,7 @@ public class BlockNodeConnectionManager {
             try {
                 final GrpcServiceClient grpcClient = createNewGrpcClient(node);
                 final BlockNodeConnection connection =
-                        new BlockNodeConnection(node, this, blockStreamStateManager, grpcClient);
+                        new BlockNodeConnection(node, this, blockStreamStateManager, grpcClient, blockStreamMetrics);
                 connection.establishStream();
                 connection.getIsActiveLock().lock();
                 try {
@@ -159,58 +165,121 @@ public class BlockNodeConnectionManager {
     public void scheduleReconnect(@NonNull final BlockNodeConnection connection) {
         requireNonNull(connection);
 
-        retryExecutor.execute(() -> {
-            synchronized (connectionLock) {
-                final var blockNodeConfig = connection.getNodeConfig();
-                try {
-                    if (!activeConnections.containsKey(blockNodeConfig)) {
-                        connection.getIsActiveLock().lock();
-                        try {
-                            if (!connection.isActive()) {
-                                activeConnections.put(blockNodeConfig, connection);
-                                retry(connection::establishStream, INITIAL_RETRY_DELAY);
-                            }
-                        } finally {
-                            connection.getIsActiveLock().unlock();
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.error(
-                            "Failed to re-establish stream to block node {}:{}: {}",
-                            blockNodeConfig.address(),
-                            blockNodeConfig.port(),
-                            e);
-                    activeConnections.remove(blockNodeConfig);
-                }
+        // No longer need retryExecutor.execute(() -> { ... });
+        // Directly schedule the first attempt using the scheduler
+        synchronized (connectionLock) {
+            final var blockNodeConfig = connection.getNodeConfig();
+            // Ensure we only schedule a reconnect if the connection isn't already active
+            // or being reconnected by another thread.
+            if (!activeConnections.containsKey(blockNodeConfig)) {
+                logger.debug(
+                        "Scheduling initial reconnect attempt for block node {}:{}",
+                        blockNodeConfig.address(),
+                        blockNodeConfig.port());
+                retry(() -> establishStreamForNode(connection), INITIAL_RETRY_DELAY, 1); // Start with attempt 1
+            } else {
+                logger.debug(
+                        "Reconnect already in progress or connection active for block node {}:{}",
+                        blockNodeConfig.address(),
+                        blockNodeConfig.port());
             }
-        });
+        }
     }
 
     /**
-     * Retries the given action with exponential backoff.
-     *
-     * @param action the action to retry
-     * @param initialDelay the initial delay before the first retry
-     * @param <T> the return type of the action
+     * Helper method to establish stream for a specific connection, used by retry logic.
+     * Adds the connection to activeConnections upon success.
+     * @param connection The connection to establish the stream for.
+     * @return true if successful, false otherwise.
      */
-    public <T> void retry(@NonNull final Supplier<T> action, @NonNull final Duration initialDelay) {
-        requireNonNull(action);
-        requireNonNull(initialDelay);
-
-        Duration delay = initialDelay;
-
-        while (true) {
+    private boolean establishStreamForNode(@NonNull final BlockNodeConnection connection) {
+        final var blockNodeConfig = connection.getNodeConfig();
+        try {
+            connection.establishStream(); // Attempt to establish the stream
+            connection.getIsActiveLock().lock();
             try {
-                // Apply jitter: use a random value between 50-100% of the calculated delay
-                final long jitteredDelayMs = delay.toMillis() / 2 + random.nextLong(delay.toMillis() / 2 + 1);
-                logger.debug("Retrying in {} ms", jitteredDelayMs);
-                Thread.sleep(jitteredDelayMs);
-                action.get();
-                return;
-            } catch (Exception e) {
-                delay = delay.multipliedBy(RETRY_BACKOFF_MULTIPLIER);
+                if (connection.isActive()) {
+                    // Check again if another thread reconnected in the meantime
+                    synchronized (connectionLock) {
+                        if (!activeConnections.containsKey(blockNodeConfig)) {
+                            activeConnections.put(blockNodeConfig, connection);
+                            logger.info(
+                                    "Successfully reconnected to block node {}:{}",
+                                    blockNodeConfig.address(),
+                                    blockNodeConfig.port());
+                            return true; // Success
+                        } else {
+                            logger.warn(
+                                    "Connection to {}:{} established, but another connection was already active. Closing this one.",
+                                    blockNodeConfig.address(),
+                                    blockNodeConfig.port());
+                            connection.close(); // Close the redundant connection
+                            return true; // Still counts as "success" for retry logic, as *a* connection exists
+                        }
+                    }
+                } else {
+                    logger.warn(
+                            "Stream establishment attempt for {}:{} did not result in an active connection.",
+                            blockNodeConfig.address(),
+                            blockNodeConfig.port());
+                    return false; // Failure
+                }
+            } finally {
+                connection.getIsActiveLock().unlock();
             }
+        } catch (Exception e) {
+            logger.warn(
+                    "Failed reconnect attempt to block node {}:{}: {}",
+                    blockNodeConfig.address(),
+                    blockNodeConfig.port(),
+                    e.getMessage()); // Log only message for retry attempts
+            return false; // Failure
         }
+    }
+
+    /**
+     * Retries the given action with exponential backoff using the scheduler.
+     *
+     * @param action the action returning true on success, false on failure (to allow retry)
+     * @param currentDelay the delay to use for this attempt
+     * @param attempt the current attempt number
+     */
+    private void retry(
+            @NonNull final Supplier<Boolean> action, @NonNull final Duration currentDelay, final int attempt) {
+        requireNonNull(action);
+        requireNonNull(currentDelay);
+
+        // Apply jitter: use a random value between 50-100% of the calculated delay
+        final long baseDelayMs = Math.min(currentDelay.toMillis(), MAX_RETRY_DELAY.toMillis());
+        final long jitteredDelayMs = baseDelayMs / 2 + random.nextLong(baseDelayMs / 2 + 1);
+
+        logger.debug("Scheduling retry attempt {} in {} ms", attempt, jitteredDelayMs);
+
+        scheduler.schedule(
+                () -> {
+                    boolean success = false;
+                    try {
+                        success = action.get();
+                    } catch (Exception e) {
+                        logger.error("Exception during scheduled retry action (attempt {})", attempt, e);
+                        // Treat exceptions during the action itself as failure
+                        success = false;
+                    }
+
+                    if (!success) {
+                        Duration nextDelay = currentDelay.multipliedBy(RETRY_BACKOFF_MULTIPLIER);
+                        // Ensure nextDelay doesn't exceed MAX_RETRY_DELAY before passing to next retry
+                        if (nextDelay.compareTo(MAX_RETRY_DELAY) > 0) {
+                            nextDelay = MAX_RETRY_DELAY;
+                        }
+                        logger.debug("Retry attempt {} failed. Scheduling next attempt.", attempt);
+                        retry(action, nextDelay, attempt + 1); // Schedule the next attempt
+                    } else {
+                        logger.debug("Retry attempt {} successful.", attempt);
+                    }
+                },
+                jitteredDelayMs,
+                TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -218,8 +287,15 @@ public class BlockNodeConnectionManager {
      */
     public void shutdown() {
         scheduler.shutdown();
-        retryExecutor.shutdown();
         try {
+            // Wait for scheduler tasks to complete or timeout
+            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                logger.warn("Scheduler did not terminate within 10 seconds. Forcing shutdown.");
+                scheduler.shutdownNow(); // Force shutdown if needed
+            } else {
+                logger.debug("Successfully shut down scheduler.");
+            }
+
             boolean awaitTermination = streamingExecutor.awaitTermination(10, TimeUnit.SECONDS);
             if (!awaitTermination) {
                 logger.error("Failed to shut down streaming executor within 10 seconds");
