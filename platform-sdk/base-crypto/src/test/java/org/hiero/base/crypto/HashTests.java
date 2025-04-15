@@ -28,7 +28,7 @@ public class HashTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("org.hiero.consensus.model.crypto");
+        ConstructableRegistry.getInstance().registerConstructables("org.hiero.base.crypto");
     }
 
     @Test
