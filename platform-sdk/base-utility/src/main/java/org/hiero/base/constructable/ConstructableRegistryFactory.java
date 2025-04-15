@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable;
+package org.hiero.base.constructable;
 
-import com.swirlds.common.constructable.internal.DefaultConstructableRegistry;
-import com.swirlds.common.constructable.internal.GenericConstructorRegistry;
+import org.hiero.base.constructable.internal.DefaultConstructableRegistry;
+import org.hiero.base.constructable.internal.GenericConstructorRegistry;
 
 /**
  * Creates instances of {@link ConstructableRegistry} and {@link ConstructorRegistry}

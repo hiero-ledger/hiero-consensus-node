@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable;
+package org.hiero.base.constructable;
 
 import java.util.function.Supplier;
-import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
  * A central registry of constructors for {@link RuntimeConstructable} classes. This central registry has a set of

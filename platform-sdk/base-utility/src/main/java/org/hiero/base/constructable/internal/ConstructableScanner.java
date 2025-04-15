@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable.internal;
+package org.hiero.base.constructable.internal;
 
-import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;
@@ -12,7 +8,11 @@ import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.base.constructable.ConstructableClass;
+import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.URLClassLoaderWithLookup;
 
 /**
  * Scans the classpath for {@link RuntimeConstructable} classes

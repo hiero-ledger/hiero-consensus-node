@@ -13,5 +13,6 @@ module org.hiero.base.utility {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.logging;
     requires com.swirlds.base;
+    requires io.github.classgraph;
     requires static transitive com.github.spotbugs.annotations;
 }

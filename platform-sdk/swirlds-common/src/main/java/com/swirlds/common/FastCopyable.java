@@ -3,6 +3,7 @@ package com.swirlds.common;
 
 import com.swirlds.base.state.Mutable;
 import org.hiero.base.Copyable;
+import org.hiero.base.Releasable;
 import org.hiero.consensus.model.crypto.Hashable;
 
 /**

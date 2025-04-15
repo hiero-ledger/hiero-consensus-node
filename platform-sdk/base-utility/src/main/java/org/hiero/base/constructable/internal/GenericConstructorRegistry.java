@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable.internal;
+package org.hiero.base.constructable.internal;
 
-import com.swirlds.common.Releasable;
-import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.constructable.ConstructorRegistry;
-import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.URLClassLoaderWithLookup;
-import com.swirlds.common.exceptions.NotImplementedException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.invoke.CallSite;
 import java.lang.invoke.LambdaMetafactory;
@@ -22,7 +15,14 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.base.Releasable;
+import org.hiero.base.constructable.ConstructableClass;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.constructable.ConstructorRegistry;
+import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.URLClassLoaderWithLookup;
+import org.hiero.base.exceptions.NotImplementedException;
 
 /**
  * A {@link ConstructorRegistry} which has the constructor type as a generic

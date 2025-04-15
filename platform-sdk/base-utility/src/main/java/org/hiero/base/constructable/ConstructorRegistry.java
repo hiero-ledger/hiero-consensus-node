@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable;
-
-import org.hiero.base.constructable.RuntimeConstructable;
+package org.hiero.base.constructable;
 
 /**
  * A registry that holds constructors of {@link RuntimeConstructable} classes. All constructors in this registry will

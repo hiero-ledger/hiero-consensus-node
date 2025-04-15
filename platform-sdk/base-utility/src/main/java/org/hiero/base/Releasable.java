@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common;
+package org.hiero.base;
 
-import com.swirlds.common.exceptions.ReferenceCountException;
+import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
  * A Releasable object is an object that expects to be deleted when it is done being used.

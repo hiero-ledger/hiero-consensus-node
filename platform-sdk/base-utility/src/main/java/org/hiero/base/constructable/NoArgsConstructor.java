@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable;
+package org.hiero.base.constructable;
 
 import java.util.function.Supplier;
-import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
  * A no arguments constructor for {@link RuntimeConstructable}, this is a replacement for the previous default
