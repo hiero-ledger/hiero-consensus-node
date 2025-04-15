@@ -10,4 +10,5 @@ module com.swirlds.virtualmap.test.fixtures {
     requires transitive org.hiero.consensus.model;
     requires transitive org.junit.jupiter.api;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.crypto;
 }

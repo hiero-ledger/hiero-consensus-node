@@ -13,6 +13,7 @@ module com.swirlds.merkledb.test.fixtures {
     requires com.swirlds.base;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb;
+    requires org.hiero.base.crypto;
     requires java.management;
     requires jdk.management;
     requires org.apache.logging.log4j;

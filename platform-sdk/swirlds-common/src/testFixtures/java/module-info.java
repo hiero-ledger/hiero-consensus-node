@@ -26,6 +26,7 @@ open module com.swirlds.common.test.fixtures {
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.logging;
     requires com.swirlds.platform.core;
+    requires org.hiero.base.crypto;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.utility;
     requires lazysodium.java;

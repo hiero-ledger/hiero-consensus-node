@@ -28,6 +28,7 @@ open module com.swirlds.virtualmap {
     requires com.swirlds.base;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
+    requires org.hiero.base.crypto;
     requires java.management; // Test dependency
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
