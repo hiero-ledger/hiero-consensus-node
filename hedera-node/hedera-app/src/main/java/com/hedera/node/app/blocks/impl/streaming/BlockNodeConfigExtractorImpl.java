@@ -19,7 +19,6 @@ import org.apache.logging.log4j.Logger;
 public class BlockNodeConfigExtractorImpl implements BlockNodeConfigExtractor {
     private static final Logger logger = LogManager.getLogger(BlockNodeConfigExtractorImpl.class);
     private final List<BlockNodeConfig> allNodes;
-    private final int blockItemBatchSize;
 
     /**
      * @param blockNodeConfigPath the path to the block node configuration file
@@ -38,9 +37,6 @@ public class BlockNodeConfigExtractorImpl implements BlockNodeConfigExtractor {
 
             logger.info("Loaded block node configuration from {}", configPath);
             logger.info("Block node configuration: {}", allNodes);
-
-            this.blockItemBatchSize = protoConfig.blockItemBatchSize();
-
         } catch (IOException | ParseException e) {
             logger.error("Failed to read block node configuration from {}", configPath, e);
             throw new RuntimeException("Failed to read block node configuration from " + configPath, e);
@@ -53,13 +49,5 @@ public class BlockNodeConfigExtractorImpl implements BlockNodeConfigExtractor {
     @Override
     public List<BlockNodeConfig> getAllNodes() {
         return allNodes;
-    }
-
-    /**
-     * @return the block items batch size to send to the block nodes
-     */
-    @Override
-    public int getBlockItemBatchSize() {
-        return blockItemBatchSize;
     }
 }

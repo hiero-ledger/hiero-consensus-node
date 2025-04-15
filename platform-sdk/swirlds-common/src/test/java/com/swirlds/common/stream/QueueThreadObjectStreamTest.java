@@ -9,7 +9,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStreamGenerator;
@@ -20,6 +19,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Iterator;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.DigestType;
 import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,8 +46,7 @@ class QueueThreadObjectStreamTest {
     @BeforeEach
     void initLinkedObjectStreams() throws IOException {
         consumer = new WriteToStreamConsumer(
-                new SerializableDataOutputStreamImpl(new BufferedOutputStream(new ByteArrayOutputStream())),
-                initialHash);
+                new SerializableDataOutputStream(new BufferedOutputStream(new ByteArrayOutputStream())), initialHash);
 
         queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
                 .setForwardTo(consumer)

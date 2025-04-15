@@ -8,7 +8,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.getNextNodeID;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -46,6 +45,7 @@ public class NodeCreateHandler implements TransactionHandler {
 
     /**
      * Constructs a {@link NodeCreateHandler} with the given {@link AddressBookValidator}.
+     *
      * @param addressBookValidator the validator for the crypto create transaction
      */
     @Inject
@@ -105,7 +105,9 @@ public class NodeCreateHandler implements TransactionHandler {
                 .grpcCertificateHash(op.grpcCertificateHash())
                 .declineReward(op.declineReward())
                 .adminKey(op.adminKey());
-        final var node = nodeBuilder.nodeId(getNextNodeID(nodeStore)).build();
+        // Since nodes won't be removed from state, we can set the nodeId to the next available id
+        // in the state based on the size of the state.
+        final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();
 
         nodeStore.putAndIncrementCount(node);
 

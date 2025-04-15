@@ -33,12 +33,16 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
@@ -62,7 +66,10 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.time.Instant;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -134,11 +141,130 @@ public class AtomicBatchNegativeTest {
                         allRunFor(spec, accountQuery);
                     }));
         }
+
+        @HapiTest
+        @DisplayName("Multi batch with 2 inner txns fails")
+        public Stream<DynamicTest> multiBatchFail() {
+            final var batchOperator = "batchOperator";
+            final var innerTxnPayer = "innerPayer";
+            final var innerTxnId1 = "innerId1";
+            final var innerTxnId2 = "innerId2";
+            final var account1 = "foo1";
+            final var account2 = "foo2";
+            final var atomicTxn = "atomicTxn";
+
+            final var innerTxn1 = cryptoCreate(account1)
+                    .balance(ONE_HBAR)
+                    .txnId(innerTxnId1)
+                    .batchKey(batchOperator)
+                    .payingWith(innerTxnPayer);
+            final var innerTxn2 = cryptoCreate(account2)
+                    .balance(ONE_MILLION_HBARS)
+                    .txnId(innerTxnId2)
+                    .batchKey(batchOperator)
+                    .payingWith(innerTxnPayer);
+
+            return hapiTest(
+                    cryptoCreate(batchOperator).balance(ONE_HBAR),
+                    cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
+                    usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
+                    usableTxnIdNamed(innerTxnId2).payerId(innerTxnPayer),
+                    atomicBatch(innerTxn1, innerTxn2)
+                            .via(atomicTxn)
+                            .payingWith(batchOperator)
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    getTxnRecord(atomicTxn).logged(),
+                    getTxnRecord(innerTxnId1).assertingNothingAboutHashes().logged(),
+                    getTxnRecord(innerTxnId2).assertingNothingAboutHashes().logged());
+        }
     }
 
     @Nested
     @DisplayName("Batch Constraints - NEGATIVE")
     class BatchConstraintsNegative {
+
+        @HapiTest
+        @DisplayName("Batch fails with inner txn missing DEFAULT_PAYER key signature")
+        public Stream<DynamicTest> missingInnerTxnPayerSignatureFails() {
+            final var batchOperator = "batchOperator";
+            final var innerTxnPayer = "innerPayer";
+            final var innerTxnId = "innerId";
+            // crete inner txn with innerTxnPayer, but sign only with DEFAULT_PAYER
+            final var innerTxn = cryptoCreate("foo")
+                    .balance(ONE_HBAR)
+                    .txnId(innerTxnId)
+                    .batchKey(batchOperator)
+                    .payingWith(innerTxnPayer)
+                    .signedBy(DEFAULT_PAYER);
+
+            return hapiTest(
+                    cryptoCreate(batchOperator).balance(ONE_HBAR),
+                    cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
+                    usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
+                    // Since the inner txn is signed by DEFAULT_PAYER, it should fail
+                    atomicBatch(innerTxn).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
+        }
+
+        @HapiTest
+        @DisplayName(value = "Batch with invalid txn start fails")
+        public Stream<DynamicTest> invalidTransactionStartFailed() {
+            final var batchOperator = "batchOperator";
+            final var innerTxnPayer = "innerPayer";
+            final var innerTxnId1 = "innerId1";
+            final var account1 = "foo1";
+
+            final var innerTxn1 = cryptoCreate(account1)
+                    .balance(ONE_HBAR)
+                    .txnId(innerTxnId1)
+                    .batchKey(batchOperator)
+                    .payingWith(innerTxnPayer);
+            final var validStart = Timestamp.newBuilder()
+                    .setSeconds(Instant.now().getEpochSecond() + 1000)
+                    .setNanos(1)
+                    .build();
+
+            return hapiTest(
+                    cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
+                    usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer).validStart(validStart),
+                    cryptoCreate(batchOperator).balance(ONE_HBAR),
+                    atomicBatch(innerTxn1).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
+        }
+
+        @HapiTest
+        @DisplayName("Batch with already used transaction ID should fail")
+        public Stream<DynamicTest> duplicatedBatchInnerTransactionsFail() {
+            final var batchOperator = "batchOperator";
+            final var innerTxnPayer = "innerPayer";
+            final var innerTxnId1 = "innerId1";
+            final var innerTxnId2 = "innerId2";
+            final var account1 = "foo1";
+            final var account2 = "foo2";
+
+            final var innerTxn1 = cryptoCreate(account1)
+                    .balance(ONE_HBAR)
+                    .txnId(innerTxnId1)
+                    .batchKey(batchOperator)
+                    .payingWith(innerTxnPayer);
+            final var innerTxn2 = cryptoCreate(account2)
+                    .balance(ONE_HBAR)
+                    .txnId(innerTxnId2)
+                    .batchKey(batchOperator)
+                    .payingWith(innerTxnPayer);
+
+            return hapiTest(
+                    cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
+                    usableTxnIdNamed(innerTxnId1).payerId(innerTxnPayer),
+                    usableTxnIdNamed(innerTxnId2).payerId(innerTxnPayer),
+                    cryptoCreate(batchOperator)
+                            .txnId(innerTxnId1)
+                            .payingWith(innerTxnPayer)
+                            .balance(ONE_HBAR),
+                    atomicBatch(innerTxn1, innerTxn2)
+                            .payingWith(batchOperator)
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    atomicBatch(innerTxn2).payingWith(batchOperator),
+                    atomicBatch(innerTxn2).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
+        }
 
         @HapiTest
         @DisplayName("Empty batch should fail")
@@ -383,19 +509,47 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Submit non batch inner transaction with batch key should fail")
-        @Disabled // TODO: Enable this test when we have global batch key validation
         //  BATCH_54
-        public Stream<DynamicTest> nonInnerTxnWithBatchKey() {
-            final var batchOperator = "batchOperator";
+        public Stream<DynamicTest> nonInnerTransactionHasBatchKeyFails() {
+            final var batchPayer = "batchPayer";
+            final var innerTnxPayer = "innerPayer";
+            final var innerTxnId = "innerId";
+            final var basicPayer = "basicPayer";
+            final var innerTxn = cryptoCreate("foo1")
+                    .balance(ONE_HBAR)
+                    .txnId(innerTxnId)
+                    .batchKey(batchPayer)
+                    .payingWith(innerTnxPayer)
+                    .via("innerTxn");
+
             return hapiTest(
-                    cryptoCreate(batchOperator),
-                    cryptoCreate("foo").batchKey(batchOperator).hasPrecheck(NOT_SUPPORTED));
+                    cryptoCreate(batchPayer).balance(FIVE_HBARS),
+                    cryptoCreate(innerTnxPayer).balance(FIVE_HBARS),
+                    cryptoCreate(basicPayer).balance(FIVE_HBARS),
+                    usableTxnIdNamed(innerTxnId).payerId(innerTnxPayer),
+                    atomicBatch(innerTxn)
+                            .batchKey(batchPayer)
+                            .payingWith(batchPayer)
+                            .via("batchTxn")
+                            .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                    newKeyNamed("newKey"),
+                    cryptoCreate("foo2")
+                            .balance(ONE_HBAR)
+                            .batchKey("newKey")
+                            .signedBy(DEFAULT_PAYER)
+                            .payingWith(basicPayer)
+                            .via("basicTxn")
+                            .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
+                    getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
+                    getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                    validateChargedUsd("batchTxn", 0.001),
+                    validateChargedUsd("basicTxn", 0.05, 10));
         }
 
         @HapiTest
         @DisplayName("Submit non batch inner transaction with invalid batch key should fail")
         @Disabled // TODO: Enable this test when we have global batch key validation
-        //  BATCH_54
+        //  BATCH_55
         public Stream<DynamicTest> nonInnerTxnWithInvalidBatchKey() {
             return hapiTest(withOpContext((spec, opLog) -> {
                 // create invalid key
@@ -454,8 +608,16 @@ public class AtomicBatchNegativeTest {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
                     // asserts
-                    getAccountRecords("Bob").exposingTo(records -> assertEquals(2, records.size())),
-                    getAccountRecords("Alice").exposingTo(records -> assertEquals(1, records.size())),
+                    getAccountRecords("Bob").exposingTo(records -> {
+                        assertEquals(2, records.size());
+                        // validate transactionFee matches the debit in the transferList
+                        validateTransactionFees(records);
+                    }),
+                    getAccountRecords("Alice").exposingTo(records -> {
+                        assertEquals(1, records.size());
+                        // validate transactionFee matches the debit in the transferList
+                        validateTransactionFees(records);
+                    }),
                     getAccountBalance("collector").hasTokenBalance("ftB", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftA", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftC", 0));
@@ -501,6 +663,16 @@ public class AtomicBatchNegativeTest {
                     // asserts
                     getAccountBalance("Alice").hasTinyBars(ONE_HBAR),
                     getAccountBalance("Bob").hasTinyBars(ONE_HBAR));
+        }
+    }
+
+    private void validateTransactionFees(final List<TransactionRecord> records) {
+        for (var record : records) {
+            final var debit = record.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() < 0)
+                    .mapToInt(aa -> (int) -aa.getAmount())
+                    .sum();
+            assertEquals(debit, record.getTransactionFee());
         }
     }
 

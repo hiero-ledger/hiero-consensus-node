@@ -903,6 +903,7 @@ public class HandleWorkflow {
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var boundaryTimestamp = boundaryStateChangeListener.lastConsensusTimeOrThrow();
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+            final var entityCounters = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
@@ -913,7 +914,7 @@ public class HandleWorkflow {
                         null,
                         crsWorkTime,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates), crsWorkTime, isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), crsWorkTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
@@ -921,14 +922,14 @@ public class HandleWorkflow {
                         boundaryTimestamp,
                         () -> hintsService.reconcile(
                                 activeRosters,
-                                new WritableHintsStoreImpl(hintsWritableStates),
+                                new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
                                 boundaryTimestamp,
                                 tssConfig,
                                 isActive));
             }
             if (tssConfig.historyEnabled()) {
                 final Bytes currentMetadata = tssConfig.hintsEnabled()
-                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME))
+                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME), entityCounters)
                                 .getActiveVerificationKey()
                         : HintsService.DISABLED_HINTS_METADATA;
                 final var historyWritableStates = state.getWritableStates(HistoryService.NAME);

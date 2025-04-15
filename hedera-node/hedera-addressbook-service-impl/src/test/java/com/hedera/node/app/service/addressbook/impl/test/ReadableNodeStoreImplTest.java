@@ -3,13 +3,12 @@ package com.hedera.node.app.service.addressbook.impl.test;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
-import static java.util.stream.Collectors.toSet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -23,8 +22,7 @@ import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
-import java.util.Set;
-import org.assertj.core.util.Streams;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,19 +81,17 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
     void keysWorks() {
         final var stateBuilder = emptyReadableNodeStateBuilder();
         stateBuilder
+                .value(new EntityNumber(1), mock(Node.class))
                 .value(new EntityNumber(2), mock(Node.class))
-                .value(new EntityNumber(4), mock(Node.class))
-                .value(new EntityNumber(5), mock(Node.class))
-                .value(new EntityNumber(1), mock(Node.class));
+                .value(new EntityNumber(3), mock(Node.class))
+                .value(new EntityNumber(0), mock(Node.class));
         readableNodeState = stateBuilder.build();
         given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
-        subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
+        subject = new ReadableNodeStoreImpl(readableStates, writableEntityCounters);
+        writableEntityCounters.adjustEntityCount(EntityType.NODE, 3L);
         final var keys = subject.keys();
-
-        assertTrue(keys.hasNext());
-        final var keySet = Streams.stream(keys).collect(toSet());
-        assertEquals(
-                keySet, Set.of(new EntityNumber(1), new EntityNumber(2), new EntityNumber(4), new EntityNumber(5)));
+        assertFalse(keys.isEmpty());
+        assertEquals(keys, List.of(new EntityNumber(0), new EntityNumber(1), new EntityNumber(2), new EntityNumber(3)));
     }
 
     @Test
@@ -110,12 +106,12 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
                         Node.newBuilder().nodeId(4).weight(40).deleted(true).build())
                 .build();
         given(readableStates.<EntityNumber, Node>get(anyString())).willReturn(nodesState);
+        writableEntityCounters.adjustEntityCount(EntityType.NODE, 3L);
 
-        subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
+        subject = new ReadableNodeStoreImpl(readableStates, writableEntityCounters);
         final var result = subject.snapshotOfFutureRoster(nodeId ->
                 nodesState.get(EntityNumber.newBuilder().number(nodeId).build()).weight());
-        org.assertj.core.api.Assertions.assertThat(result.rosterEntries())
-                .containsExactlyInAnyOrder(ROSTER_NODE_1, ROSTER_NODE_2, ROSTER_NODE_3);
+        assertThat(result.rosterEntries()).containsExactlyInAnyOrder(ROSTER_NODE_1, ROSTER_NODE_2, ROSTER_NODE_3);
     }
 
     private static final Node NODE_1 = Node.newBuilder().nodeId(1).weight(10).build();

@@ -3,7 +3,6 @@ package com.swirlds.platform.event.preconsensus;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
@@ -42,7 +41,7 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
 
         this.lowerBound = lowerBound;
         this.fileType = Objects.requireNonNull(fileType);
-        stream = new SerializableDataInputStreamImpl(new BufferedInputStream(
+        stream = new SerializableDataInputStream(new BufferedInputStream(
                 new FileInputStream(fileDescriptor.getPath().toFile())));
 
         try {
