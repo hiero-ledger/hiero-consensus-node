@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.demo.merkle.map.FCMConfig;
@@ -45,6 +44,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

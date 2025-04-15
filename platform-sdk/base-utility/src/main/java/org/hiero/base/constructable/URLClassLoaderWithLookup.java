@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable;
+package org.hiero.base.constructable;
 
 import java.lang.invoke.MethodHandles;
 import java.net.URL;

@@ -11,12 +11,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.merkle.utility.MerkleLong;
 import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.Value;
 import com.swirlds.merkle.map.internal.MerkleMapEntry;
 import java.io.IOException;
+import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;

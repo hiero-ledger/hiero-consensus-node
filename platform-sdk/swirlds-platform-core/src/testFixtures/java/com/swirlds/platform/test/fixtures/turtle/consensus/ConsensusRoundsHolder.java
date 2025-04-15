@@ -10,7 +10,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 /**
  * A test component collecting consensus rounds produced by the ConsensusEngine
  */
-public interface ConsensusRoundsTestCollector {
+public interface ConsensusRoundsHolder {
 
     /**
      * Intercept the consensus rounds produced by the ConsensusEngine and adds them to a collection.

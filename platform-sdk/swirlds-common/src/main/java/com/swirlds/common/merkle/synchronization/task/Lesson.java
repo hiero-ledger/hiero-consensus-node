@@ -6,10 +6,10 @@ import static com.swirlds.common.merkle.synchronization.task.LessonType.INTERNAL
 import static com.swirlds.common.merkle.synchronization.task.LessonType.LEAF_NODE_DATA;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.NODE_IS_UP_TO_DATE;
 
-import com.swirlds.common.Releasable;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import java.io.IOException;
 import java.util.List;
+import org.hiero.base.Releasable;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;

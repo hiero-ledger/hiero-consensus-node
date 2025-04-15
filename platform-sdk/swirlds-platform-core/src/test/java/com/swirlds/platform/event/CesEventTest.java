@@ -3,12 +3,12 @@ package com.swirlds.platform.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.io.IOException;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.BeforeAll;

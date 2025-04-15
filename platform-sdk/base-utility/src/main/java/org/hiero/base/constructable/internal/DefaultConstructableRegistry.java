@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable.internal;
+package org.hiero.base.constructable.internal;
 
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.constructable.ConstructorRegistry;
-import com.swirlds.common.constructable.NoArgsConstructor;
-import com.swirlds.common.constructable.URLClassLoaderWithLookup;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.constructable.ConstructorRegistry;
+import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.constructable.URLClassLoaderWithLookup;
 
 public class DefaultConstructableRegistry implements ConstructableRegistry {
     private final Map<Class<?>, GenericConstructorRegistry<?>> allRegistries = new ConcurrentHashMap<>();

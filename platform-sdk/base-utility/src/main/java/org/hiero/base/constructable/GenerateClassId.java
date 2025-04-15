@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable;
+package org.hiero.base.constructable;
 
 import java.util.Random;
 
@@ -42,7 +42,7 @@ public final class GenerateClassId {
 						\tpublic int getVersion() {
 						\t\treturn ClassVersion.ORIGINAL;
 						\t}
-							""",
+						""",
                 Long.toHexString(new Random().nextLong()));
     }
 }
