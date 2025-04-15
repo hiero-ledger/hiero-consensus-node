@@ -9,15 +9,15 @@
 
 ## Prerequisite reading
 
-* [HIP-1086](https://github.com/hiero-ledger/hiero-improvement-proposals/pull/1086)
+* [HIP-1086](https://github.com/hiero-ledger/hiero-improvement-proposals/pull/1086)\
   **Note:** The HIP PR is not yet merged.
 
 ## Architecture and Implementation
 
 ### Configuration
 
-Define new config properties `JumboTransactionsConfig` containing a feature flag to enable jumbo transactions,
-set the max size for Ethereum transactions and a list of transactions that support jumbo size.
+Define new config properties `JumboTransactionsConfig` containing a feature flag to enable jumbo transactions,\
+set the max size for Ethereum transactions and a list of transactions that support jumbo size.\
 The default values are:
 
 ```java
@@ -34,9 +34,9 @@ public record JumboTransactionsConfig(
 
 Instead of increasing the buffer size of all incoming requests or performing complex bytes comparisons to identify ethereum transactions (before parsing):
 - Increase the buffer size only for the requests that are using the jumbo transaction endpoints (From config `grpcMethodNames`, default `callEthereum`).
-This way, the total size of allocated buffers will be relatively small, and there will be no additional changes needed, if transactions protobufs are modified in the future.
+This way, the total size of allocated buffers will be relatively small, and there will be no additional changes needed, if transactions protobufs are modified in the future.\
 Note: Setting size limits on the `ethereumCall` endpoint does not mean only ethereum transactions can pass through this endpoint, so **there must be an additional check in ingest** to fail any non-ethereum transactions bigger than 6kb.
-- Modify `GrpcServiceBuilder.java`, `MethodBase.java`, and `DataBufferMarshaller.java` so the request buffer size can be read from the configuration.
+- Modify `GrpcServiceBuilder.java`, `MethodBase.java`, and `DataBufferMarshaller.java` so the request buffer size can be read from the configuration.\
 In `GrpcServiceBuilder`, when building service definition, add a condition, based on the feature flag and service/method names.
 
 ```java
@@ -166,17 +166,30 @@ private boolean shouldThrottleBasedExcessBytes(final long bytesUsed, @NonNull fi
     }
 ```
 
-### Fees (TBD)
+### Fees
 
-Fees are calculated based on the result of `getEthereumTransactionFeeMatrices` method.
+Following our current model (`CustomGasCalculator.transactionIntrinsicGasCost`),
+gas will be calculated based on the amount of intrinsic gas used for each kb of data.
+- `Total gas` = `base gas` + `execution gas` + `callData gas per byte`\
+Where `callData gas per byte`  = 4 * (number of zeros bytes) + 16 * (number of non-zeros bytes)\
+For example,  for a 100 kb callData (with 10K zero bytes and 90K non-zero), gas would be equal to 1480K gas.
 
 ```java
-// bpt - Bytes per Transaction
-bpt = txBodySize + getEthereumTransactionBodyTxSize(txBody) + sigValObj.getSignatureSize();
-```
+@Override
+public long transactionIntrinsicGasCost(final Bytes payload, final boolean isContractCreate) {
+  int zeros = 0;
+  for (int i = 0; i < payload.size(); i++) {
+    if (payload.get(i) == 0) {
+      ++zeros;
+    }
+  }
+  final int nonZeros = payload.size() - zeros;
 
-This is a linear fee calculation based on the size of the body and the Ethereum data.
-This logic should be changed, based on future decisions.
+  long cost = TX_BASE_COST + TX_DATA_ZERO_COST * zeros + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros;
+
+  return isContractCreate ? (cost + txCreateExtraGasCost()) : cost;
+}
+```
 
 ## Acceptance Tests
 
@@ -184,6 +197,7 @@ This logic should be changed, based on future decisions.
 
 - validate that jumbo transaction should pass
 - validate that privileged account is exempt from bytes throttles
+- validate that jumbo payload is charged as expected
 
 #### Negative Tests
 
