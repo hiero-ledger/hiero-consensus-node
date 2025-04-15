@@ -60,7 +60,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void failUnexpectedly(@NonNull final Duration timeout) {
+    public void failUnexpectedly(@NonNull final Duration timeout) throws InterruptedException {
         destroy();
     }
 
@@ -68,7 +68,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void shutdownGracefully(@NonNull final Duration timeout) {
+    public void shutdownGracefully(@NonNull final Duration timeout) throws InterruptedException {
         log.warn("Simulating a graceful shutdown of a node has not been implemented yet.");
         destroy();
     }
@@ -143,7 +143,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started
      * again. This method is idempotent and can be called multiple times without any side effects.
      */
-    public void destroy() {
+    public void destroy() throws InterruptedException {
         ThreadContext.clearAll();
         if (turtleNode != null) {
             turtleNode.destroy();

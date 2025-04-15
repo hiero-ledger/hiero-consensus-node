@@ -135,7 +135,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() {
+    public void destroy() throws InterruptedException {
         generator.stop();
         network.destroy();
     }

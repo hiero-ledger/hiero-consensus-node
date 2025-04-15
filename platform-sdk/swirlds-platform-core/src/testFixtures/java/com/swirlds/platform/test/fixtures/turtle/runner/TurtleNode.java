@@ -240,7 +240,7 @@ public class TurtleNode {
      * the current state. All resources are released. This method is idempotent and can be
      * called multiple times without any side effects after the first call.
      */
-    public void destroy() {
-        // Not implemented yet
+    public void destroy() throws InterruptedException {
+        getMetricsProvider().removePlatformMetrics(platform.getSelfId());
     }
 }

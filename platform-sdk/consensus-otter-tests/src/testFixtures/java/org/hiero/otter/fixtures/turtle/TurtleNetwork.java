@@ -149,7 +149,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void prepareUpgrade(@NonNull Duration timeout) {
+    public void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException {
         for (final TurtleNode node : nodes) {
             node.shutdownGracefully(timeout);
         }
@@ -199,7 +199,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started
      * again. This method is idempotent and can be called multiple times without any side effects.
      */
-    public void destroy() {
+    public void destroy() throws InterruptedException {
         for (final TurtleNode node : nodes) {
             node.destroy();
         }
