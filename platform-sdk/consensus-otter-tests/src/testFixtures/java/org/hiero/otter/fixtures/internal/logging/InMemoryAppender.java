@@ -14,6 +14,7 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.hiero.otter.fixtures.turtle.TurtleNode;
 
 /**
  * An {@link Appender} implementation for Log4j2 that provides in-memory storage
@@ -64,7 +65,8 @@ public class InMemoryAppender extends AbstractAppender {
                 event.getMessage().getFormattedMessage(),
                 event.getLoggerName(),
                 event.getThreadName(),
-                event.getMarker());
+                event.getMarker(),
+                event.getContextData().getValue(TurtleNode.THREAD_CONTEXT_NODE_ID));
         logs.add(log);
     }
 
