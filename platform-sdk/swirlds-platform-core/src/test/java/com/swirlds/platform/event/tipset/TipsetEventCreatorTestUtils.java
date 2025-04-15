@@ -2,6 +2,7 @@
 package com.swirlds.platform.event.tipset;
 
 import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,6 +23,9 @@ import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
+import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -93,11 +97,16 @@ public class TipsetEventCreatorTestUtils {
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
                     platformContext, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+            final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
                     new SimulatedNode(
-                            NodeId.of(address.nodeId()), tipsetTracker, eventCreator, tipsetWeightCalculator));
+                            NodeId.of(address.nodeId()),
+                            orphanBuffer,
+                            tipsetTracker,
+                            eventCreator,
+                            tipsetWeightCalculator));
         }
 
         return eventCreators;
@@ -187,37 +196,24 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> events,
             @NonNull final PlatformEvent event) {
 
-        distributeEvent(nodeMap, assignNGen(nodeMap, events, event));
+        nodeMap.values().forEach(node -> registerEvent(node, events, event));
+        distributeEvent(nodeMap, event);
     }
 
     /**
-     * Calculate and assign the nGen value to the event
+     * Register the event in the map of all events, and pass the event through the node's orphan buffer to ensure it
+     * gets assigned an nGen value.
      */
     @NonNull
-    public static PlatformEvent assignNGen(
-            @NonNull final Map<NodeId, SimulatedNode> eventCreators,
-            @NonNull final Map<EventDescriptorWrapper, PlatformEvent> events,
+    public static PlatformEvent registerEvent(
+            @NonNull final SimulatedNode node,
+            @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent event) {
-
-        final PlatformEvent selfParent = events.get(event.getSelfParent());
-        final PlatformEvent otherParent =
-                events.get(event.getOtherParents().stream().findFirst().orElse(null));
-
-        long nGen = EventConstants.GENERATION_UNDEFINED;
-        if (selfParent != null) {
-            nGen = selfParent.getNGen();
-        }
-        if (otherParent != null) {
-            nGen = Math.max(nGen, otherParent.getNGen());
-        }
-        if (nGen == EventConstants.GENERATION_UNDEFINED) {
-            nGen = EventConstants.FIRST_GENERATION;
-        } else {
-            nGen++;
-        }
-        event.setNGen(nGen);
-        events.put(event.getDescriptor(), event);
-
+        node.orphanBuffer().handleEvent(event);
+        assertThat(event.hasNGen())
+                .withFailMessage("Event should have passed through the orphan buffer and been assigned an nGen value")
+                .isTrue();
+        allEvents.put(event.getDescriptor(), event);
         return event;
     }
 

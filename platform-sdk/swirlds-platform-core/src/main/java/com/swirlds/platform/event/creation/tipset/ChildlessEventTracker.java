@@ -17,7 +17,8 @@ import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Keeps track of events created that have no children. These events are candidates to be used as parents when creating
- * a new event.
+ * a new event. This class is a helper class and does not do ancient window checking on its own. It is up to the
+ * caller to only pass non-ancient events and to prune old events when necessary.
  */
 public class ChildlessEventTracker {
 

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.assignNGen;
 import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
 import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
 import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.createTestEvent;
 import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.registerEvent;
 import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.validateNewEvent;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -497,7 +497,7 @@ class TipsetEventCreatorTests {
                         assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                     } else {
                         // Most of the time, we don't immediately distribute the slow events.
-                        assignNGen(nodes, allEvents, newEvent);
+                        registerEvent(nodes.get(nodeId), allEvents, newEvent);
                         // Register the event with the creator node's test tipsetTracker
                         nodes.get(nodeId)
                                 .tipsetTracker()
