@@ -120,7 +120,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         // override and preserve old values
         lifecycle.overrideInClass(Map.of(
-                "entities.unlimitedAutoAssociationsEnabled", "false",
                 "tokens.airdrops.enabled", "false",
                 "tokens.airdrops.claim.enabled", "false",
                 "tokens.airdrops.cancel.enabled", "false"));
@@ -128,7 +127,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
         lifecycle.doAdhoc(setUpEntitiesPreHIP904());
         // enable airdrops
         lifecycle.doAdhoc(
-                overriding("entities.unlimitedAutoAssociationsEnabled", "true"),
                 overriding("tokens.airdrops.enabled", "true"),
                 overriding("tokens.airdrops.claim.enabled", "true"),
                 overriding("tokens.airdrops.cancel.enabled", "true"));
@@ -909,7 +907,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
     }
 
     @HapiTest
-    @DisplayName("hollow account with 0 free maxAutoAssociations")
+    @DisplayName("hollow account with -1 free maxAutoAssociations")
     final Stream<DynamicTest> airdropToAliasWithNoFreeSlots() {
         final var validAlias = "validAlias";
         return hapiTest(flattened(
@@ -925,7 +923,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 validateChargedUsd("claimTxn", 0.001, 1),
 
                 // check if account was finalized and auto associations were not modified
-                getAliasedAccountInfo(validAlias).isNotHollow().hasMaxAutomaticAssociations(0)));
+                getAliasedAccountInfo(validAlias).isNotHollow().hasMaxAutomaticAssociations(-1)));
     }
 
     @HapiTest
@@ -1124,7 +1122,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .hasPrecheck(PENDING_AIRDROP_ID_REPEATED)));
     }
 
-    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    @HapiTest
     @DisplayName("account created with same alias should fail")
     final Stream<DynamicTest> accountCreatedWithSAmeAliasShouldFail() {
         final String ALIAS = "alias";
@@ -1133,8 +1131,6 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                 flattened(
                         setUpTokensAndAllReceivers(),
                         logIt("preparation is over"),
-                        // stop the unlimitedAutoAssociations, in order to create the account and send the airdrop to
-                        overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
                         // create key
                         newKeyNamed(ALIAS),
                         // create first aliased account

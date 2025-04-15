@@ -24,7 +24,6 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,10 +49,9 @@ public class AutoAccountCreator {
      * Creates an account for the given alias.
      *
      * @param alias                      the alias to create the account for
-     * @param requiredAutoAssociations   the requiredAutoAssociations to set on the account
      * @return the account ID of the created account
      */
-    public AccountID create(@NonNull final Bytes alias, int requiredAutoAssociations) {
+    public AccountID create(@NonNull final Bytes alias) {
         requireNonNull(alias);
 
         final var accountsConfig = handleContext.configuration().getConfigData(AccountsConfig.class);
@@ -65,15 +63,11 @@ public class AutoAccountCreator {
         final TransactionBody.Builder syntheticCreation;
 
         final var isAliasEVMAddress = isOfEvmAddressSize(alias);
-        final var entitiesConfig = handleContext.configuration().getConfigData(EntitiesConfig.class);
-        final int autoAssociations = entitiesConfig.unlimitedAutoAssociationsEnabled()
-                ? UNLIMITED_AUTOMATIC_ASSOCIATIONS
-                : requiredAutoAssociations;
         if (isAliasEVMAddress) {
-            syntheticCreation = createHollowAccount(alias, 0L, autoAssociations);
+            syntheticCreation = createHollowAccount(alias, 0L, UNLIMITED_AUTOMATIC_ASSOCIATIONS);
         } else {
             final var key = asKeyFromAlias(alias);
-            syntheticCreation = createZeroBalanceAccount(alias, key, autoAssociations);
+            syntheticCreation = createZeroBalanceAccount(alias, key, UNLIMITED_AUTOMATIC_ASSOCIATIONS);
         }
 
         // Dispatch the auto-creation record as a preceding record; note we pass null for the

@@ -500,24 +500,6 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    void maxAutoAssociationUpdateToMoreThanTokenAssociationLimitFails() {
-        final var txn = new CryptoUpdateBuilder().withMaxAutoAssociations(12).build();
-        givenTxnWith(txn);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("entities.limitTokenAssociations", true)
-                .withValue("tokens.maxPerAccount", 11)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-
-        // changing to less than 2 slots will fail
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT));
-        assertEquals(10, writableStore.get(updateAccountId).maxAutoAssociations());
-    }
-
-    @Test
     void updateMaxAutomaticAssociationsFailAsExpectedWithMoreThanMaxAutoAssociations() {
         final var txn = new CryptoUpdateBuilder().withMaxAutoAssociations(12).build();
         givenTxnWith(txn);
@@ -750,9 +732,6 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         FeeContext feeContext = mock(FeeContext.class);
         FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
         FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("entities.unlimitedAutoAssociationsEnabled", true)
-                .getOrCreateConfig();
 
         TransactionBody cryptoUpdateTransaction = new CryptoUpdateBuilder()
                 .withPayer(id)
@@ -773,7 +752,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(readableStore);
         when(feeContext.body()).thenReturn(cryptoUpdateTransaction);
-        when(feeContext.configuration()).thenReturn(config);
+        when(feeContext.configuration()).thenReturn(configuration);
         when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
         when(feeCalculatorFactory.feeCalculator(any())).thenReturn(feeCalculator);
         when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
@@ -784,7 +763,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         InOrder inOrder = inOrder(feeCalculator);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(212L);
-        inOrder.verify(feeCalculator, times(2)).addRamByteSeconds(0L);
+        inOrder.verify(feeCalculator, times(1)).addRamByteSeconds(0L);
         inOrder.verify(feeCalculator, times(1)).calculate();
     }
 

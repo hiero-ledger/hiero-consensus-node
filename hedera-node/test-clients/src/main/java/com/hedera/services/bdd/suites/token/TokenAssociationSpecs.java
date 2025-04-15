@@ -32,7 +32,6 @@ import static com.hedera.services.bdd.spec.transactions.token.HapiTokenAssociate
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
@@ -47,7 +46,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TOKEN_LIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
@@ -62,7 +60,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -133,21 +130,6 @@ public class TokenAssociationSpecs {
                         submitModified(withSuccessivelyVariedBodyIds(), () -> tokenAssociate(DEFAULT_PAYER, "a", "b")),
                         submitModified(
                                 withSuccessivelyVariedBodyIds(), () -> tokenDissociate(DEFAULT_PAYER, "a", "b")));
-    }
-
-    @LeakyHapiTest(overrides = {"tokens.maxPerAccount", "entities.limitTokenAssociations"})
-    final Stream<DynamicTest> canLimitMaxTokensPerAccountTransactions() {
-        final String alice = "ALICE";
-        final String treasury2 = "TREASURY_2";
-        return hapiTest(
-                overridingTwo("tokens.maxPerAccount", "1", "entities.limitTokenAssociations", "true"),
-                cryptoCreate(alice),
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate(treasury2),
-                tokenCreate(VANILLA_TOKEN).treasury(TOKEN_TREASURY),
-                tokenCreate(KNOWABLE_TOKEN).treasury(treasury2),
-                tokenAssociate(alice, KNOWABLE_TOKEN),
-                tokenAssociate(alice, VANILLA_TOKEN).hasKnownStatus(TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED));
     }
 
     @HapiTest

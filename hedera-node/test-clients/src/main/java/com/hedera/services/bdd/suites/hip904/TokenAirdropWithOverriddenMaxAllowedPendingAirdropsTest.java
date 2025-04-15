@@ -30,8 +30,7 @@ public class TokenAirdropWithOverriddenMaxAllowedPendingAirdropsTest extends Tok
         lifecycle.overrideInClass(Map.of(
                 "tokens.airdrops.enabled", "true",
                 "tokens.airdrops.cancel.enabled", "true",
-                "tokens.maxAllowedPendingAirdrops", "1",
-                "entities.unlimitedAutoAssociationsEnabled", "true"));
+                "tokens.maxAllowedPendingAirdrops", "1"));
         lifecycle.doAdhoc(setUpTokensAndAllReceivers());
     }
 

@@ -61,7 +61,7 @@ public class AirdropConsensusThrottleTest {
 
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
-            overrides = {"tokens.airdrops.enabled", "entities.unlimitedAutoAssociationsEnabled"},
+            overrides = {"tokens.airdrops.enabled"},
             throttles = "testSystemFiles/mainnet-throttles.json")
     final Stream<DynamicTest> airdropsAreLimitedByConsThrottle() {
         return hapiTest(

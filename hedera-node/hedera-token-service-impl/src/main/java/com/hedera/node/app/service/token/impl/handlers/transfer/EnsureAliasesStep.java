@@ -92,7 +92,7 @@ public class EnsureAliasesStep implements TransferStep {
             // (If it appeared in a sender location, this transfer will fail anyway.)
             final var isInResolutions = transferContext.resolutions().containsKey(alias);
             if (adjust.amount() > 0 && !isInResolutions) {
-                transferContext.createFromAlias(alias, impliedAutoAssociationsForAlias(accountId, op));
+                transferContext.createFromAlias(alias);
             } else {
                 validateTrue(transferContext.resolutions().containsKey(alias), INVALID_ACCOUNT_ID);
             }
@@ -122,8 +122,7 @@ public class EnsureAliasesStep implements TransferStep {
                 final var account = transferContext.getFromAlias(accountId);
                 if (aa.amount() > 0) {
                     if (account == null) {
-                        transferContext.createFromAlias(
-                                accountId.alias(), impliedAutoAssociationsForAlias(accountId, op));
+                        transferContext.createFromAlias(accountId.alias());
                     } else {
                         validateTrue(account != null, INVALID_ACCOUNT_ID);
                     }
@@ -153,8 +152,7 @@ public class EnsureAliasesStep implements TransferStep {
             if (receiver == null) {
                 final var isInResolutions = transferContext.resolutions().containsKey(receiverId.alias());
                 if (!isInResolutions) {
-                    transferContext.createFromAlias(
-                            receiverId.alias(), impliedAutoAssociationsForAlias(receiverId, op));
+                    transferContext.createFromAlias(receiverId.alias());
                 }
             } else {
                 validateTrue(receiver != null, INVALID_ACCOUNT_ID);
@@ -170,41 +168,5 @@ public class EnsureAliasesStep implements TransferStep {
     public static boolean isAlias(@NonNull AccountID accountID) {
         requireNonNull(accountID);
         return accountID.hasAlias() && accountID.accountNumOrElse(0L) == 0L;
-    }
-
-    /**
-     * Returns the number of auto-associations implied by the given alias in the given
-     * {@link com.hedera.hapi.node.token.CryptoTransferTransactionBody}.
-     *
-     * @param aliasedReceiverId the aliased receiver ID
-     * @param op the crypto transfer transaction body
-     * @return the number of auto-associations implied by the given alias
-     */
-    public static int impliedAutoAssociationsForAlias(
-            @NonNull AccountID aliasedReceiverId, @NonNull CryptoTransferTransactionBody op) {
-        requireNonNull(op);
-        requireNonNull(aliasedReceiverId);
-        int ans = 0;
-        for (final var tokenTransferList : op.tokenTransfers()) {
-            boolean impliedAutoAssociationHere = false;
-            for (final var unitAdjust : tokenTransferList.transfers()) {
-                if (unitAdjust.amount() > 0 && unitAdjust.accountIDOrThrow().equals(aliasedReceiverId)) {
-                    impliedAutoAssociationHere = true;
-                    break;
-                }
-            }
-            // If impliedAutoAssociationHere is true, we don't need to check nftTransfers; but it will
-            // also be empty because that means this token has fungible balance adjustments
-            for (final var nftTransfer : tokenTransferList.nftTransfers()) {
-                if (nftTransfer.receiverAccountIDOrThrow().equals(aliasedReceiverId)) {
-                    impliedAutoAssociationHere = true;
-                    break;
-                }
-            }
-            if (impliedAutoAssociationHere) {
-                ans++;
-            }
-        }
-        return ans;
     }
 }

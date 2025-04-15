@@ -65,9 +65,7 @@ public class AirdropSigReqsTest {
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         fungibleToken.setTreasury(airdropOrigin);
         nonFungibleToken.setTreasury(airdropOrigin);
-        lifecycle.overrideInClass(Map.of(
-                "tokens.airdrops.enabled", "true",
-                "entities.unlimitedAutoAssociationsEnabled", "true"));
+        lifecycle.overrideInClass(Map.of("tokens.airdrops.enabled", "true"));
     }
 
     @HapiTest
