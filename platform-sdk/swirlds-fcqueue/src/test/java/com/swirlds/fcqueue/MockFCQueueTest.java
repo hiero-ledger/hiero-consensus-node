@@ -12,8 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.test.fixtures.fcqueue.FCInt;
@@ -31,6 +29,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;

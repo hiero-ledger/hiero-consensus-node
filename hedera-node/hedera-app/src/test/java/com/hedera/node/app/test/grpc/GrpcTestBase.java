@@ -17,7 +17,6 @@ import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
@@ -50,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.assertj.core.api.Assumptions;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 

@@ -4,12 +4,9 @@ module com.swirlds.common {
     /* Exported packages. This list should remain alphabetized. */
     exports com.swirlds.common;
     exports com.swirlds.common.config;
-    exports com.swirlds.common.constructable;
-    exports com.swirlds.common.constructable.internal;
     exports com.swirlds.common.context;
     exports com.swirlds.common.crypto;
     exports com.swirlds.common.crypto.config;
-    exports com.swirlds.common.exceptions;
     exports com.swirlds.common.formatting;
     exports com.swirlds.common.io;
     exports com.swirlds.common.io.config;
@@ -139,7 +136,6 @@ module com.swirlds.common {
     requires transitive lazysodium.java;
     requires transitive org.apache.logging.log4j;
     requires com.sun.jna;
-    requires io.github.classgraph;
     requires io.prometheus.simpleclient.httpserver;
     requires java.desktop;
     requires jdk.httpserver;

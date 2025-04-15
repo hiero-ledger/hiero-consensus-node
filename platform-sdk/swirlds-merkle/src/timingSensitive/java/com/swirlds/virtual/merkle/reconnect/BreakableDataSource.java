@@ -39,14 +39,15 @@ public final class BreakableDataSource implements VirtualDataSource {
         final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.toList();
 
         if (builder.numTimesBroken < builder.numTimesToBreak) {
-            // Synchronization block is not required here, as this code is never called in parallel
-            // (though from different threads). `volatile` modifier is sufficient to ensure visibility.
-            builder.numCalls += leaves.size();
-            if (builder.numCalls > builder.numCallsBeforeThrow) {
-                builder.numCalls = 0;
-                builder.numTimesBroken++;
-                delegate.close();
-                throw new IOException("Something bad on the DB!");
+            if (builder.numCalls <= builder.numCallsBeforeThrow) {
+                // Synchronization block is not required here, as this code is never called in parallel
+                // (though from different threads). `volatile` modifier is sufficient to ensure visibility.
+                builder.numCalls += leaves.size();
+                if (builder.numCalls > builder.numCallsBeforeThrow) {
+                    builder.numTimesBroken++;
+                    delegate.close();
+                    throw new IOException("Something bad on the DB!");
+                }
             }
         }
 

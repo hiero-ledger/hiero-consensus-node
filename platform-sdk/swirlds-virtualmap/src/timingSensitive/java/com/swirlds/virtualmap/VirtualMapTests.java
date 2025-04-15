@@ -22,7 +22,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -66,6 +65,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;

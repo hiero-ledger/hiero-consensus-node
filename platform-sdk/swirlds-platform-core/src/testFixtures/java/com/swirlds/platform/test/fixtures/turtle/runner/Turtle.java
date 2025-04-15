@@ -2,9 +2,6 @@
 package com.swirlds.platform.test.fixtures.turtle.runner;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
@@ -24,6 +21,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -162,19 +162,20 @@ public class Turtle {
         if (!commonConsensusRoundNums.isEmpty()) {
             final TurtleNode node1 = nodes.getFirst();
             final List<ConsensusRound> consensusRoundsForNode1 =
-                    node1.getConsensusRoundsHolder().getFilteredConsensusRounds(commonConsensusRoundNums);
+                    node1.getConsensusRoundsTestCollector().getFilteredConsensusRounds(commonConsensusRoundNums);
 
             for (int i = 1; i < nodes.size(); i++) {
                 final TurtleNode otherNode = nodes.get(i);
-                final List<ConsensusRound> consensusRoundsForOtherNode =
-                        otherNode.getConsensusRoundsHolder().getFilteredConsensusRounds(commonConsensusRoundNums);
+                final List<ConsensusRound> consensusRoundsForOtherNode = otherNode
+                        .getConsensusRoundsTestCollector()
+                        .getFilteredConsensusRounds(commonConsensusRoundNums);
 
                 consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
 
-                otherNode.getConsensusRoundsHolder().clear(commonConsensusRoundNums);
+                otherNode.getConsensusRoundsTestCollector().clear(commonConsensusRoundNums);
             }
 
-            node1.getConsensusRoundsHolder().clear(commonConsensusRoundNums);
+            node1.getConsensusRoundsTestCollector().clear(commonConsensusRoundNums);
         }
     }
 
@@ -184,11 +185,15 @@ public class Turtle {
      * @return the set of round numbers that represent rounds that reached consensus in all nodes
      */
     private Set<Long> getCommonConsensusRoundNums() {
-        final Set<Long> commonRoundNumbers = new HashSet<>(
-                nodes.getFirst().getConsensusRoundsHolder().getCollectedRounds().keySet());
+        final Set<Long> commonRoundNumbers = new HashSet<>(nodes.getFirst()
+                .getConsensusRoundsTestCollector()
+                .getCollectedRounds()
+                .keySet());
         for (int i = 1; i < nodes.size(); i++) {
-            final Set<Long> roundNumbersForOtherNode =
-                    nodes.get(i).getConsensusRoundsHolder().getCollectedRounds().keySet();
+            final Set<Long> roundNumbersForOtherNode = nodes.get(i)
+                    .getConsensusRoundsTestCollector()
+                    .getCollectedRounds()
+                    .keySet();
             commonRoundNumbers.retainAll(roundNumbersForOtherNode);
         }
 
