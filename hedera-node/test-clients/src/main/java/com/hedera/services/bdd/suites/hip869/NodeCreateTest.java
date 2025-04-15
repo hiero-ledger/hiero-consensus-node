@@ -587,7 +587,7 @@ public class NodeCreateTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> createNodeWithNoGrpcProxyFails() throws CertificateEncodingException {
+    final Stream<DynamicTest> createNodeWithDefaultGrpcProxyFails() throws CertificateEncodingException {
         return hapiTest(
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")

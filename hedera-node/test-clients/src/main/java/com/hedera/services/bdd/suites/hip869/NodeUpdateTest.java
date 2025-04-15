@@ -28,6 +28,7 @@ import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509C
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
@@ -46,6 +47,7 @@ import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -316,6 +318,20 @@ public class NodeUpdateTest {
                                 asServiceEndpoint("127.0.0.2:60"),
                                 asServiceEndpoint("127.0.0.3:60")))
                         .hasKnownStatus(GOSSIP_ENDPOINTS_EXCEEDED_LIMIT));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateWithDefaultGrpcProxyFails() throws CertificateEncodingException {
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                nodeCreate("testNode")
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .description("newNode"),
+                nodeUpdate("testNode")
+                        .grpcProxyEndpoint(toPbj(ServiceEndpoint.getDefaultInstance()))
+                        .signedBy("adminKey", DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_ENDPOINT));
     }
 
     @LeakyHapiTest(overrides = {"nodes.nodeMaxDescriptionUtf8Bytes"})
