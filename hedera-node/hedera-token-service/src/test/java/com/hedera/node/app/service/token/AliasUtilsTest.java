@@ -219,10 +219,11 @@ class AliasUtilsTest {
     @Test
     void asKeyFromAliasReturnsKeyForValidEcdsaKey() {
         var ecdsaKeyAlias = Bytes.wrap(HexFormat.of().parseHex(SAMPLE_ECDSA_PUBLIC_KEY));
+        var expectedKey = asKeyFromAliasOrElse(ecdsaKeyAlias, null);
         var key = AliasUtils.asKeyFromAlias(ecdsaKeyAlias);
         assertNotNull(key);
         assertTrue(key.hasEcdsaSecp256k1());
-        assertEquals(33, key.ecdsaSecp256k1OrThrow().length());
+        assertEquals(expectedKey.ecdsaSecp256k1OrThrow(), key.ecdsaSecp256k1OrThrow());
     }
 
     @Test
@@ -242,10 +243,11 @@ class AliasUtilsTest {
     @Test
     void asKeyFromAliasPreCheckReturnsKeyForValidEcdsaKey() throws PreCheckException {
         var ecdsaKeyAlias = Bytes.wrap(HexFormat.of().parseHex(SAMPLE_ECDSA_PUBLIC_KEY));
+        var expectedKey = asKeyFromAliasOrElse(ecdsaKeyAlias, null);
         var key = AliasUtils.asKeyFromAliasPreCheck(ecdsaKeyAlias);
         assertNotNull(key);
         assertTrue(key.hasEcdsaSecp256k1());
-        assertEquals(33, key.ecdsaSecp256k1OrThrow().length());
+        assertEquals(expectedKey.ecdsaSecp256k1OrThrow(), key.ecdsaSecp256k1OrThrow());
     }
 
     @Test
