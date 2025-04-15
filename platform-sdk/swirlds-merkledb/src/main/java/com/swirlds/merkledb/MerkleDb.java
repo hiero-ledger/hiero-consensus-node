@@ -443,7 +443,7 @@ public final class MerkleDb {
             final int tableId,
             final String tableName,
             final boolean dbCompactionEnabled,
-            final boolean useDiskIndices)
+            final boolean offlineUse)
             throws IOException {
         final MerkleDbTableConfig tableConfig = getTableConfig(tableId);
         if (tableConfig == null) {
@@ -456,7 +456,7 @@ public final class MerkleDb {
             }
             try {
                 return new MerkleDbDataSource(
-                        this, config, tableName, tableId, tableConfig, dbCompactionEnabled, useDiskIndices);
+                        this, config, tableName, tableId, tableConfig, dbCompactionEnabled, offlineUse);
             } catch (final IOException z) {
                 rethrowIO.set(z);
                 return null;
