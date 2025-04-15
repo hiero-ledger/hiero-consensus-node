@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.CONSENSUS_TIMESTAMP;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH_MNEMONIC;

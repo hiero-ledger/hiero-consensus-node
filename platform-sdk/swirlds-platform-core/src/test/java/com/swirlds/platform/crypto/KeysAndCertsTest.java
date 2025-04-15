@@ -8,7 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.base.crypto.KeyType;
 import org.hiero.base.crypto.Signature;
-import com.swirlds.common.test.fixtures.crypto.PreGeneratedPublicKeys;
+import org.hiero.base.crypto.test.fixtures.PreGeneratedPublicKeys;
 import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;

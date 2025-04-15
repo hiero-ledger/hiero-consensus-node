@@ -44,7 +44,7 @@ import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;

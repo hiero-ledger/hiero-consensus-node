@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;

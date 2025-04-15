@@ -49,7 +49,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;

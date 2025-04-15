@@ -11,7 +11,7 @@ import static org.mockito.Mockito.verify;
 
 import org.hiero.base.crypto.CryptographyProvider;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.crypto.Hash;

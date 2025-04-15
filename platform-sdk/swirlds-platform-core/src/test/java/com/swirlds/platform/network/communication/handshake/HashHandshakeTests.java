@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;

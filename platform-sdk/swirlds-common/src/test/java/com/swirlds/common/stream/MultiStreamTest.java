@@ -10,7 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import java.util.ArrayList;
 import java.util.List;

@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.StreamFileSigner;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
 import com.swirlds.common.test.fixtures.stream.TestStreamType;

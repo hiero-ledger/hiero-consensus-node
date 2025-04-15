@@ -7,10 +7,12 @@ module org.hiero.base.crypto {
     exports org.hiero.base.crypto.internal to
             com.swirlds.platform.core,
             com.swirlds.common.test.fixtures,
-            com.swirlds.platform.core.test.fixtures;
+            com.swirlds.platform.core.test.fixtures,
+            org.hiero.base.crypto.test.fixtures;
     exports org.hiero.base.crypto.engine to
             com.swirlds.common,
-            com.swirlds.common.test.fixtures;
+            com.swirlds.common.test.fixtures,
+            org.hiero.base.crypto.test.fixtures;
 
     opens org.hiero.base.crypto to
             com.fasterxml.jackson.databind;

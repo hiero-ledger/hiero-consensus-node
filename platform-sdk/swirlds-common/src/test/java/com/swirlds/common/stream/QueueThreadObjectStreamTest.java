@@ -9,7 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.hiero.base.crypto.Cryptography;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStreamGenerator;
 import com.swirlds.common.test.fixtures.stream.WriteToStreamConsumer;

@@ -2,7 +2,6 @@
 open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures;
     exports com.swirlds.common.test.fixtures.benchmark;
-    exports com.swirlds.common.test.fixtures.crypto;
     exports com.swirlds.common.test.fixtures.dummy;
     exports com.swirlds.common.test.fixtures.io;
     exports com.swirlds.common.test.fixtures.map;
@@ -27,6 +26,7 @@ open module com.swirlds.common.test.fixtures {
     requires com.swirlds.logging;
     requires com.swirlds.platform.core;
     requires org.hiero.base.crypto;
+    requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.utility;
     requires lazysodium.java;

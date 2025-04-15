@@ -5,7 +5,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.base.crypto.SignatureType;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
