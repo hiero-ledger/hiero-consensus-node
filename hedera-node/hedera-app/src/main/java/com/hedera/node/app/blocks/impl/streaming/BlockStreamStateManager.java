@@ -6,6 +6,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.BlockItemSet;
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Map;
@@ -31,10 +33,13 @@ public class BlockStreamStateManager {
     /**
      * Creates a new BlockStreamStateManager with the given configuration.
      *
-     * @param blockNodeConfigExtractor the block node configuration extractor
+     * @param configProvider the configuration provider
      */
-    public BlockStreamStateManager(@NonNull final BlockNodeConfigExtractor blockNodeConfigExtractor) {
-        this.blockItemBatchSize = blockNodeConfigExtractor.getBlockItemBatchSize();
+    public BlockStreamStateManager(@NonNull final ConfigProvider configProvider) {
+        this.blockItemBatchSize = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .blockItemBatchSize();
     }
 
     /**

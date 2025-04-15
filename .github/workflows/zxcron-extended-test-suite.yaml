@@ -476,7 +476,7 @@ jobs:
       - name: Report failure (slack)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload: |

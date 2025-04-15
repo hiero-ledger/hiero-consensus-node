@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.streams;
 
-import static com.swirlds.common.constructable.ClassIdFormatter.classIdString;
 import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeAndMigrateTreeAfterDeserialization;
+import static org.hiero.base.constructable.ClassIdFormatter.classIdString;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.exceptions.ClassNotFoundException;
 import com.swirlds.common.io.exceptions.MerkleSerializationException;
@@ -26,6 +25,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.base.constructable.ConstructableRegistry;
 
 /**
  * A SerializableDataInputStream that can also handle merkle tree.

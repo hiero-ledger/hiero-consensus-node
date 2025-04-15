@@ -12,9 +12,4 @@ public interface BlockNodeConfigExtractor {
      * @return the list of all block node configurations
      */
     List<BlockNodeConfig> getAllNodes();
-
-    /**
-     * @return the block items batch size to send to the block nodes
-     */
-    int getBlockItemBatchSize();
 }

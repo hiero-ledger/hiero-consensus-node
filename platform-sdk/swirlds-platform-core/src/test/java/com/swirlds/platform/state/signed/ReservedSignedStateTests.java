@@ -12,9 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import org.hiero.base.exceptions.ReferenceCountException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
