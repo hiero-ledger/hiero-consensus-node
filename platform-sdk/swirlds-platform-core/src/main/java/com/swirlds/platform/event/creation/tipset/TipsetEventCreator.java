@@ -20,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -255,7 +256,8 @@ public class TipsetEventCreator implements EventCreator {
      */
     @Nullable
     private UnsignedEvent createEventByOptimizingAdvancementWeight() {
-        final List<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
+        final List<PlatformEvent> possibleOtherParents =
+                new ArrayList<>(childlessOtherEventTracker.getChildlessEvents());
         Collections.shuffle(possibleOtherParents, random);
 
         PlatformEvent bestOtherParent = null;
@@ -299,7 +301,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     @Nullable
     private UnsignedEvent createEventToReduceSelfishness() {
-        final List<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
+        final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
         // Choose a random ignored node, weighted by how much it is currently being ignored.
@@ -442,7 +444,7 @@ public class TipsetEventCreator implements EventCreator {
         sb.append(tipsetWeightCalculator);
 
         sb.append("Childless events:");
-        final List<PlatformEvent> childlessEvents = childlessOtherEventTracker.getChildlessEvents();
+        final Collection<PlatformEvent> childlessEvents = childlessOtherEventTracker.getChildlessEvents();
         if (childlessEvents.isEmpty()) {
             sb.append(" none\n");
         } else {

@@ -6,6 +6,7 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.Random;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -61,7 +63,7 @@ class ChildlessEventTrackerTests {
 
             tracker.addEvent(event);
             assertThat(tracker.getChildlessEvents()).contains(event);
-            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isEqualTo(event);
+            assertThat(getChildlessEvent(tracker, event.getDescriptor())).isEqualTo(event);
             batch2.add(event);
         }
 
@@ -95,13 +97,21 @@ class ChildlessEventTrackerTests {
 
             tracker.addEvent(event);
             assertThat(tracker.getChildlessEvents()).doesNotContain(event);
-            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isNotEqualTo(event);
+            assertThat(getChildlessEvent(tracker, event.getDescriptor())).isNotEqualTo(event);
         }
 
         assertThat(tracker.getChildlessEvents().size()).isEqualTo(batch2.size());
         assertThat(tracker.getChildlessEvents())
                 .withFailMessage("Tracked events should not have changed after adding older events")
                 .containsAll(batch2);
+    }
+
+    private PlatformEvent getChildlessEvent(
+            @NonNull final ChildlessEventTracker tracker, @NonNull final EventDescriptorWrapper descriptor) {
+        return tracker.getChildlessEvents().stream()
+                .filter(e -> e.getDescriptor().equals(descriptor))
+                .findFirst()
+                .orElse(null);
     }
 
     @Test
@@ -191,7 +201,7 @@ class ChildlessEventTrackerTests {
                     .build();
             tracker.addEvent(event);
             assertThat(tracker.getChildlessEvents()).contains(event);
-            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isEqualTo(event);
+            assertThat(getChildlessEvent(tracker, event.getDescriptor())).isEqualTo(event);
             eventsByCreator.put(nodeId, event);
         }
 
@@ -214,7 +224,7 @@ class ChildlessEventTrackerTests {
             assertThat(tracker.getChildlessEvents())
                     .withFailMessage("Tracker should have pruned event {}", event.getDescriptor())
                     .doesNotContain(event);
-            assertThat(tracker.getChildlessEvent(event.getDescriptor()))
+            assertThat(getChildlessEvent(tracker, event.getDescriptor()))
                     .withFailMessage("Tracker should have pruned event {}", event.getDescriptor())
                     .isNull();
             assertThat(tracker.getChildlessEvents())
@@ -242,7 +252,7 @@ class ChildlessEventTrackerTests {
         tracker.addEvent(e2);
 
         assertThat(tracker.getChildlessEvents()).hasSize(1);
-        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e2);
+        assertThat(tracker.getChildlessEvents().iterator().next()).isEqualTo(e2);
 
         final PlatformEvent e3 = new TestingEventBuilder(random)
                 .setCreatorId(nodeId)
@@ -260,7 +270,7 @@ class ChildlessEventTrackerTests {
         tracker.addEvent(e3Branch);
 
         assertThat(tracker.getChildlessEvents()).hasSize(1);
-        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e3);
+        assertThat(tracker.getChildlessEvents().iterator().next()).isEqualTo(e3);
 
         // Branch with a lower generation, existing event should not be discarded.
         final PlatformEvent e2Branch = new TestingEventBuilder(random)
@@ -271,7 +281,7 @@ class ChildlessEventTrackerTests {
         tracker.addEvent(e2Branch);
 
         assertThat(tracker.getChildlessEvents()).hasSize(1);
-        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e3);
+        assertThat(tracker.getChildlessEvents().iterator().next()).isEqualTo(e3);
 
         // Branch with a higher generation, existing event should be discarded.
         final PlatformEvent e99Branch =
@@ -279,7 +289,7 @@ class ChildlessEventTrackerTests {
         tracker.addEvent(e99Branch);
 
         assertThat(tracker.getChildlessEvents()).hasSize(1);
-        assertThat(tracker.getChildlessEvents().getFirst()).isEqualTo(e99Branch);
+        assertThat(tracker.getChildlessEvents().iterator().next()).isEqualTo(e99Branch);
     }
 
     /**
@@ -296,7 +306,7 @@ class ChildlessEventTrackerTests {
         initialEvents.forEach(event -> {
             tracker.addEvent(event);
             assertThat(tracker.getChildlessEvents()).contains(event);
-            assertThat(tracker.getChildlessEvent(event.getDescriptor())).isEqualTo(event);
+            assertThat(getChildlessEvent(tracker, event.getDescriptor())).isEqualTo(event);
         });
         assertThat(tracker.getChildlessEvents().size()).isEqualTo(initialEvents.size());
         assertThat(tracker.getChildlessEvents())

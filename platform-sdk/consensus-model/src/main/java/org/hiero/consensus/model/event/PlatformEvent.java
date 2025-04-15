@@ -200,6 +200,11 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return nGen;
     }
 
+    /**
+     * Checks if the non-deterministic generation for this event has been set.
+     *
+     * @return {@code true} if the nGen has been set, {@code false} otherwise
+     */
     public boolean hasNGen() {
         return nGen != EventConstants.GENERATION_UNDEFINED;
     }
@@ -396,8 +401,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return true if the event has other parents
      */
-    public boolean hasOtherParent() {
-        return metadata.hasOtherParent();
+    public boolean hasOtherParents() {
+        return metadata.hasOtherParents();
     }
 
     /** @return a list of all parents, self parent (if any), + all other parents */

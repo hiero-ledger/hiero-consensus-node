@@ -193,7 +193,7 @@ public class EventMetadata extends AbstractHashable {
      *
      * @return true if the event has other parents
      */
-    public boolean hasOtherParent() {
+    public boolean hasOtherParents() {
         return otherParents != null && !otherParents.isEmpty();
     }
 

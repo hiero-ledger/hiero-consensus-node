@@ -2,8 +2,8 @@
 package com.swirlds.platform.event.creation.tipset;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,7 +21,16 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class ChildlessEventTracker {
 
+    /**
+     * A map of events created by our peers that have no known children. These events are eligible to be
+     * used as other parents the next time this node creates an event.
+     */
     private final Map<EventDescriptorWrapper, PlatformEvent> childlessEvents = new HashMap<>();
+
+    /**
+     * A map of childless events keyed by node id. Maintaining a single event per node allows us to
+     * handle branching appropriately.
+     */
     private final Map<NodeId, PlatformEvent> eventsByCreator = new HashMap<>();
 
     /**
@@ -72,11 +81,7 @@ public class ChildlessEventTracker {
      */
     public void pruneOldEvents(@NonNull final EventWindow eventWindow) {
         final Set<EventDescriptorWrapper> keysToRemove = new HashSet<>();
-        for (final EventDescriptorWrapper event : childlessEvents.keySet()) {
-            if (eventWindow.isAncient(event)) {
-                keysToRemove.add(event);
-            }
-        }
+        childlessEvents.keySet().stream().filter(eventWindow::isAncient).forEach(keysToRemove::add);
         keysToRemove.forEach(this::removeEvent);
     }
 
@@ -86,8 +91,8 @@ public class ChildlessEventTracker {
      * @return the childless events, this list is safe to modify
      */
     @NonNull
-    public List<PlatformEvent> getChildlessEvents() {
-        return new ArrayList<>(childlessEvents.values());
+    public Collection<PlatformEvent> getChildlessEvents() {
+        return Collections.unmodifiableCollection(childlessEvents.values());
     }
 
     /**
@@ -96,11 +101,6 @@ public class ChildlessEventTracker {
     private void insertEvent(@NonNull final PlatformEvent event) {
         childlessEvents.put(event.getDescriptor(), event);
         eventsByCreator.put(event.getCreatorId(), event);
-    }
-
-    @Nullable
-    public PlatformEvent getChildlessEvent(@NonNull final EventDescriptorWrapper descriptor) {
-        return childlessEvents.get(descriptor);
     }
 
     /**
