@@ -746,6 +746,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      */
     @Override
     public synchronized void serialize(final SerializableDataOutputStream out) throws IOException {
+        detach();
         out.writeSerializableIterableWithSize(iterator(), size(), true, false);
     }
 
@@ -773,15 +774,6 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
         }
         dst.runningHash = src.runningHash;
         tail = dst;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out, final Path outputDirectory) throws IOException {
-        detach();
-        serialize(out);
     }
 
     /**
