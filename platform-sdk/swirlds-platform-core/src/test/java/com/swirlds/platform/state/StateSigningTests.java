@@ -19,7 +19,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.roster.RosterUtils;

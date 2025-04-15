@@ -2,8 +2,8 @@
 package com.swirlds.platform.test.fixtures.state.manager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import org.hiero.base.crypto.Hash;

@@ -2,8 +2,8 @@
 package com.swirlds.platform.proof;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Threshold;

@@ -2,8 +2,8 @@
 package com.swirlds.platform.crypto;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.SignatureType;
 import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.logging.legacy.LogMarker;
@@ -39,10 +39,10 @@ public class PlatformSigner implements Signer, HashSigner {
     }
 
     @Override
-    public @NonNull com.swirlds.common.crypto.Signature sign(@NonNull final byte[] data) {
+    public @NonNull org.hiero.base.crypto.Signature sign(@NonNull final byte[] data) {
         try {
             signature.update(data);
-            return new com.swirlds.common.crypto.Signature(SignatureType.RSA, signature.sign());
+            return new org.hiero.base.crypto.Signature(SignatureType.RSA, signature.sign());
         } catch (final SignatureException e) {
             // this can only occur if this signature object is not initialized properly, which we ensure is done in the
             // constructor. so this can never happen
@@ -53,10 +53,10 @@ public class PlatformSigner implements Signer, HashSigner {
     /**
      * Same as {@link #sign(byte[])} but takes a {@link Bytes} object instead of a byte array.
      */
-    private @NonNull com.swirlds.common.crypto.Signature signBytes(@NonNull final Bytes data) {
+    private @NonNull org.hiero.base.crypto.Signature signBytes(@NonNull final Bytes data) {
         try {
             data.updateSignature(signature);
-            return new com.swirlds.common.crypto.Signature(SignatureType.RSA, signature.sign());
+            return new org.hiero.base.crypto.Signature(SignatureType.RSA, signature.sign());
         } catch (final SignatureException e) {
             // this can only occur if this signature object is not initialized properly, which we ensure is done in the
             // constructor. so this can never happen
@@ -65,7 +65,7 @@ public class PlatformSigner implements Signer, HashSigner {
     }
 
     @Override
-    public @NonNull com.swirlds.common.crypto.Signature sign(@NonNull final Hash hash) {
+    public @NonNull org.hiero.base.crypto.Signature sign(@NonNull final Hash hash) {
         Objects.requireNonNull(hash, "hash must not be null");
         return signBytes(hash.getBytes());
     }

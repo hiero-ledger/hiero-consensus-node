@@ -7,8 +7,8 @@ import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.BREADTH_F
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
@@ -122,7 +122,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
 
     /**
      * Generates the hash of the provided byte array. Uses the default hash algorithm as specified by {@link
-     * com.swirlds.common.crypto.Cryptography#digestSync(byte[])}.
+     * org.hiero.base.crypto.Cryptography#digestSync(byte[])}.
      *
      * @param content
      * 		the content for which the hash is to be computed

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream.internal;
 
-import static com.swirlds.common.crypto.SignatureType.RSA;
+import static org.hiero.base.crypto.SignatureType.RSA;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateSigFilePath;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
@@ -12,9 +12,9 @@ import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM_FILE;
 import static org.hiero.base.crypto.DigestType.SHA_384;
 import static org.hiero.consensus.model.stream.StreamAligned.NO_ALIGNMENT;
 
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.stream.StreamType;
 import java.io.BufferedOutputStream;

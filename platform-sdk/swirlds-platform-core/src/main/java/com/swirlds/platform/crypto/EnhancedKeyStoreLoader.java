@@ -8,7 +8,7 @@ import static com.swirlds.platform.crypto.CryptoStatic.copyPublicKeys;
 import static com.swirlds.platform.crypto.CryptoStatic.createEmptyTrustStore;
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
-import com.swirlds.common.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.roster.RosterUtils;

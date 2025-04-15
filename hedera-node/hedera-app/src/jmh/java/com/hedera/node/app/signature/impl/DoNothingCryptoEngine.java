@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.crypto.TransactionSignature;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.base.io.SelfSerializable;

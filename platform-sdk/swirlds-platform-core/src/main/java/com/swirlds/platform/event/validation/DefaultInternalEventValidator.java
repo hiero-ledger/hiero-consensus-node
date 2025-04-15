@@ -12,7 +12,7 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.EventMigrationUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.SignatureType;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.platform.gossip.IntakeEventCounter;

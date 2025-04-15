@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
-import com.swirlds.common.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.crypto.CryptoStatic;

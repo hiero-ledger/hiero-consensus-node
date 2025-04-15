@@ -4,7 +4,8 @@ package com.swirlds.common.crypto;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
-import com.swirlds.common.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.SerializablePublicKey;
+import org.hiero.base.crypto.internal.CryptoUtils;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.IOException;
 import java.security.KeyPair;

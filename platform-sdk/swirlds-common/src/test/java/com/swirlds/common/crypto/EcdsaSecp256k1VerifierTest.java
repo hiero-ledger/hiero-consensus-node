@@ -3,7 +3,7 @@ package com.swirlds.common.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.engine.EcdsaSecp256k1Verifier;
+import org.hiero.base.crypto.engine.EcdsaSecp256k1Verifier;
 import com.swirlds.common.test.fixtures.crypto.EcdsaUtils;
 import java.security.KeyPair;
 import java.security.Security;

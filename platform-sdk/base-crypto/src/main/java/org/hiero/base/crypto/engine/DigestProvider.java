@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto.engine;
+package org.hiero.base.crypto.engine;
 
-import com.swirlds.common.crypto.Message;
+import org.hiero.base.crypto.Message;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

@@ -45,9 +45,9 @@ public class BlockRecordReaderV6 {
     static {
         try {
             // compute Hash object header, the hash header is not the usual SelfSerializable Hash object.
-            // @see com.swirlds.common.crypto.engine.RunningHashProvider.updateForHash
-            // @see com.swirlds.common.crypto.HashBuilder.update(long)
-            // @see com.swirlds.common.crypto.HashBuilder.update(int)
+            // @see org.hiero.base.crypto.engine.RunningHashProvider.updateForHash
+            // @see org.hiero.base.crypto.HashBuilder.update(long)
+            // @see org.hiero.base.crypto.HashBuilder.update(int)
             ByteBuffer buf = ByteBuffer.allocate(Long.BYTES + Integer.BYTES);
             buf.order(ByteOrder.LITTLE_ENDIAN);
             buf.putLong(Hash.CLASS_ID);

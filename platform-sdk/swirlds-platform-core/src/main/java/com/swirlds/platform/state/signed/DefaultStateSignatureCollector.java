@@ -6,8 +6,8 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.config.StateConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;

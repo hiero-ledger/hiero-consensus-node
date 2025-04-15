@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto;
+package org.hiero.base.crypto;
 
 import com.swirlds.logging.legacy.LogMarker;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Objects;
-import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.Hash;
 
 public class HashBuilder {
 

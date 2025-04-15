@@ -6,8 +6,8 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static com.swirlds.common.stream.internal.TimestampStreamFileWriter.OBJECT_STREAM_VERSION;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamFilesIterator;

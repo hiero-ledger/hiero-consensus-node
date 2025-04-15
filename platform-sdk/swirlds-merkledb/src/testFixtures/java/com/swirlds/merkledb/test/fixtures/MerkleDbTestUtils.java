@@ -9,7 +9,7 @@ import static org.mockito.Mockito.mock;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.HashBuilder;
+import org.hiero.base.crypto.HashBuilder;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.metrics.config.MetricsConfig;

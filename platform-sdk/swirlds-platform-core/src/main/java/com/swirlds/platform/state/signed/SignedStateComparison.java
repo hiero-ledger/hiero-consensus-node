@@ -3,7 +3,7 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.PRE_ORDERED_DEPTH_FIRST;
 
-import com.swirlds.common.crypto.Cryptography;
+import org.hiero.base.crypto.Cryptography;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;

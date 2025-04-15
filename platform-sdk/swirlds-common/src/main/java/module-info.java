@@ -5,8 +5,6 @@ module com.swirlds.common {
     exports com.swirlds.common;
     exports com.swirlds.common.config;
     exports com.swirlds.common.context;
-    exports com.swirlds.common.crypto;
-    exports com.swirlds.common.crypto.config;
     exports com.swirlds.common.formatting;
     exports com.swirlds.common.io;
     exports com.swirlds.common.io.config;
@@ -54,19 +52,8 @@ module com.swirlds.common {
     exports com.swirlds.common.units;
 
     /* Targeted exports */
-    exports com.swirlds.common.crypto.internal to
-            com.swirlds.platform.core,
-            com.swirlds.common.test.fixtures,
-            com.swirlds.common.testing,
-            com.swirlds.platform.core.test.fixtures;
     exports com.swirlds.common.notification.internal to
             com.swirlds.common.testing;
-    exports com.swirlds.common.crypto.engine to
-            com.swirlds.common.testing,
-            com.swirlds.common.test.fixtures;
-
-    opens com.swirlds.common.crypto to
-            com.fasterxml.jackson.databind;
     opens com.swirlds.common.merkle.utility to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.utility to

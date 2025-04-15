@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.signed;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.Signature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;

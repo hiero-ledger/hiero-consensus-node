@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto.engine;
+package org.hiero.base.crypto.engine;
 
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
 import static org.hiero.base.utility.CommonUtils.hex;
@@ -7,8 +7,8 @@ import static org.hiero.base.utility.CommonUtils.hex;
 import com.goterl.lazysodium.LazySodiumJava;
 import com.goterl.lazysodium.SodiumJava;
 import com.goterl.lazysodium.interfaces.Sign;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.crypto.TransactionSignature;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

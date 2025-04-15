@@ -3,8 +3,8 @@ package com.swirlds.common.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
 import com.swirlds.common.stream.internal.AbstractLinkedObjectStream;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
 import java.util.Objects;

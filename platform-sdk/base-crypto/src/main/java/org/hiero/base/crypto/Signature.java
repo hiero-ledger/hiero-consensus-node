@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto;
+package org.hiero.base.crypto;
 
-import static com.swirlds.common.crypto.SignatureType.RSA;
+import static org.hiero.base.crypto.SignatureType.RSA;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;

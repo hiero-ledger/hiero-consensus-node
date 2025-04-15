@@ -4,7 +4,10 @@ package com.swirlds.common.crypto;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.config.CryptoConfig;
 import com.swirlds.common.test.fixtures.crypto.ECDSASigningProvider;
 import com.swirlds.common.test.fixtures.crypto.ED25519SigningProvider;
 import com.swirlds.common.test.fixtures.crypto.EcdsaUtils;

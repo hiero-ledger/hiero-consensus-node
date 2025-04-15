@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.test.fixtures.Randotron;
 import java.net.InetAddress;
 import java.util.Arrays;

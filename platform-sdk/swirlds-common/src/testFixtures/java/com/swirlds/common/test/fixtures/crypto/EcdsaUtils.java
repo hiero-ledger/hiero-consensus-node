@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.crypto;
 
-import static com.swirlds.common.crypto.SignatureType.ECDSA_SECP256K1;
+import static org.hiero.base.crypto.SignatureType.ECDSA_SECP256K1;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
 import java.security.InvalidAlgorithmParameterException;

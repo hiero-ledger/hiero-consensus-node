@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto;
+package org.hiero.base.crypto;
 
-import com.swirlds.common.crypto.engine.CryptoEngine;
+import org.hiero.base.crypto.engine.CryptoEngine;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

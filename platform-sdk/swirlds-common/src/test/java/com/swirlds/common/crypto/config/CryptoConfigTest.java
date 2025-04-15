@@ -2,6 +2,7 @@
 package com.swirlds.common.crypto.config;
 
 import com.swirlds.config.api.ConfigurationBuilder;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

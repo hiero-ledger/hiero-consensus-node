@@ -4,7 +4,7 @@ package com.swirlds.platform.system.address;
 import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.crypto.SerializablePublicKey;
+import org.hiero.base.crypto.SerializablePublicKey;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.SerializableX509Certificate;
 import edu.umd.cs.findbugs.annotations.NonNull;

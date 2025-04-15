@@ -15,7 +15,7 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.CryptoUtils;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto;
+package org.hiero.base.crypto;
 
 import static org.hiero.base.utility.CommonUtils.hex;
 

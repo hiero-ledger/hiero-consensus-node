@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.crypto;
 
-import static com.swirlds.common.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
-import static com.swirlds.common.crypto.Cryptography.DEFAULT_SET_HASH;
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
+import static org.hiero.base.crypto.Cryptography.DEFAULT_SET_HASH;
 
-import com.swirlds.common.crypto.CryptographyException;
+import org.hiero.base.crypto.CryptographyException;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;

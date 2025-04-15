@@ -4,7 +4,7 @@ package com.swirlds.demo.platform.stream;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.demo.merkle.map.MapValueData;
 import com.swirlds.demo.platform.PlatformTestingToolState;

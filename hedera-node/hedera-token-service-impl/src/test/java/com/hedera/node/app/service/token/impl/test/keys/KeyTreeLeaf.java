@@ -3,7 +3,7 @@ package com.hedera.node.app.service.token.impl.test.keys;
 
 import com.google.protobuf.ByteString;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.SignatureType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;

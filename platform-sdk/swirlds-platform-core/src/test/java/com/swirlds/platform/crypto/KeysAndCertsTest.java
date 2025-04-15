@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.KeyType;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.KeyType;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.test.fixtures.crypto.PreGeneratedPublicKeys;
 import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;

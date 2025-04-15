@@ -4,8 +4,8 @@ package com.swirlds.common.test.fixtures.crypto;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomByteArray;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.base.crypto.DigestType;

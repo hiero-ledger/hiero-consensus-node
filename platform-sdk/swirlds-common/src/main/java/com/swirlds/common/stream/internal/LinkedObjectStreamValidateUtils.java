@@ -7,10 +7,10 @@ import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.logging.legacy.payload.StreamParseErrorPayload;

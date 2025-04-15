@@ -4,7 +4,7 @@ package com.swirlds.demo.stats.signing;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.TransactionSignature;
+import org.hiero.base.crypto.TransactionSignature;
 import com.swirlds.demo.stats.signing.algorithms.ExtendedSignature;
 import com.swirlds.demo.stats.signing.algorithms.SigningAlgorithm;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;

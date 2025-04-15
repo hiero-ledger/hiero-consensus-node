@@ -3,8 +3,8 @@ package com.swirlds.common.merkle.crypto.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
 
-import com.swirlds.common.crypto.HashBuilder;
-import com.swirlds.common.crypto.engine.CachingOperationProvider;
+import org.hiero.base.crypto.HashBuilder;
+import org.hiero.base.crypto.engine.CachingOperationProvider;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildHashException;

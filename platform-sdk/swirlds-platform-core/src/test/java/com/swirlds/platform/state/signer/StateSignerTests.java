@@ -10,7 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.crypto.PlatformSigner;

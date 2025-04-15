@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto.engine;
+package org.hiero.base.crypto.engine;
 
-import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.HashingOutputStream;
+import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.HashingOutputStream;
 import com.swirlds.logging.legacy.LogMarker;
 import java.io.IOException;
 import java.security.MessageDigest;

@@ -7,7 +7,7 @@ import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
 import static com.swirlds.common.formatting.TextEffect.GRAY;
 import static com.swirlds.common.formatting.TextEffect.WHITE;
 
-import com.swirlds.common.crypto.Cryptography;
+import org.hiero.base.crypto.Cryptography;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;

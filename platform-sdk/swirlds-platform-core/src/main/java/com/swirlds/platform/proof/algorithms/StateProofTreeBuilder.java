@@ -4,8 +4,8 @@ package com.swirlds.platform.proof.algorithms;
 import static org.hiero.base.utility.ByteUtils.intToByteArray;
 import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Signature;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Signature;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;

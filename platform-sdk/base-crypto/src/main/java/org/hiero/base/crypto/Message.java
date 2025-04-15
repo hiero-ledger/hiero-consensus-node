@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto;
+package org.hiero.base.crypto;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.concurrent.Future;
-import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.Hash;
 
 /**
  * Encapsulates an array of bytes to be hashed using a cryptographic message digest. Overloaded constructors are provided

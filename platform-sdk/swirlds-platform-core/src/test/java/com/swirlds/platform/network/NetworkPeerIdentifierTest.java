@@ -7,7 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.CryptoUtils;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeyCertPurpose;

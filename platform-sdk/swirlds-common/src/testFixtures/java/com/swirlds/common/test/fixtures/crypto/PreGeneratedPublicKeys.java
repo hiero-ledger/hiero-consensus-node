@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.crypto;
 
-import com.swirlds.common.crypto.KeyType;
-import com.swirlds.common.crypto.KeyUtils;
-import com.swirlds.common.crypto.SerializablePublicKey;
+import org.hiero.base.crypto.KeyType;
+import org.hiero.base.crypto.KeyUtils;
+import org.hiero.base.crypto.SerializablePublicKey;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;

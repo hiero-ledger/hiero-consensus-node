@@ -17,8 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.HashBuilder;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.HashBuilder;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;

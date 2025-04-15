@@ -4,8 +4,8 @@ package com.swirlds.common.utility;
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static org.hiero.base.utility.ByteUtils.byteArrayToShort;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;

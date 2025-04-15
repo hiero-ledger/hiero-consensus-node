@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.crypto.internal;
+package org.hiero.base.crypto.internal;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

@@ -2,7 +2,7 @@
 package com.swirlds.platform.crypto;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.crypto.config.CryptoConfig;
+import org.hiero.base.crypto.config.CryptoConfig;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;

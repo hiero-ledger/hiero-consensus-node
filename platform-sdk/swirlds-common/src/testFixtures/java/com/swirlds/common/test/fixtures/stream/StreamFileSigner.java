@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.stream;
 
-import static com.swirlds.common.crypto.internal.CryptoUtils.getDetRandom;
+import static org.hiero.base.crypto.internal.CryptoUtils.getDetRandom;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.SignatureType;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.utility.CommonUtils;
 import java.security.InvalidKeyException;
@@ -62,7 +62,7 @@ public class StreamFileSigner implements Signer {
      * @return the signature (or null if any errors)
      */
     @Override
-    public com.swirlds.common.crypto.Signature sign(byte[] data) {
+    public org.hiero.base.crypto.Signature sign(byte[] data) {
         Signature signature;
         try {
             signature = Signature.getInstance(SIG_ALGORITHM, SIG_PROVIDER);
@@ -73,11 +73,11 @@ public class StreamFileSigner implements Signer {
                 logger.error(EXCEPTION.getMarker(), "Failed to sign data: signature is null");
             }
             logger.debug(LOGM_OBJECT_STREAM, "Generated signature: {}", () -> hex(result));
-            return new com.swirlds.common.crypto.Signature(SignatureType.RSA, result);
+            return new org.hiero.base.crypto.Signature(SignatureType.RSA, result);
         } catch (NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException | SignatureException e) {
             logger.error(EXCEPTION.getMarker(), "Failed to sign data", e);
         }
-        return new com.swirlds.common.crypto.Signature(
+        return new org.hiero.base.crypto.Signature(
                 SignatureType.RSA, new byte[SignatureType.RSA.signatureLength()]);
     }
 

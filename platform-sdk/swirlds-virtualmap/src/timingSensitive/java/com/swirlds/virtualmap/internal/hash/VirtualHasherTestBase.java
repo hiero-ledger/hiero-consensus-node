@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.HashBuilder;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.HashBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.Path;

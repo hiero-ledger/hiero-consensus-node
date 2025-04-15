@@ -3,7 +3,7 @@ package com.swirlds.common.merkle.synchronization.views;
 
 import static org.hiero.base.constructable.ClassIdFormatter.classIdString;
 
-import com.swirlds.common.crypto.Cryptography;
+import org.hiero.base.crypto.Cryptography;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
