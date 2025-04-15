@@ -58,7 +58,7 @@ public class BlockRecordReaderV6 {
             }
             // compute RecordStreamObject header
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            org.hiero.base.io.streams.SerializableDataOutputStream sout = new SerializableDataOutputStream(bout);
+            SerializableDataOutputStream sout = new SerializableDataOutputStream(bout);
             bout.reset();
             sout.writeLong(RECORD_STREAM_OBJECT_CLASS_ID);
             sout.writeInt(RECORD_STREAM_OBJECT_CLASS_VERSION);

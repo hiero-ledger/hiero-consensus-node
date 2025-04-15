@@ -101,7 +101,7 @@ public final class PcesTestFilesGenerator {
         if (!Files.exists(parentDir)) {
             Files.createDirectories(parentDir);
         }
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new FileOutputStream(descriptor.getPath().toFile()));
         out.writeInt(PcesFileVersion.currentVersionNumber());
         out.writeNormalisedString("foo bar baz");

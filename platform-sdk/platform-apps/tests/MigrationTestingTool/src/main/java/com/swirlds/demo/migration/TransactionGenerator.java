@@ -42,7 +42,7 @@ public class TransactionGenerator {
                 new MigrationTestingToolTransaction(type, random.nextLong());
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         try {
             // Adding additional byte to differentiate application transactions from system ones
             out.write(1);

@@ -35,8 +35,7 @@ public final class StateProofSerialization {
      * @throws IOException if an IO error occurs
      */
     public static void serializeSignatures(
-            @NonNull final org.hiero.base.io.streams.SerializableDataOutputStream out,
-            @NonNull final List<NodeSignature> signatures)
+            @NonNull final SerializableDataOutputStream out, @NonNull final List<NodeSignature> signatures)
             throws IOException {
 
         // Better to fail early than to fail whenever somebody attempts to deserialize.
@@ -60,8 +59,8 @@ public final class StateProofSerialization {
      * @throws IOException if an IO error occurs
      */
     @NonNull
-    public static List<NodeSignature> deserializeSignatures(
-            @NonNull final org.hiero.base.io.streams.SerializableDataInputStream in) throws IOException {
+    public static List<NodeSignature> deserializeSignatures(@NonNull final SerializableDataInputStream in)
+            throws IOException {
         final int numSignatures = in.readInt();
         if (numSignatures > StateProofConstants.MAX_SIGNATURE_COUNT) {
             throw new IOException(
@@ -87,16 +86,13 @@ public final class StateProofSerialization {
      * @throws IOException if an IO error occurs
      */
     public static void serializeStateProofTree(
-            @NonNull final org.hiero.base.io.streams.SerializableDataOutputStream out,
-            @NonNull final StateProofNode root)
-            throws IOException {
+            @NonNull final SerializableDataOutputStream out, @NonNull final StateProofNode root) throws IOException {
 
         // This stream will throw an IO exception if asked to read more than MAX_STATE_PROOF_TREE_SIZE bytes.
         // This check is not needed at serialization time for the sake of safety. But if this check fails, then
         // we can expect it to fail at deserialization time as well, so we might as well fail fast.
-        final org.hiero.base.io.streams.SerializableDataOutputStream limitedStream =
-                new SerializableDataOutputStream(new ExtendableOutputStream(
-                        out, new MaxSizeStreamExtension(StateProofConstants.MAX_STATE_PROOF_TREE_SIZE, false)));
+        final SerializableDataOutputStream limitedStream = new SerializableDataOutputStream(new ExtendableOutputStream(
+                out, new MaxSizeStreamExtension(StateProofConstants.MAX_STATE_PROOF_TREE_SIZE, false)));
 
         // Walk the tree in BFS order.
         final Queue<StateProofNode> queue = new LinkedList<>();
@@ -158,13 +154,12 @@ public final class StateProofSerialization {
      * @throws IOException if an IO error occurs
      */
     @NonNull
-    public static StateProofNode deserializeStateProofTree(
-            @NonNull final org.hiero.base.io.streams.SerializableDataInputStream in) throws IOException {
+    public static StateProofNode deserializeStateProofTree(@NonNull final SerializableDataInputStream in)
+            throws IOException {
 
         // This stream will throw an IO exception if asked to read more than MAX_STATE_PROOF_TREE_SIZE bytes.
-        final org.hiero.base.io.streams.SerializableDataInputStream limitedStream =
-                new SerializableDataInputStream(new ExtendableInputStream(
-                        in, new MaxSizeStreamExtension(StateProofConstants.MAX_STATE_PROOF_TREE_SIZE, false)));
+        final SerializableDataInputStream limitedStream = new SerializableDataInputStream(new ExtendableInputStream(
+                in, new MaxSizeStreamExtension(StateProofConstants.MAX_STATE_PROOF_TREE_SIZE, false)));
 
         // Tree was written in BFS order. Read it back and reconstruct it.
 

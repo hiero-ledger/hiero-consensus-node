@@ -97,9 +97,9 @@ public class PreGeneratedX509Certs {
         generateKeysAndCerts(addressBook);
 
         // autocloseable output streams to write the serializable certs.
-        try (final org.hiero.base.io.streams.SerializableDataOutputStream sigCertDos =
+        try (final SerializableDataOutputStream sigCertDos =
                         new SerializableDataOutputStream(new FileOutputStream(sigCertFile));
-                final org.hiero.base.io.streams.SerializableDataOutputStream agreeCertDos =
+                final SerializableDataOutputStream agreeCertDos =
                         new SerializableDataOutputStream(new FileOutputStream(agreeCertFile))) {
 
             // record number of certs being written to each file.
@@ -187,10 +187,8 @@ public class PreGeneratedX509Certs {
             return;
         }
 
-        final org.hiero.base.io.streams.SerializableDataInputStream sigCertDis =
-                new SerializableDataInputStream(sigCertIs);
-        final org.hiero.base.io.streams.SerializableDataInputStream agreeCertDis =
-                new SerializableDataInputStream(agreeCertIs);
+        final SerializableDataInputStream sigCertDis = new SerializableDataInputStream(sigCertIs);
+        final SerializableDataInputStream agreeCertDis = new SerializableDataInputStream(agreeCertIs);
         try {
             // load signing certs
             final int numSigCerts = sigCertDis.readInt();

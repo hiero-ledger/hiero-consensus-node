@@ -36,7 +36,7 @@ public class SerializationDigestProvider
             final SelfSerializable item,
             final Void optionalData) {
         algorithm.resetDigest(); // probably not needed, just to be safe
-        try (org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(algorithm)) {
+        try (SerializableDataOutputStream out = new SerializableDataOutputStream(algorithm)) {
             out.writeSerializable(item, true);
             out.flush();
 

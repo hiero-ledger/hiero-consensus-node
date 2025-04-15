@@ -230,7 +230,7 @@ public final class PcesBirthRoundMigration {
         // First, write the data to a temporary file. If we crash, easier to recover if this operation is atomic.
         final Path temporaryFile =
                 LegacyTemporaryFileBuilder.buildTemporaryFile("new-pces-file", platformContext.getConfiguration());
-        final org.hiero.base.io.streams.SerializableDataOutputStream outputStream = new SerializableDataOutputStream(
+        final SerializableDataOutputStream outputStream = new SerializableDataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile())));
         outputStream.writeInt(PcesFileVersion.currentVersionNumber());
         for (final PlatformEvent event : eventsToMigrate) {

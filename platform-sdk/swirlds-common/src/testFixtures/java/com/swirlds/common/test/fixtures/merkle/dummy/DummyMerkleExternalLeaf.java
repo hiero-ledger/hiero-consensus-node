@@ -67,29 +67,25 @@ public class DummyMerkleExternalLeaf extends PartialMerkleLeaf implements DummyM
     }
 
     @Override
-    public void serialize(final org.hiero.base.io.streams.SerializableDataOutputStream out, final Path outputDirectory)
-            throws IOException {
+    public void serialize(final SerializableDataOutputStream out, final Path outputDirectory) throws IOException {
         out.writeLong(seed);
         out.writeInt(averageSize);
         out.writeInt(standardDeviation);
 
-        try (final org.hiero.base.io.streams.SerializableDataOutputStream fileOut = new SerializableDataOutputStream(
+        try (final SerializableDataOutputStream fileOut = new SerializableDataOutputStream(
                 new FileOutputStream(getFile(outputDirectory).toFile()))) {
             fileOut.writeNormalisedString(generateValue());
         }
     }
 
     @Override
-    public void deserialize(
-            final org.hiero.base.io.streams.SerializableDataInputStream in,
-            final Path inputDirectory,
-            final int version)
+    public void deserialize(final SerializableDataInputStream in, final Path inputDirectory, final int version)
             throws IOException {
         seed = in.readLong();
         averageSize = in.readInt();
         standardDeviation = in.readInt();
 
-        try (final org.hiero.base.io.streams.SerializableDataInputStream fileIn = new SerializableDataInputStream(
+        try (final SerializableDataInputStream fileIn = new SerializableDataInputStream(
                 new FileInputStream(getFile(inputDirectory).toFile()))) {
 
             assertEquals(
@@ -98,7 +94,7 @@ public class DummyMerkleExternalLeaf extends PartialMerkleLeaf implements DummyM
     }
 
     @Override
-    public void serialize(org.hiero.base.io.streams.SerializableDataOutputStream out) throws IOException {
+    public void serialize(SerializableDataOutputStream out) throws IOException {
         out.writeLong(seed);
         out.writeInt(averageSize);
         out.writeInt(standardDeviation);
@@ -106,7 +102,7 @@ public class DummyMerkleExternalLeaf extends PartialMerkleLeaf implements DummyM
     }
 
     @Override
-    public void deserialize(org.hiero.base.io.streams.SerializableDataInputStream in, int version) throws IOException {
+    public void deserialize(SerializableDataInputStream in, int version) throws IOException {
         seed = in.readLong();
         averageSize = in.readInt();
         standardDeviation = in.readInt();

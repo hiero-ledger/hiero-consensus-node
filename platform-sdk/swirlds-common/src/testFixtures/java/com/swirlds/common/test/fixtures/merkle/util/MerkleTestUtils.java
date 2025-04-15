@@ -834,7 +834,7 @@ public final class MerkleTestUtils {
     private static boolean areLeavesEqual(final MerkleLeaf a, final MerkleLeaf b) {
         try {
             final ByteArrayOutputStream bsA = new ByteArrayOutputStream();
-            final org.hiero.base.io.streams.SerializableDataOutputStream sA = new SerializableDataOutputStream(bsA);
+            final SerializableDataOutputStream sA = new SerializableDataOutputStream(bsA);
             try {
                 sA.writeSerializable(a, true);
             } catch (IOException e) {
@@ -842,7 +842,7 @@ public final class MerkleTestUtils {
             }
 
             final ByteArrayOutputStream bsB = new ByteArrayOutputStream();
-            final org.hiero.base.io.streams.SerializableDataOutputStream sB = new SerializableDataOutputStream(bsB);
+            final SerializableDataOutputStream sB = new SerializableDataOutputStream(bsB);
             try {
                 sB.writeSerializable(b, true);
             } catch (IOException e) {

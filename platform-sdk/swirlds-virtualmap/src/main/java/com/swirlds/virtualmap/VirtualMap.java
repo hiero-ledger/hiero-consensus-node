@@ -320,8 +320,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      * {@inheritDoc}
      */
     @Override
-    public void serialize(final org.hiero.base.io.streams.SerializableDataOutputStream out, final Path outputDirectory)
-            throws IOException {
+    public void serialize(final SerializableDataOutputStream out, final Path outputDirectory) throws IOException {
 
         // Create and write to state the name of the file we will expect later on deserialization
         final String outputFileName = state.getLabel() + ".vmap";
@@ -331,7 +330,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
 
         // Write the virtual map and sub nodes
         final Path outputFile = outputDirectory.resolve(outputFileName);
-        try (org.hiero.base.io.streams.SerializableDataOutputStream serout =
+        try (SerializableDataOutputStream serout =
                 new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
             serout.writeSerializable(state, true);
             serout.writeInt(root.getVersion());
@@ -343,10 +342,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      * {@inheritDoc}
      */
     @Override
-    public void deserialize(
-            final org.hiero.base.io.streams.SerializableDataInputStream in,
-            final Path inputDirectory,
-            final int version)
+    public void deserialize(final SerializableDataInputStream in, final Path inputDirectory, final int version)
             throws IOException {
 
         if (version == ClassVersion.ORIGINAL) {

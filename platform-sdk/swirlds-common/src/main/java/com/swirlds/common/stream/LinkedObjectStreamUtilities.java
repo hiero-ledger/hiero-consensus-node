@@ -269,7 +269,7 @@ public final class LinkedObjectStreamUtilities {
                     "parseSigFile : fail to read signature from File %s, its extension doesn't match %s",
                     file.getName(), streamType.getSigExtension()));
         } else {
-            try (org.hiero.base.io.streams.SerializableDataInputStream inputStream =
+            try (SerializableDataInputStream inputStream =
                     new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(file)))) {
                 // read signature file header
                 for (int i = 0; i < streamType.getSigFileHeader().length; i++) {
@@ -327,7 +327,7 @@ public final class LinkedObjectStreamUtilities {
     public static Hash computeMetaHash(final File file, final StreamType streamType)
             throws IOException, NoSuchAlgorithmException, InvalidStreamFileException {
         MessageDigest md = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-        try (org.hiero.base.io.streams.SerializableDataOutputStream outputStream =
+        try (SerializableDataOutputStream outputStream =
                 new SerializableDataOutputStream(new HashingOutputStream(md))) {
             // digest file header
             for (int num : streamType.getFileHeader()) {
@@ -355,8 +355,7 @@ public final class LinkedObjectStreamUtilities {
      */
     public static int readFirstIntFromFile(final File file) throws IOException {
         try (FileInputStream fis = new FileInputStream(file);
-                org.hiero.base.io.streams.SerializableDataInputStream inputStream =
-                        new SerializableDataInputStream(fis)) {
+                SerializableDataInputStream inputStream = new SerializableDataInputStream(fis)) {
             return inputStream.readInt();
         }
     }

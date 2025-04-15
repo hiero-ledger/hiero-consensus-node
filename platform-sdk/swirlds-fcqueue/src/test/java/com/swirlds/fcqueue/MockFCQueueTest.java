@@ -860,8 +860,7 @@ class MockFCQueueTest {
         // Serialize the original MockFCQueue
         final byte[] serializedQueue;
         try (final ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            try (final org.hiero.base.io.streams.SerializableDataOutputStream dos =
-                    new SerializableDataOutputStream(bos)) {
+            try (final SerializableDataOutputStream dos = new SerializableDataOutputStream(bos)) {
 
                 dos.writeSerializable(origFCQ, true);
 
@@ -876,8 +875,7 @@ class MockFCQueueTest {
 
         // Recover the serialized MockFCQueue into the recoveredFCQ variable
         try (final ByteArrayInputStream bis = new ByteArrayInputStream(serializedQueue)) {
-            try (final org.hiero.base.io.streams.SerializableDataInputStream dis =
-                    new SerializableDataInputStream(bis)) {
+            try (final SerializableDataInputStream dis = new SerializableDataInputStream(bis)) {
                 recoveredFCQ = dis.readSerializable();
             }
         }
@@ -951,14 +949,12 @@ class MockFCQueueTest {
             assertEquals(0, fcq.size(), "Mock FCQ is not empty");
 
             final ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-            final org.hiero.base.io.streams.SerializableDataOutputStream outputStream =
-                    new SerializableDataOutputStream(outStream);
+            final SerializableDataOutputStream outputStream = new SerializableDataOutputStream(outStream);
 
             outputStream.writeSerializableIterableWithSize(Collections.emptyIterator(), 0, true, false);
 
             final ByteArrayInputStream inStream = new ByteArrayInputStream(outStream.toByteArray());
-            final org.hiero.base.io.streams.SerializableDataInputStream inputStream =
-                    new SerializableDataInputStream(inStream);
+            final SerializableDataInputStream inputStream = new SerializableDataInputStream(inStream);
             inputStream.readSerializableIterableWithSize(10, fcq::add);
         } catch (Exception ex) {
             // should not fail with EOFException

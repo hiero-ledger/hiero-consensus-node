@@ -119,7 +119,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
         final StringLeaf stringValue = getChild(index);
         if (stringValue != null) {
             try {
-                final org.hiero.base.io.streams.SerializableDataInputStream in = new SerializableDataInputStream(
+                final SerializableDataInputStream in = new SerializableDataInputStream(
                         new ByteArrayInputStream(stringValue.getLabel().getBytes(StandardCharsets.UTF_8)));
                 return in.readSerializableList(1024, false, factory);
             } catch (final IOException e) {
@@ -133,8 +133,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     <T extends SelfSerializable> void writeObjectByChildIndex(final int index, final List<T> list) {
         try {
             final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-            final org.hiero.base.io.streams.SerializableDataOutputStream out =
-                    new SerializableDataOutputStream(byteOut);
+            final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
             out.writeSerializableList(list, false, true);
             setChild(index, new StringLeaf(byteOut.toString(StandardCharsets.UTF_8)));
         } catch (final IOException e) {

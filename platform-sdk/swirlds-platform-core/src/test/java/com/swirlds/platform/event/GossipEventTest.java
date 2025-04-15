@@ -80,16 +80,14 @@ public class GossipEventTest {
         final byte[] byteArray;
 
         try (final ByteArrayOutputStream bs = new ByteArrayOutputStream();
-                final org.hiero.base.io.streams.SerializableDataOutputStream ss =
-                        new SerializableDataOutputStream(bs)) {
+                final SerializableDataOutputStream ss = new SerializableDataOutputStream(bs)) {
             ss.writePbjRecord(original, GossipEvent.PROTOBUF);
             byteArray = bs.toByteArray();
         }
         for (int i = 0; i < byteArray.length; i++) {
             final byte[] truncated = Arrays.copyOf(byteArray, i);
             try (final ByteArrayInputStream bs = new ByteArrayInputStream(truncated);
-                    final org.hiero.base.io.streams.SerializableDataInputStream ss =
-                            new SerializableDataInputStream(bs)) {
+                    final SerializableDataInputStream ss = new SerializableDataInputStream(bs)) {
                 assertThrows(EOFException.class, () -> ss.readPbjRecord(GossipEvent.PROTOBUF));
             }
         }

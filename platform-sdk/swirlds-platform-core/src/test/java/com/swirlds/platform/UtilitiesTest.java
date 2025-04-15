@@ -25,7 +25,7 @@ class UtilitiesTest {
     @Test
     void writeReadList() throws IOException {
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        org.hiero.base.io.streams.SerializableDataOutputStream fcOut = new SerializableDataOutputStream(byteOut);
+        SerializableDataOutputStream fcOut = new SerializableDataOutputStream(byteOut);
 
         List<Pair<Long, Long>> w1 = null;
         List<Pair<Long, Long>> w2 = new ArrayList<>();
@@ -42,7 +42,7 @@ class UtilitiesTest {
         Utilities.writeList(w2, fcOut, ser);
         Utilities.writeList(w3, fcOut, ser);
 
-        org.hiero.base.io.streams.SerializableDataInputStream fcIn =
+        SerializableDataInputStream fcIn =
                 new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         Deserializer<Pair<Long, Long>> des = (stream) -> {

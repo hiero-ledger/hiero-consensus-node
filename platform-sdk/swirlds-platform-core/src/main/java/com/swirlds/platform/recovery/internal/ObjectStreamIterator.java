@@ -24,7 +24,7 @@ public class ObjectStreamIterator<T extends SelfSerializable> implements IOItera
     /**
      * The base input stream.
      */
-    private final org.hiero.base.io.streams.SerializableDataInputStream in;
+    private final SerializableDataInputStream in;
 
     /**
      * Counts the bytes read from the stream.

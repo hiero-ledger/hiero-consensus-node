@@ -21,7 +21,7 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
 
     private final long lowerBound;
     private final AncientMode fileType;
-    private final org.hiero.base.io.streams.SerializableDataInputStream stream;
+    private final SerializableDataInputStream stream;
     private boolean hasPartialEvent = false;
     private PlatformEvent next;
     private boolean streamClosed = false;

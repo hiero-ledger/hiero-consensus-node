@@ -638,8 +638,7 @@ class FCQueueTest {
         // Serialize the original FCQueue
         final byte[] serializedQueue;
         try (final ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                final org.hiero.base.io.streams.SerializableDataOutputStream dos =
-                        new SerializableDataOutputStream(bos)) {
+                final SerializableDataOutputStream dos = new SerializableDataOutputStream(bos)) {
             dos.writeSerializable(origFCQ, true);
             dos.flush();
             serializedQueue = bos.toByteArray();
@@ -650,8 +649,7 @@ class FCQueueTest {
 
         // Recover the serialized FCQueue into the recoveredFCQ variable
         try (final ByteArrayInputStream bis = new ByteArrayInputStream(serializedQueue);
-                final org.hiero.base.io.streams.SerializableDataInputStream dis =
-                        new SerializableDataInputStream(bis)) {
+                final SerializableDataInputStream dis = new SerializableDataInputStream(bis)) {
             recoveredFCQ = dis.readSerializable();
         }
 
@@ -691,8 +689,7 @@ class FCQueueTest {
         try (final ByteArrayInputStream bis = new ByteArrayInputStream(
                         getClass().getResourceAsStream(queueFileName).readAllBytes());
                 final ObjectInputStream oin = new ObjectInputStream(getClass().getResourceAsStream(numbersFilename));
-                final org.hiero.base.io.streams.SerializableDataInputStream dis =
-                        new SerializableDataInputStream(bis)) {
+                final SerializableDataInputStream dis = new SerializableDataInputStream(bis)) {
             recoveredFCQ = dis.readSerializable();
             numbers = (int[]) oin.readObject();
         }
@@ -795,14 +792,12 @@ class FCQueueTest {
             assertEquals(fcq.size(), 0);
 
             final ByteArrayOutputStream outStream = new ByteArrayOutputStream();
-            final org.hiero.base.io.streams.SerializableDataOutputStream outputStream =
-                    new SerializableDataOutputStream(outStream);
+            final SerializableDataOutputStream outputStream = new SerializableDataOutputStream(outStream);
 
             outputStream.writeSerializableIterableWithSize(Collections.emptyIterator(), 0, true, false);
 
             final ByteArrayInputStream inStream = new ByteArrayInputStream(outStream.toByteArray());
-            final org.hiero.base.io.streams.SerializableDataInputStream inputStream =
-                    new SerializableDataInputStream(inStream);
+            final SerializableDataInputStream inputStream = new SerializableDataInputStream(inStream);
             inputStream.readSerializableIterableWithSize(10, fcq::add);
         } catch (final Exception ex) {
             // should not fail with EOFException
@@ -1032,7 +1027,7 @@ class FCQueueTest {
         //		System.out.println("Don't forget to comment this block out before committing");
 
         final InputStream fIn = getClass().getClassLoader().getResourceAsStream(fileName);
-        final org.hiero.base.io.streams.SerializableDataInputStream in = new SerializableDataInputStream(fIn);
+        final SerializableDataInputStream in = new SerializableDataInputStream(fIn);
 
         final FCQueue<FCInt> deserialized = in.readSerializable();
 

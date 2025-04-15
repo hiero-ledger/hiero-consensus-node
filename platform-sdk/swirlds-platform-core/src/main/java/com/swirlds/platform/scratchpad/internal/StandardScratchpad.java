@@ -235,7 +235,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             final Path scratchpadFile = files.get(files.size() - 1);
             nextScratchpadIndex = getFileIndex(scratchpadFile) + 1;
 
-            try (final org.hiero.base.io.streams.SerializableDataInputStream in = new SerializableDataInputStream(
+            try (final SerializableDataInputStream in = new SerializableDataInputStream(
                     new BufferedInputStream(new FileInputStream(scratchpadFile.toFile())))) {
 
                 final int fileVersion = in.readInt();
@@ -269,7 +269,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     @NonNull
     private Path flushToTemporaryFile() throws IOException {
         final Path temporaryFile = buildTemporaryFile(configuration);
-        try (final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(
+        try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile(), false)))) {
 
             out.writeInt(fileVersion);

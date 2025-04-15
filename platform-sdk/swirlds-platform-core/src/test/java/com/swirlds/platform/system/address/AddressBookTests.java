@@ -276,11 +276,11 @@ class AddressBookTests {
         validateAddressBookConsistency(original);
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializable(original, true);
 
-        final org.hiero.base.io.streams.SerializableDataInputStream in =
+        final SerializableDataInputStream in =
                 new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final AddressBook deserialized = in.readSerializable();

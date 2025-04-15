@@ -178,12 +178,12 @@ public enum SerializationOperation {
     READ_NORMALISED_STRING,
 
     /**
-     * All variants of {@link org.hiero.base.io.streams.SerializableDataInputStream#readSerializable()}
+     * All variants of {@link SerializableDataInputStream#readSerializable()}
      */
     READ_SERIALIZABLE,
 
     /**
-     * All variants of {@link org.hiero.base.io.streams.SerializableDataInputStream#readSerializableList(int, boolean, Supplier)}
+     * All variants of {@link SerializableDataInputStream#readSerializableList(int, boolean, Supplier)}
      * and {@link SerializableDataInputStream#readSerializableArray(IntFunction, int, boolean, Set)}
      */
     READ_SERIALIZABLE_LIST,

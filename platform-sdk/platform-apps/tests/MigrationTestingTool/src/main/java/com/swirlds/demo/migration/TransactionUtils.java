@@ -20,8 +20,7 @@ public class TransactionUtils {
         // Remove the first byte, which is marker added to distinguish application transactions from system ones in
         // TransactionGenerator
         final Bytes slicedBytes = bytes.slice(1, bytes.length() - 1);
-        final org.hiero.base.io.streams.SerializableDataInputStream in =
-                new SerializableDataInputStream(slicedBytes.toInputStream());
+        final SerializableDataInputStream in = new SerializableDataInputStream(slicedBytes.toInputStream());
 
         try {
             return in.readSerializable(false, MigrationTestingToolTransaction::new);

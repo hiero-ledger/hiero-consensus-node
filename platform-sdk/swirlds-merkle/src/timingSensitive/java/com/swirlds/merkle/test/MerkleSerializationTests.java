@@ -451,7 +451,7 @@ class MerkleSerializationTests {
                 "directory must exist");
 
         final Path notADirectory = testDirectory.resolve("notADirectory.txt");
-        final org.hiero.base.io.streams.SerializableDataOutputStream fOut =
+        final SerializableDataOutputStream fOut =
                 new SerializableDataOutputStream(new FileOutputStream(notADirectory.toFile()));
         fOut.writeNormalisedString("this is not a directory");
         fOut.close();

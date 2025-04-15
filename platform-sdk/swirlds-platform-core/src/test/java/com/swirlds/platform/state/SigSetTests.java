@@ -96,11 +96,11 @@ class SigSetTests {
         generateSignatureMap(random).forEach(sigSet::addSignature);
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializable(sigSet, true);
 
-        final org.hiero.base.io.streams.SerializableDataInputStream in =
+        final SerializableDataInputStream in =
                 new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final SigSet deserializedSigSet = in.readSerializable();

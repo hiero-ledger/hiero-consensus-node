@@ -307,9 +307,9 @@ public class FileSignTool {
             LOGGER.info(MARKER, "Record stream file header is {}", fileHeaderString);
         }
 
-        try (final org.hiero.base.io.streams.SerializableDataOutputStream dosMeta =
+        try (final SerializableDataOutputStream dosMeta =
                         new SerializableDataOutputStream(new HashingOutputStream(metadataStreamDigest));
-                final org.hiero.base.io.streams.SerializableDataOutputStream dos = new SerializableDataOutputStream(
+                final SerializableDataOutputStream dos = new SerializableDataOutputStream(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest)))) {
             // parse record file
             final Pair<Integer, Optional<RecordStreamFile>> recordResult =

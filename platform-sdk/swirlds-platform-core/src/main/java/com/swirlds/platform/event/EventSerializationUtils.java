@@ -29,10 +29,10 @@ public final class EventSerializationUtils {
     public static PlatformEvent serializeDeserializePlatformEvent(@NonNull final PlatformEvent original)
             throws IOException {
         try (final ByteArrayOutputStream io = new ByteArrayOutputStream()) {
-            final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(io);
+            final SerializableDataOutputStream out = new SerializableDataOutputStream(io);
             out.writePbjRecord(original.getGossipEvent(), GossipEvent.PROTOBUF);
             out.flush();
-            final org.hiero.base.io.streams.SerializableDataInputStream in =
+            final SerializableDataInputStream in =
                     new SerializableDataInputStream(new ByteArrayInputStream(io.toByteArray()));
             return new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF));
         }

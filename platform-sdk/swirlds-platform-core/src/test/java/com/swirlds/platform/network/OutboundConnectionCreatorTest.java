@@ -69,7 +69,7 @@ class OutboundConnectionCreatorTest {
                 .close();
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         out.writeInt(ByteConstants.COMM_CONNECT);
         out.close();
 
@@ -157,7 +157,7 @@ class OutboundConnectionCreatorTest {
                 .close();
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         out.writeInt(ByteConstants.COMM_CONNECT);
         out.close();
 

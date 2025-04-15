@@ -160,8 +160,7 @@ class AsyncStreamTest {
 
         // Sanity check, make sure all the messages were written to the stream
         final byte[] bytes = byteOut.toByteArray();
-        final org.hiero.base.io.streams.SerializableDataInputStream in =
-                new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
         for (int i = 0; i < count; i++) {
             final SerializableLong value = new SerializableLong();
             value.deserialize(in, value.getVersion());
@@ -180,7 +179,7 @@ class AsyncStreamTest {
 
         // Write a bunch of stuff into the stream
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         for (int i = 0; i < count; i++) {
             // This is the way that each object is written by the AsyncOutputStream, mimic that format
             new SerializableLong(i).serialize(out);

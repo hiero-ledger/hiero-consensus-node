@@ -228,8 +228,7 @@ class VirtualRootNodeTest extends VirtualTestBase {
     private void deserializeRootNodeAndVerify(InputStream resourceAsStream, int version) throws IOException {
         final VirtualRootNode<TestKey, TestValue> root = createRoot();
 
-        try (org.hiero.base.io.streams.SerializableDataInputStream input =
-                new SerializableDataInputStream(resourceAsStream)) {
+        try (SerializableDataInputStream input = new SerializableDataInputStream(resourceAsStream)) {
             root.deserialize(input, tempDir, version);
             root.postInit(new DummyVirtualStateAccessor());
             final VirtualNodeCache<TestKey, TestValue> cache = root.getCache();
@@ -252,8 +251,7 @@ class VirtualRootNodeTest extends VirtualTestBase {
     private void serializeRoot(String fileName) throws IOException {
         try (FileOutputStream fileOutputStream =
                         new FileOutputStream(tempDir.resolve(fileName).toFile());
-                org.hiero.base.io.streams.SerializableDataOutputStream out =
-                        new SerializableDataOutputStream(fileOutputStream)) {
+                SerializableDataOutputStream out = new SerializableDataOutputStream(fileOutputStream)) {
             VirtualRootNode<TestKey, TestValue> testKeyTestValueVirtualRootNode = prepareRootForSerialization();
             testKeyTestValueVirtualRootNode.serialize(out, tempDir);
             fileOutputStream.flush();
@@ -375,12 +373,10 @@ class VirtualRootNodeTest extends VirtualTestBase {
         final Path snapshotPath =
                 LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAndRestore", CONFIGURATION);
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final org.hiero.base.io.streams.SerializableDataOutputStream out =
-                        new SerializableDataOutputStream(bout)) {
+                final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
             copy5.serialize(out, snapshotPath);
             try (final ByteArrayInputStream bin = new ByteArrayInputStream(bout.toByteArray());
-                    final org.hiero.base.io.streams.SerializableDataInputStream in =
-                            new SerializableDataInputStream(bin)) {
+                    final SerializableDataInputStream in = new SerializableDataInputStream(bin)) {
                 final VirtualMap<TestKey, TestValue> restored = new VirtualMap<>(CONFIGURATION);
                 restored.deserialize(in, snapshotPath, copy0.getVersion());
                 // All keys 1 to 5 should be in the snapshot

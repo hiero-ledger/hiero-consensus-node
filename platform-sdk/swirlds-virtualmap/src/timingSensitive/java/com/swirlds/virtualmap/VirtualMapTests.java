@@ -972,11 +972,11 @@ class VirtualMapTests extends VirtualTestBase {
         assertVirtualMapsEqual(map0, map1);
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final org.hiero.base.io.streams.SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         // serialize the existing maps
         map0.serialize(out, testDirectory);
 
-        final org.hiero.base.io.streams.SerializableDataInputStream in =
+        final SerializableDataInputStream in =
                 new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final VirtualMap<TestKey, TestValue> map2 = createMap();

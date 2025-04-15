@@ -156,9 +156,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                                 Files.createDirectory(savedDir);
                             }
                             virtualMap.getRight().getHash();
-                            try (final org.hiero.base.io.streams.SerializableDataOutputStream out =
-                                    new SerializableDataOutputStream(
-                                            Files.newOutputStream(savedDir.resolve(LABEL + SERDE_SUFFIX)))) {
+                            try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
+                                    Files.newOutputStream(savedDir.resolve(LABEL + SERDE_SUFFIX)))) {
                                 virtualMap.serialize(out, savedDir);
                             }
                             virtualMap.release();
@@ -267,9 +266,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                         final VirtualMap<BenchmarkKey, BenchmarkValue> curMap = virtualMap.copy();
 
                         virtualMap.getRight().getHash();
-                        try (final org.hiero.base.io.streams.SerializableDataOutputStream out =
-                                new SerializableDataOutputStream(
-                                        Files.newOutputStream(finalSavedDir.resolve(label + SERDE_SUFFIX)))) {
+                        try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
+                                Files.newOutputStream(finalSavedDir.resolve(label + SERDE_SUFFIX)))) {
                             virtualMap.serialize(out, finalSavedDir);
                         } catch (IOException ex) {
                             logger.error("Error saving VirtualMap " + label, ex);
@@ -304,7 +302,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
             }
             Files.createDirectories(savedDir);
             virtualMap.getRight().getHash();
-            try (final org.hiero.base.io.streams.SerializableDataOutputStream out =
+            try (final SerializableDataOutputStream out =
                     new SerializableDataOutputStream(Files.newOutputStream(savedDir.resolve(LABEL + SERDE_SUFFIX)))) {
                 virtualMap.serialize(out, savedDir);
             }
@@ -330,7 +328,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
             try {
                 logger.info("Restoring map {} from {}", label, savedDir);
                 final VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = new VirtualMap<>(configuration);
-                try (final org.hiero.base.io.streams.SerializableDataInputStream in =
+                try (final SerializableDataInputStream in =
                         new SerializableDataInputStream(Files.newInputStream(savedDir.resolve(label + SERDE_SUFFIX)))) {
                     virtualMap.deserialize(in, savedDir, virtualMap.getVersion());
                 }

@@ -71,8 +71,7 @@ final class SignatureWriterV6 {
                 // create metadata hash
                 HashingOutputStream hashingOutputStream =
                         new HashingOutputStream(MessageDigest.getInstance(DigestType.SHA_384.algorithmName()));
-                org.hiero.base.io.streams.SerializableDataOutputStream dataOutputStream =
-                        new SerializableDataOutputStream(hashingOutputStream);
+                SerializableDataOutputStream dataOutputStream = new SerializableDataOutputStream(hashingOutputStream);
                 dataOutputStream.writeInt(recordFileVersion);
                 dataOutputStream.writeInt(hapiProtoVersion.major());
                 dataOutputStream.writeInt(hapiProtoVersion.minor());

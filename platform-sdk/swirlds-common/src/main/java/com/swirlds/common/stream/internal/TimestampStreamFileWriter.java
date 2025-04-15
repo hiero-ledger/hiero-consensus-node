@@ -103,12 +103,12 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
     /**
      * Data destined for the output file should be written to this stream.
      */
-    private org.hiero.base.io.streams.SerializableDataOutputStream out = null;
+    private SerializableDataOutputStream out = null;
     /**
      * Metadata should be written to this stream. Any data written to this stream is used to generate a running
      * metadata hash.
      */
-    private org.hiero.base.io.streams.SerializableDataOutputStream metadataOut = null;
+    private SerializableDataOutputStream metadataOut = null;
     /**
      * The current file being written.
      */
@@ -197,7 +197,7 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
             final StreamType streamType)
             throws IOException {
 
-        try (final org.hiero.base.io.streams.SerializableDataOutputStream output =
+        try (final SerializableDataOutputStream output =
                 new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(sigFilePath)))) {
 
             // write signature file header

@@ -18,7 +18,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  */
 public class PcesOutputStreamFileWriter implements PcesFileWriter {
     /** The output stream to write to */
-    private final org.hiero.base.io.streams.SerializableDataOutputStream out;
+    private final SerializableDataOutputStream out;
     /** The file descriptor of the file being written to */
     private final FileDescriptor fileDescriptor;
     /** Counts the bytes written to the file */

@@ -310,8 +310,7 @@ public class RecordStreamV6Verifier {
         // create metadata hash
         HashingOutputStream hashingOutputStream =
                 new HashingOutputStream(MessageDigest.getInstance(DigestType.SHA_384.algorithmName()));
-        org.hiero.base.io.streams.SerializableDataOutputStream dataOutputStream =
-                new SerializableDataOutputStream(hashingOutputStream);
+        SerializableDataOutputStream dataOutputStream = new SerializableDataOutputStream(hashingOutputStream);
         dataOutputStream.writeInt(recordStreamConfig.recordFileVersion());
         dataOutputStream.writeInt(recordFile.hapiProtoVersion().major());
         dataOutputStream.writeInt(recordFile.hapiProtoVersion().minor());

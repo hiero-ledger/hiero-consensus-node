@@ -104,8 +104,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
      */
     public Hash computeNextHash(final Hash prevHash, final VirtualLeafNode<K, V> leaf) throws IOException {
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final org.hiero.base.io.streams.SerializableDataOutputStream out =
-                        new SerializableDataOutputStream(bout)) {
+                final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
 
             if (prevHash != null) {
                 // add Previous Hash
