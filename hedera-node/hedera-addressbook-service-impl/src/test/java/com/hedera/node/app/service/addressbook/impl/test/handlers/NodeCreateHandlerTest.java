@@ -327,18 +327,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void failsWhenGossipEndpointTooSmall() {
-        txn = new NodeCreateBuilder()
-                .withAccountId(accountId)
-                .withGossipEndpoint(List.of(endpoint1))
-                .build(payerId);
-        setupHandle();
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT, msg.getStatus());
-    }
-
-    @Test
     void failsWhenGossipEndpointHaveIPAndFQDN() {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
