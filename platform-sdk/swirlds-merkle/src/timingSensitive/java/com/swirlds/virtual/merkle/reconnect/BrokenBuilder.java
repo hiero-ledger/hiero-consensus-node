@@ -86,4 +86,8 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
     public void setNumTimesToBreak(final int numTimesToBreak) {
         this.numTimesToBreak = numTimesToBreak;
     }
+
+    public void nextAttempt() {
+        this.numCalls = 0;
+    }
 }

@@ -377,13 +377,7 @@ public class Shadowgraph implements Clearable {
 
         while (oldestUnexpiredIndicator < minimumIndicatorToKeep) {
             final Set<ShadowEvent> shadowsToExpire = indicatorToShadowEvent.remove(oldestUnexpiredIndicator);
-            // shadowsToExpire should never be null, but check just in case.
-            if (shadowsToExpire == null) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "There were no events with ancient indicator {} to expire.",
-                        oldestUnexpiredIndicator);
-            } else {
+            if (shadowsToExpire != null) {
                 shadowsToExpire.forEach(this::expire);
             }
             oldestUnexpiredIndicator++;
