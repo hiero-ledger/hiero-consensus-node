@@ -79,6 +79,9 @@ class TipsetTrackerTests {
 
             final NodeId creator = NodeId.of(
                     roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
+
+            // Assign an nGen value to every event, including self events. Tipsets should always
+            // have -1 for the self tips even if the event has a different nGen value.
             final long nGen;
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
@@ -173,11 +176,11 @@ class TipsetTrackerTests {
                     new EventWindow(1, ancientThreshold, 1 /* ignored in this context */, ancientMode);
             tracker.setEventWindow(eventWindow);
             assertEquals(eventWindow, tracker.getEventWindow());
-            for (final EventDescriptorWrapper fingerprint : expectedTipsets.keySet()) {
-                if (fingerprint.getAncientIndicator(ancientMode) < ancientThreshold) {
-                    assertNull(tracker.getTipset(fingerprint));
+            for (final EventDescriptorWrapper descriptor : expectedTipsets.keySet()) {
+                if (descriptor.getAncientIndicator(ancientMode) < ancientThreshold) {
+                    assertNull(tracker.getTipset(descriptor));
                 } else {
-                    assertTipsetEquality(roster, expectedTipsets.get(fingerprint), tracker.getTipset(fingerprint));
+                    assertTipsetEquality(roster, expectedTipsets.get(descriptor), tracker.getTipset(descriptor));
                 }
             }
         }

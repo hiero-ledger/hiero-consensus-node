@@ -212,7 +212,6 @@ class TipsetWeightCalculatorTests {
                 // The snapshot should have been updated.
                 assertNotSame(previousSnapshot, calculator.getSnapshot());
                 previousSnapshot = calculator.getSnapshot();
-                System.out.println("Resetting runningAdvancementScore");
                 runningAdvancementScore = ZERO_ADVANCEMENT_WEIGHT;
             } else {
                 // The snapshot should have not been updated.

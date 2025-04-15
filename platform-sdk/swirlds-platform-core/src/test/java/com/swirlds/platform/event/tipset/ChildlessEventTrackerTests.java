@@ -8,6 +8,7 @@ import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +105,74 @@ class ChildlessEventTrackerTests {
         assertThat(tracker.getChildlessEvents())
                 .withFailMessage("Tracked events should not have changed after adding older events")
                 .containsAll(batch2);
+    }
+
+    @Test
+    @DisplayName("Parents of new self events should not be tracked")
+    void testSelfEventParentsAreRemoved() {
+        final Random random = getRandomPrintSeed();
+        final int numNodes = random.nextInt(10, 100);
+        final NodeId selfId = NodeId.of(random.nextLong(numNodes));
+
+        final ChildlessEventTracker tracker = new ChildlessEventTracker();
+
+        // Add some events with no parents
+        loadTrackerWithInitialEvents(random, tracker, numNodes);
+
+        final List<PlatformEvent> previousChildlessEvents = new ArrayList<>(tracker.getChildlessEvents());
+
+        final PlatformEvent selfParent = tracker.getChildlessEvents().stream()
+                .filter(event -> event.getCreatorId().equals(selfId))
+                .findFirst()
+                .orElseThrow();
+        final PlatformEvent otherParent = tracker.getChildlessEvents().stream()
+                .filter(event -> !event.getCreatorId().equals(selfId))
+                .findFirst()
+                .orElseThrow();
+
+        // Register the parents of a new self event with existing childless events as parents
+        tracker.registerSelfEventParents(List.of(selfParent.getDescriptor(), otherParent.getDescriptor()));
+
+        // Verify that the parents are no longer tracked as childless
+        assertThat(tracker.getChildlessEvents()).doesNotContain(selfParent);
+        assertThat(tracker.getChildlessEvents()).doesNotContain(otherParent);
+
+        // Verify that only the two parents were removed. All other events should remain.
+        previousChildlessEvents.remove(selfParent);
+        previousChildlessEvents.remove(otherParent);
+        assertThat(tracker.getChildlessEvents()).containsAll(previousChildlessEvents);
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(previousChildlessEvents.size());
+    }
+
+    @Test
+    @DisplayName("Non-existent parents of new self events should not cause problems")
+    void testSelfEventParentsNotDoNotExist() {
+        final Random random = getRandomPrintSeed();
+        final int numNodes = random.nextInt(10, 100);
+        final NodeId selfId = NodeId.of(random.nextLong(numNodes));
+
+        final ChildlessEventTracker tracker = new ChildlessEventTracker();
+
+        // Add some events with no parents
+        loadTrackerWithInitialEvents(random, tracker, numNodes);
+
+        final Collection<PlatformEvent> previousChildlessEvents = tracker.getChildlessEvents();
+
+        final PlatformEvent parent1 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(numNodes + 1))
+                .setNGen(100)
+                .build();
+        final PlatformEvent parent2 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(numNodes + 2))
+                .setNGen(100)
+                .build();
+
+        // Register the parents of a new self event with existing childless events as parents
+        tracker.registerSelfEventParents(List.of(parent1.getDescriptor(), parent2.getDescriptor()));
+
+        // Verify that only the two parents were removed. All other events should remain.
+        assertThat(tracker.getChildlessEvents()).containsAll(previousChildlessEvents);
+        assertThat(tracker.getChildlessEvents().size()).isEqualTo(previousChildlessEvents.size());
     }
 
     private PlatformEvent getChildlessEvent(
