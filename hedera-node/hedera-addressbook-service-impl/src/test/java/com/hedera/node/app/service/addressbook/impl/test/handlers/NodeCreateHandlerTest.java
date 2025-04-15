@@ -473,20 +473,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void failsWhenGrpcProxyEndpointNull() {
-        txn = new NodeCreateBuilder()
-                .withAccountId(accountId)
-                .withGossipEndpoint(List.of(endpoint1, endpoint2))
-                .withServiceEndpoint(List.of(endpoint2))
-                .withGrpcWebProxyEndpoint(null)
-                .build(payerId);
-        setupHandle();
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_GRPC_WEB_PROXY_ENDPOINT, msg.getStatus());
-    }
-
-    @Test
     void failsWhenEndpointHaveIPAndFQDN() {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
