@@ -162,19 +162,20 @@ public class Turtle {
         if (!commonConsensusRoundNums.isEmpty()) {
             final TurtleNode node1 = nodes.getFirst();
             final List<ConsensusRound> consensusRoundsForNode1 =
-                    node1.getConsensusRoundsHolder().getFilteredConsensusRounds(commonConsensusRoundNums);
+                    node1.getConsensusRoundsTestCollector().getFilteredConsensusRounds(commonConsensusRoundNums);
 
             for (int i = 1; i < nodes.size(); i++) {
                 final TurtleNode otherNode = nodes.get(i);
-                final List<ConsensusRound> consensusRoundsForOtherNode =
-                        otherNode.getConsensusRoundsHolder().getFilteredConsensusRounds(commonConsensusRoundNums);
+                final List<ConsensusRound> consensusRoundsForOtherNode = otherNode
+                        .getConsensusRoundsTestCollector()
+                        .getFilteredConsensusRounds(commonConsensusRoundNums);
 
                 consensusRoundValidator.validate(consensusRoundsForNode1, consensusRoundsForOtherNode);
 
-                otherNode.getConsensusRoundsHolder().clear(commonConsensusRoundNums);
+                otherNode.getConsensusRoundsTestCollector().clear(commonConsensusRoundNums);
             }
 
-            node1.getConsensusRoundsHolder().clear(commonConsensusRoundNums);
+            node1.getConsensusRoundsTestCollector().clear(commonConsensusRoundNums);
         }
     }
 
@@ -184,11 +185,15 @@ public class Turtle {
      * @return the set of round numbers that represent rounds that reached consensus in all nodes
      */
     private Set<Long> getCommonConsensusRoundNums() {
-        final Set<Long> commonRoundNumbers = new HashSet<>(
-                nodes.getFirst().getConsensusRoundsHolder().getCollectedRounds().keySet());
+        final Set<Long> commonRoundNumbers = new HashSet<>(nodes.getFirst()
+                .getConsensusRoundsTestCollector()
+                .getCollectedRounds()
+                .keySet());
         for (int i = 1; i < nodes.size(); i++) {
-            final Set<Long> roundNumbersForOtherNode =
-                    nodes.get(i).getConsensusRoundsHolder().getCollectedRounds().keySet();
+            final Set<Long> roundNumbersForOtherNode = nodes.get(i)
+                    .getConsensusRoundsTestCollector()
+                    .getCollectedRounds()
+                    .keySet();
             commonRoundNumbers.retainAll(roundNumbersForOtherNode);
         }
 
