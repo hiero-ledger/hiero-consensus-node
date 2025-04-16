@@ -2,9 +2,6 @@
 package org.hiero.otter.fixtures.turtle;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -13,11 +10,18 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -59,6 +63,14 @@ public class TurtleTestEnvironment implements TestEnvironment {
             final LoggerConfig rootLoggerConfig = loggerContextConfig.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
             rootLoggerConfig.addAppender(inMemoryAppender, null, null);
             rootLoggerConfig.setLevel(org.apache.logging.log4j.Level.ALL);
+
+            final Layout<?> layout = PatternLayout.newBuilder()
+                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%X] [%t] %-5level %logger{36} - %msg %n")
+                    .withConfiguration(loggerContextConfig)
+                    .build();
+
+            final ConsoleAppender consoleAppender = ConsoleAppender.createDefaultAppenderForLayout(layout);
+            rootLoggerConfig.addAppender(consoleAppender, Level.INFO, null);
 
             loggerContext.updateLoggers();
         }

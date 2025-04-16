@@ -36,12 +36,6 @@ class BlockNodeConfigExtractorTest {
     }
 
     @Test
-    void testBlockItemBatchSize() {
-        int batchSize = blockNodeConfigExtractor.getBlockItemBatchSize();
-        assertThat(batchSize).isEqualTo(256);
-    }
-
-    @Test
     void testInvalidConfigPath() {
         assertThatThrownBy(() -> new BlockNodeConfigExtractorImpl("invalid/path"))
                 .isInstanceOf(RuntimeException.class)
@@ -52,6 +46,5 @@ class BlockNodeConfigExtractorTest {
     void testNoOpBlockNodeConfigExtractor() {
         final NoOpBlockNodeConfigExtractor noOpBlockNodeConfigExtractor = new NoOpBlockNodeConfigExtractor();
         assertThat(noOpBlockNodeConfigExtractor.getAllNodes()).isEqualTo(List.of());
-        assertThat(noOpBlockNodeConfigExtractor.getBlockItemBatchSize()).isEqualTo(0);
     }
 }

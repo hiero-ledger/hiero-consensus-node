@@ -57,9 +57,4 @@ message BlockNodeConnectionInfo {
      * to which the consensus node SHOULD connect.
      */
     repeated BlockNodeConfig nodes = 1;
-
-    /**
-     * The size of the batches of block items to be streamed to block nodes.<br/>
-     */
-    int32 block_item_batch_size = 2;
-} 
+}

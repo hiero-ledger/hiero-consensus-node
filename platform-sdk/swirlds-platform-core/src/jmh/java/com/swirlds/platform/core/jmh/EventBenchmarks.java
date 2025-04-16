@@ -2,7 +2,6 @@
 package com.swirlds.platform.core.jmh;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.platform.event.hashing.EventHasher;
@@ -13,6 +12,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;

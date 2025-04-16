@@ -2,10 +2,10 @@
 package com.swirlds.demo.platform.nft;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.exceptions.InvalidVersionException;
 import java.io.IOException;
 import java.util.Objects;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.exceptions.InvalidVersionException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 

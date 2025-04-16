@@ -8,8 +8,6 @@ import static com.swirlds.common.stream.internal.TimestampStreamFileWriter.OBJEC
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamFilesIterator;
@@ -272,7 +270,7 @@ public final class LinkedObjectStreamUtilities {
                     file.getName(), streamType.getSigExtension()));
         } else {
             try (SerializableDataInputStream inputStream =
-                    new SerializableDataInputStreamImpl(new BufferedInputStream(new FileInputStream(file)))) {
+                    new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(file)))) {
                 // read signature file header
                 for (int i = 0; i < streamType.getSigFileHeader().length; i++) {
                     inputStream.readByte();
@@ -330,7 +328,7 @@ public final class LinkedObjectStreamUtilities {
             throws IOException, NoSuchAlgorithmException, InvalidStreamFileException {
         MessageDigest md = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
         try (SerializableDataOutputStream outputStream =
-                new SerializableDataOutputStreamImpl(new HashingOutputStream(md))) {
+                new SerializableDataOutputStream(new HashingOutputStream(md))) {
             // digest file header
             for (int num : streamType.getFileHeader()) {
                 outputStream.writeInt(num);
@@ -357,7 +355,7 @@ public final class LinkedObjectStreamUtilities {
      */
     public static int readFirstIntFromFile(final File file) throws IOException {
         try (FileInputStream fis = new FileInputStream(file);
-                SerializableDataInputStream inputStream = new SerializableDataInputStreamImpl(fis)) {
+                SerializableDataInputStream inputStream = new SerializableDataInputStream(fis)) {
             return inputStream.readInt();
         }
     }

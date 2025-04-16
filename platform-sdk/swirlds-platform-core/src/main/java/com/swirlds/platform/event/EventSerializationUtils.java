@@ -2,8 +2,6 @@
 package com.swirlds.platform.event;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,11 +29,11 @@ public final class EventSerializationUtils {
     public static PlatformEvent serializeDeserializePlatformEvent(@NonNull final PlatformEvent original)
             throws IOException {
         try (final ByteArrayOutputStream io = new ByteArrayOutputStream()) {
-            final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(io);
+            final SerializableDataOutputStream out = new SerializableDataOutputStream(io);
             out.writePbjRecord(original.getGossipEvent(), GossipEvent.PROTOBUF);
             out.flush();
             final SerializableDataInputStream in =
-                    new SerializableDataInputStreamImpl(new ByteArrayInputStream(io.toByteArray()));
+                    new SerializableDataInputStream(new ByteArrayInputStream(io.toByteArray()));
             return new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF));
         }
     }
