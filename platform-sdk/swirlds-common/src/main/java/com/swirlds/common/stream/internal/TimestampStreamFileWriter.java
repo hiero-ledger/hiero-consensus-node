@@ -15,7 +15,6 @@ import static org.hiero.consensus.model.stream.StreamAligned.NO_ALIGNMENT;
 import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.common.stream.StreamType;
 import java.io.BufferedOutputStream;
@@ -199,7 +198,7 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
             throws IOException {
 
         try (final SerializableDataOutputStream output =
-                new SerializableDataOutputStreamImpl(new BufferedOutputStream(new FileOutputStream(sigFilePath)))) {
+                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(sigFilePath)))) {
 
             // write signature file header
             for (final byte num : streamType.getSigFileHeader()) {
@@ -241,9 +240,9 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
                 logger.info(OBJECT_STREAM.getMarker(), "Stream file already exists {}", currentFile::getName);
             } else {
                 fileStream = new FileOutputStream(currentFile, false);
-                out = new SerializableDataOutputStreamImpl(
+                out = new SerializableDataOutputStream(
                         new BufferedOutputStream(new HashingOutputStream(streamDigest, fileStream)));
-                metadataOut = new SerializableDataOutputStreamImpl(new HashingOutputStream(metadataStreamDigest));
+                metadataOut = new SerializableDataOutputStream(new HashingOutputStream(metadataStreamDigest));
                 logger.info(OBJECT_STREAM_FILE.getMarker(), "Stream file created {}", currentFile::getName);
             }
         } catch (final FileNotFoundException e) {

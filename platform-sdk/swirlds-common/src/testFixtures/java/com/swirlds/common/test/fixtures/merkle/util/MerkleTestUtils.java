@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -835,7 +834,7 @@ public final class MerkleTestUtils {
     private static boolean areLeavesEqual(final MerkleLeaf a, final MerkleLeaf b) {
         try {
             final ByteArrayOutputStream bsA = new ByteArrayOutputStream();
-            final SerializableDataOutputStream sA = new SerializableDataOutputStreamImpl(bsA);
+            final SerializableDataOutputStream sA = new SerializableDataOutputStream(bsA);
             try {
                 sA.writeSerializable(a, true);
             } catch (IOException e) {
@@ -843,7 +842,7 @@ public final class MerkleTestUtils {
             }
 
             final ByteArrayOutputStream bsB = new ByteArrayOutputStream();
-            final SerializableDataOutputStream sB = new SerializableDataOutputStreamImpl(bsB);
+            final SerializableDataOutputStream sB = new SerializableDataOutputStream(bsB);
             try {
                 sB.writeSerializable(b, true);
             } catch (IOException e) {

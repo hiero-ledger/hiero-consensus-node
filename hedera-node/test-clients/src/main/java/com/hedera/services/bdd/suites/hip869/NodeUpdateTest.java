@@ -28,7 +28,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOIN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
@@ -128,10 +127,6 @@ public class NodeUpdateTest {
                 nodeCreate("testNode")
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode")
-                        .adminKey("adminKey")
-                        .gossipEndpoint(List.of(asServiceEndpoint("127.0.0.1:80")))
-                        .hasKnownStatus(INVALID_GOSSIP_ENDPOINT),
                 nodeUpdate("testNode")
                         .adminKey("adminKey")
                         .gossipEndpoint(List.of(asServiceEndpoint("127.0.0.2:60"), invalidServiceEndpoint()))

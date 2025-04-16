@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.utility.UnmodifiableIterator;
-import com.swirlds.common.utility.ValueReference;
 import com.swirlds.fchashmap.FCHashMap;
 import com.swirlds.fchashmap.ModifiableValue;
 import java.util.HashMap;
@@ -14,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.Locked;

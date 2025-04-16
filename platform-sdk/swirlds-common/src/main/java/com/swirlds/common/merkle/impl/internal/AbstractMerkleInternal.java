@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.impl.internal;
 
-import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
+import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.exceptions.ReferenceCountException;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildTypeException;
@@ -13,6 +12,7 @@ import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.interfaces.MerkleParent;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import java.util.List;
+import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
  * This abstract class implements boiler plate functionality for a binary {@link MerkleInternal} (i.e. an internal

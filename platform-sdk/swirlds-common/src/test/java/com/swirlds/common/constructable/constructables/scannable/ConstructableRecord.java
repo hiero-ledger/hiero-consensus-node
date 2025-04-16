@@ -3,8 +3,8 @@ package com.swirlds.common.constructable.constructables.scannable;
 
 import static com.swirlds.common.constructable.constructables.scannable.ConstructableRecord.CLASS_ID;
 
-import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.constructable.constructors.RecordConstructor;
+import org.hiero.base.constructable.ConstructableClass;
 import org.hiero.base.constructable.RuntimeConstructable;
 
 @ConstructableClass(value = CLASS_ID, constructorType = RecordConstructor.class)
