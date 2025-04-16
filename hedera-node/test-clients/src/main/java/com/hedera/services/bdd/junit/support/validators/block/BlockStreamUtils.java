@@ -74,7 +74,6 @@ public class BlockStreamUtils {
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
-            case RESERVED -> null;
         };
     }
 }

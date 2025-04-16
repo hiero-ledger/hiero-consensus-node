@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.block.stream.output.StateIdentifier;
@@ -61,12 +60,8 @@ class BlockImplUtilsTest {
     @ParameterizedTest
     @MethodSource("stateIdsByName")
     void stateIdsByNameAsExpected(@Nullable final String stateName, @NonNull final StateIdentifier stateId) {
-        if (stateId == StateIdentifier.RESERVED) {
-            assertNull(stateName);
-        } else {
-            final var parts = stateName.split("\\.");
-            assertThat(BlockImplUtils.stateIdFor(parts[0], parts[1])).isEqualTo(stateId.protoOrdinal());
-        }
+        final var parts = stateName.split("\\.");
+        assertThat(BlockImplUtils.stateIdFor(parts[0], parts[1])).isEqualTo(stateId.protoOrdinal());
     }
 
     public static Stream<Arguments> stateIdsByName() {
@@ -137,7 +132,6 @@ class BlockImplUtilsTest {
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
-            case RESERVED -> null;
         };
     }
 }

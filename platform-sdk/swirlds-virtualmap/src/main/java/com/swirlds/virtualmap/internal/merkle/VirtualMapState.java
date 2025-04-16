@@ -29,9 +29,11 @@ import java.util.Objects;
 public class VirtualMapState {
 
     /**
-     * See {@code StateIdentifier.RESERVED}
+     * The value must not clash with values from {@code StateIdentifier}. By convention defined by {@code StateIdentifier}
+     * we use first two bytes to identify the service and the state. To prevent potential clashes let's use [-1, -1]
+     * as these values
      */
-    public static final Bytes VM_STATE_KEY = Bytes.fromHex("33");
+    public static final Bytes VM_STATE_KEY = Bytes.fromHex("ffff");
 
     public static final FieldDefinition FIELD_FIRST_LEAF_PATH =
             new FieldDefinition("firstLeafPath", FieldType.FIXED64, false, true, false, 1);
