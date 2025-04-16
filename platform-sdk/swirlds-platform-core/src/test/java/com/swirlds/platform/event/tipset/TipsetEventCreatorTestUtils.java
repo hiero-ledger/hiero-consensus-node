@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

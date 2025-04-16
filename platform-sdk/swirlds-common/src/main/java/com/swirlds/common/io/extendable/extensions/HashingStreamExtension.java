@@ -4,8 +4,8 @@ package com.swirlds.common.io.extendable.extensions;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 
 /**
  * An stream extension that can hash bytes that pass through it. It will not automatically hash all the bytes

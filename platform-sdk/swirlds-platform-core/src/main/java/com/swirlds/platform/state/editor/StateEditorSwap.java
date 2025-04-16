@@ -12,7 +12,7 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hashable;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "swap", mixinStandardHelpOptions = true, description = "Swap two nodes.")
