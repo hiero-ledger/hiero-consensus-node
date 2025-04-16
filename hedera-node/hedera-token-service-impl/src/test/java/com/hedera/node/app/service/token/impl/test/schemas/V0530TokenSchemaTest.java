@@ -22,7 +22,9 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.services.MigrationContextImpl;
@@ -30,7 +32,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.Comparator;
@@ -64,30 +66,40 @@ class V0530TokenSchemaTest {
 
     @Test
     void setsStakingInfoMinStakeToZero() {
-        final var accounts = MapWritableKVState.<AccountID, Account>builder(V0490TokenSchema.ACCOUNTS_KEY)
+        final var accounts = MapWritableKVState.<AccountID, Account>builder(
+                        TokenService.NAME, V0490TokenSchema.ACCOUNTS_KEY)
                 .build();
-        final var entityIdState = new WritableSingletonStateBase<>(
-                V0490EntityIdSchema.ENTITY_ID_STATE_KEY, () -> new EntityNumber(1000), c -> {});
+        final var entityIdState = new FunctionWritableSingletonState<>(
+                TokenService.NAME, V0490EntityIdSchema.ENTITY_ID_STATE_KEY, () -> new EntityNumber(1000), c -> {});
 
-        final var stakingInfosState = new MapWritableKVState.Builder<EntityNumber, StakingNodeInfo>(STAKING_INFO_KEY)
+        final var stakingInfosState = new MapWritableKVState.Builder<EntityNumber, StakingNodeInfo>(
+                        TokenService.NAME, STAKING_INFO_KEY)
                 .value(NODE_NUM_1, STAKING_INFO_1)
                 .value(NODE_NUM_2, STAKING_INFO_2)
                 .value(NODE_NUM_3, STAKING_INFO_3)
                 .build();
         final var previousStates = newStatesInstance(
                 accounts,
-                MapWritableKVState.<Bytes, AccountID>builder(ALIASES_KEY).build(),
+                MapWritableKVState.<Bytes, AccountID>builder(TokenService.NAME, ALIASES_KEY)
+                        .build(),
                 entityIdState,
                 stakingInfosState,
-                new WritableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}));
+                new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_KEY,
+                        () -> EntityCounts.newBuilder().build(),
+                        c -> {}));
         final var newStates = newStatesInstance(
                 accounts,
-                MapWritableKVState.<Bytes, AccountID>builder(ALIASES_KEY).build(),
+                MapWritableKVState.<Bytes, AccountID>builder(TokenService.NAME, ALIASES_KEY)
+                        .build(),
                 entityIdState,
                 stakingInfosState,
-                new WritableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}));
+                new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_KEY,
+                        () -> EntityCounts.newBuilder().build(),
+                        c -> {}));
         final var config = buildConfig(DEFAULT_NUM_SYSTEM_ACCOUNTS, true);
 
         final var schema = new V0530TokenSchema();
@@ -118,7 +130,8 @@ class V0530TokenSchemaTest {
                 .state(accts)
                 .state(aliases)
                 .state(stakingInfo)
-                .state(new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
+                .state(new FunctionWritableSingletonState<>(
+                        TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
                 .state(entityIdState)
                 .state(entityCounts)
                 .build();

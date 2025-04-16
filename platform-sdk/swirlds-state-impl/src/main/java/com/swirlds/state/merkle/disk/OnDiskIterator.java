@@ -5,23 +5,26 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class OnDiskIterator<K, V> implements Iterator<K> {
+public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
 
+    private final Bytes stateId;
     private final MerkleIterator<MerkleNode> itr;
-    private final Codec<K> keyCodec;
     private K next = null;
 
-    public OnDiskIterator(@NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec) {
+    // add state prefix
+    public OnDiskIterator(
+            @NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec, @NonNull final Bytes stateId) {
+        super(virtualMap, keyCodec);
+        this.stateId = requireNonNull(stateId);
         itr = requireNonNull(virtualMap).treeIterator();
-        this.keyCodec = requireNonNull(keyCodec);
     }
 
     @Override
@@ -33,11 +36,13 @@ public class OnDiskIterator<K, V> implements Iterator<K> {
             final var merkleNode = itr.next();
             if (merkleNode instanceof VirtualLeafNode leaf) {
                 final var k = leaf.getKey();
-                try {
-                    this.next = keyCodec.parse(k);
-                    return true;
-                } catch (final ParseException e) {
-                    throw new RuntimeException("Failed to parse a key", e);
+                if (checkKey(k)) {
+                    try {
+                        this.next = keyCodec.parse(k.getBytes(2, k.length() - 2));
+                        return true;
+                    } catch (final ParseException e) {
+                        throw new RuntimeException("Failed to parse a key", e);
+                    }
                 }
             }
         }
@@ -53,5 +58,10 @@ public class OnDiskIterator<K, V> implements Iterator<K> {
         final var k = next;
         next = null;
         return k;
+    }
+
+    private boolean checkKey(final Bytes key) {
+        final Bytes stateIdFromKey = key.getBytes(0, 2);
+        return stateIdFromKey.equals(this.stateId);
     }
 }

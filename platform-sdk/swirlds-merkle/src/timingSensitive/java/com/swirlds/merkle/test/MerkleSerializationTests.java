@@ -7,6 +7,7 @@ import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.areTr
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.buildLessSimpleTree;
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.buildLessSimpleTreeExtended;
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.isFullyInitialized;
+import static com.swirlds.merkle.test.fixtures.map.util.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -93,7 +94,8 @@ class MerkleSerializationTests {
         final MerkleDataInputStream inputStream =
                 new MerkleDataInputStream(new ByteArrayInputStream(baseStream.toByteArray()));
 
-        final DummyMerkleNode deserializedTree = inputStream.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        final DummyMerkleNode deserializedTree =
+                inputStream.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
         if (root == null) {
             assertNull(deserializedTree, "tree should be null");
@@ -136,7 +138,8 @@ class MerkleSerializationTests {
 
         MerkleDataInputStream inputStream =
                 new MerkleDataInputStream(new ByteArrayInputStream(baseStream.toByteArray()));
-        final DummyMerkleNode deserialized = inputStream.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        final DummyMerkleNode deserialized =
+                inputStream.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
         assertTrue(areTreesEqual(tree, deserialized), "tree should match generated");
         assertTrue(isFullyInitialized(deserialized), "tree should be initialized");
@@ -172,7 +175,7 @@ class MerkleSerializationTests {
         final MerkleDataInputStream dataStream = new MerkleDataInputStream(
                 ResourceLoader.loadFileAsStream("merkle/serialized-tree-v3/serialized-tree-v3.dat"));
         dataStream.readProtocolVersion();
-        final DummyMerkleNode tree = dataStream.readMerkleTree(dir, Integer.MAX_VALUE);
+        final DummyMerkleNode tree = dataStream.readMerkleTree(CONFIGURATION, dir, Integer.MAX_VALUE);
         assertTrue(
                 areTreesEqual(MerkleTestUtils.buildTreeWithExternalData(), tree),
                 "deserialized should match constructed");
@@ -191,7 +194,7 @@ class MerkleSerializationTests {
 
         assertThrows(
                 InvalidVersionException.class,
-                () -> inputStream.readMerkleTree(testDirectory, Integer.MAX_VALUE),
+                () -> inputStream.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE),
                 "expected error during deserialization");
     }
 
@@ -314,7 +317,7 @@ class MerkleSerializationTests {
         final MerkleDataInputStream in =
                 new DebuggableMerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
-        final MerkleInternal deserializedRoot = in.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        final MerkleInternal deserializedRoot = in.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
         // The root is untouched
         assertTrue(deserializedRoot instanceof DummyMerkleInternal, "incorrect node type");
@@ -409,7 +412,7 @@ class MerkleSerializationTests {
         final MerkleDataInputStream in =
                 new DebuggableMerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
-        final MerkleInternal deserializedRoot = in.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+        final MerkleInternal deserializedRoot = in.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
 
         assertTrue(areTreesEqual(newRoot, deserializedRoot), "deserialized tree should match new root");
         assertNotNull(deserializedRootBeforeMigration.get(), "deserialized root should have been set");
@@ -435,7 +438,9 @@ class MerkleSerializationTests {
         final MerkleDataOutputStream out = new MerkleDataOutputStream(new ByteArrayOutputStream());
 
         assertThrows(
-                NullPointerException.class, () -> in.readMerkleTree(null, 0), "null directory should not be permitted");
+                NullPointerException.class,
+                () -> in.readMerkleTree(CONFIGURATION, null, 0),
+                "null directory should not be permitted");
         assertThrows(
                 IllegalArgumentException.class,
                 () -> out.writeMerkleTree(null, null),
@@ -444,7 +449,7 @@ class MerkleSerializationTests {
         final Path nonExistentDirectory = new File("if/this/actually/exists/I/will/eat/my/hat").toPath();
         assertThrows(
                 IllegalArgumentException.class,
-                () -> in.readMerkleTree(nonExistentDirectory, 0),
+                () -> in.readMerkleTree(CONFIGURATION, nonExistentDirectory, 0),
                 "directory must exist");
         assertThrows(
                 IllegalArgumentException.class,
@@ -458,7 +463,7 @@ class MerkleSerializationTests {
         fOut.close();
         assertThrows(
                 IllegalArgumentException.class,
-                () -> in.readMerkleTree(notADirectory, 0),
+                () -> in.readMerkleTree(CONFIGURATION, notADirectory, 0),
                 "must be an actual directory");
         assertThrows(
                 IllegalArgumentException.class,
@@ -470,7 +475,7 @@ class MerkleSerializationTests {
         writeProtectedDirectory.toFile().setWritable(false);
         assertThrows(
                 EOFException.class,
-                () -> in.readMerkleTree(writeProtectedDirectory, 0),
+                () -> in.readMerkleTree(CONFIGURATION, writeProtectedDirectory, 0),
                 "should pass directory validation and fail later in the operation, write permission not needed");
         assertThrows(
                 IllegalArgumentException.class,
@@ -483,7 +488,7 @@ class MerkleSerializationTests {
         readProtectedDirectory.toFile().setReadable(false);
         assertThrows(
                 IllegalArgumentException.class,
-                () -> in.readMerkleTree(readProtectedDirectory, 0),
+                () -> in.readMerkleTree(CONFIGURATION, readProtectedDirectory, 0),
                 "must have read permissions");
         assertThrows(
                 IllegalArgumentException.class,

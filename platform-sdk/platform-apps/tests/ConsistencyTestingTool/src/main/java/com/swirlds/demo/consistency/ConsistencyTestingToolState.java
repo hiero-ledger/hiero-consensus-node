@@ -7,7 +7,9 @@ import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.NonCryptographicHashing;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -261,5 +263,10 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
     @Override
     protected ConsistencyTestingToolState copyingConstructor() {
         return new ConsistencyTestingToolState(this);
+    }
+
+    @Override
+    public MerkleNode migrate(@NonNull Configuration configuration, int version) {
+        return this;
     }
 }

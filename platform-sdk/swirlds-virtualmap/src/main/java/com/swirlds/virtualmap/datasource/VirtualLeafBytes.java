@@ -99,7 +99,7 @@ public class VirtualLeafBytes<V> {
             // No synchronization here. In the worst case, value will be initialized multiple
             // times, but always to the same object
             if (valueBytes != null) {
-                assert this.valueCodec == null;
+                assert this.valueCodec == null || this.valueCodec.equals(valueCodec);
                 this.valueCodec = valueCodec;
                 try {
                     value = valueCodec.parse(valueBytes);
@@ -234,7 +234,8 @@ public class VirtualLeafBytes<V> {
             ProtoWriterTools.writeDelimited(
                     out, FIELD_LEAFRECORD_VALUE, Math.toIntExact(localValueBytes.length()), localValueBytes::writeTo);
         }
-        assert out.position() == pos + getSizeInBytes();
+        assert out.position() == pos + getSizeInBytes()
+                : "pos=" + pos + ", out.position()=" + out.position() + ", size=" + getSizeInBytes();
     }
 
     public Hash hash(final HashBuilder builder) {

@@ -4,6 +4,7 @@ package com.swirlds.platform.state.service;
 import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
@@ -16,14 +17,20 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.MerkleDbTableConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestNewMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
+import com.swirlds.virtualmap.VirtualMap;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.crypto.DigestType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -37,7 +44,7 @@ class PlatformStateFacadeTest {
 
     @BeforeAll
     static void beforeAll() {
-        state = new TestMerkleStateRoot();
+        state = new TestNewMerkleStateRoot(CONFIGURATION);
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
         emptyState = new TestMerkleStateRoot();
         platformStateFacade = new TestPlatformStateFacade();
@@ -183,7 +190,14 @@ class PlatformStateFacadeTest {
 
     @Test
     void testSetSnapshotTo() {
-        TestMerkleStateRoot randomState = new TestMerkleStateRoot();
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final var tableConfig = new MerkleDbTableConfig(
+                (short) 1, DigestType.SHA_384, 100_000, merkleDbConfig.hashesRamToDiskThreshold());
+        final var virtualMapLabel = "VirtualMap-PlatformStateFacadeTest";
+        final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+        final var virtualMap = new VirtualMap(virtualMapLabel, dsBuilder, CONFIGURATION);
+
+        TestNewMerkleStateRoot randomState = new TestNewMerkleStateRoot(virtualMap);
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
@@ -223,9 +237,6 @@ class PlatformStateFacadeTest {
                 .contains("Root hash:")
                 .contains("First BR Version:")
                 .contains("Last round before BR:")
-                .contains("Lowest Judge Gen before BR")
-                .contains("Lowest Judge Gen before BR")
-                .contains("SingletonNode")
-                .contains("PlatformStateService.PLATFORM_STATE");
+                .contains("Lowest Judge Gen before BR");
     }
 }

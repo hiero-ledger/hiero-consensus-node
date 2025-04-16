@@ -28,8 +28,10 @@ import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Function;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -120,6 +122,12 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
         final HelloSwirldDemoState state = new HelloSwirldDemoState();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
+    }
+
+    // TODO: GitHub issue TBD
+    @Override
+    public Function<VirtualMap, HelloSwirldDemoState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     @NonNull

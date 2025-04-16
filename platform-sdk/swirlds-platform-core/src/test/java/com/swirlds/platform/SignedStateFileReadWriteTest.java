@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.HederaNewStateRoot;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -120,7 +121,8 @@ class SignedStateFileReadWriteTest {
     @Test
     @DisplayName("Write Then Read State File Test")
     void writeThenReadStateFileTest() throws IOException {
-        final SignedState signedState = new RandomSignedStateGenerator().build();
+        final SignedState signedState =
+                new RandomSignedStateGenerator().setCalculateHash(true).build();
         final Path stateFile = testDirectory.resolve(SIGNED_STATE_FILE_NAME);
         final Path signatureSetFile = testDirectory.resolve(SIGNATURE_SET_FILE_NAME);
 
@@ -138,8 +140,8 @@ class SignedStateFileReadWriteTest {
         MerkleDb.resetDefaultInstancePath();
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
-        final DeserializedSignedState deserializedSignedState =
-                readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                stateFile, HederaNewStateRoot::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(deserializedSignedState
                         .reservedSignedState()
@@ -161,6 +163,7 @@ class SignedStateFileReadWriteTest {
     void writeSavedStateToDiskTest() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator()
                 .setSoftwareVersion(platformVersion)
+                .setCalculateHash(true)
                 .build();
         final Path directory = testDirectory.resolve("state");
 

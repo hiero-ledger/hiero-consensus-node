@@ -13,7 +13,8 @@ open module com.swirlds.virtualmap {
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
-            com.swirlds.virtualmap.test.fixtures;
+            com.swirlds.virtualmap.test.fixtures,
+            com.swirlds.platform.core;
     exports com.swirlds.virtualmap.internal.cache to
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core.test.fixtures;

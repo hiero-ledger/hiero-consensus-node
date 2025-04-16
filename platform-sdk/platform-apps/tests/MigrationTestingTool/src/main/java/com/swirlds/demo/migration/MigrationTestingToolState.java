@@ -118,13 +118,13 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     }
 
     @Override
-    public MerkleNode migrate(int version) {
+    public MerkleNode migrate(@NonNull Configuration configuration, int version) {
         if (version == ClassVersion.VIRTUAL_MAP) {
             FAKE_CONSENSUS_STATE_EVENT_HANDLER.initRosterState(this);
             return this;
         }
 
-        return super.migrate(version);
+        return super.migrate(configuration, version);
     }
 
     /**

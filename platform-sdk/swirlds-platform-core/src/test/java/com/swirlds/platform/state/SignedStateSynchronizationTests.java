@@ -23,7 +23,8 @@ public class SignedStateSynchronizationTests {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds");
         FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
     }
 

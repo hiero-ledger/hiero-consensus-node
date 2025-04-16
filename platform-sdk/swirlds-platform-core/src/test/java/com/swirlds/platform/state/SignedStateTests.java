@@ -2,6 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,7 +23,7 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestNewMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -66,16 +67,20 @@ class SignedStateTests {
      */
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
-        final var real = new TestMerkleStateRoot();
+        final var real = new TestNewMerkleStateRoot(CONFIGURATION);
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
+        final MerkleNode realRoot = state.getRoot();
+        final MerkleNode rootSpy = spy(realRoot);
+        when(state.getRoot()).thenReturn(rootSpy);
+
         if (reserveCallback != null) {
             doAnswer(invocation -> {
                         reserveCallback.run();
                         return null;
                     })
-                    .when((MerkleNode) state)
+                    .when(rootSpy)
                     .reserve();
         }
 
@@ -211,7 +216,7 @@ class SignedStateTests {
     @Test
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
-        final MerkleNodeState state = spy(new TestMerkleStateRoot());
+        final MerkleNodeState state = spy(new TestNewMerkleStateRoot(CONFIGURATION));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);

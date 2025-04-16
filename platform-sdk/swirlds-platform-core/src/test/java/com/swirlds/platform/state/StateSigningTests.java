@@ -78,6 +78,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         // Randomize roster order
@@ -178,6 +179,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final Set<NodeId> signaturesAdded = new HashSet<>();
@@ -273,6 +275,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final Set<NodeId> signaturesAdded = new HashSet<>();
@@ -358,6 +361,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -401,6 +405,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -471,6 +476,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();
@@ -521,6 +527,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
+                .setCalculateHash(true)
                 .build();
 
         assertFalse(signedState.isComplete());

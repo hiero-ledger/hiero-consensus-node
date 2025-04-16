@@ -255,9 +255,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade());
-        this.state = hedera.newStateRoot();
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(), platformConfig);
+        this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
