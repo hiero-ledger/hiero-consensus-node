@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.utilops;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
+import static java.lang.Thread.onSpinWait;
 import static java.lang.Thread.sleep;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -13,6 +14,7 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -51,6 +53,7 @@ public class ProviderRun extends UtilOp {
     private IntSupplier totalOpsToSubmit = () -> DEFAULT_TOTAL_OPS_TO_SUBMIT;
     private boolean loggingOff = false;
     private boolean waitForPendingOps = false;
+    private static final Duration WAIT_PENDING_OPS_TIMEOUT = Duration.ofSeconds(10);
 
     private Optional<BiConsumer<EnumMap<ResponseCodeEnum, AtomicInteger>, EnumMap<ResponseCodeEnum, AtomicInteger>>>
             statusCountAsserter = Optional.empty();
@@ -212,13 +215,9 @@ public class ProviderRun extends UtilOp {
                 log.info("Waiting for {} pending ops to finish...", spec.numPendingOps());
             }
             long beginWait = Instant.now().toEpochMilli();
-            long waitTimeout = 10000; // wait max 10 seconds to finnish all pending ops
-            while (spec.numPendingOps() > 0 || (Instant.now().toEpochMilli() - beginWait) < waitTimeout) {
-                try {
-                    sleep(1000);
-                } catch (InterruptedException ignore) {
-                    log.error("Interrupted during {}ms pause", waitTimeout);
-                }
+            while (spec.numPendingOps() > 0
+                    || (Instant.now().toEpochMilli() - beginWait) < WAIT_PENDING_OPS_TIMEOUT.toMillis()) {
+                onSpinWait();
             }
         }
 

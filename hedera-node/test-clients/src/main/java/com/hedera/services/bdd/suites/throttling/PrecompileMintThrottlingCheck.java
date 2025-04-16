@@ -49,7 +49,7 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
     private static final Logger LOG = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
     private final AtomicLong duration = new AtomicLong(10);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
-    // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 51 to test the throttle
+    // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 55 to test the throttle
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(55);
     private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.15;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
@@ -82,7 +82,7 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                                     .getOrDefault(SUCCESS, new AtomicInteger(0))
                                     .get();
                             final var revertCount = statusCountMap
-                                    .getOrDefault(CONTRACT_REVERT_EXECUTED, new AtomicInteger())
+                                    .getOrDefault(CONTRACT_REVERT_EXECUTED, new AtomicInteger(0))
                                     .get();
 
                             // calculate the allowed tolerance
@@ -102,8 +102,6 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                             assertTrue(
                                     throttleTolerance > revertCount && revertCount > 0,
                                     "Throttled must be more then 0 and less than the allowed tolerance!");
-
-                            assertTrue(false, "Fail, to be able to rerun CI and debug the issue!");
                         }));
     }
 
@@ -113,8 +111,6 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                 IntStream.range(0, 100).mapToObj(TxnUtils::randomUtf8Bytes).toList();
         final SplittableRandom r = new SplittableRandom();
         return spec -> new OpProvider() {
-            final AtomicInteger nextNode = new AtomicInteger(0);
-
             @Override
             public List<SpecOperation> suggestedInitializers() {
                 return List.of(
@@ -134,14 +130,11 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                 final var metadata = r.ints(numMetadataThisMint, 0, someMetadata.size())
                         .mapToObj(someMetadata::get)
                         .toArray(byte[][]::new);
-                // split the load between the nodes
-                // final var nodeId = asEntityString(3 + nextNode.accumulateAndGet(1, (a, b) -> a == 2 ? 0 : a + b));
                 var op = contractCall(
                                 "MintNFTContract",
                                 "mintNonFungibleTokenWithAddress",
                                 mintContractAddress.get(),
                                 metadata)
-                        // .setNode(nodeId)
                         .gas(2L * GAS_TO_OFFER)
                         .payingWith(GENESIS)
                         .noLogging()
