@@ -7,6 +7,7 @@ import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfString;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
@@ -18,9 +19,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Objects;
 
 /**
  * Contains state for a {@link VirtualMap}. This state is stored in memory. When an instance of {@link VirtualMap}
@@ -62,15 +63,8 @@ public class VirtualMapState {
     /**
      * Create a new {@link VirtualMapState}.
      */
-    public VirtualMapState() {
-        // Only use this constructor for serialization
-        this((String) null);
-    }
-
-    /**
-     * Create a new {@link VirtualMapState}.
-     */
-    public VirtualMapState(String label) {
+    public VirtualMapState(@NonNull final String label) {
+        requireNonNull(label);
         firstLeafPath = -1;
         lastLeafPath = -1;
         this.label = label;
@@ -83,20 +77,30 @@ public class VirtualMapState {
      * @param virtualMapState The map state to copy. Cannot be null.
      */
     @Deprecated(forRemoval = true)
-    public VirtualMapState(ExternalVirtualMapState virtualMapState) {
+    public VirtualMapState(@NonNull final ExternalVirtualMapState virtualMapState) {
+        requireNonNull(virtualMapState);
         firstLeafPath = virtualMapState.getFirstLeafPath();
         lastLeafPath = virtualMapState.getLastLeafPath();
         label = virtualMapState.getLabel();
     }
 
-    private VirtualMapState(VirtualMapState virtualMapState) {
+    /**
+     * Copy constructor.
+     */
+    private VirtualMapState(final VirtualMapState virtualMapState) {
         firstLeafPath = virtualMapState.getFirstLeafPath();
         lastLeafPath = virtualMapState.getLastLeafPath();
         label = virtualMapState.getLabel();
     }
 
-    public VirtualMapState(Bytes bytes) {
-        ReadableSequentialData data = bytes.toReadableSequentialData();
+    /**
+     * Create a new {@link VirtualMapState} from the given bytes.
+     *
+     * @param bytes The bytes to read. Cannot be null.
+     */
+    public VirtualMapState(@NonNull final Bytes bytes) {
+        requireNonNull(bytes);
+        final ReadableSequentialData data = bytes.toReadableSequentialData();
         while (data.hasRemaining()) {
             final int field = data.readVarInt(false);
             final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
@@ -144,7 +148,7 @@ public class VirtualMapState {
         if (path < 1 && path != Path.INVALID_PATH) {
             throw new IllegalArgumentException("The path must be positive, or INVALID_PATH, but was " + path);
         }
-        if (path > lastLeafPath && lastLeafPath != Path.INVALID_PATH) {
+        if (path > lastLeafPath) {
             throw new IllegalArgumentException("The firstLeafPath must be less than or equal to the lastLeafPath");
         }
         firstLeafPath = path;
@@ -175,7 +179,10 @@ public class VirtualMapState {
         this.lastLeafPath = path;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
+    /**
+     * Gets the size of the virtual map. The size is defined as the number of leaves in the tree.
+     * @return The size of the virtual map.
+     */
     public long getSize() {
         if (firstLeafPath == -1) {
             return 0;
@@ -184,20 +191,31 @@ public class VirtualMapState {
         return lastLeafPath - firstLeafPath + 1;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
+    /**
+     * Gets the label for the virtual tree.
+     *
+     * @return The label.
+     */
     public String getLabel() {
         return label;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
-    public void setLabel(final String label) {
-        Objects.requireNonNull(label);
+    /**
+     * Sets the label for the virtual tree.  Needed to differentiate between different VirtualMaps.
+     * @param label The new label. Cannot be null or empty. Cannot be longer than 512 characters.
+     */
+    public void setLabel(@NonNull final String label) {
+        requireNonNull(label);
         if (label.length() > MAX_LABEL_CHARS) {
             throw new IllegalArgumentException("Label cannot be greater than 512 characters");
         }
         this.label = label;
     }
 
+    /**
+     * Converts current object into instance of {@link Bytes}
+     * @return resulting bytes
+     */
     public Bytes toBytes() {
         int size = sizeOfLong(FIELD_FIRST_LEAF_PATH, firstLeafPath)
                 + sizeOfLong(FIELD_LAST_LEAF_PATH, lastLeafPath)

@@ -395,11 +395,10 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
      * from scratch, or during deserialization. It's also called after learner reconnects.
      *
      * @param state
-     * 		The VirtualMap state. Cannot be null. Must have a label.
+     * 		The VirtualMap state. Cannot be null.
      */
     public void postInit(@NonNull final VirtualMapState state) {
         requireNonNull(state);
-        requireNonNull(state.getLabel());
 
         if (cache == null) {
             cache = new VirtualNodeCache(virtualMapConfig);
@@ -712,6 +711,9 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
     public VirtualRootNode copy() {
         throwIfImmutable();
         throwIfDestroyed();
+
+        // Before making this instance immutable, we need to persist the metadata to "finalize" its
+        // state. There will be no more changes to the state after this point, and we can safely hash it.
         persistState();
 
         // After creating the copy, mark it as immutable and then register it with the pipeline.
@@ -1595,11 +1597,10 @@ public final class VirtualRootNode extends PartialBinaryMerkleInternal
             logger.info(RECONNECT.getMarker(), "call postInit()");
             nodeRemover = null;
             originalMap = null;
-            state = new VirtualMapState(reconnectRecords
+            postInit(new VirtualMapState(reconnectRecords
                     .getDataSource()
                     .loadLeafRecord(VM_STATE_KEY)
-                    .valueBytes());
-            postInit(state);
+                    .valueBytes()));
         } catch (IOException e) {
             final var message = "VirtualMap@" + getRoute() + " failed to get load VirtualMapState after reconnect";
             throw new MerkleSynchronizationException(message, e);

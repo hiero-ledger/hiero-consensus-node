@@ -179,8 +179,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         }
         root = new VirtualRootNode(
                 requireNonNull(dataSourceBuilder), requireNonNull(configuration.getConfigData(VirtualMapConfig.class)));
-        setChild(ChildIndices.VIRTUAL_ROOT_CHILD_INDEX, root);
         root.postInit(new VirtualMapState(label));
+        setChild(ChildIndices.VIRTUAL_ROOT_CHILD_INDEX, root);
     }
 
     /**

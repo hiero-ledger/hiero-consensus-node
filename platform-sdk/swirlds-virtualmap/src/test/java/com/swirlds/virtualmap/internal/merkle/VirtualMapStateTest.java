@@ -5,7 +5,6 @@ import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.MAX_LABEL_C
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -20,11 +19,12 @@ class VirtualMapStateTest {
 
     @Test
     void testDefaultConstructor() {
-        VirtualMapState state = new VirtualMapState();
+        VirtualMapState state = new VirtualMapState("test");
         assertEquals(-1, state.getFirstLeafPath(), "Default firstLeafPath should be -1");
         assertEquals(-1, state.getLastLeafPath(), "Default lastLeafPath should be -1");
-        assertNull(state.getLabel(), "Default label should be null");
         assertEquals(0, state.getSize(), "Size should be 0 when no leaves");
+
+        assertThrows(NullPointerException.class, () -> new VirtualMapState((String) null));
     }
 
     @Test
@@ -306,19 +306,19 @@ class VirtualMapStateTest {
         VirtualMapState state = new VirtualMapState("test");
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = nextInt(firstLeafPath + 1, firstLeafPath * 2);
-        state.setFirstLeafPath(firstLeafPath);
         state.setLastLeafPath(lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
         assertEquals(firstLeafPath, state.getFirstLeafPath());
         assertEquals(lastLeafPath, state.getLastLeafPath());
     }
 
     @Test
     void testInvalidFirstLeafPath() {
-        VirtualMapState state = new VirtualMapState();
+        VirtualMapState state = new VirtualMapState("test");
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
-        state.setFirstLeafPath(firstLeafPath);
         state.setLastLeafPath(lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
 
         assertThrows(
                 IllegalArgumentException.class,
@@ -339,11 +339,11 @@ class VirtualMapStateTest {
 
     @Test
     void testInvalidLastLeafPath() {
-        VirtualMapState state = new VirtualMapState();
+        VirtualMapState state = new VirtualMapState("test");
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
-        state.setFirstLeafPath(firstLeafPath);
         state.setLastLeafPath(lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
 
         assertThrows(
                 IllegalArgumentException.class,
@@ -388,8 +388,8 @@ class VirtualMapStateTest {
 
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
-        state.setFirstLeafPath(firstLeafPath);
         state.setLastLeafPath(lastLeafPath);
+        state.setFirstLeafPath(firstLeafPath);
 
         assertEquals(lastLeafPath - firstLeafPath + 1, state.getSize());
     }
@@ -398,8 +398,8 @@ class VirtualMapStateTest {
     void testToBytes() {
         // Arrange: create and configure a VirtualMapState
         VirtualMapState original = new VirtualMapState("testLabel");
-        original.setFirstLeafPath(100);
         original.setLastLeafPath(200);
+        original.setFirstLeafPath(100);
 
         // Act: serialize to Bytes
         Bytes bytes = original.toBytes();
