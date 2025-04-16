@@ -2,6 +2,7 @@
 package com.swirlds.platform.internal;
 
 import com.swirlds.platform.consensus.CandidateWitness;
+import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.event.EventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -79,6 +80,8 @@ public class EventImpl implements Clearable {
      * current election
      */
     private boolean[] votes;
+
+    private int deGen = 0;
 
     public EventImpl(
             @NonNull final PlatformEvent platformEvent,
@@ -435,6 +438,7 @@ public class EventImpl implements Clearable {
     public void clearMetadata() {
         clearJudgeFlags();
         clearNonJudgeMetadata();
+        DeGen.clearDeGen(this);
     }
 
     private void clearJudgeFlags() {
@@ -535,6 +539,14 @@ public class EventImpl implements Clearable {
     @NonNull
     public NodeId getCreatorId() {
         return baseEvent.getCreatorId();
+    }
+
+    public int getDeGen() {
+        return deGen;
+    }
+
+    public void setDeGen(final int deGen) {
+        this.deGen = deGen;
     }
 
     //

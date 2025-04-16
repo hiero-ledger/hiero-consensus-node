@@ -3,6 +3,7 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import com.swirlds.platform.consensus.DeGen;
 import static java.util.stream.Collectors.toSet;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
@@ -357,6 +358,10 @@ public class ConsensusImpl implements Consensus {
                 // - its metadata will be unchanged
                 // - it will not vote
                 // - it will never decide a round
+
+                // The only exception to this the DeGen value. This needs to be recalculated on every round, and all
+                // descendants of decided judges will base their DeGen them.
+                DeGen.calculateDeGen(insertedEvent);
                 continue;
             }
 
@@ -383,6 +388,9 @@ public class ConsensusImpl implements Consensus {
 
     @Nullable
     private ConsensusRound calculateAndVote(final EventImpl event) {
+        // before we calculate the round of an event, we need to calculate its DeGen value, since it might be needed
+        // to determine an event's round
+        DeGen.calculateDeGen(event);
         // find the roundCreated, and store it using event.setRoundCreated()
         round(event);
         consensusMetrics.addedEvent(event);
@@ -993,8 +1001,8 @@ public class ConsensusImpl implements Consensus {
             } else {
                 final EventImpl lsop = lastSee(op, mm);
                 final EventImpl lssp = lastSee(sp, mm);
-                final long lsopGen = lsop == null ? 0 : lsop.getGeneration();
-                final long lsspGen = lssp == null ? 0 : lssp.getGeneration();
+                final long lsopGen = lsop == null ? 0 : lsop.getDeGen();
+                final long lsspGen = lssp == null ? 0 : lssp.getDeGen();
                 if ((round(lsop) > round(lssp)) || ((lsopGen > lsspGen) && (firstSee(op, mm) == firstSee(sp, mm)))) {
                     x.setLastSee(mm, lsop);
                 } else {
