@@ -114,7 +114,8 @@ public class RoundElections {
 
     public long getMinNGen() {
         if (minNgen == EventConstants.GENERATION_UNDEFINED) {
-            throw new IllegalStateException("Cannot provide the minimum non-deterministic generation until all judges are found");
+            throw new IllegalStateException(
+                    "Cannot provide the minimum non-deterministic generation until all judges are found");
         }
         return minNgen;
     }
