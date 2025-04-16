@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
