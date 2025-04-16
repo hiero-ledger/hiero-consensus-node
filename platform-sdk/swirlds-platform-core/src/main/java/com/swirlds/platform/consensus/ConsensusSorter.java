@@ -10,18 +10,28 @@ import java.util.List;
 /** Sorts consensus events into their consensus order */
 public class ConsensusSorter {
     /** an XOR of the hashes of unique famous witnesses in a round, used during sorting */
-    final byte[] whitening;
+    private final byte[] whitening;
 
     /**
      * @param whitening an XOR of the hashes of unique famous witnesses in a round
      */
-    public ConsensusSorter(@NonNull final byte[] whitening) {
+    private ConsensusSorter(@NonNull final byte[] whitening) {
         this.whitening = whitening;
     }
 
-    public void sort(@NonNull final List<EventImpl> events) {
+    /**
+     * Sorts the events into consensus order. The events are sorted by their consensus timestamp, then by their
+     * extended median timestamp, then by their generation, and finally by their whitened signature.
+     *
+     * @param events the list of events to sort
+     * @param whitening an XOR of the hashes of unique famous witnesses in a round
+     */
+    public static void sort(@NonNull final List<EventImpl> events, @NonNull final byte[] whitening) {
+        // assign cGen to the events, which is needed for sorting
         LocalConsensusGeneration.assignCGen(events);
-        events.sort(this::compare);
+        // sort the events into consensus order
+        events.sort(new ConsensusSorter(whitening)::compare);
+        // clear cGen from the events, which is no longer needed
         LocalConsensusGeneration.clearCGen(events);
     }
 

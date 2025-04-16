@@ -2,6 +2,7 @@
 package com.swirlds.platform.internal;
 
 import com.swirlds.platform.consensus.CandidateWitness;
+import com.swirlds.platform.consensus.LocalConsensusGeneration;
 import com.swirlds.platform.event.EventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -81,7 +82,7 @@ public class EventImpl implements Clearable {
     private boolean[] votes;
 
     /** Local consensus generation, for more info, see {@link com.swirlds.platform.consensus.LocalConsensusGeneration} */
-    private int cGen;
+    private int cGen = LocalConsensusGeneration.GENERATION_UNDEFINED;
 
     public EventImpl(
             @NonNull final PlatformEvent platformEvent,
