@@ -114,8 +114,7 @@ public class VirtualTestBase {
         // Ensure VirtualNodeCache.release() returns clean
         System.setProperty("syncCleaningPool", "true");
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common.crypto");
-        registry.registerConstructables("org.hiero.consensus.model.crypto");
+        registry.registerConstructables("org.hiero.base.crypto");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
         registry.registerConstructable(new ClassConstructorPair(TestKey.class, () -> new TestKey(0L)));
