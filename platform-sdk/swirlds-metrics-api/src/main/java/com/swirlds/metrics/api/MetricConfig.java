@@ -4,7 +4,9 @@ package com.swirlds.metrics.api;
 import com.swirlds.base.ArgumentUtils;
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * An instance of {@code MetricConfig} contains all configuration parameters needed to create a {@link Metric}.
@@ -30,12 +32,20 @@ public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C
     private final @NonNull String unit;
     private final @NonNull String format;
 
+    private final @NonNull Set<Label> predefinedLabels;
+
+    private final @NonNull Set<String> labelKeys;
+
     /**
      * Constructor of {@code MetricConfig}
      *
      * @param category the kind of metric (metrics are grouped or filtered by this)
      * @param name     a short name for the metric
+     * @param description a description for the metric
+     * @param unit     the unit of the metric
      * @param format   a string that can be passed to String.format() to format the metric
+     * @param predefinedLabels a set of predefined labels
+     * @param labelKeys a set of label keys
      * @throws NullPointerException     if one of the parameters is {@code null}
      * @throws IllegalArgumentException if one of the parameters is consists only of whitespaces
      */
@@ -44,7 +54,9 @@ public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C
             final @NonNull String name,
             final @NonNull String description,
             final @NonNull String unit,
-            final @NonNull String format) {
+            final @NonNull String format,
+            final @NonNull Set<Label> predefinedLabels,
+            final @NonNull Set<String> labelKeys) {
 
         this.category = ArgumentUtils.throwArgBlank(category, "category");
         this.name = ArgumentUtils.throwArgBlank(name, "name");
@@ -57,6 +69,29 @@ public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C
         }
         this.unit = Objects.requireNonNull(unit, "unit must not be null");
         this.format = ArgumentUtils.throwArgBlank(format, "format must not be null");
+        this.labelKeys = Collections.unmodifiableSet(Objects.requireNonNull(labelKeys, "labelKeys must not be null"));
+        this.predefinedLabels = Collections.unmodifiableSet(
+                Objects.requireNonNull(predefinedLabels, "predefinedLabels must not be null"));
+    }
+
+    /**
+     * Constructor of {@code MetricConfig}
+     *
+     * @param category    the kind of metric (metrics are grouped or filtered by this)
+     * @param name        a short name for the metric
+     * @param description a description for the metric
+     * @param unit        the unit of the metric
+     * @param format      a string that can be passed to String.format() to format the metric
+     * @throws NullPointerException     if one of the parameters is {@code null}
+     * @throws IllegalArgumentException if one of the parameters is consists only of whitespaces
+     */
+    protected MetricConfig(
+            final @NonNull String category,
+            final @NonNull String name,
+            final @NonNull String description,
+            final @NonNull String unit,
+            final @NonNull String format) {
+        this(category, name, description, unit, format, Set.of(), Set.of());
     }
 
     /**
@@ -129,6 +164,16 @@ public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C
      * @throws IllegalArgumentException if {@code unit} is {@code null}
      */
     public abstract @NonNull C withUnit(final String unit);
+
+    @NonNull
+    public Set<Label> getPredefinedLabels() {
+        return predefinedLabels;
+    }
+
+    @NonNull
+    public Set<String> getLabelKeys() {
+        return labelKeys;
+    }
 
     /**
      * Getter of the {@link Metric#getFormat() Metric.format}
