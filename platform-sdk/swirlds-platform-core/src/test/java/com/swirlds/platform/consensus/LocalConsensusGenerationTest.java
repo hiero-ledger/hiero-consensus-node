@@ -19,6 +19,9 @@ import org.hiero.consensus.config.EventConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
+/**
+ * Tests for the {@link LocalConsensusGeneration} class.
+ */
 class LocalConsensusGenerationTest {
     private List<EventImpl> events;
 

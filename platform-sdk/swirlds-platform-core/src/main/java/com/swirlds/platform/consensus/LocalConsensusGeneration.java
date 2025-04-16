@@ -13,9 +13,11 @@ import java.util.function.Consumer;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 
 /**
- * Local consensus generation (cGen) is computed by the consensus algorithm and used to break ties on the ordering of
- * events that reach consensus during a round. The value of cGen is temporary, it is only used while ordering consensus
- * events within a single round. Once the round is complete, the cGen value is no longer needed and can be cleared.
+ * Local consensus generation (cGen) is computed by the consensus algorithm and used for ordering of events that reach
+ * consensus during a round. If two consensus events have the same cGen, the event hash will be used to break the tie.
+ * This value needs to be deterministic across all nodes in the network. The value of cGen is temporary, it is only used
+ * while ordering consensus events within a single round. Once the round is complete, the cGen value is no longer needed
+ * and can be cleared.
  */
 public class LocalConsensusGeneration {
     /** The generation value that indicates that the event has not been assigned a cGen value. */
