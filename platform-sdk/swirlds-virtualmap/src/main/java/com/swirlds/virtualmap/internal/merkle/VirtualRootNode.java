@@ -503,7 +503,7 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         // Full leaf rehashing has nothing to do with reconnects, but existing reconnect mechanisms,
         // flusher and hash listener, work just fine in this scenario
         final ReconnectHashLeafFlusher<K, V> flusher = new ReconnectHashLeafFlusher<>(
-                keySerializer, valueSerializer, dataSource, virtualMapConfig.flushInterval(), statistics);
+                keySerializer, valueSerializer, dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
         final ReconnectHashListener<K, V> hashListener = new ReconnectHashListener<>(flusher);
 
         // This background thread will be responsible for hashing the tree and sending the
@@ -1514,7 +1514,7 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
                 keySerializer,
                 valueSerializer,
                 reconnectRecords.getDataSource(),
-                virtualMapConfig.flushInterval(),
+                virtualMapConfig.reconnectFlushInterval(),
                 statistics);
         nodeRemover = new ReconnectNodeRemover<>(
                 originalMap.getRecords(),
