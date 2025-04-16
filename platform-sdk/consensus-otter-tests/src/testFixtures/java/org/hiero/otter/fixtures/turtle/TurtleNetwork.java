@@ -121,6 +121,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
             throw new IllegalStateException("Cannot start the network more than once.");
         }
 
+        log.info("Starting network...");
         state = State.RUNNING;
         for (final TurtleNode node : nodes) {
             node.start();
@@ -150,6 +151,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     public void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException {
+        log.info("Preparing upgrade...");
         for (final TurtleNode node : nodes) {
             node.shutdownGracefully(timeout);
         }
@@ -160,7 +162,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     public void resume(@NonNull Duration duration) {
-        log.warn("Resuming the network is not implemented yet.");
+        log.info("Resuming network...");
         for (final TurtleNode node : nodes) {
             node.revive(duration);
         }
@@ -200,6 +202,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * again. This method is idempotent and can be called multiple times without any side effects.
      */
     public void destroy() throws InterruptedException {
+        log.info("Destroying network...");
         for (final TurtleNode node : nodes) {
             node.destroy();
         }

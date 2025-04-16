@@ -22,6 +22,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.roster.RosterUtils;
@@ -35,6 +36,7 @@ import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.test.fixtures.turtle.runner.TurtleTestingToolState;
 import com.swirlds.platform.util.RandomBuilder;
+import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -74,6 +76,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private DeterministicWiringModel model;
     private Platform platform;
+    private PlatformWiring platformWiring;
     private LifeCycle lifeCycle = LifeCycle.INIT;
 
     public TurtleNode(
@@ -105,7 +108,14 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void failUnexpectedly(@NonNull final Duration timeout) throws InterruptedException {
-        doShutdownNode();
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+
+            doShutdownNode();
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
@@ -113,8 +123,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void shutdownGracefully(@NonNull final Duration timeout) throws InterruptedException {
-        log.warn("Simulating a graceful shutdown of a node has not been implemented yet.");
-        doShutdownNode();
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+
+            platformWiring.flushIntakePipeline();
+            doShutdownNode();
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
@@ -122,11 +139,18 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void revive(@NonNull final Duration timeout) {
-        checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
-        checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-        // Start node from current state
-        doStartNode();
+            checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
+            checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+
+            // Start node from current state
+            doStartNode();
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
@@ -196,8 +220,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * method is idempotent and can be called multiple times without any side effects.
      */
     public void destroy() throws InterruptedException {
-        doShutdownNode();
-        lifeCycle = LifeCycle.DESTROYED;
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+
+            doShutdownNode();
+            lifeCycle = LifeCycle.DESTROYED;
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     private void checkLifeCycle(@NonNull final LifeCycle expected, @NonNull final String message) {
@@ -211,6 +242,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             // TODO: Release all resources
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
             platform = null;
+            platformWiring = null;
             model = null;
         }
         lifeCycle = LifeCycle.SHUTDOWN;
@@ -270,12 +302,14 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 .withSystemTransactionEncoderCallback(TurtleApp::encodeSystemTransaction);
 
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
+        final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
         final SimulatedGossip gossip = network.getGossipInstance(selfId);
-        gossip.provideIntakeEventCounter(
-                platformComponentBuilder.getBuildingBlocks().intakeEventCounter());
+        gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
 
         platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(selfId));
+
+        platformWiring = platformBuildingBlocks.platformWiring();
 
         platform = platformComponentBuilder.build();
         platform.start();
