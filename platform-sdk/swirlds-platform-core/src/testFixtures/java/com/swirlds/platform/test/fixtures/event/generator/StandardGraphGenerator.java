@@ -33,6 +33,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.config.EventConfig;
@@ -479,7 +481,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
 
         buildDefaultOtherParentAffinityMatrix();
         // save all non-ancient events
-        final List<EventImpl> nonAncientEvents = linker.getSortedNonAncientEvents();
+        final List<EventImpl> nonAncientEvents = new ArrayList<>(linker.getNonAncientEvents());
+        nonAncientEvents.sort(Comparator.comparingLong(e -> e.getBaseEvent().getNGen()));
         // reinitialize the internal consensus with the last snapshot
         initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);

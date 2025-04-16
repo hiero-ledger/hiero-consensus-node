@@ -169,18 +169,6 @@ public class SimpleLinker {
     }
 
     /**
-     * Get all non-ancient events tracked by this linker sorted in topological order.
-     *
-     * @return all non-ancient events
-     */
-    @NonNull
-    public List<EventImpl> getSortedNonAncientEvents() {
-        return parentHashMap.values().stream()
-                .sorted(Comparator.comparing(EventImpl::getGeneration))
-                .toList();
-    }
-
-    /**
      * Clear the internal state of this linker.
      */
     public void clear() {
