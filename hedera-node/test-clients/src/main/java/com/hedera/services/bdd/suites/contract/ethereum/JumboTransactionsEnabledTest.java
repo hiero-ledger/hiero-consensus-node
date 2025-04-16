@@ -35,6 +35,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -136,7 +137,10 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @DisplayName("Jumbo transaction should pass")
     public Stream<DynamicTest> jumboTransactionShouldPass() {
         final var jumboPayload = new byte[10 * 1024];
+        final var halfJumboPayload = new byte[5 * 1024];
+        final var thirdJumboPayload = new byte[3 * 1024];
         final var tooBigPayload = new byte[130 * 1024 + 1];
+
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
@@ -162,13 +166,16 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
-                // send jumbo payload to jumbo endpoint
-                ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
-                        .payingWith(RELAYER)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L));
+                // send jumbo payload to jumbo endpoint and assert the used gas
+                jumboEthCall(jumboPayload, RELAYER)
+                        .gasLimit(800000)
+                        .exposingGasTo((s, gasUsed) -> assertEquals(640000, gasUsed)),
+                jumboEthCall(halfJumboPayload, RELAYER)
+                        .gasLimit(500000)
+                        .exposingGasTo((s, gasUsed) -> assertEquals(400000, gasUsed)),
+                jumboEthCall(thirdJumboPayload, RELAYER)
+                        .gasLimit(300000)
+                        .exposingGasTo((s, gasUsed) -> assertEquals(240000, gasUsed)));
     }
 
     @Nested

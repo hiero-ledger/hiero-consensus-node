@@ -26,6 +26,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  */
 public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
+    public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
     private static final Logger log = LogManager.getLogger(TurtleNode.class);
 
     private final NodeId nodeId;
@@ -39,16 +40,21 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,
             @NonNull final Path rootOutputDirectory) {
-        ThreadContext.put("nodeId", nodeId.toString());
-        this.nodeId = requireNonNull(nodeId);
-        turtleNode = new com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode(
-                randotron,
-                time,
-                nodeId,
-                addressBook,
-                privateKey,
-                network,
-                rootOutputDirectory.resolve("node-" + nodeId.id()));
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, nodeId.toString());
+
+            this.nodeId = requireNonNull(nodeId);
+            turtleNode = new com.swirlds.platform.test.fixtures.turtle.runner.TurtleNode(
+                    randotron,
+                    time,
+                    nodeId,
+                    addressBook,
+                    privateKey,
+                    network,
+                    rootOutputDirectory.resolve("node-" + nodeId.id()));
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
@@ -56,7 +62,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void kill(@NonNull final Duration timeout) {
-        ThreadContext.clearAll();
         log.warn("Killing a node has not been implemented yet.");
     }
 
@@ -73,7 +78,12 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void submitTransaction(@NonNull final byte[] transaction) {
-        turtleNode.submitTransaction(transaction);
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, nodeId.toString());
+            turtleNode.submitTransaction(transaction);
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
@@ -90,14 +100,24 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void tick(@NonNull Instant now) {
-        turtleNode.tick();
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, nodeId.toString());
+            turtleNode.tick();
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
      * Start the node
      */
     public void start() {
-        turtleNode.start();
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, nodeId.toString());
+            turtleNode.start();
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     public void dump() {

@@ -2,9 +2,9 @@
 package com.swirlds.common.merkle.synchronization.task;
 
 import java.io.IOException;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * This lesson describes a root of a subtree that requires a custom view to be used for reconnect.

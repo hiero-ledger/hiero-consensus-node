@@ -3,7 +3,7 @@ package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.utility.CommonUtils.toPbjTimestamp;
+import static org.hiero.base.utility.CommonUtils.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -29,8 +28,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     private final WritableSingletonState<PlatformState> state;
 
     /**
-     * Constructor that does not support getting full {@link SoftwareVersion} information from the platform state,
-     * but can be used to change and access any part of state that does not require the full {@link SoftwareVersion}.
+     * Constructor that can be used to change and access any part of state.
      * @param writableStates the writable states
      */
     public WritablePlatformStateStore(@NonNull final WritableStates writableStates) {

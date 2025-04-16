@@ -2,7 +2,7 @@
 package com.swirlds.common.crypto.engine;
 
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;

@@ -289,7 +289,7 @@ public final class ConsensusTestDefinitions {
             cliques.put(i, 1);
         }
         for (int i = 2 * cliqueSize; i < numberOfNodes; i++) {
-            cliques.put(i, 1);
+            cliques.put(i, 2);
         }
         // There are 3 cliques
         // Each clique syncs within itself frequently, but with outsiders it syncs rarely

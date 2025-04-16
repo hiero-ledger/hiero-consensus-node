@@ -39,7 +39,7 @@ class BlockNodeConnectionManagerTest {
     private static final Duration INITIAL_DELAY = Duration.ofMillis(10);
 
     @LoggingSubject
-    BlockNodeConnectionManager blockNodeConnectionManager;
+    private BlockNodeConnectionManager blockNodeConnectionManager;
 
     @LoggingTarget
     private LogCaptor logCaptor;
@@ -48,13 +48,13 @@ class BlockNodeConnectionManagerTest {
     private Supplier<Void> mockSupplier;
 
     @Mock
-    BlockNodeConnection mockConnection;
+    private BlockNodeConnection mockConnection;
 
     @Mock
-    BlockStreamStateManager mockStateManager;
+    private BlockStreamStateManager mockStateManager;
 
     @Mock
-    BlockNodeConfigExtractorImpl blockNodeConfigExtractorImpl;
+    private BlockNodeConfigExtractorImpl blockNodeConfigExtractorImpl;
 
     private static Server testServer;
 

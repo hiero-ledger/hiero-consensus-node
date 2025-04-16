@@ -23,9 +23,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
@@ -36,7 +33,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -44,6 +40,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -108,7 +107,6 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
 
     private SttTransactionPool sttTransactionPool;
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -297,14 +295,6 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
     @Override
     public ConsensusStateEventHandler<StatsSigningTestingToolState> newConsensusStateEvenHandler() {
         return new StatsSigningTestingToolConsensusStateEventHandler(() -> sttTransactionPool);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
     }
 
     /**

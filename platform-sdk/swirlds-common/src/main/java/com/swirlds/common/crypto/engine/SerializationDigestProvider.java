@@ -3,14 +3,13 @@ package com.swirlds.common.crypto.engine;
 
 import com.swirlds.common.crypto.CryptographyException;
 import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.logging.legacy.LogMarker;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A {@link CachingOperationProvider} capable of computing hashes for {@link SelfSerializable} objects by hashing the
@@ -37,7 +36,7 @@ public class SerializationDigestProvider
             final SelfSerializable item,
             final Void optionalData) {
         algorithm.resetDigest(); // probably not needed, just to be safe
-        try (SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(algorithm)) {
+        try (SerializableDataOutputStream out = new SerializableDataOutputStream(algorithm)) {
             out.writeSerializable(item, true);
             out.flush();
 
