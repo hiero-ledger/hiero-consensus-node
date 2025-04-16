@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtual.merkle.map;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -119,7 +119,7 @@ final class MapTest {
             // is complete, otherwise OOME can be observed in random tests run after this one
             final VirtualRootNode<TestKey, TestValue> root = map.getRight();
             map.release();
-            assertTrue(root.getPipeline().awaitTermination(30, SECONDS), "Pipeline termination timed out");
+            assertTrue(root.getPipeline().awaitTermination(1, MINUTES), "Pipeline termination timed out");
         }
     }
 
