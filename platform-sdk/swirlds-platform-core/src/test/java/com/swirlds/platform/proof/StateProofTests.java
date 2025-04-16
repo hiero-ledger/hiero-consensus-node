@@ -17,13 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.interfaces.MerkleType;
@@ -45,6 +41,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.crypto.Hash;
@@ -106,12 +104,12 @@ class StateProofTests {
     @NonNull
     private StateProof serializeAndDeserialize(@NonNull final StateProof stateProof) throws IOException {
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializable(stateProof, true);
 
         final byte[] bytes = byteOut.toByteArray();
-        final SerializableDataInputStream in = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytes));
+        final SerializableDataInputStream in = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
 
         final StateProof deserialized = in.readSerializable();
         assertNotSame(stateProof, deserialized);
@@ -379,8 +377,8 @@ class StateProofTests {
         final ByteArrayOutputStream byteOutA = new ByteArrayOutputStream();
         final ByteArrayOutputStream byteOutB = new ByteArrayOutputStream();
 
-        final SerializableDataOutputStream outA = new SerializableDataOutputStreamImpl(byteOutA);
-        final SerializableDataOutputStream outB = new SerializableDataOutputStreamImpl(byteOutB);
+        final SerializableDataOutputStream outA = new SerializableDataOutputStream(byteOutA);
+        final SerializableDataOutputStream outB = new SerializableDataOutputStream(byteOutB);
 
         outA.writeSerializable(stateProofA, true);
         outB.writeSerializable(stateProofB, true);
@@ -415,14 +413,14 @@ class StateProofTests {
 
         final StateProof stateProofA = new StateProof(CRYPTOGRAPHY, root, signatures, payloads);
         final ByteArrayOutputStream byteOutA = new ByteArrayOutputStream();
-        final SerializableDataOutputStream outA = new SerializableDataOutputStreamImpl(byteOutA);
+        final SerializableDataOutputStream outA = new SerializableDataOutputStream(byteOutA);
         outA.writeSerializable(stateProofA, true);
         final byte[] bytesA = byteOutA.toByteArray();
-        final SerializableDataInputStream in = new SerializableDataInputStreamImpl(new ByteArrayInputStream(bytesA));
+        final SerializableDataInputStream in = new SerializableDataInputStream(new ByteArrayInputStream(bytesA));
 
         final StateProof stateProofB = in.readSerializable();
         final ByteArrayOutputStream byteOutB = new ByteArrayOutputStream();
-        final SerializableDataOutputStream outB = new SerializableDataOutputStreamImpl(byteOutB);
+        final SerializableDataOutputStream outB = new SerializableDataOutputStream(byteOutB);
         outB.writeSerializable(stateProofB, true);
         final byte[] bytesB = byteOutB.toByteArray();
 

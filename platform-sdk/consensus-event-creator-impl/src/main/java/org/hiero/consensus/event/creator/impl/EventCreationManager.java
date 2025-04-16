@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -23,7 +22,7 @@ public interface EventCreationManager {
      */
     @InputWireLabel("heartbeat")
     @Nullable
-    UnsignedEvent maybeCreateEvent();
+    PlatformEvent maybeCreateEvent();
 
     /**
      * Register a new event from event intake.

@@ -4,7 +4,6 @@ package com.hedera.node.app.fixtures.state;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.services.ServicesRegistry;
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,6 +13,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
 
 /**
  * A fake implementation of the {@link ServicesRegistry} interface.

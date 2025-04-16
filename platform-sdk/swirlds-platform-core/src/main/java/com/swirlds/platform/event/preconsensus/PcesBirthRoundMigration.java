@@ -12,7 +12,6 @@ import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -231,7 +230,7 @@ public final class PcesBirthRoundMigration {
         // First, write the data to a temporary file. If we crash, easier to recover if this operation is atomic.
         final Path temporaryFile =
                 LegacyTemporaryFileBuilder.buildTemporaryFile("new-pces-file", platformContext.getConfiguration());
-        final SerializableDataOutputStream outputStream = new SerializableDataOutputStreamImpl(
+        final SerializableDataOutputStream outputStream = new SerializableDataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile())));
         outputStream.writeInt(PcesFileVersion.currentVersionNumber());
         for (final PlatformEvent event : eventsToMigrate) {

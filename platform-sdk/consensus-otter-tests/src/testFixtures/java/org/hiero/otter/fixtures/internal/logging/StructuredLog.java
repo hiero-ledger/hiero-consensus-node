@@ -22,4 +22,5 @@ public record StructuredLog(
         @NonNull String message,
         @NonNull String loggerName,
         @NonNull String threadName,
-        @Nullable Marker marker) {}
+        @Nullable Marker marker,
+        @Nullable String nodeId) {}

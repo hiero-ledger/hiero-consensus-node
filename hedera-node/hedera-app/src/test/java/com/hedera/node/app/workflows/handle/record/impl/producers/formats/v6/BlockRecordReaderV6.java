@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -59,7 +58,7 @@ public class BlockRecordReaderV6 {
             }
             // compute RecordStreamObject header
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            SerializableDataOutputStream sout = new SerializableDataOutputStreamImpl(bout);
+            SerializableDataOutputStream sout = new SerializableDataOutputStream(bout);
             bout.reset();
             sout.writeLong(RECORD_STREAM_OBJECT_CLASS_ID);
             sout.writeInt(RECORD_STREAM_OBJECT_CLASS_VERSION);

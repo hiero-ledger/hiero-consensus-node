@@ -191,18 +191,28 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Get the non-deterministic generation of the event.
+     * The non-deterministic generation of this event.
      *
-     * @return the non-deterministic generation of the event
+     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
+     * none has been set yet.
      */
     public long getNGen() {
         return nGen;
     }
 
     /**
-     * Set the non-deterministic generation of the event.
+     * Checks if the non-deterministic generation for this event has been set.
      *
-     * @param nGen the nGen value to set
+     * @return {@code true} if the nGen has been set, {@code false} otherwise
+     */
+    public boolean hasNGen() {
+        return nGen != EventConstants.GENERATION_UNDEFINED;
+    }
+
+    /**
+     * Sets the non-deterministic generation of this event.
+     *
+     * @param nGen the non-deterministic generation value to set
      */
     public void setNGen(final long nGen) {
         this.nGen = nGen;
@@ -384,6 +394,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @NonNull
     public List<EventDescriptorWrapper> getOtherParents() {
         return metadata.getOtherParents();
+    }
+
+    /**
+     * Check if the event has other parents.
+     *
+     * @return true if the event has other parents
+     */
+    public boolean hasOtherParents() {
+        return metadata.hasOtherParents();
     }
 
     /** @return a list of all parents, self parent (if any), + all other parents */

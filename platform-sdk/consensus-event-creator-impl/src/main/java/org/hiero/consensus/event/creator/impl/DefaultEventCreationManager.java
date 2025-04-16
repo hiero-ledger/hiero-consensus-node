@@ -23,7 +23,6 @@ import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -93,7 +92,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     @Nullable
-    public UnsignedEvent maybeCreateEvent() {
+    public PlatformEvent maybeCreateEvent() {
         if (!eventCreationRules.isEventCreationPermitted()) {
             phase.activatePhase(eventCreationRules.getEventCreationStatus());
             return null;
@@ -101,7 +100,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         phase.activatePhase(ATTEMPTING_CREATION);
 
-        final UnsignedEvent newEvent = creator.maybeCreateEvent();
+        final PlatformEvent newEvent = creator.maybeCreateEvent();
         if (newEvent == null) {
             // The only reason why the event creator may choose not to create an event
             // is if there are no eligible parents.
@@ -114,7 +113,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         return newEvent;
     }
-
     /**
      * {@inheritDoc}
      */

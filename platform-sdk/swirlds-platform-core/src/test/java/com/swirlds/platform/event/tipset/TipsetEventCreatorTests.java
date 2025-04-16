@@ -1,39 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
-import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.createTestEvent;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.distributeEvent;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.registerEvent;
+import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.validateNewEvent;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.stream.Signer;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
-import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
-import com.swirlds.platform.event.creation.tipset.TipsetTracker;
-import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,19 +29,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -62,223 +44,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("TipsetEventCreatorImpl Tests")
 class TipsetEventCreatorTests {
-
-    /**
-     * @param nodeId                 the node ID of the simulated node
-     * @param tipsetTracker          tracks tipsets of events
-     * @param eventCreator           the event creator for the simulated node
-     * @param tipsetWeightCalculator used to sanity check event creation logic
-     */
-    private record SimulatedNode(
-            @NonNull NodeId nodeId,
-            @NonNull TipsetTracker tipsetTracker,
-            @NonNull EventCreator eventCreator,
-            @NonNull TipsetWeightCalculator tipsetWeightCalculator) {}
-
-    /**
-     * Build an event creator for a node.
-     */
-    @NonNull
-    private EventCreator buildEventCreator(
-            @NonNull final Random random,
-            @NonNull final Time time,
-            @NonNull final Roster roster,
-            @NonNull final NodeId nodeId,
-            @NonNull final TransactionSupplier transactionSupplier) {
-
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
-
-        final Signer signer = mock(Signer.class);
-        when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
-
-        final SemanticVersion softwareVersion =
-                SemanticVersion.newBuilder().major(1).build();
-
-        return new TipsetEventCreator(
-                platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);
-    }
-
-    /**
-     * Build an event creator for each node in the address book.
-     */
-    @NonNull
-    private Map<NodeId, SimulatedNode> buildSimulatedNodes(
-            @NonNull final Random random,
-            @NonNull final Time time,
-            @NonNull final Roster roster,
-            @NonNull final TransactionSupplier transactionSupplier,
-            @NonNull final AncientMode ancientMode) {
-
-        final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
-
-        for (final RosterEntry address : roster.rosterEntries()) {
-
-            final EventCreator eventCreator =
-                    buildEventCreator(random, time, roster, NodeId.of(address.nodeId()), transactionSupplier);
-
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, roster, ancientMode);
-
-            final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
-            final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    platformContext, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
-
-            eventCreators.put(
-                    NodeId.of(address.nodeId()),
-                    new SimulatedNode(
-                            NodeId.of(address.nodeId()), tipsetTracker, eventCreator, tipsetWeightCalculator));
-        }
-
-        return eventCreators;
-    }
-
-    private void validateNewEvent(
-            @NonNull final Map<Hash, EventImpl> events,
-            @NonNull final UnsignedEvent newEvent,
-            @NonNull final List<Bytes> expectedTransactions,
-            @NonNull final SimulatedNode simulatedNode,
-            final boolean slowNode) {
-
-        final EventImpl selfParent = events.get(newEvent.getMetadata().getSelfParentHash());
-        final long selfParentGeneration =
-                selfParent == null ? EventConstants.GENERATION_UNDEFINED : selfParent.getGeneration();
-        final EventImpl otherParent = events.get(newEvent.getMetadata().getOtherParents().stream()
-                .findFirst()
-                .map(EventDescriptorWrapper::hash)
-                .orElse(null));
-        final long otherParentGeneration =
-                otherParent == null ? EventConstants.GENERATION_UNDEFINED : otherParent.getGeneration();
-
-        if (selfParent == null) {
-            // The only legal time to have a null self parent is genesis.
-            for (final EventImpl event : events.values()) {
-                if (event.getBaseEvent().getHash().equals(newEvent.getHash())) {
-                    // comparing to self
-                    continue;
-                }
-                Assertions.assertNotEquals(
-                        event.getCreatorId().id(), newEvent.getEventCore().creatorNodeId());
-            }
-        }
-
-        if (otherParent == null) {
-            if (slowNode) {
-                // During the slow node test, we intentionally don't distribute an event that ends up in the
-                // events map. So it's possible for this map to contain two events at this point in time.
-                assertTrue(events.size() == 1 || events.size() == 2);
-            } else {
-                // The only legal time to have no other-parent is at genesis before other events are received.
-                assertEquals(1, events.size());
-            }
-            assertTrue(events.containsKey(newEvent.getHash()));
-        }
-
-        // Generation should be max of parents plus one
-        final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
-        assertEquals(expectedGeneration, newEvent.getMetadata().getGeneration());
-
-        // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
-        // with nanosecond precision for transaction.
-        if (selfParent != null) {
-            final int minimumIncrement = Math.max(1, selfParent.getBaseEvent().getTransactionCount());
-            final Instant minimumTimestamp = selfParent.getTimeCreated().plus(Duration.ofNanos(minimumIncrement));
-            assertTrue(isGreaterThanOrEqualTo(newEvent.getTimeCreated(), minimumTimestamp));
-        }
-
-        // Validate tipset constraints.
-        final EventDescriptorWrapper descriptor = newEvent.getDescriptor();
-        if (selfParent != null) {
-            // Except for a genesis event, all other new events must have a positive advancement score.
-            assertTrue(simulatedNode
-                    .tipsetWeightCalculator
-                    .addEventAndGetAdvancementWeight(descriptor)
-                    .isNonZero());
-        } else {
-            simulatedNode.tipsetWeightCalculator.addEventAndGetAdvancementWeight(descriptor);
-        }
-
-        final List<Bytes> convertedTransactions = newEvent.getTransactions().stream()
-                .map(TransactionWrapper::getApplicationTransaction)
-                .toList();
-        // We should see the expected transactions
-        IntStream.range(0, expectedTransactions.size()).forEach(i -> {
-            final Bytes expected = expectedTransactions.get(i);
-            final Bytes actual = convertedTransactions.get(i);
-            assertEquals(expected, actual, "Transaction " + i + " mismatch");
-        });
-
-        assertDoesNotThrow(simulatedNode.eventCreator::toString);
-    }
-
-    /**
-     * Link the event into its parents and distribute to all nodes in the network.
-     */
-    private void linkAndDistributeEvent(
-            @NonNull final Map<NodeId, SimulatedNode> eventCreators,
-            @NonNull final Map<Hash, EventImpl> events,
-            @NonNull final UnsignedEvent event) {
-
-        distributeEvent(eventCreators, linkEvent(eventCreators, events, event));
-    }
-
-    /**
-     * Link an event to its parents.
-     */
-    @NonNull
-    private EventImpl linkEvent(
-            @NonNull final Map<NodeId, SimulatedNode> eventCreators,
-            @NonNull final Map<Hash, EventImpl> events,
-            @NonNull final UnsignedEvent event) {
-
-        eventCreators
-                .get(NodeId.of(event.getEventCore().creatorNodeId()))
-                .tipsetTracker
-                .addEvent(event.getDescriptor(), event.getMetadata().getAllParents());
-
-        final EventImpl selfParent = events.get(event.getMetadata().getSelfParentHash());
-        final EventImpl otherParent = events.get(event.getMetadata().getOtherParents().stream()
-                .findFirst()
-                .map(EventDescriptorWrapper::hash)
-                .orElse(null));
-
-        final EventImpl eventImpl = new EventImpl(new PlatformEvent(event, new byte[0]), selfParent, otherParent);
-        events.put(event.getHash(), eventImpl);
-
-        return eventImpl;
-    }
-
-    /**
-     * Distribute an event to all nodes in the network.
-     */
-    private void distributeEvent(
-            @NonNull final Map<NodeId, SimulatedNode> eventCreators, @NonNull final EventImpl eventImpl) {
-
-        for (final SimulatedNode eventCreator : eventCreators.values()) {
-            eventCreator.eventCreator.registerEvent(eventImpl.getBaseEvent());
-            eventCreator.tipsetTracker.addEvent(
-                    eventImpl.getBaseEvent().getDescriptor(),
-                    eventImpl.getBaseEvent().getAllParents());
-        }
-    }
-
-    /**
-     * Generate a small number of random transactions.
-     */
-    @NonNull
-    private List<Bytes> generateRandomTransactions(@NonNull final Random random) {
-        final int transactionCount = random.nextInt(0, 10);
-        final List<Bytes> transactions = new ArrayList<>();
-
-        for (int i = 0; i < transactionCount; i++) {
-            final byte[] bytes = new byte[32];
-            random.nextBytes(bytes);
-            transactions.add(Bytes.wrap(bytes));
-        }
-
-        return transactions;
-    }
 
     /**
      * Nodes take turns creating events in a round-robin fashion.
@@ -305,7 +70,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
-        final Map<Hash, EventImpl> events = new HashMap<>();
+        final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
             for (final RosterEntry address : roster.rosterEntries()) {
@@ -316,14 +81,14 @@ class TipsetEventCreatorTests {
                 transactionSupplier.set(generateRandomTransactions(random));
 
                 final NodeId nodeId = NodeId.of(address.nodeId());
-                final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+                final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
-                final UnsignedEvent event = eventCreator.maybeCreateEvent();
+                final PlatformEvent event = eventCreator.maybeCreateEvent();
 
                 // In this test, it should be impossible for a node to be unable to create an event.
                 assertNotNull(event);
 
-                linkAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
 
                 if (advancingClock) {
                     assertEquals(event.getTimeCreated(), time.now());
@@ -359,7 +124,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
-        final Map<Hash, EventImpl> events = new HashMap<>();
+        final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
@@ -376,9 +141,9 @@ class TipsetEventCreatorTests {
                 transactionSupplier.set(generateRandomTransactions(random));
 
                 final NodeId nodeId = NodeId.of(address.nodeId());
-                final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+                final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
-                final UnsignedEvent event = eventCreator.maybeCreateEvent();
+                final PlatformEvent event = eventCreator.maybeCreateEvent();
 
                 // It's possible a node may not be able to create an event. But we are guaranteed
                 // to be able to create at least one event per cycle.
@@ -387,7 +152,7 @@ class TipsetEventCreatorTests {
                 }
                 atLeastOneEventCreated = true;
 
-                linkAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
 
                 if (advancingClock) {
                     assertEquals(event.getTimeCreated(), time.now());
@@ -423,7 +188,7 @@ class TipsetEventCreatorTests {
                 buildSimulatedNodes(random, time, roster, transactionSupplier::get, AncientMode.GENERATION_THRESHOLD);
 
         for (int i = 0; i < 5; i++) {
-            final Map<Hash, EventImpl> events = new HashMap<>();
+            final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
             for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
@@ -440,9 +205,9 @@ class TipsetEventCreatorTests {
                     transactionSupplier.set(generateRandomTransactions(random));
 
                     final NodeId nodeId = NodeId.of(address.nodeId());
-                    final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+                    final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
-                    final UnsignedEvent event = eventCreator.maybeCreateEvent();
+                    final PlatformEvent event = eventCreator.maybeCreateEvent();
 
                     // It's possible a node may not be able to create an event. But we are guaranteed
                     // to be able to create at least one event per cycle.
@@ -451,7 +216,7 @@ class TipsetEventCreatorTests {
                     }
                     atLeastOneEventCreated = true;
 
-                    linkAndDistributeEvent(nodes, events, event);
+                    assignNGenAndDistributeEvent(nodes, events, event);
 
                     if (advancingClock) {
                         assertEquals(event.getTimeCreated(), time.now());
@@ -461,14 +226,15 @@ class TipsetEventCreatorTests {
 
                 assertTrue(atLeastOneEventCreated);
             }
-            // Reset the test by calling clear. This test fails in the second iteration if we don't clear things out.
+            // Reset the test by calling clear. This test fails in the second iteration if we don't clear things
+            // out.
             for (final SimulatedNode node : nodes.values()) {
-                node.eventCreator.clear();
+                node.eventCreator().clear();
 
                 // There are copies of these data structures inside the event creator. We maintain these ones
                 // to sanity check the behavior of the event creator.
-                node.tipsetTracker.clear();
-                node.tipsetWeightCalculator.clear();
+                node.tipsetTracker().clear();
+                node.tipsetWeightCalculator().clear();
             }
             transactionSupplier.set(null);
         }
@@ -500,7 +266,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
-        final Map<Hash, EventImpl> events = new HashMap<>();
+        final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
             for (final RosterEntry address : roster.rosterEntries()) {
@@ -514,9 +280,9 @@ class TipsetEventCreatorTests {
                     transactionSupplier.set(generateRandomTransactions(random));
 
                     final NodeId nodeId = NodeId.of(address.nodeId());
-                    final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+                    final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
-                    final UnsignedEvent event = eventCreator.maybeCreateEvent();
+                    final PlatformEvent event = eventCreator.maybeCreateEvent();
 
                     if (count == 0) {
                         // The first time we attempt to create an event we should be able to do so.
@@ -526,7 +292,7 @@ class TipsetEventCreatorTests {
                         break;
                     }
 
-                    linkAndDistributeEvent(nodes, events, event);
+                    assignNGenAndDistributeEvent(nodes, events, event);
 
                     if (advancingClock) {
                         assertEquals(event.getTimeCreated(), time.now());
@@ -581,7 +347,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
-        final Map<Hash, EventImpl> events = new HashMap<>();
+        final Map<EventDescriptorWrapper, PlatformEvent> allEvents = new HashMap<>();
 
         int zeroWeightNodeOtherParentCount = 0;
 
@@ -600,20 +366,20 @@ class TipsetEventCreatorTests {
                 transactionSupplier.set(generateRandomTransactions(random));
 
                 final NodeId nodeId = NodeId.of(address.nodeId());
-                final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+                final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
-                final UnsignedEvent event = eventCreator.maybeCreateEvent();
+                final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
 
                 // It's possible a node may not be able to create an event. But we are guaranteed
                 // to be able to create at least one event per cycle.
-                if (event == null) {
+                if (newEvent == null) {
                     continue;
                 }
                 atLeastOneEventCreated = true;
 
                 final NodeId otherId;
-                if (event.getMetadata().hasOtherParent()) {
-                    otherId = event.getMetadata().getOtherParents().getFirst().creator();
+                if (newEvent.hasOtherParents()) {
+                    otherId = newEvent.getOtherParents().getFirst().creator();
                 } else {
                     otherId = null;
                 }
@@ -622,12 +388,12 @@ class TipsetEventCreatorTests {
                     zeroWeightNodeOtherParentCount++;
                 }
 
-                linkAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
 
                 if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
+                    assertEquals(newEvent.getTimeCreated(), time.now());
                 }
-                validateNewEvent(events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                validateNewEvent(allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -680,8 +446,8 @@ class TipsetEventCreatorTests {
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
-        final Map<Hash, EventImpl> events = new HashMap<>();
-        final List<EventImpl> slowNodeEvents = new ArrayList<>();
+        final Map<EventDescriptorWrapper, PlatformEvent> allEvents = new HashMap<>();
+        final List<PlatformEvent> slowNodeEvents = new ArrayList<>();
         int zeroWeightNodeOtherParentCount = 0;
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
@@ -699,20 +465,20 @@ class TipsetEventCreatorTests {
                 transactionSupplier.set(generateRandomTransactions(random));
 
                 final NodeId nodeId = NodeId.of(address.nodeId());
-                final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+                final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
-                final UnsignedEvent event = eventCreator.maybeCreateEvent();
+                final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
 
                 // It's possible a node may not be able to create an event. But we are guaranteed
                 // to be able to create at least one event per cycle.
-                if (event == null) {
+                if (newEvent == null) {
                     continue;
                 }
                 atLeastOneEventCreated = true;
 
                 final NodeId otherId;
-                if (event.getMetadata().hasOtherParent()) {
-                    otherId = event.getMetadata().getOtherParents().getFirst().creator();
+                if (newEvent.hasOtherParents()) {
+                    otherId = newEvent.getOtherParents().getFirst().creator();
                 } else {
                     otherId = null;
                 }
@@ -724,25 +490,29 @@ class TipsetEventCreatorTests {
                 if (nodeId.equals(zeroWeightNode)) {
                     if (random.nextDouble() < 0.1 || slowNodeEvents.size() > 10) {
                         // Once in a while, take all the slow events and distribute them.
-                        for (final EventImpl slowEvent : slowNodeEvents) {
+                        for (final PlatformEvent slowEvent : slowNodeEvents) {
                             distributeEvent(nodes, slowEvent);
                         }
                         slowNodeEvents.clear();
-                        linkAndDistributeEvent(nodes, events, event);
+                        assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                     } else {
                         // Most of the time, we don't immediately distribute the slow events.
-                        final EventImpl eventImpl = linkEvent(nodes, events, event);
-                        slowNodeEvents.add(eventImpl);
+                        registerEvent(nodes.get(nodeId), allEvents, newEvent);
+                        // Register the event with the creator node's test tipsetTracker
+                        nodes.get(nodeId)
+                                .tipsetTracker()
+                                .addSelfEvent(newEvent.getDescriptor(), newEvent.getAllParents());
+                        slowNodeEvents.add(newEvent);
                     }
                 } else {
                     // immediately distribute all events not created by the zero stake node
-                    linkAndDistributeEvent(nodes, events, event);
+                    assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                 }
 
                 if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
+                    assertEquals(newEvent.getTimeCreated(), time.now());
                 }
-                validateNewEvent(events, event, transactionSupplier.get(), nodes.get(nodeId), true);
+                validateNewEvent(allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -777,7 +547,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
-        final Map<Hash, EventImpl> events = new HashMap<>();
+        final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         final RosterEntry address = roster.rosterEntries().get(0);
 
@@ -789,45 +559,19 @@ class TipsetEventCreatorTests {
             transactionSupplier.set(generateRandomTransactions(random));
 
             final NodeId nodeId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+            final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
-            final UnsignedEvent event = eventCreator.maybeCreateEvent();
+            final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
 
             // In this test, it should be impossible for a node to be unable to create an event.
-            assertNotNull(event);
+            assertNotNull(newEvent);
 
-            linkAndDistributeEvent(nodes, events, event);
+            assignNGenAndDistributeEvent(nodes, events, newEvent);
 
             if (advancingClock) {
-                assertEquals(event.getTimeCreated(), time.now());
+                assertEquals(newEvent.getTimeCreated(), time.now());
             }
         }
-    }
-
-    @NonNull
-    private PlatformEvent createTestEvent(
-            @NonNull final Random random,
-            @NonNull final NodeId creator,
-            long selfParentGeneration,
-            @Nullable final NodeId otherParentId,
-            final long otherParentGeneration) {
-
-        final PlatformEvent selfParent =
-                new TestingEventBuilder(random).setCreatorId(creator).build();
-
-        final TestingEventBuilder eventBuilder = new TestingEventBuilder(random)
-                .setCreatorId(creator)
-                .setSelfParent(selfParent)
-                .overrideSelfParentGeneration(selfParentGeneration);
-
-        if (otherParentId != null) {
-            final PlatformEvent otherParent =
-                    new TestingEventBuilder(random).setCreatorId(otherParentId).build();
-
-            eventBuilder.setOtherParent(otherParent).overrideOtherParentGeneration(otherParentGeneration);
-        }
-
-        return eventBuilder.build();
     }
 
     /**
@@ -855,19 +599,16 @@ class TipsetEventCreatorTests {
         final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
-        // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
+        // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
         final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
 
         // Create some genesis events
-        final UnsignedEvent eventA1 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(
-                random, nodeB, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-        final PlatformEvent eventC1 = createTestEvent(
-                random, nodeC, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-        final PlatformEvent eventD1 = createTestEvent(
-                random, nodeD, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
+        final PlatformEvent eventB1 = createTestEvent(random, nodeB, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventC1 = createTestEvent(random, nodeC, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventD1 = createTestEvent(random, nodeD, EventConstants.FIRST_GENERATION);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -877,15 +618,15 @@ class TipsetEventCreatorTests {
         // We should be able to create a total of 3 before we exhaust all possible parents.
 
         // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
-        final UnsignedEvent eventA2 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA2 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA2);
 
         // This will advance the snapshot, total advancement weight is 2 (2+1/4 > 2/3)
-        final UnsignedEvent eventA3 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA3 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA3);
 
         // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
-        final UnsignedEvent eventA4 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA4 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA4);
 
         // It should not be possible to create another event since we have exhausted all possible other parents.
@@ -895,13 +636,13 @@ class TipsetEventCreatorTests {
         // but has not been updated in the current snapshot.
 
         final NodeId otherParentId;
-        if (eventA2.getMetadata().hasOtherParent()) {
-            otherParentId = eventA2.getMetadata().getOtherParents().getFirst().creator();
+        if (eventA2.hasOtherParents()) {
+            otherParentId = eventA2.getOtherParents().getFirst().creator();
         } else {
             otherParentId = null;
         }
 
-        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 0, nodeA, 0);
+        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 1);
 
         eventCreator.registerEvent(legalOtherParent);
 
@@ -938,17 +679,13 @@ class TipsetEventCreatorTests {
         final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
 
         // Create some genesis events
-        final UnsignedEvent eventA1 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(
-                random, nodeB, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-        final PlatformEvent eventC1 = createTestEvent(
-                random, nodeC, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-        final PlatformEvent eventD1 = createTestEvent(
-                random, nodeD, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
-        final PlatformEvent eventE1 = createTestEvent(
-                random, nodeE, EventConstants.GENERATION_UNDEFINED, null, EventConstants.GENERATION_UNDEFINED);
+        final PlatformEvent eventB1 = createTestEvent(random, nodeB, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventC1 = createTestEvent(random, nodeC, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventD1 = createTestEvent(random, nodeD, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventE1 = createTestEvent(random, nodeE, EventConstants.FIRST_GENERATION);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -960,19 +697,19 @@ class TipsetEventCreatorTests {
         // We should be able to create a total of 3 before we exhaust all possible parents in the address book.
 
         // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
-        final UnsignedEvent eventA2 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA2 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA2);
 
         // This will advance the snapshot, total advancement weight is 2 (2+1/4 > 2/3)
-        final UnsignedEvent eventA3 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA3 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA3);
 
         // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
-        final UnsignedEvent eventA4 = eventCreator.maybeCreateEvent();
+        final PlatformEvent eventA4 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA4);
 
-        // It should not be possible to create another event since we have exhausted all possible other parents in the
-        // address book.
+        // It should not be possible to create another event since we have exhausted all possible other parents in
+        // the address book.
         assertNull(eventCreator.maybeCreateEvent());
     }
 
@@ -1020,7 +757,7 @@ class TipsetEventCreatorTests {
     @CsvSource({"true, true", "true, false", "false, true", "false, false"})
     @DisplayName("Check setting of birthRound on new events.")
     void checkSettingEventBirthRound(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed(0);
+        final Random random = getRandomPrintSeed();
 
         final int networkSize = 10;
 
@@ -1038,7 +775,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier::get,
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
-        final Map<Hash, EventImpl> events = new HashMap<>();
+        final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
             for (final RosterEntry address : roster.rosterEntries()) {
@@ -1049,7 +786,7 @@ class TipsetEventCreatorTests {
                 transactionSupplier.set(generateRandomTransactions(random));
 
                 final NodeId nodeId = NodeId.of(address.nodeId());
-                final EventCreator eventCreator = nodes.get(nodeId).eventCreator;
+                final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                 final long pendingConsensusRound = eventIndex + 2;
                 if (eventIndex > 0) {
@@ -1071,12 +808,12 @@ class TipsetEventCreatorTests {
                                     : AncientMode.GENERATION_THRESHOLD));
                 }
 
-                final UnsignedEvent event = eventCreator.maybeCreateEvent();
+                final PlatformEvent event = eventCreator.maybeCreateEvent();
 
                 // In this test, it should be impossible for a node to be unable to create an event.
                 assertNotNull(event);
 
-                linkAndDistributeEvent(nodes, events, event);
+                assignNGenAndDistributeEvent(nodes, events, event);
 
                 if (advancingClock) {
                     assertEquals(event.getTimeCreated(), time.now());
@@ -1095,5 +832,76 @@ class TipsetEventCreatorTests {
                 }
             }
         }
+    }
+
+    /**
+     * During PCES replay, the node will learn of self events it created in the past. This test creates a single node
+     * network, sends the event creator self events (with nGen values assigned), then creates a new event. The new event
+     * should have the proper self parent.
+     */
+    @Test
+    @DisplayName("Self event with highest nGen is used as latest self event on startup")
+    void lastSelfEventUpdatedDuringPCESReplay() {
+        final Random random = getRandomPrintSeed();
+        final int networkSize = 1;
+        final int numEvents = 100;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, () -> Collections.EMPTY_LIST);
+
+        final List<PlatformEvent> pcesEvents = new ArrayList<>();
+        PlatformEvent eventWithHighestNGen = null;
+        for (int i = 0; i < numEvents; i++) {
+            final PlatformEvent event = createTestEvent(random, selfId, i++);
+            if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
+                eventWithHighestNGen = event;
+            }
+            pcesEvents.add(event);
+        }
+
+        // Add the events to the creator in a random order
+        Collections.shuffle(pcesEvents, random);
+        pcesEvents.forEach(eventCreator::registerEvent);
+
+        // Verify that the new event created uses a self parent that is the event with the highest nGen.
+        // This new event should not have an nGen assigned.
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(eventWithHighestNGen.getDescriptor(), newEvent.getSelfParent());
+        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
+    }
+
+    /**
+     * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
+     * self event for the first time from the intake pipeline.
+     */
+    @Test
+    @DisplayName("Last Self Event just created is not overwritten")
+    void lastSelfEventNotOverwritten() {
+        final Random random = getRandomPrintSeed();
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, () -> Collections.EMPTY_LIST);
+
+        final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
+
+        // Create a self event with an nGen value set and register it with the event creator. This can happen
+        // if we are forced to reconnect and learn of an event we created a long time ago after we started creating
+        // the events. This is a branch, but not necessarily an intentional branch. This old event should be discarded
+        // because we want to favor any self event last created by the event creator even though it does not have an
+        // nGen set.
+        final PlatformEvent oldSelfEvent = createTestEvent(random, selfId, EventConstants.FIRST_GENERATION);
+        eventCreator.registerEvent(oldSelfEvent);
+        final PlatformEvent newEvent2 = eventCreator.maybeCreateEvent();
+        assertNotNull(newEvent);
+        assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
+        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
     }
 }

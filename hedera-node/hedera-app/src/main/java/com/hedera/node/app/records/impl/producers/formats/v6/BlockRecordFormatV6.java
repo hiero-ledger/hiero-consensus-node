@@ -11,7 +11,6 @@ import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRec
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -57,7 +56,7 @@ public final class BlockRecordFormatV6 implements BlockRecordFormat {
                     : "Hash object header is not the expected 1e7451a283da22f401000000";
             // compute RecordStreamObject header
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            SerializableDataOutputStream sout = new SerializableDataOutputStreamImpl(bout);
+            SerializableDataOutputStream sout = new SerializableDataOutputStream(bout);
             bout.reset();
             sout.writeLong(RECORD_STREAM_OBJECT_CLASS_ID);
             sout.writeInt(RECORD_STREAM_OBJECT_CLASS_VERSION);

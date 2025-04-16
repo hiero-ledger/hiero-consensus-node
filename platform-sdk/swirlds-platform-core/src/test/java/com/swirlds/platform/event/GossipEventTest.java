@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
@@ -82,14 +80,14 @@ public class GossipEventTest {
         final byte[] byteArray;
 
         try (final ByteArrayOutputStream bs = new ByteArrayOutputStream();
-                final SerializableDataOutputStream ss = new SerializableDataOutputStreamImpl(bs)) {
+                final SerializableDataOutputStream ss = new SerializableDataOutputStream(bs)) {
             ss.writePbjRecord(original, GossipEvent.PROTOBUF);
             byteArray = bs.toByteArray();
         }
         for (int i = 0; i < byteArray.length; i++) {
             final byte[] truncated = Arrays.copyOf(byteArray, i);
             try (final ByteArrayInputStream bs = new ByteArrayInputStream(truncated);
-                    final SerializableDataInputStream ss = new SerializableDataInputStreamImpl(bs)) {
+                    final SerializableDataInputStream ss = new SerializableDataInputStream(bs)) {
                 assertThrows(EOFException.class, () -> ss.readPbjRecord(GossipEvent.PROTOBUF));
             }
         }
