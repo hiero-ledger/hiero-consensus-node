@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
 import com.swirlds.platform.internal.EventImpl;
@@ -36,17 +37,12 @@ public class LocalConsensusGeneration {
 
         final Map<EventDescriptorWrapper, EventImpl> parentMap = new HashMap<>();
         for (final EventImpl event : events) {
-            final int maxParentGen = event.getBaseEvent().getAllParents()
-                    .stream()
+            final int maxParentGen = event.getBaseEvent().getAllParents().stream()
                     .map(parentMap::get)
                     .mapToInt(LocalConsensusGeneration::getGeneration)
                     .max()
                     .orElse(GENERATION_UNDEFINED);
-            event.setCGen(
-                    maxParentGen == GENERATION_UNDEFINED
-                            ? FIRST_GENERATION
-                            : maxParentGen + 1
-            );
+            event.setCGen(maxParentGen == GENERATION_UNDEFINED ? FIRST_GENERATION : maxParentGen + 1);
             parentMap.put(event.getBaseEvent().getDescriptor(), event);
         }
     }

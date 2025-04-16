@@ -541,7 +541,6 @@ public class EventImpl implements Clearable {
         return baseEvent.getCreatorId();
     }
 
-
     /**
      * Returns the local consensus generation (cGen) of this event.
      *

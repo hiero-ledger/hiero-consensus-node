@@ -37,10 +37,7 @@ public class SimpleGraphs {
                 .setSelfParent(e5)
                 .setOtherParent(e6)
                 .build();
-        return Stream.concat(
-                        graph5e2n(random).stream(),
-                        Stream.of(e5, e6, e7))
-                .toList();
+        return Stream.concat(graph5e2n(random).stream(), Stream.of(e5, e6, e7)).toList();
     }
 
     /**

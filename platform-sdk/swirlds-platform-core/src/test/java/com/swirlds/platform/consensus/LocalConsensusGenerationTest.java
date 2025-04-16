@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -12,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import static org.assertj.core.api.Assertions.assertThat;
 import org.hiero.consensus.config.EventConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -34,8 +36,7 @@ class LocalConsensusGenerationTest {
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create().build(), Mockito.mock(IntakeEventCounter.class));
         // Create a simple graph
-        events = SimpleGraphs.graph8e4n(randotron)
-                .stream()
+        events = SimpleGraphs.graph8e4n(randotron).stream()
                 .peek(orphanBuffer::handleEvent)
                 .map(linker::linkEvent)
                 .collect(Collectors.toCollection(ArrayList::new));
@@ -68,18 +69,13 @@ class LocalConsensusGenerationTest {
         }
     }
 
-    private void assertCGen(
-            final int eventIndex,
-            final int expectedCGen) {
+    private void assertCGen(final int eventIndex, final int expectedCGen) {
         final EventImpl event = events.get(eventIndex);
         assertThat(event).withFailMessage("Event " + eventIndex + " is null").isNotNull();
         assertThat(event.getCGen())
                 .withFailMessage(
                         "Event with index %d is expected to have a cGen of %d, but has %d",
-                        eventIndex,
-                        expectedCGen,
-                        event.getCGen())
+                        eventIndex, expectedCGen, event.getCGen())
                 .isEqualTo(expectedCGen);
     }
-
 }
