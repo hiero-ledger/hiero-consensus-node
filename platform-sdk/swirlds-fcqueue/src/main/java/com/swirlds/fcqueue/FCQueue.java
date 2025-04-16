@@ -514,7 +514,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns an array containing all of the elements in this collection.
+     * Returns an array containing all elements in this collection.
      * If this collection makes any guarantees as to what order its elements
      * are returned by its iterator, this method must return the elements in
      * the same order. The returned array's {@linkplain Class#getComponentType
@@ -529,7 +529,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * APIs.
      *
      * @return an array, whose {@linkplain Class#getComponentType runtime component
-     * 		type} is {@code Object}, containing all of the elements in this collection
+     * 		type} is {@code Object}, containing all elements in this collection
      */
     @Override
     public synchronized Object[] toArray() {
@@ -580,7 +580,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
      * 		the array into which the elements of this collection are to be
      * 		stored, if it is big enough; otherwise, a new array of the same
      * 		runtime type is allocated for this purpose.
-     * @return an array containing all of the elements in this collection
+     * @return an array containing all elements in this collection
      * @throws ArrayStoreException
      * 		if the runtime type of any element in this
      * 		collection is not assignable to the {@linkplain Class#getComponentType
@@ -627,12 +627,12 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Returns {@code true} if this collection contains all of the elements
+     * Returns {@code true} if this collection contains all elements
      * in the specified collection.
      *
      * @param c
      * 		collection to be checked for containment in this collection
-     * @return {@code true} if this collection contains all of the elements
+     * @return {@code true} if this collection contains all elements
      * 		in the specified collection
      * @throws ClassCastException
      * 		if the types of one or more elements
@@ -701,7 +701,7 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     }
 
     /**
-     * Removes all of the elements from this queue.
+     * Removes all elements from this queue.
      * The queue will be empty and the hash reset to the null value after this method returns.
      * This does not delete the FCQueue object. It just empties the queue.
      */
@@ -752,14 +752,14 @@ public class FCQueue<E extends FastCopyable & SerializableHashable> extends Part
     /**
      * Create a shallow detached copy to avoid holding references to the entire queue should the original
      * copy remain reserved for a long time (e.g., during reconnect).
+     * Detaching a mutable copy does not look like a good idea and there should be no use of that in production.
      */
     private void detach() {
-        if (!isImmutable()) {
-            throw new IllegalStateException("tried to serialize a mutable FCQueue");
+        if (head == null || tail == null || isMutable()) {
+            return;
         }
-        if (head == null || tail == null || tail.runningHash == null) {
-            throw new IllegalStateException("tried to serialize an unhashed FCQueue");
-        }
+        // Ensure the copy is hashed before detaching
+        getHash();
 
         Node<E> src = head;
         Node<E> dst = new Node<>();
