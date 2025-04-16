@@ -1186,9 +1186,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                     .initLastBlockHash(
                             switch (trigger) {
                                 case GENESIS -> ZERO_BLOCK_HASH;
-                                default -> blockStreamService
-                                        .migratedLastBlockHash()
-                                        .orElseGet(() -> startBlockHashFrom(state));
+                                default ->
+                                    blockStreamService
+                                            .migratedLastBlockHash()
+                                            .orElseGet(() -> startBlockHashFrom(state));
                             });
             migrationStateChanges = null;
         }
