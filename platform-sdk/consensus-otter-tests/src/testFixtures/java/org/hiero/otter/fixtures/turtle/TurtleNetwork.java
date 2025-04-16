@@ -109,7 +109,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
             @NonNull final NodeId nodeId,
             @NonNull final AddressBook addressBook,
             @NonNull final KeysAndCerts privateKeys) {
-        return new TurtleNode(randotron, time, nodeId, addressBook, privateKeys, simulatedNetwork, rootOutputDirectory);
+        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        return new TurtleNode(randotron, time, nodeId, addressBook, privateKeys, simulatedNetwork, outputDir);
     }
 
     /**

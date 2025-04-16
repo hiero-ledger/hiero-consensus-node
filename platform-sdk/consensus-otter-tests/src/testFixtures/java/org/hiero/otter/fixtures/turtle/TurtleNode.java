@@ -12,7 +12,9 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -38,6 +40,8 @@ import com.swirlds.platform.test.fixtures.turtle.runner.TurtleTestingToolState;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -207,7 +211,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
             // Clean the output directory and start the node
-            // TODO: Wipe the output directory if it exists
+            final String rootPath = nodeConfiguration.createConfiguration().getValue(FileSystemManagerConfig_.ROOT_PATH);
+            log.info("Deleting directory: {}", rootPath);
+            if (rootPath != null) {
+                try {
+                    FileUtils.deleteDirectory(new File(rootPath).toPath());
+                } catch (IOException ex) {
+                    log.warn("Failed to delete directory: {}", rootPath, ex);
+                }
+            }
             doStartNode();
 
         } finally {
@@ -241,6 +253,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         if (lifeCycle == LifeCycle.STARTED) {
             // TODO: Release all resources
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
+            platformWiring.stop();
             platform = null;
             platformWiring = null;
             model = null;
