@@ -557,9 +557,8 @@ public class PlatformComponentBuilder {
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.isInFreezePeriodReference()
-                                    .get()
-                                    .test(event.getPlatformEvent().getConsensusTimestamp()));
+                            && blocks.freezeCheckHolder()
+                                    .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;
     }
