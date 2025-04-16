@@ -576,6 +576,7 @@ public class TestHelpers {
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = HederaEvmTransactionResult.successFrom(
             GAS_LIMIT / 2,
+            GAS_LIMIT / 2,
             Wei.of(NETWORK_GAS_PRICE),
             SENDER_ID,
             CALLED_CONTRACT_ID,
@@ -588,6 +589,7 @@ public class TestHelpers {
     public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE =
             HederaEvmTransactionResult.successFrom(
                             GAS_LIMIT / 2,
+                            GAS_LIMIT / 2,
                             Wei.of(NETWORK_GAS_PRICE),
                             SENDER_ID,
                             CALLED_CONTRACT_ID,
@@ -599,6 +601,7 @@ public class TestHelpers {
                     .withSignerNonce(SIGNER_NONCE);
 
     public static final HederaEvmTransactionResult HALT_RESULT = new HederaEvmTransactionResult(
+            GAS_LIMIT / 2,
             GAS_LIMIT / 2,
             NETWORK_GAS_PRICE,
             SENDER_ID,

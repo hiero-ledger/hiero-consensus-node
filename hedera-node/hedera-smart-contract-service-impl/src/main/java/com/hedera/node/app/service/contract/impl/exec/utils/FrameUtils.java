@@ -390,7 +390,7 @@ public class FrameUtils {
     }
 
     /**
-     * Increments the Hedera gas usage in the top level frame by the given amount.
+     * Returns the Hedera gas usage in the top level frame.
      *
      * @param frame the current frame
      * @return the total Hedera gas consumed until now

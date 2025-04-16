@@ -36,6 +36,7 @@ import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.HederaGasCounter;
 import com.hedera.node.app.service.contract.impl.exec.utils.PropagatedCallFailureRef;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
@@ -295,6 +296,7 @@ class FrameRunnerTest {
                 .getOrCreateConfig();
         given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
         given(frame.getContextVariable(FrameUtils.TRACKER_CONTEXT_VARIABLE)).willReturn(null);
+        given(frame.getContextVariable(FrameUtils.HEDERA_GAS_COUNTER)).willReturn(new HederaGasCounter(GAS_LIMIT / 2));
         given(childFrame.getContextVariable(FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE))
                 .willReturn(propagatedCallFailure);
         given(frame.getGasPrice()).willReturn(Wei.of(NETWORK_GAS_PRICE));
