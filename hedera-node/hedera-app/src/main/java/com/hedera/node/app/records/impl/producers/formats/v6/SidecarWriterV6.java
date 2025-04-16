@@ -9,7 +9,6 @@ import com.hedera.hapi.streams.SidecarType;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.HashingOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -21,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
+import org.hiero.base.crypto.HashingOutputStream;
 
 /**
  * An incremental sidecar file writer that writes a single {@link TransactionSidecarRecord} at a time. It also maintains

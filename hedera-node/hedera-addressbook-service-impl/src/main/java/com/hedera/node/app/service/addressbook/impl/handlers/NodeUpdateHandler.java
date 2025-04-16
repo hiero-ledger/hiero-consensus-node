@@ -116,6 +116,9 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (!op.serviceEndpoint().isEmpty()) {
             addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
         }
+        if (op.hasGrpcProxyEndpoint()) {
+            addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+        }
 
         final var nodeBuilder = updateNode(op, existingNode);
         nodeStore.put(nodeBuilder.build());
@@ -162,6 +165,9 @@ public class NodeUpdateHandler implements TransactionHandler {
         }
         if (op.hasDeclineReward()) {
             nodeBuilder.declineReward(op.declineReward());
+        }
+        if (op.hasGrpcProxyEndpoint()) {
+            nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
         }
         return nodeBuilder;
     }

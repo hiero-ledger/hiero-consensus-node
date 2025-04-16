@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.model {
-    exports org.hiero.consensus.model.crypto;
     exports org.hiero.consensus.model.event;
     exports org.hiero.consensus.model.hashgraph;
     exports org.hiero.consensus.model.node;
@@ -15,8 +14,9 @@ module org.hiero.consensus.model {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires com.swirlds.base;
+    requires org.hiero.base.concurrent;
     requires static transitive com.github.spotbugs.annotations;
 }
