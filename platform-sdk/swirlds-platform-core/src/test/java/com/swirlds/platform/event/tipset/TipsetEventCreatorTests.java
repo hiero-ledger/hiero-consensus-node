@@ -899,9 +899,11 @@ class TipsetEventCreatorTests {
         // nGen set.
         final PlatformEvent oldSelfEvent = createTestEvent(random, selfId, EventConstants.FIRST_GENERATION);
         eventCreator.registerEvent(oldSelfEvent);
+
+        // Now create another event and check that the self parent is the expected event.
         final PlatformEvent newEvent2 = eventCreator.maybeCreateEvent();
-        assertNotNull(newEvent);
+        assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
-        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
+        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent2.getNGen());
     }
 }
