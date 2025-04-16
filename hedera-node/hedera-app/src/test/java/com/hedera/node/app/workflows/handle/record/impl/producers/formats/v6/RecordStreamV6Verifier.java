@@ -20,9 +20,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -40,8 +37,10 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 @SuppressWarnings({"DataFlowIssue", "removal"})
 public class RecordStreamV6Verifier {
@@ -311,7 +310,7 @@ public class RecordStreamV6Verifier {
         // create metadata hash
         HashingOutputStream hashingOutputStream =
                 new HashingOutputStream(MessageDigest.getInstance(DigestType.SHA_384.algorithmName()));
-        SerializableDataOutputStream dataOutputStream = new SerializableDataOutputStreamImpl(hashingOutputStream);
+        SerializableDataOutputStream dataOutputStream = new SerializableDataOutputStream(hashingOutputStream);
         dataOutputStream.writeInt(recordStreamConfig.recordFileVersion());
         dataOutputStream.writeInt(recordFile.hapiProtoVersion().major());
         dataOutputStream.writeInt(recordFile.hapiProtoVersion().minor());

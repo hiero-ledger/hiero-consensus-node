@@ -3,7 +3,7 @@ package com.swirlds.common.merkle.route;
 
 import java.util.Iterator;
 import java.util.List;
-import org.hiero.consensus.model.io.SelfSerializable;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * <p>

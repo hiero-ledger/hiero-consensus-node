@@ -101,8 +101,10 @@ public class PlatformStateUpdates {
                         final var nodeStore = new ReadableNodeStoreImpl(
                                 state.getReadableStates(AddressBookService.NAME), entityIdStore);
                         final var rosterStore = new WritableRosterStore(state.getWritableStates(RosterService.NAME));
-                        final var stakingInfoStore =
-                                new ReadableStakingInfoStoreImpl(state.getReadableStates(TokenService.NAME));
+                        final var entityCounters =
+                                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
+                        final var stakingInfoStore = new ReadableStakingInfoStoreImpl(
+                                state.getReadableStates(TokenService.NAME), entityCounters);
 
                         // update the candidate roster weights with weights from stakingNodeInfo map
                         final Function<Long, Long> weightFunction = nodeId -> {

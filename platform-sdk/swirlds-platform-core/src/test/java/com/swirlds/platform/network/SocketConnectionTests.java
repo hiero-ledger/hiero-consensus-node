@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.io.exceptions.BadIOException;
+import org.hiero.base.io.exceptions.BadIOException;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;

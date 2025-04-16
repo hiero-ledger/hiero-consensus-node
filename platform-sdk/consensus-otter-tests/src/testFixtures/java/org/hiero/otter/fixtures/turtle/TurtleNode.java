@@ -53,6 +53,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  */
 public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
+    public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
     private static final Logger log = LogManager.getLogger(TurtleNode.class);
 
     private enum LifeCycle {
@@ -83,14 +84,20 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final KeysAndCerts privateKeys,
             @NonNull final SimulatedNetwork network,
             @NonNull final Path outputDirectory) {
-        ThreadContext.put("nodeId", selfId.toString());
-        this.randotron = requireNonNull(randotron);
-        this.time = requireNonNull(time);
-        this.selfId = requireNonNull(selfId);
-        this.addressBook = requireNonNull(addressBook);
-        this.privateKeys = requireNonNull(privateKeys);
-        this.network = requireNonNull(network);
-        this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+
+            this.randotron = requireNonNull(randotron);
+            this.time = requireNonNull(time);
+            this.selfId = requireNonNull(selfId);
+            this.addressBook = requireNonNull(addressBook);
+            this.privateKeys = requireNonNull(privateKeys);
+            this.network = requireNonNull(network);
+            this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
@@ -127,11 +134,18 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     public void submitTransaction(@NonNull final byte[] transaction) {
-        checkLifeCycle(LifeCycle.INIT, "Node has not been started yet.");
-        checkLifeCycle(LifeCycle.SHUTDOWN, "Node has been shut down.");
-        checkLifeCycle(LifeCycle.DESTROYED, "Node has been destroyed.");
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-        platform.createTransaction(transaction);
+            checkLifeCycle(LifeCycle.INIT, "Node has not been started yet.");
+            checkLifeCycle(LifeCycle.SHUTDOWN, "Node has been shut down.");
+            checkLifeCycle(LifeCycle.DESTROYED, "Node has been destroyed.");
+
+            platform.createTransaction(transaction);
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**
@@ -149,7 +163,12 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @Override
     public void tick(@NonNull Instant now) {
         if (lifeCycle == LifeCycle.STARTED) {
-            model.tick();
+            try {
+                ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+                model.tick();
+            } finally {
+                ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+            }
         }
     }
 
@@ -157,12 +176,19 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * Start the node
      */
     public void start() {
-        checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
-        checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+        try {
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-        // Clean the output directory and start the node
-        // TODO: Wipe the output directory if it exists
-        doStartNode();
+            checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
+            checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+
+            // Clean the output directory and start the node
+            // TODO: Wipe the output directory if it exists
+            doStartNode();
+
+        } finally {
+            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
+        }
     }
 
     /**

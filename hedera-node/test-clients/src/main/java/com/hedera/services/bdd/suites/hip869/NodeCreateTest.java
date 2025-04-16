@@ -27,6 +27,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOIN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
@@ -73,13 +74,14 @@ public class NodeCreateTest {
     public static List<ServiceEndpoint> GOSSIP_ENDPOINTS = Arrays.asList(
             ServiceEndpoint.newBuilder().setDomainName("test.com").setPort(123).build(),
             ServiceEndpoint.newBuilder().setDomainName("test2.com").setPort(123).build());
-    public static List<ServiceEndpoint> SERVICES_ENDPOINTS = Arrays.asList(ServiceEndpoint.newBuilder()
+    public static List<ServiceEndpoint> SERVICES_ENDPOINTS = List.of(ServiceEndpoint.newBuilder()
             .setDomainName("service.com")
             .setPort(234)
             .build());
+    private static final ServiceEndpoint GRPC_PROXY_ENDPOINT = endpointFor("grpc.web.proxy.com", 123);
     public static List<ServiceEndpoint> GOSSIP_ENDPOINTS_IPS =
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
-    public static List<ServiceEndpoint> SERVICES_ENDPOINTS_IPS = Arrays.asList(endpointFor("192.168.1.205", 234));
+    public static List<ServiceEndpoint> SERVICES_ENDPOINTS_IPS = List.of(endpointFor("192.168.1.205", 234));
     private static List<X509Certificate> gossipCertificates;
 
     @BeforeAll
@@ -333,6 +335,7 @@ public class NodeCreateTest {
                 .accountId(asAccount(asEntityString(100)))
                 .gossipEndpoint(GOSSIP_ENDPOINTS)
                 .serviceEndpoint(SERVICES_ENDPOINTS)
+                .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT)
                 .adminKey(ED_25519_KEY)
                 .hasPrecheck(OK)
                 .hasKnownStatus(SUCCESS);
@@ -358,6 +361,8 @@ public class NodeCreateTest {
                     assertEquals(100, node.accountId().accountNum(), "Account ID invalid");
                     assertEqualServiceEndpoints(GOSSIP_ENDPOINTS, node.gossipEndpoint());
                     assertEqualServiceEndpoints(SERVICES_ENDPOINTS, node.serviceEndpoint());
+                    assertEqualServiceEndpoints(List.of(GRPC_PROXY_ENDPOINT), List.of(node.grpcProxyEndpoint()));
+                    assertNotNull(nodeCreate.getAdminKey(), " Admin key invalid");
                     assertEquals(toPbj(nodeCreate.getAdminKey()), node.adminKey(), "Admin key invalid");
                 }));
     }
@@ -579,6 +584,18 @@ public class NodeCreateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .description("newNode")
                         .hasKnownStatus(UNAUTHORIZED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> createNodeWithDefaultGrpcProxyFails() throws CertificateEncodingException {
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                nodeCreate("testNode")
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .grpcWebProxyEndpoint(ServiceEndpoint.getDefaultInstance())
+                        .description("newNode")
+                        .hasKnownStatus(INVALID_ENDPOINT));
     }
 
     private static void assertEqualServiceEndpoints(

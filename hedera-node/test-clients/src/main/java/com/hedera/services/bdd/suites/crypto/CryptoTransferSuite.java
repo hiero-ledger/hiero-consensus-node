@@ -97,6 +97,7 @@ import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.e
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.nonExistingSystemAccounts;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.A_TOKEN;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
@@ -111,12 +112,12 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNEXPECTED_TOKEN_DECIMALS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -960,7 +961,7 @@ public class CryptoTransferSuite {
                                 moving(123, someFungible).between(counterparty, party))
                         .fee(ONE_HBAR)
                         .via(hodlXfer)
-                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR),
                 getTxnRecord(hodlXfer).hasPriority(recordWith().autoAssociated(accountTokenPairsInAnyOrder(List.of()))),
                 getAccountInfo(party)
                         .has(accountWith()
@@ -1768,5 +1769,57 @@ public class CryptoTransferSuite {
                                 .signedBy(hollowAccountKey, TREASURY)
                                 .sigMapPrefixes(uniqueWithFullPrefixesFor(hollowAccountKey)))),
                 getAliasedAccountInfo(hollowAccountKey).has(accountWith().key(hollowAccountKey)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transfersAmountOfNFT() {
+        final var owner = "owner";
+        final var receiver = "receiver";
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(owner).maxAutomaticTokenAssociations(1).balance(ONE_MILLION_HBARS),
+                cryptoCreate(receiver).maxAutomaticTokenAssociations(1).balance(0L),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate("NFT")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(MULTI_KEY)
+                        .treasury(TREASURY),
+                mintToken("NFT", List.of(ByteString.copyFromUtf8("metadata1"))),
+                cryptoTransfer(movingUnique("NFT", 1L).between(TOKEN_TREASURY, owner)),
+                cryptoTransfer(movingWithDecimals(1, "NFT", 3).betweenWithDecimals(owner, receiver))
+                        .hasKnownStatus(ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> dissociatedCollector() {
+        final var nft = "unique";
+        final var fungible = "fungible";
+        final var collector = "collector";
+        final var party = PARTY;
+        final var counterparty = COUNTERPARTY;
+
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(collector),
+                cryptoCreate(party).maxAutomaticTokenAssociations(123),
+                cryptoCreate(counterparty).maxAutomaticTokenAssociations(123),
+                tokenCreate(fungible)
+                        .treasury(TOKEN_TREASURY)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(123456789),
+                cryptoTransfer(moving(1000, fungible).between(TOKEN_TREASURY, party)),
+                tokenAssociate(collector, fungible),
+                tokenCreate(nft)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .withCustom(fixedHtsFee(1, fungible, collector))
+                        .initialSupply(0L),
+                mintToken(nft, List.of(copyFromUtf8("test"))),
+                cryptoTransfer(movingUnique(nft, 1L).between(TOKEN_TREASURY, party)),
+                tokenDissociate(collector, fungible),
+                cryptoTransfer(movingUnique(nft, 1L).between(party, counterparty))
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
     }
 }

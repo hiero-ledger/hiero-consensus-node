@@ -12,7 +12,6 @@ package com.swirlds.demo.crypto;
  */
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Platform;
@@ -24,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

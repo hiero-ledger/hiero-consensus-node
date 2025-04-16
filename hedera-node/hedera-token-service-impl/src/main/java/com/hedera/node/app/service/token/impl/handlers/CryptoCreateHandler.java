@@ -119,10 +119,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
         validateTruePreCheck(op.autoRenewPeriodOrThrow().seconds() >= 0, INVALID_RENEWAL_PERIOD);
         if (op.hasShardID()) {
-            validateTruePreCheck(op.shardIDOrThrow().shardNum() == 0, INVALID_ACCOUNT_ID);
+            validateTruePreCheck(op.shardIDOrThrow().shardNum() >= 0, INVALID_ACCOUNT_ID);
         }
         if (op.hasRealmID()) {
-            validateTruePreCheck(op.realmIDOrThrow().realmNum() == 0, INVALID_ACCOUNT_ID);
+            validateTruePreCheck(op.realmIDOrThrow().realmNum() >= 0, INVALID_ACCOUNT_ID);
         }
         // HIP 904 now allows for unlimited auto-associations
         validateTruePreCheck(
@@ -312,6 +312,15 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var alias = op.alias();
+
+        // Don't allow creation of accounts that don't match the configured shard and realm
+        if (op.hasShardID()) {
+            validateTrue(op.shardIDOrThrow().shardNum() == hederaConfig.shard(), INVALID_ACCOUNT_ID);
+        }
+        if (op.hasRealmID()) {
+            validateTrue(op.realmIDOrThrow().realmNum() == hederaConfig.realm(), INVALID_ACCOUNT_ID);
+        }
+
         // You can never set the alias to be an "entity num alias" (sometimes called "long-zero").
         validateFalse(isEntityNumAlias(alias, hederaConfig.shard(), hederaConfig.realm()), INVALID_ALIAS_KEY);
 

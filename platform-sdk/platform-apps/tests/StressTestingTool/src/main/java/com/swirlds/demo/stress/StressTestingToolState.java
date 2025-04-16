@@ -11,10 +11,10 @@ package com.swirlds.demo.stress;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import com.swirlds.common.constructable.ConstructableIgnored;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * This testing tool simulates configurable processing times for both preHandling and handling for stress testing

@@ -333,19 +333,26 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             }
             try (final ParsedBucket bucket = new ParsedBucket()) {
                 bucket.readFrom(bucketData);
+                if (bucket.getBucketIndex() != bucketId) {
+                    logger.warn(MERKLE_DB.getMarker(), "Delete bucket (stale): {}", bucketId);
+                    bucketIndexToBucketLocation.remove(bucketId);
+                    continue;
+                }
                 bucket.forEachEntry(entry -> {
                     final Bytes keyBytes = entry.getKeyBytes();
                     final long path = entry.getValue();
                     try {
                         boolean removeKey = true;
                         if ((path < firstLeafPath) || (path > lastLeafPath)) {
-                            logger.warn("Delete key (path range): key={}, path={}", keyBytes, path);
+                            logger.warn(
+                                    MERKLE_DB.getMarker(), "Delete key (path range): key={}, path={}", keyBytes, path);
                         } else {
                             final BufferedData recordBytes = store.get(path);
                             assert recordBytes != null;
                             final VirtualLeafBytes record = VirtualLeafBytes.parseFrom(recordBytes);
                             if (!record.keyBytes().equals(keyBytes)) {
                                 logger.warn(
+                                        MERKLE_DB.getMarker(),
                                         "Delete key (stale): path={}, expected={}, actual={}",
                                         path,
                                         record.keyBytes(),
@@ -750,7 +757,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     // update bucketIndexToBucketLocation
                     bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
                 }
-                next.send();
                 return true;
             } finally {
                 // Let the current submit task know that a bucket is fully processed, and
@@ -762,6 +768,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     // will be called on a different submit task than the one currently running
                     currentSubmitTask.get().notifyBucketProcessed();
                 }
+                next.send();
             }
         }
 

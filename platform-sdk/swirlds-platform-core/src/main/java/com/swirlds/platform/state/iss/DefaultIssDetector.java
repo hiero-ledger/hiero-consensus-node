@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
@@ -569,9 +569,8 @@ public class DefaultIssDetector implements IssDetector {
             hashFinder.writePartitionData(sb);
             writeSkippedLogCount(sb, skipCount);
 
-            logger.fatal(
-                    EXCEPTION.getMarker(),
-                    new IssPayload(sb.toString(), round, Mnemonics.generateMnemonic(selfHash), "", true));
+            final String mnemonic = selfHash == null ? "null" : Mnemonics.generateMnemonic(selfHash);
+            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true));
         }
     }
 
