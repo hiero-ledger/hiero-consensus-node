@@ -167,13 +167,13 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .orUnavailableStatus(),
 
                 // send jumbo payload to jumbo endpoint and assert the used gas
-                jumboEthCall(jumboPayload, RELAYER)
+                jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gasLimit(800000)
                         .exposingGasTo((s, gasUsed) -> assertEquals(640000, gasUsed)),
-                jumboEthCall(halfJumboPayload, RELAYER)
+                jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, halfJumboPayload)
                         .gasLimit(500000)
                         .exposingGasTo((s, gasUsed) -> assertEquals(400000, gasUsed)),
-                jumboEthCall(thirdJumboPayload, RELAYER)
+                jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, thirdJumboPayload)
                         .gasLimit(300000)
                         .exposingGasTo((s, gasUsed) -> assertEquals(240000, gasUsed)));
     }
