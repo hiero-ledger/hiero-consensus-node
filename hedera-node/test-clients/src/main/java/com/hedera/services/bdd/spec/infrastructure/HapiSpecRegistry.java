@@ -776,7 +776,6 @@ public class HapiSpecRegistry {
     }
 
     private String getRoleKeyName(String tokenName, KeyRole role) {
-        final String roleKeyFormat = "%s_%s_KEY";
-        return String.format(roleKeyFormat, tokenName, role);
+        return String.format("%s_%s_KEY", tokenName, role);
     }
 }
