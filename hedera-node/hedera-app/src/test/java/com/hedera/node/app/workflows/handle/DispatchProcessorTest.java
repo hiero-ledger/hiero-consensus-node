@@ -245,6 +245,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -270,6 +271,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -297,6 +299,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -324,6 +327,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -351,6 +355,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -380,6 +385,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -408,6 +414,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -437,6 +444,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -464,6 +472,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -519,6 +528,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -547,6 +557,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -578,6 +589,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -650,6 +662,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -672,6 +685,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -697,6 +711,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
