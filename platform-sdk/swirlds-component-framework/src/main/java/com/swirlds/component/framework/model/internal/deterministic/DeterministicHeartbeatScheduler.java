@@ -48,7 +48,8 @@ public class DeterministicHeartbeatScheduler extends AbstractHeartbeatScheduler 
      */
     public void tick() {
         if (!started) {
-            throw new IllegalStateException("Cannot tick the heartbeat before it has started");
+            return;
+            //            throw new IllegalStateException("Cannot tick the heartbeat before it has started");
         }
 
         final Instant currentTime = time.now();

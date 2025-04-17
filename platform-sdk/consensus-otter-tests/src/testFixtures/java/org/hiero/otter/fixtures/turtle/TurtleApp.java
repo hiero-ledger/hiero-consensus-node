@@ -23,6 +23,7 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
+@SuppressWarnings("removal")
 public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolState> {
     INSTANCE;
 
