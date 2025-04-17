@@ -4,6 +4,7 @@ package com.swirlds.platform.test.fixtures.event.generator;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.weightedChoice;
 import static com.swirlds.platform.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -14,6 +15,9 @@ import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
 import com.swirlds.platform.event.linking.SimpleLinker;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
+import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
@@ -29,6 +33,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.config.EventConfig;
@@ -86,6 +91,9 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * The consensus implementation for determining birth rounds of events.
      */
     private ConsensusImpl consensus;
+
+    /** Used to assign nGen values to events. This value is used by consensus, so it must be set. */
+    private OrphanBuffer orphanBuffer;
 
     /** The latest snapshot to be produced by {@link #consensus} */
     private ConsensusSnapshot consensusSnapshot;
@@ -193,6 +201,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode());
+        orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
     }
 
     /**
@@ -200,7 +209,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * the event sources from the addresses.
      *
      * @param eventSources the event sources to initialize.
-     * @param roster  the roster to use.
+     * @param roster       the roster to use.
      */
     private void setAddressBookInitializeEventSources(
             @NonNull final List<EventSource> eventSources, @NonNull final Roster roster) {
@@ -435,22 +444,26 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     }
 
     private void updateConsensus(@NonNull final EventImpl e) {
-        // The event given to the internal consensus needs its own EventImpl & PlatformEvent for metadata to be kept
-        // separate from the event that is returned to the caller.  This SimpleLinker wraps the event in an EventImpl
-        // and links it. The event must be hashed and have a descriptor built for its use in the SimpleLinker.
+        /* The event given to the internal consensus needs its own EventImpl & PlatformEvent for
+        metadata to be kept separate from the event that is returned to the caller.  The orphan
+        buffer assigns an nGen value. The SimpleLinker wraps the event in an EventImpl and links
+        it. The event must be hashed and have a descriptor built for its use in the SimpleLinker. */
         final PlatformEvent copy = e.getBaseEvent().copyGossipedData();
-        final EventImpl linkedEvent = linker.linkEvent(copy);
-        if (linkedEvent == null) {
-            return;
+        final List<PlatformEvent> events = orphanBuffer.handleEvent(copy);
+        for (final PlatformEvent event : events) {
+            final EventImpl linkedEvent = linker.linkEvent(event);
+            if (linkedEvent == null) {
+                continue;
+            }
+            final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
+            if (consensusRounds.isEmpty()) {
+                continue;
+            }
+            // if we reach consensus, save the snapshot for future use
+            consensusSnapshot = consensusRounds.getLast().getSnapshot();
+            linker.setNonAncientThreshold(
+                    consensusRounds.getLast().getEventWindow().getAncientThreshold());
         }
-
-        final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
-        if (consensusRounds.isEmpty()) {
-            return;
-        }
-        // if we reach consensus, save the snapshot for future use
-        consensusSnapshot = consensusRounds.getLast().getSnapshot();
-        linker.setNonAncientThreshold(consensusRounds.getLast().getEventWindow().getAncientThreshold());
     }
 
     @Override
@@ -467,7 +480,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
 
         buildDefaultOtherParentAffinityMatrix();
         // save all non-ancient events
-        final List<EventImpl> nonAncientEvents = linker.getSortedNonAncientEvents();
+        final List<EventImpl> nonAncientEvents = new ArrayList<>(linker.getNonAncientEvents());
+        nonAncientEvents.sort(Comparator.comparingLong(e -> e.getBaseEvent().getNGen()));
         // reinitialize the internal consensus with the last snapshot
         initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);
