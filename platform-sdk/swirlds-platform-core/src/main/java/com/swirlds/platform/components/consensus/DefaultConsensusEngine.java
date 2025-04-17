@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.consensus;
 
-import com.swirlds.platform.freeze.FreezePeriodChecker;
-import java.time.Instant;
-import java.util.Iterator;
-import java.util.function.Predicate;
-import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
-
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
@@ -21,8 +15,11 @@ import com.swirlds.platform.metrics.AddedEventMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -30,6 +27,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface
@@ -134,14 +132,14 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             }
         }
 
-        // If multiple rounds reach consensus at the same moment there is no need to pass in
-        // each event window. The latest event window is sufficient to keep event storage clean.
-        linker.setEventWindow(consensusRounds.getLast().getEventWindow());
-
-        if (freezeChecker.test(consensusRounds.getLast().getConsensusTimestamp())) {
+        if (freezeRoundFound) {
             // If the consensus time has reached the freeze period, we will not process any more events
             frozen = true;
         }
+
+        // If multiple rounds reach consensus at the same moment there is no need to pass in
+        // each event window. The latest event window is sufficient to keep event storage clean.
+        linker.setEventWindow(consensusRounds.getLast().getEventWindow());
 
         return consensusRounds;
     }
