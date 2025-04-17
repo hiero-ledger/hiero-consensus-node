@@ -143,7 +143,7 @@ public class AddressBookValidator {
                 !requireNonNull(accountId).hasAccountNum() && accountId.hasAlias(), INVALID_NODE_ACCOUNT_ID);
     }
 
-    private void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+    public void validateEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
         requireNonNull(endpoint);
         requireNonNull(nodesConfig);
 

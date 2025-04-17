@@ -21,7 +21,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This is a mechanism to flush data (dirty hashes, dirty leaves, deleted leaves) to disk
