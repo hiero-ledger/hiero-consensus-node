@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VE
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_050;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_051;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_062;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_063;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
@@ -17,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.annotations.ServicesV046;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV050;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV062;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV063;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesVersionKey;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -30,12 +32,14 @@ import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v062.V062Module;
+import com.hedera.node.app.service.contract.impl.exec.v063.V063Module;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
@@ -55,6 +59,7 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
             V050Module.class,
             V051Module.class,
             V062Module.class,
+            V063Module.class,
             ProcessorModule.class
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
@@ -147,4 +152,29 @@ public interface ContractServiceModule {
     @Singleton
     @ServicesVersionKey(VERSION_062)
     TransactionProcessor bindV062Processor(@ServicesV062 @NonNull final TransactionProcessor processor);
+
+    /**
+     * @param processor the transaction processor
+     * @return the bound transaction processor for version 0.63
+     */
+    @Binds
+    @IntoMap
+    @Singleton
+    @ServicesVersionKey(VERSION_063)
+    TransactionProcessor bindV063Processor(@ServicesV063 @NonNull final TransactionProcessor processor);
+
+    /**
+     * Provides a singleton instance of {@link CodeFactory} initialized with zero values.
+     *
+     * <p>The values {@code maxEofVersion} and {@code maxContainerSize} are set to 0,
+     * which means the factory defaults to handling only legacy code (EOF version 0)
+     * and sets a strict size limit on EOF code containers.
+     *
+     * @return a singleton instance of {@link CodeFactory} with strict constraints.
+     */
+    @Provides
+    @Singleton
+    static CodeFactory provideCodeFactory() {
+        return new CodeFactory(0, 0);
+    }
 }

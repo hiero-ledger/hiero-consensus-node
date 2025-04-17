@@ -282,7 +282,8 @@ public class HevmTransactionFactory {
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
         final var minGasLimit = Math.max(
-                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND, gasCalculator.transactionIntrinsicGasCost(EMPTY, false));
+                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
+                gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
         validateTrue(body.gas() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(body.amount() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(body.gas() <= contractsConfig.maxGasPerSec(), MAX_GAS_LIMIT_EXCEEDED);

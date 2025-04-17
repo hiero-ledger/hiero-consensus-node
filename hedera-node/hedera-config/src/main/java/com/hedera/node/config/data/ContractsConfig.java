@@ -111,6 +111,8 @@ public record ContractsConfig(
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
                 Set<Long> evmNonExtantContractsFail,
         @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "evm.nativeLibVerification.enabled", defaultValue = "false") @NetworkProperty
+                boolean nativeLibVerificationEnabled,
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
                 boolean metricsSmartContractPrimaryEnabled,
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty
