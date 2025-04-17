@@ -33,11 +33,14 @@ public record KeyMetadata(
         Registration registration) {
 
     public interface Registration {
-        void save(HapiSpecRegistry registry, String name, KeyRole keyRole, Key key);
+        void save(HapiSpecRegistry registry, String name, Key key);
     }
 
-    private static final Registration DEFAULT_REGISTRATION = HapiSpecRegistry::saveRoleKey;
+    private static final Registration DEFAULT_REGISTRATION = HapiSpecRegistry::saveKey;
 
+    public static Registration roleBasedRegistration(KeyRole role) {
+        return (registry, name, key) -> registry.saveRoleKey(name, role, key);
+    }
     /**
      * Constructs a {@link KeyMetadata} instance from the given protoc key and {@link HapiSpec}
      * with the default registration.
@@ -104,7 +107,7 @@ public record KeyMetadata(
     public void registerAs(@NonNull final String name, @NonNull final HapiSpec spec) {
         requireNonNull(spec);
         requireNonNull(name);
-        registration.save(spec.registry(), name, null, protoKey);
+        registration.save(spec.registry(), name, protoKey);
         spec.keys().setControl(protoKey, sigControl);
         spec.keys().addPrivateKeyMap(privateKeyMap);
     }

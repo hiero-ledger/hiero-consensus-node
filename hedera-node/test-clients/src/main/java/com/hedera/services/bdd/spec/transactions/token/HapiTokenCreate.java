@@ -27,7 +27,6 @@ import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.utils.KeyMetadata;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
-import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -493,7 +492,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
         for (KeyRole role : KeyRole.values()) {
             final var key = getKeyFromOp(op, role);
             if (key != null) {
-                metadata.add(KeyMetadata.from(key, spec, HapiSpecRegistry::saveRoleKey));
+                metadata.add(KeyMetadata.from(key, spec, KeyMetadata.roleBasedRegistration(role)));
             }
         }
 
