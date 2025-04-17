@@ -5,17 +5,15 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.otter.fixtures.LogErrorConfig;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.Validator;
-import org.hiero.otter.fixtures.internal.logging.InMemoryAppender;
-import org.hiero.otter.fixtures.internal.logging.StructuredLog;
+import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 
 /**
  * Implementation of the {@link Validator} interface.
@@ -29,44 +27,19 @@ public class ValidatorImpl implements Validator {
      */
     @Override
     @NonNull
-    public Validator assertLogs(@NonNull final LogErrorConfig... configs) {
+    public Validator assertLogs(@NonNull final LogFilter... configs) {
         Objects.requireNonNull(configs, "configs cannot be null");
         final List<StructuredLog> logs = new ArrayList<>(InMemoryAppender.getLogs());
-        final List<LogErrorConfig> sortedConfigs = Stream.of(configs)
-                .sorted(Comparator.comparing(LogErrorConfig::getType))
+        final List<StructuredLog> filteredLogs = logs.stream()
+                .filter(log -> Arrays.stream(configs).allMatch(filter -> filter.filter(log)))
                 .toList();
-        for (final LogErrorConfig config : sortedConfigs) {
-            switch (config.getType()) {
-                case MAX_LEVEL -> {
-                    final List<StructuredLog> toRemove = logs.stream()
-                            .filter(Objects::nonNull)
-                            .filter(msg ->
-                                    msg.level().intLevel() >= config.getLevel().intLevel())
-                            .toList();
-                    logs.removeAll(toRemove);
-                }
-                case IGNORE_MARKER -> {
-                    final List<StructuredLog> toRemove = logs.stream()
-                            .filter(Objects::nonNull)
-                            .filter(log -> config.getIgnoredMarkers().contains(log.marker()))
-                            .toList();
-                    logs.removeAll(toRemove);
-                }
-                case IGNORE_NODE -> {
-                    final List<StructuredLog> toRemove = logs.stream()
-                            .filter(Objects::nonNull)
-                            .filter(log -> config.getIgnoreNodes().contains(log.nodeId()))
-                            .toList();
-                    logs.removeAll(toRemove);
-                }
-            }
-        }
-        if (!logs.isEmpty()) {
+
+        if (!filteredLogs.isEmpty()) {
             final StringBuilder errorMsg = new StringBuilder();
             errorMsg.append("\n****************\n");
             errorMsg.append(" ->  Log errors found:\n");
             errorMsg.append("****************\n");
-            logs.forEach(log -> errorMsg.append(log.toString()));
+            filteredLogs.forEach(log -> errorMsg.append(log.toString()));
             errorMsg.append("****************\n");
 
             fail(errorMsg.toString());

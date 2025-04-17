@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.internal.logging;
+package org.hiero.otter.fixtures.logging;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -9,6 +9,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 
 /**
  * A structured representation of a log event captured with the {@link InMemoryAppender}
