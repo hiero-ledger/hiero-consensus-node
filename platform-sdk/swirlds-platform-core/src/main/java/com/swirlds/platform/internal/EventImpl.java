@@ -511,6 +511,15 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the non-deterministic generation of this event
+     *
+     * @return the non-deterministic generation of this event
+     */
+    public long getNGen() {
+        return baseEvent.getNGen();
+    }
+
+    /**
      * Get the birth round of this event
      *
      * @return the birth round of this event
