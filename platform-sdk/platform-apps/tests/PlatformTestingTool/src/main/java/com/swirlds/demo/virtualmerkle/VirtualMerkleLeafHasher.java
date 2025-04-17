@@ -171,7 +171,7 @@ public class VirtualMerkleLeafHasher {
             try {
                 // AccountVirtualMapKey -> AccountVirtualMapValue
                 final VirtualMap accountsMap = new VirtualMap(CONFIGURATION);
-                accountsMap.loadFromFile(roundFolder.resolve(accountsName));
+                accountsMap.loadFromFile(roundFolder.resolve(accountsName), false);
                 final VirtualMerkleLeafHasher accountsHasher = new VirtualMerkleLeafHasher(accountsMap);
                 accountsHash = accountsHasher.validate();
             } catch (final IOException e) {
@@ -181,7 +181,7 @@ public class VirtualMerkleLeafHasher {
             try {
                 // SmartContractMapKey -> SmartContractMapValue
                 final VirtualMap scMap = new VirtualMap(CONFIGURATION);
-                scMap.loadFromFile(roundFolder.resolve(scName));
+                scMap.loadFromFile(roundFolder.resolve(scName), false);
                 final VirtualMerkleLeafHasher scHasher = new VirtualMerkleLeafHasher(scMap);
                 scHash = scHasher.validate();
             } catch (final IOException e) {
@@ -191,7 +191,7 @@ public class VirtualMerkleLeafHasher {
             try {
                 // SmartContractByteCodeMapKey -> SmartContractByteCodeMapValue
                 final VirtualMap byteCodeMap = new VirtualMap(CONFIGURATION);
-                byteCodeMap.loadFromFile(roundFolder.resolve(scByteCodeName));
+                byteCodeMap.loadFromFile(roundFolder.resolve(scByteCodeName), false);
                 final VirtualMerkleLeafHasher byteCodeHasher = new VirtualMerkleLeafHasher(byteCodeMap);
                 byteCodeHash = byteCodeHasher.validate();
             } catch (final IOException e) {

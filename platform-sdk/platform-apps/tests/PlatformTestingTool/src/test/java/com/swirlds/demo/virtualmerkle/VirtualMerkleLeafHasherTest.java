@@ -18,6 +18,7 @@ import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -61,27 +62,33 @@ class VirtualMerkleLeafHasherTest {
         Long keyInput = 1L;
         byte[] valueInput = "first".getBytes();
 
-        SmartContractByteCodeMapKey key = new SmartContractByteCodeMapKey(keyInput);
-        SmartContractByteCodeMapValue value = new SmartContractByteCodeMapValue(valueInput);
+        final SmartContractByteCodeMapKey key1 = new SmartContractByteCodeMapKey(keyInput);
+        final SmartContractByteCodeMapValue value1 = new SmartContractByteCodeMapValue(valueInput);
 
-        virtualMap.put(key.toBytes(), value, SmartContractByteCodeMapValueCodec.INSTANCE);
+        virtualMap.put(key1.toBytes(), value1, SmartContractByteCodeMapValueCodec.INSTANCE);
 
-        Hash before = computeNextHash(null, key.toBytes(), value.toBytes());
+        Hash virtualMapStateHash = computeVmStateHash(null, virtualMap);
+        Hash before = computeNextHash(virtualMapStateHash, key1.toBytes(), value1.toBytes());
 
         assertEquals(before, hasher.validate(), "Should have been equal");
 
         keyInput = 2L;
         valueInput = "second".getBytes();
 
-        key = new SmartContractByteCodeMapKey(keyInput);
-        value = new SmartContractByteCodeMapValue(valueInput);
+        final SmartContractByteCodeMapKey key2 = new SmartContractByteCodeMapKey(keyInput);
+        final SmartContractByteCodeMapValue value2 = new SmartContractByteCodeMapValue(valueInput);
 
-        virtualMap.put(key.toBytes(), value, SmartContractByteCodeMapValueCodec.INSTANCE);
+        virtualMap.put(key2.toBytes(), value2, SmartContractByteCodeMapValueCodec.INSTANCE);
 
         // include previous hash first
-        Hash after = computeNextHash(before, key.toBytes(), value.toBytes());
+        // include previous hash first
+        Hash hash = null;
 
-        assertEquals(after, hasher.validate(), "Should have been equal");
+        hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
+        hash = computeVmStateHash(hash, virtualMap);
+        hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
+
+        assertEquals(hash, hasher.validate(), "Should have been equal");
 
         virtualMap.release();
     }
@@ -116,6 +123,7 @@ class VirtualMerkleLeafHasherTest {
         // include previous hash first
         Hash hash = null;
 
+        hash = computeVmStateHash(hash, virtualMap);
         hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
         hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
         hash = computeNextHash(hash, key3.toBytes(), value3.toBytes());
@@ -163,31 +171,15 @@ class VirtualMerkleLeafHasherTest {
         Hash hash = null;
 
         // this is the order for the leafs from first to last
+        hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
         hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
         hash = computeNextHash(hash, key3.toBytes(), value3.toBytes());
-        hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
+        hash = computeVmStateHash(hash, virtualMap);
         hash = computeNextHash(hash, key4.toBytes(), value4.toBytes());
 
         assertEquals(hash, hasher.validate(), "Should have been equal");
 
         virtualMap.release();
-    }
-
-    private Hash computeNextHash(final Hash hash, final Long keyInput, final byte[] valueInput) throws IOException {
-        final ByteBuffer bb = ByteBuffer.allocate(10000);
-
-        if (hash != null) {
-            hash.getBytes().writeTo(bb);
-        }
-
-        // key serialization
-        bb.putLong(keyInput);
-
-        // value serialization
-        bb.putInt(valueInput.length);
-        bb.put(valueInput);
-
-        return hashOf(Arrays.copyOf(bb.array(), bb.position()));
     }
 
     private Hash computeNextHash(final Hash hash, final Bytes key, final Bytes value) throws IOException {
@@ -206,5 +198,10 @@ class VirtualMerkleLeafHasherTest {
         }
 
         return hashOf(Arrays.copyOf(bb.array(), bb.position()));
+    }
+
+    private Hash computeVmStateHash(Hash previousHash, VirtualMap virtualMap) throws IOException {
+        return computeNextHash(
+                previousHash, VirtualMapState.VM_STATE_KEY, virtualMap.getBytes(VirtualMapState.VM_STATE_KEY));
     }
 }

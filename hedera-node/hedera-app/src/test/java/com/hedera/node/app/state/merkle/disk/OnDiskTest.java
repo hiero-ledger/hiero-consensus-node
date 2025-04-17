@@ -86,7 +86,7 @@ class OnDiskTest extends MerkleTestBase {
         CRYPTO.digestTreeSync(map);
 
         // Flush to disk
-        final VirtualRootNode root = map.getChild(1);
+        final VirtualRootNode root = map.getChild(0);
         root.enableFlush();
         map.release();
         try {

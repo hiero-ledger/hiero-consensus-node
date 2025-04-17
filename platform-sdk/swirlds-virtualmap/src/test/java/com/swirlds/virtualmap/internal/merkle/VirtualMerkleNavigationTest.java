@@ -31,6 +31,7 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
     private VirtualInternalNode leftLeft;
     private VirtualInternalNode leftRight;
     private VirtualInternalNode rightLeft;
+    private VirtualInternalNode rightRight;
     private VirtualLeafNode a;
     private VirtualLeafNode b;
     private VirtualLeafNode c;
@@ -62,7 +63,7 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         vm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
         vm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        virtualRoot = vm.getChild(1);
+        virtualRoot = vm.getChild(0);
         assert virtualRoot != null;
 
         left = virtualRoot.getChild(0);
@@ -73,17 +74,18 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         leftLeft = left.getChild(0);
         leftRight = left.getChild(1);
         rightLeft = right.getChild(0);
+        rightRight = right.getChild(1);
         assert leftLeft != null;
         assert leftRight != null;
         assert rightLeft != null;
 
-        d = right.getChild(1);
-        a = leftLeft.getChild(0);
-        e = leftLeft.getChild(1);
-        c = leftRight.getChild(0);
-        f = leftRight.getChild(1);
-        b = rightLeft.getChild(0);
-        g = rightLeft.getChild(1);
+        d = leftLeft.getChild(1);
+        b = leftRight.getChild(0);
+        e = leftRight.getChild(1);
+        a = rightLeft.getChild(0);
+        f = rightLeft.getChild(1);
+        c = rightRight.getChild(0);
+        g = rightRight.getChild(1);
 
         treeRoot = new TestInternal("TreeRoot");
         tl = new TestInternal("InternalLeft");
@@ -149,19 +151,20 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         assertSame(vm, itr.next(), "Wrong value");
         assertSame(trll, itr.next(), "Wrong value");
         assertSame(trlr, itr.next(), "Wrong value");
-        itr.next(); // skip over the map metadata node
         assertEquals(virtualRoot, itr.next(), "Wrong value");
         assertEquals(left, itr.next(), "Wrong value");
         assertEquals(right, itr.next(), "Wrong value");
         assertEquals(leftLeft, itr.next(), "Wrong value");
         assertEquals(leftRight, itr.next(), "Wrong value");
         assertEquals(rightLeft, itr.next(), "Wrong value");
+        assertEquals(rightRight, itr.next(), "Wrong value");
+        itr.next(); // skip over the map metadata node
         assertEquals(d, itr.next(), "Wrong value");
-        assertEquals(a, itr.next(), "Wrong value");
-        assertEquals(e, itr.next(), "Wrong value");
-        assertEquals(c, itr.next(), "Wrong value");
-        assertEquals(f, itr.next(), "Wrong value");
         assertEquals(b, itr.next(), "Wrong value");
+        assertEquals(e, itr.next(), "Wrong value");
+        assertEquals(a, itr.next(), "Wrong value");
+        assertEquals(f, itr.next(), "Wrong value");
+        assertEquals(c, itr.next(), "Wrong value");
         assertEquals(g, itr.next(), "Wrong value");
         assertFalse(itr.hasNext(), "Expected iteration to have ended");
     }
@@ -176,17 +179,18 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         assertSame(tll, itr.next(), "Wrong value");
         assertSame(tlrl, itr.next(), "Wrong value");
         itr.next(); // skip over the map metadata node
-        assertEquals(a, itr.next(), "Wrong value");
-        assertEquals(e, itr.next(), "Wrong value");
+        assertEquals(d, itr.next(), "Wrong value");
         assertEquals(leftLeft, itr.next(), "Wrong value");
-        assertEquals(c, itr.next(), "Wrong value");
-        assertEquals(f, itr.next(), "Wrong value");
+        assertEquals(b, itr.next(), "Wrong value");
+        assertEquals(e, itr.next(), "Wrong value");
         assertEquals(leftRight, itr.next(), "Wrong value");
         assertEquals(left, itr.next(), "Wrong value");
-        assertEquals(b, itr.next(), "Wrong value");
-        assertEquals(g, itr.next(), "Wrong value");
+        assertEquals(a, itr.next(), "Wrong value");
+        assertEquals(f, itr.next(), "Wrong value");
         assertEquals(rightLeft, itr.next(), "Wrong value");
-        assertEquals(d, itr.next(), "Wrong value");
+        assertEquals(c, itr.next(), "Wrong value");
+        assertEquals(g, itr.next(), "Wrong value");
+        assertEquals(rightRight, itr.next(), "Wrong value");
         assertEquals(right, itr.next(), "Wrong value");
         assertEquals(virtualRoot, itr.next(), "Wrong value");
         assertSame(vm, itr.next(), "Wrong value");
@@ -212,7 +216,7 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
                         .extendRoute(0)
                         .extendRoute(1)
                         .extendRoute(1)
-                        .extendRoute(1)
+                        .extendRoute(0)
                         .extendRoute(0)
                         .extendRoute(1)
                         .extendRoute(0));
@@ -224,7 +228,7 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         assertEquals(virtualRoot, itr.next(), "Wrong value");
         assertEquals(left, itr.next(), "Wrong value");
         assertEquals(leftRight, itr.next(), "Wrong value");
-        assertEquals(c, itr.next(), "Wrong value");
+        assertEquals(b, itr.next(), "Wrong value");
         assertFalse(itr.hasNext(), "Expected iteration to have ended");
     }
 
@@ -239,12 +243,12 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
                         .extendRoute(0)
                         .extendRoute(1)
                         .extendRoute(1)
-                        .extendRoute(1)
+                        .extendRoute(0)
                         .extendRoute(0)
                         .extendRoute(1)
                         .extendRoute(0));
 
-        assertEquals(c, itr.next(), "Wrong value");
+        assertEquals(b, itr.next(), "Wrong value");
         assertEquals(leftRight, itr.next(), "Wrong value");
         assertEquals(left, itr.next(), "Wrong value");
         assertEquals(virtualRoot, itr.next(), "Wrong value");

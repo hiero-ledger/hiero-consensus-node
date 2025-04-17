@@ -79,7 +79,7 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
         }
 
         final long targetPath = node.getPath();
-        // 0 is VirtualMapState and 1 is the root of the VirtualTree
+        // 0 (left) is the root of the VirtualTree
         final List<Integer> routePath = Path.getRouteStepsFromRoot(targetPath);
         final MerkleRoute nodeRoute = this.root.getRoute().extendRoute(routePath);
         node.setRoute(nodeRoute);

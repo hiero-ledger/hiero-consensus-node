@@ -108,6 +108,7 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(firstRound)
                 .setSignatures(signatures)
+                .setCalculateHash(true)
                 .build();
         stateFromDisk.getState().setHash(stateHash);
 
@@ -125,6 +126,7 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setRoster(roster)
                     .setRound(round)
+                    .setCalculateHash(true)
                     .setSignatures(new HashMap<>())
                     .build();
 
