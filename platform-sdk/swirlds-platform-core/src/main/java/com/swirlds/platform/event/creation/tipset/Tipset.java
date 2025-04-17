@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.tipset;
 
+import static org.hiero.consensus.model.event.EventConstants.GENERATION_UNDEFINED;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.platform.roster.RosterUtils;
@@ -8,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -23,12 +26,6 @@ public class Tipset {
     private final long[] tips;
 
     /**
-     * The value used to represent an undefined tip generation, either because the node ID is not in the address book or
-     * because there is no known event for the node ID in this event's ancestry.
-     */
-    public static final long UNDEFINED = -1L;
-
-    /**
      * Create an empty tipset.
      *
      * @param roster the current address book
@@ -38,11 +35,12 @@ public class Tipset {
         tips = new long[roster.rosterEntries().size()];
 
         // Necessary because we currently start at generation 0, not generation 1.
-        Arrays.fill(tips, UNDEFINED);
+        Arrays.fill(tips, GENERATION_UNDEFINED);
     }
 
     /**
-     * Build an empty tipset (i.e. where all generations are {@link #UNDEFINED}) using another tipset as a template.
+     * Build an empty tipset (i.e. where all generations are {@link EventConstants#GENERATION_UNDEFINED}) using another
+     * tipset as a template.
      *
      * @param tipset the tipset to use as a template
      * @return a new empty tipset
@@ -73,7 +71,7 @@ public class Tipset {
         final Tipset newTipset = buildEmptyTipset(tipsets.get(0));
 
         for (int index = 0; index < length; index++) {
-            long max = UNDEFINED;
+            long max = GENERATION_UNDEFINED;
             for (final Tipset tipSet : tipsets) {
                 max = Math.max(max, tipSet.tips[index]);
             }
@@ -84,7 +82,8 @@ public class Tipset {
     }
 
     /**
-     * Get the tip generation for a given node
+     * Get the tip generation for a given node. If the node is not in the roster or no event from that node is know,
+     * return {@link EventConstants#GENERATION_UNDEFINED}.
      *
      * @param nodeId the node in question
      * @return the tip generation for the node
@@ -92,7 +91,7 @@ public class Tipset {
     public long getTipGenerationForNode(@NonNull final NodeId nodeId) {
         final int index = RosterUtils.getIndex(roster, nodeId.id());
         if (index == -1) {
-            return UNDEFINED;
+            return GENERATION_UNDEFINED;
         }
         return tips[index];
     }
@@ -153,7 +152,6 @@ public class Tipset {
 
             if (this.tips[index] < that.tips[index]) {
                 final RosterEntry address = roster.rosterEntries().get(index);
-                final NodeId nodeId = NodeId.of(address.nodeId());
 
                 if (address.weight() == 0) {
                     zeroWeightCount += 1;

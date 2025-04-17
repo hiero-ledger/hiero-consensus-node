@@ -2,9 +2,9 @@
 package com.swirlds.common.stream.internal;
 
 import java.util.Objects;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHashable;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHashable;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * This abstract class implements boiler plate functionality for a {@link LinkedObjectStream}.

@@ -10,9 +10,9 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 public class DummyMerkleLeaf extends PartialMerkleLeaf implements DummyMerkleNode, MerkleLeaf {
 

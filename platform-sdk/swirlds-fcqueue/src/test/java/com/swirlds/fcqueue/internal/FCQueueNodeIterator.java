@@ -6,7 +6,7 @@ import com.swirlds.fcqueue.SlowMockFCQueue;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * An iterator for FCQueue, starts at the head of the given queue, ends at the tail of the given queue

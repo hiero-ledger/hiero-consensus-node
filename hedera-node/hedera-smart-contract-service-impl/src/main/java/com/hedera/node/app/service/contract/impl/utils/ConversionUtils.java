@@ -276,7 +276,7 @@ public class ConversionUtils {
     }
 
     /**
-     * Wraps the first 32 bytes of the given SHA-384 {@link org.hiero.consensus.model.crypto.Hash hash} in a Besu {@link Hash}.
+     * Wraps the first 32 bytes of the given SHA-384 {@link org.hiero.base.crypto.Hash hash} in a Besu {@link Hash}.
      *
      * @param sha384Hash the SHA-384 hash
      * @return the first 32 bytes as a Besu {@link Hash}

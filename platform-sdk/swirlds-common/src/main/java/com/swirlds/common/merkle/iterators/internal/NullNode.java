@@ -5,9 +5,9 @@ import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import java.io.IOException;
 import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * This object is used by {@link com.swirlds.common.merkle.iterators.MerkleIterator MerkleIterator}

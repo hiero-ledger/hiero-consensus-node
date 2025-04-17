@@ -15,7 +15,6 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.consensus.ConsensusConfig;
@@ -37,7 +36,8 @@ import java.util.Objects;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;

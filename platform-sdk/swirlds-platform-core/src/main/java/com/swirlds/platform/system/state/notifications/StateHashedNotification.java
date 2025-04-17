@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.notification.AbstractNotification;
 import org.hiero.consensus.model.notification.Notification;
 

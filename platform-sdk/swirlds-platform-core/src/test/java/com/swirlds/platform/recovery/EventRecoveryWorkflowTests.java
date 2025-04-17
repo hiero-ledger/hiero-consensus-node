@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomPositiveLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,9 +31,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHash;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;

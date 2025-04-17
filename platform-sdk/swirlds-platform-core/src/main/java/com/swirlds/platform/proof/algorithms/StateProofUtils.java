@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.algorithms;
 
-import static org.hiero.consensus.model.crypto.DigestType.SHA_384;
+import static org.hiero.base.crypto.DigestType.SHA_384;
 
 import com.swirlds.platform.proof.SignatureVerifier;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;

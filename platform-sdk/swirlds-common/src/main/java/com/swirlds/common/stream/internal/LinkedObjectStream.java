@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream.internal;
 
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHashable;
 
 /**
  * A LinkedObjectStream maintains a stream of objects that are linked by a RunningHash.

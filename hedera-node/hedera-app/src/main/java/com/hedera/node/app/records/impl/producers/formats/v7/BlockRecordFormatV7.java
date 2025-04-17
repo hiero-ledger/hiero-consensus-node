@@ -25,7 +25,7 @@ import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * This is a prototype for a RecordFileWriter for a cleaned up version of V6 format, going to true protobuf and

@@ -28,7 +28,6 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.HashingOutputStream;
 import com.swirlds.common.stream.Signer;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,7 +47,8 @@ import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
 
 /**
  * An incremental file-based {@link BlockRecordWriter} that writes a single {@link RecordStreamItem} at a time. It also

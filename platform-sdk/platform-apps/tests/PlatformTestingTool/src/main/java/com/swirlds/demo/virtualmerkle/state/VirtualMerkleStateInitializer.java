@@ -32,7 +32,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * This is a helper class to initialize the part of the state that corresponds to virtual map tests.

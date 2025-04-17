@@ -2,7 +2,6 @@
 package com.swirlds.platform.state.signed;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.Signature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -12,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.crypto.Signature;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;

@@ -12,9 +12,9 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A record that contains a path and a hash. It serves for both node types, internal and leaf.

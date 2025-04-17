@@ -28,7 +28,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import java.time.Duration;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;

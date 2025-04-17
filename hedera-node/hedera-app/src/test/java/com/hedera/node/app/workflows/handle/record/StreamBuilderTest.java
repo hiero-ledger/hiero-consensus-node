@@ -41,7 +41,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.AbstractMap;
 import java.util.List;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;

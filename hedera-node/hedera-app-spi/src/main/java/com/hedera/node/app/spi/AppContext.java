@@ -12,7 +12,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.throttle.Throttle;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -31,6 +30,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Signature;
 
 /**
  * Gives context to {@link Service} implementations on how the application workflows will do

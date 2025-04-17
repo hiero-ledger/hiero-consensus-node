@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.tipset;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -24,7 +24,7 @@ class TipsetTests {
 
     private static void validateTipset(final Tipset tipset, final Map<NodeId, Long> expectedTipGenerations) {
         for (final NodeId nodeId : expectedTipGenerations.keySet()) {
-            assertEquals(expectedTipGenerations.get(nodeId), tipset.getTipGenerationForNode(nodeId));
+            assertThat(tipset.getTipGenerationForNode(nodeId)).isEqualTo(expectedTipGenerations.get(nodeId));
         }
     }
 
@@ -39,12 +39,12 @@ class TipsetTests {
                 RandomRosterBuilder.create(random).withSize(nodeCount).build();
 
         final Tipset tipset = new Tipset(roster);
-        assertEquals(nodeCount, tipset.size());
+        assertThat(tipset.size()).isEqualTo(nodeCount);
 
         final Map<NodeId, Long> expected = new HashMap<>();
 
         for (int iteration = 0; iteration < 10; iteration++) {
-            for (int creator = 0; creator < 100; creator++) {
+            for (int creator = 0; creator < nodeCount; creator++) {
                 final NodeId creatorId =
                         NodeId.of(roster.rosterEntries().get(creator).nodeId());
                 final long generation = random.nextLong(1, 100);
@@ -112,13 +112,12 @@ class TipsetTests {
 
         // Merging the tipset with itself will result in a copy
         final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset));
-        assertEquals(initialTipset.size(), comparisonTipset.size());
+        assertThat(comparisonTipset.size()).isEqualTo(initialTipset.size());
         for (int creator = 0; creator < 100; creator++) {
             final NodeId creatorId =
                     NodeId.of(roster.rosterEntries().get(creator).nodeId());
-            assertEquals(
-                    initialTipset.getTipGenerationForNode(creatorId),
-                    comparisonTipset.getTipGenerationForNode(creatorId));
+            assertThat(comparisonTipset.getTipGenerationForNode(creatorId))
+                    .isEqualTo(initialTipset.getTipGenerationForNode(creatorId));
         }
 
         // Cause the comparison tipset to advance in a random way
@@ -142,9 +141,8 @@ class TipsetTests {
                 expectedAdvancementCount++;
             }
         }
-        assertEquals(
-                TipsetAdvancementWeight.of(expectedAdvancementCount, 0),
-                initialTipset.getTipAdvancementWeight(selfId, comparisonTipset));
+        assertThat(initialTipset.getTipAdvancementWeight(selfId, comparisonTipset))
+                .isEqualTo(TipsetAdvancementWeight.of(expectedAdvancementCount, 0));
     }
 
     @Test
@@ -174,19 +172,17 @@ class TipsetTests {
 
         // Merging the tipset with itself will result in a copy
         final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset));
-        assertEquals(initialTipset.size(), comparisonTipset.size());
+        assertThat(comparisonTipset.size()).isEqualTo(initialTipset.size());
         for (int creator = 0; creator < 100; creator++) {
             final NodeId creatorId =
                     NodeId.of(roster.rosterEntries().get(creator).nodeId());
-            assertEquals(
-                    initialTipset.getTipGenerationForNode(creatorId),
-                    comparisonTipset.getTipGenerationForNode(creatorId));
+            assertThat(comparisonTipset.getTipGenerationForNode(creatorId))
+                    .isEqualTo(initialTipset.getTipGenerationForNode(creatorId));
         }
 
         // Cause the comparison tipset to advance in a random way
         for (final RosterEntry address : roster.rosterEntries()) {
             final long generation = random.nextLong(1, 100);
-
             comparisonTipset.advance(NodeId.of(address.nodeId()), generation);
         }
 
@@ -202,8 +198,7 @@ class TipsetTests {
             }
         }
 
-        assertEquals(
-                TipsetAdvancementWeight.of(expectedAdvancementCount, 0),
-                initialTipset.getTipAdvancementWeight(selfId, comparisonTipset));
+        assertThat(initialTipset.getTipAdvancementWeight(selfId, comparisonTipset))
+                .isEqualTo(TipsetAdvancementWeight.of(expectedAdvancementCount, 0));
     }
 }

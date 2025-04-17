@@ -15,7 +15,6 @@ import java.time.Duration;
  * @param orphanBuffer                         configuration for the orphan buffer scheduler
  * @param consensusEngine                      configuration for the consensus engine scheduler
  * @param eventCreationManager                 configuration for the event creation manager scheduler
- * @param selfEventSigner                      configuration for the self event signer scheduler
  * @param stateSigner                          configuration for the state signer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param applicationTransactionPrehandler     configuration for the application transaction prehandler scheduler
@@ -60,7 +59,6 @@ public record PlatformSchedulersConfig(
                 TaskSchedulerConfiguration consensusEngine,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration eventCreationManager,
-        @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration selfEventSigner,
         @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration stateSnapshotManager,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")

@@ -18,7 +18,7 @@ public class CesEventTest {
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.platform");
+        registry.registerConstructables("org.hiero.consensus");
     }
 
     @Test

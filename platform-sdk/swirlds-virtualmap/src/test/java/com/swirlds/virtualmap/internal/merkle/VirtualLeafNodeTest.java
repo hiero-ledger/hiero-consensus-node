@@ -13,7 +13,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.stream.StreamFileSigner;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
 import com.swirlds.common.test.fixtures.stream.TestStreamType;
@@ -35,7 +34,8 @@ import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -69,7 +69,7 @@ class StreamObjectTest {
     static void setUp() throws ConstructableRegistryException, IOException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero.consensus");
+        registry.registerConstructables("org.hiero.base");
     }
 
     static void clearDir() throws IOException {

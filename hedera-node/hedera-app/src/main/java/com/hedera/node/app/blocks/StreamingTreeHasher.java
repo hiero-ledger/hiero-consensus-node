@@ -6,7 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Defines a streaming hash computation for a perfect binary Merkle tree of {@link Bytes} leaves; where the leaves

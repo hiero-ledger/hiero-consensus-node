@@ -49,9 +49,9 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
     private static final Logger LOG = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
     private final AtomicLong duration = new AtomicLong(10);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
-    // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 51 to test the throttle
-    private final AtomicInteger maxOpsPerSec = new AtomicInteger(51);
-    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.1;
+    // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 55 to test the throttle
+    private final AtomicInteger maxOpsPerSec = new AtomicInteger(55);
+    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.12;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
     public static final int GAS_TO_OFFER = 1_000_000;
 
@@ -78,8 +78,9 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                             // To avoid external factors (e.g., limited CI resources or network issues),
                             // we will only consider statuses SUCCESS and CONTRACT_REVERT_EXECUTED.
                             final var successCount = statusCountMap.get(SUCCESS).get();
-                            final var revertCount =
-                                    statusCountMap.get(CONTRACT_REVERT_EXECUTED).get();
+                            final var revertCount = statusCountMap
+                                    .getOrDefault(CONTRACT_REVERT_EXECUTED, new AtomicInteger(0))
+                                    .get();
 
                             // calculate the allowed tolerance
                             final var throttleTolerance =

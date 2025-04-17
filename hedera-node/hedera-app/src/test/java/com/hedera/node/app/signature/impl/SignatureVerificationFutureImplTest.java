@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
-import static com.swirlds.common.crypto.VerificationStatus.INVALID;
-import static com.swirlds.common.crypto.VerificationStatus.VALID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.base.crypto.VerificationStatus.INVALID;
+import static org.hiero.base.crypto.VerificationStatus.VALID;
 import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.crypto.VerificationStatus;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.crypto.TransactionSignature;
+import org.hiero.base.crypto.VerificationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

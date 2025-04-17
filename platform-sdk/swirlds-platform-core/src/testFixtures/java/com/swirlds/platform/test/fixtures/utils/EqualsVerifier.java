@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.random.RandomGenerator;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 
 public final class EqualsVerifier {
 

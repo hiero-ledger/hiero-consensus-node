@@ -21,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -156,7 +157,7 @@ public class TipsetWeightCalculator {
      * Whenever the total advancement weight of a new event exceeds the threshold (2/3 minus self weight), the snapshot
      * is set to be equal to this event's tipset.
      *
-     * @param event the event that is being added
+     * @param event the self event that is being added
      * @return the change in this event's tipset advancement weight compared to the tipset advancement weight of the
      * previous event passed to this method
      */
@@ -252,8 +253,8 @@ public class TipsetWeightCalculator {
      */
     public int getMaxSelfishnessScore() {
         int selfishness = 0;
-        for (final EventDescriptorWrapper eventDescriptorWrapper : childlessEventTracker.getChildlessEvents()) {
-            selfishness = Math.max(selfishness, getSelfishnessScoreForNode(eventDescriptorWrapper.creator()));
+        for (final PlatformEvent event : childlessEventTracker.getChildlessEvents()) {
+            selfishness = Math.max(selfishness, getSelfishnessScoreForNode(event.getCreatorId()));
         }
         return selfishness;
     }

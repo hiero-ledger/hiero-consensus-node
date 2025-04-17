@@ -8,8 +8,8 @@ import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Provides access to all records.

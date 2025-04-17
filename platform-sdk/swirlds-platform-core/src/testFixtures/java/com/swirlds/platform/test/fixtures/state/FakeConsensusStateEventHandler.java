@@ -51,7 +51,7 @@ import java.util.function.Consumer;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;

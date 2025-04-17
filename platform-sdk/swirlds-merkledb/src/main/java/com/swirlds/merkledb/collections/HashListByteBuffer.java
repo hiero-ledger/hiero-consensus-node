@@ -24,7 +24,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * An implementation of {@link HashList} which makes use of an expanding, dynamic list of {@link ByteBuffer}s

@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.swirlds.common.jackson.HashDeserializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.URL;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A location where a recovery package can be downloaded from

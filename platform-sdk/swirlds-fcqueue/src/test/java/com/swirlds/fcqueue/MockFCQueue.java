@@ -13,8 +13,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * A thread-safe fast-copyable queue, each of whose elements is fast-copyable. Elements must always be inserted at the

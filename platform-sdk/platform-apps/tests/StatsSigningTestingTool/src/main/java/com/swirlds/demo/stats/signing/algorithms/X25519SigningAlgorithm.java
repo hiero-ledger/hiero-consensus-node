@@ -8,11 +8,11 @@ import static org.hiero.base.utility.CommonUtils.hex;
 import com.goterl.lazysodium.LazySodiumJava;
 import com.goterl.lazysodium.SodiumJava;
 import com.goterl.lazysodium.interfaces.Sign;
-import com.swirlds.common.crypto.SignatureType;
 import java.security.SignatureException;
 import java.util.Arrays;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.SignatureType;
 
 /**
  * Implements the {@code ED22519} elliptical curve digital signature algorithm.

@@ -3,12 +3,12 @@ package com.hedera.node.app.service.token.impl.test.keys;
 
 import com.google.protobuf.ByteString;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.crypto.SignatureType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.hiero.base.crypto.SignatureType;
 
 public class KeyTreeLeaf implements KeyTreeNode {
     private String label;

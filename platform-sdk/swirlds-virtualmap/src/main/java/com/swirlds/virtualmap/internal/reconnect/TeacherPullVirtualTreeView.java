@@ -26,8 +26,8 @@ import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.

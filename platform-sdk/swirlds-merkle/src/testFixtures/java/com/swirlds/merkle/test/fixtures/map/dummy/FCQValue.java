@@ -14,7 +14,7 @@ import com.swirlds.merkle.test.fixtures.map.pta.TransactionRecord;
 import com.swirlds.merkle.test.fixtures.map.util.MerkleMapTestUtil;
 import java.util.Iterator;
 import java.util.Objects;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * MapValue with a {@link FCQueue}

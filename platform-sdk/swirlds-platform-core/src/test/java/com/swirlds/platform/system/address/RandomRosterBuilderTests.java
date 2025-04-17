@@ -17,6 +17,7 @@ import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
+import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
@@ -92,7 +93,7 @@ class RandomRosterBuilderTests {
 
             final byte[] dataArray = randotron.nextByteArray(64);
             final Bytes dataBytes = Bytes.wrap(dataArray);
-            final com.swirlds.common.crypto.Signature signature = new PlatformSigner(privateKeys).sign(dataArray);
+            final Signature signature = new PlatformSigner(privateKeys).sign(dataArray);
 
             assertTrue(CryptoStatic.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
 

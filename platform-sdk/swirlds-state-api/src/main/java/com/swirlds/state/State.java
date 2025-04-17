@@ -15,8 +15,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.LongSupplier;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * The full state used of the app. The primary implementation is based on a merkle tree, and the data

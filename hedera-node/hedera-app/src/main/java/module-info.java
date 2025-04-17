@@ -24,6 +24,7 @@ module com.hedera.node.app {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive dagger;

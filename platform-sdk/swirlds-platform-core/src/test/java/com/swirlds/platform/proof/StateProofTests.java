@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.buildLessSimpleTree;
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.buildLessSimpleTreeExtended;
 import static com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils.buildSizeOneTree;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.STRONG_MINORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,9 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.interfaces.MerkleType;
@@ -43,9 +40,12 @@ import java.util.Random;
 import java.util.TreeMap;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

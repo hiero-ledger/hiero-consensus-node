@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.utility;
 
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * <p>

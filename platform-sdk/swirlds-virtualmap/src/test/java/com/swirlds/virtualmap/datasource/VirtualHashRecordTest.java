@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
 import java.nio.charset.StandardCharsets;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

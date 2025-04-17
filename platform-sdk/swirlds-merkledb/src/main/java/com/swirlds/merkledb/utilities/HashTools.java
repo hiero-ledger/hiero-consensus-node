@@ -2,8 +2,8 @@
 package com.swirlds.merkledb.utilities;
 
 import java.nio.ByteBuffer;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Some helpers for dealing with hashes.

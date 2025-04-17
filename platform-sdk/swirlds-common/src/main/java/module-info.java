@@ -5,8 +5,6 @@ module com.swirlds.common {
     exports com.swirlds.common;
     exports com.swirlds.common.config;
     exports com.swirlds.common.context;
-    exports com.swirlds.common.crypto;
-    exports com.swirlds.common.crypto.config;
     exports com.swirlds.common.formatting;
     exports com.swirlds.common.io;
     exports com.swirlds.common.io.config;
@@ -54,19 +52,9 @@ module com.swirlds.common {
     exports com.swirlds.common.units;
 
     /* Targeted exports */
-    exports com.swirlds.common.crypto.internal to
-            com.swirlds.platform.core,
-            com.swirlds.common.test.fixtures,
-            com.swirlds.common.testing,
-            com.swirlds.platform.core.test.fixtures;
     exports com.swirlds.common.notification.internal to
             com.swirlds.common.testing;
-    exports com.swirlds.common.crypto.engine to
-            com.swirlds.common.testing,
-            com.swirlds.common.test.fixtures;
 
-    opens com.swirlds.common.crypto to
-            com.fasterxml.jackson.databind;
     opens com.swirlds.common.merkle.utility to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.utility to
@@ -121,27 +109,25 @@ module com.swirlds.common {
     exports com.swirlds.common.startup;
     exports com.swirlds.common.merkle.synchronization.stats;
 
-    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
-    requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
     requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
     requires transitive io.prometheus.simpleclient;
-    requires transitive lazysodium.java;
     requires transitive org.apache.logging.log4j;
-    requires com.sun.jna;
+    requires com.hedera.pbj.runtime;
+    requires com.swirlds.logging;
     requires io.prometheus.simpleclient.httpserver;
     requires java.desktop;
     requires jdk.httpserver;
     requires jdk.management;
     requires org.apache.logging.log4j.core;
     requires org.bouncycastle.provider;
-    requires org.hyperledger.besu.nativelib.secp256k1;
     requires static transitive com.github.spotbugs.annotations;
 }

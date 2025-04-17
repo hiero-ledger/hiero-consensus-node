@@ -23,8 +23,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 

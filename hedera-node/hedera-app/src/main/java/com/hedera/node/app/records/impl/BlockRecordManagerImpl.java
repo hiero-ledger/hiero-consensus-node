@@ -32,8 +32,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 
 /**
  * An implementation of {@link BlockRecordManager} primarily responsible for managing state ({@link RunningHashes} and

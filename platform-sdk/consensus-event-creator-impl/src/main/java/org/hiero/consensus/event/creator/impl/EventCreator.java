@@ -4,7 +4,6 @@ package org.hiero.consensus.event.creator.impl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
@@ -33,7 +32,7 @@ public interface EventCreator {
      * @return the new event, or null if it is not legal to create a new event
      */
     @Nullable
-    UnsignedEvent maybeCreateEvent();
+    PlatformEvent maybeCreateEvent();
 
     /**
      * Reset the event creator to its initial state.

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.CommonUtils.fromPbjTimestamp;
 import static org.hiero.base.utility.CommonUtils.toPbjTimestamp;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;

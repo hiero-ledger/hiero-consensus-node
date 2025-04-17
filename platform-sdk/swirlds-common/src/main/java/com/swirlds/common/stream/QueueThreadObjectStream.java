@@ -8,8 +8,8 @@ import com.swirlds.common.threading.framework.QueueThread;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHashable;
 
 /**
  * An object stream that takes all of its items and puts them into another object stream in an asynchronous thread.

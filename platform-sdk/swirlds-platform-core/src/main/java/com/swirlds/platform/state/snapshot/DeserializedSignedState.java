@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.snapshot;
 
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This record encapsulates the data read from a new signed state.

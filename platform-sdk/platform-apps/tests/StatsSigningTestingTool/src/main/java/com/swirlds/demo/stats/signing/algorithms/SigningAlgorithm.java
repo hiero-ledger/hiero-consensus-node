@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stats.signing.algorithms;
 
-import com.swirlds.common.crypto.SignatureType;
 import java.security.SignatureException;
+import org.hiero.base.crypto.SignatureType;
 
 /**
  * Defines the interface to which all signature producers must adhere.

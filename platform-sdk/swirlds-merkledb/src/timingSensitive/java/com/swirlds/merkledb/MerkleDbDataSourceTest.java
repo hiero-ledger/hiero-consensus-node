@@ -50,7 +50,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.eclipse.collections.impl.list.mutable.primitive.IntArrayList;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;

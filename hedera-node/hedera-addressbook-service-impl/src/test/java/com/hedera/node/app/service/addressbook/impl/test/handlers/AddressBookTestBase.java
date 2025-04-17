@@ -291,7 +291,8 @@ public class AddressBookTestBase {
                 0,
                 deleted,
                 key,
-                false);
+                false,
+                null);
     }
 
     protected void givenValidNodeWithAdminKey(Key adminKey) {
@@ -306,7 +307,8 @@ public class AddressBookTestBase {
                 0,
                 false,
                 adminKey,
-                false);
+                false,
+                null);
     }
 
     protected Node createNode() {

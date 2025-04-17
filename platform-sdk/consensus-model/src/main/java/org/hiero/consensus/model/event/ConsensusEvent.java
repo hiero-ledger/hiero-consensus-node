@@ -3,7 +3,7 @@ package org.hiero.consensus.model.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ReachedConsensus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 

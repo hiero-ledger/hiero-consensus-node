@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
-import com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
@@ -17,6 +16,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.util.Random;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

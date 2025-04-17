@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHashBytes;
 import static java.util.Arrays.asList;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 

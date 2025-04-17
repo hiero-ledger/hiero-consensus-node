@@ -7,7 +7,7 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.merkle.test.fixtures.map.pta.MapValue;
 import java.io.Serializable;
 import java.util.Objects;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Value stored in the ExpectedMap with corresponding MapKey

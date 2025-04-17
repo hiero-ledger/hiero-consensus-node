@@ -7,7 +7,6 @@ import static com.swirlds.virtualmap.internal.Path.getChildPath;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
@@ -37,8 +36,9 @@ import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * An implementation of {@link LearnerTreeView} for the virtual merkle. The learner during reconnect

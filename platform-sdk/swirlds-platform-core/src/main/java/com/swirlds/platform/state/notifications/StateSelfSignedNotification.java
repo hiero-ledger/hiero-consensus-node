@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.notifications;
 
-import com.swirlds.common.crypto.Signature;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.AbstractNotification;
 import org.hiero.consensus.model.notification.Notification;

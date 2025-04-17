@@ -18,7 +18,7 @@ import com.swirlds.merkle.tree.internal.BitUtil;
 import java.util.Iterator;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * A merkle data structure that implements a balanced binary tree. Utilizes

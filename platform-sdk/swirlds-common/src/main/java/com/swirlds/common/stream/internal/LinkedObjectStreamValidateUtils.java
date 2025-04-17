@@ -7,10 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.logging.legacy.payload.StreamParseErrorPayload;
@@ -25,8 +21,12 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Utilities methods for validating stream files and stream signature files

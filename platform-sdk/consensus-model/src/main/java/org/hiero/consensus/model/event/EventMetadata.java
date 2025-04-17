@@ -12,8 +12,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.crypto.AbstractHashable;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.AbstractHashable;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
@@ -69,12 +69,12 @@ public class EventMetadata extends AbstractHashable {
     /**
      * Create a EventMetadata object
      *
-     * @param creatorId       ID of this event's creator
-     * @param selfParent      self parent event descriptor
-     * @param otherParents    other parent event descriptors
-     * @param timeCreated     creation time, as claimed by its creator
-     * @param transactions    list of transactions included in this event instance
-     * @param birthRound      birth round associated with event
+     * @param creatorId    ID of this event's creator
+     * @param selfParent   self parent event descriptor
+     * @param otherParents other parent event descriptors
+     * @param timeCreated  creation time, as claimed by its creator
+     * @param transactions list of transactions included in this event instance
+     * @param birthRound   birth round associated with event
      */
     public EventMetadata(
             @NonNull final NodeId creatorId,
@@ -102,7 +102,7 @@ public class EventMetadata extends AbstractHashable {
     /**
      * Create a EventMetadata object
      *
-     * @param gossipEvent     the gossip event to extract metadata from
+     * @param gossipEvent the gossip event to extract metadata from
      */
     public EventMetadata(@NonNull final GossipEvent gossipEvent) {
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
@@ -193,7 +193,7 @@ public class EventMetadata extends AbstractHashable {
      *
      * @return true if the event has other parents
      */
-    public boolean hasOtherParent() {
+    public boolean hasOtherParents() {
         return otherParents != null && !otherParents.isEmpty();
     }
 
@@ -242,11 +242,11 @@ public class EventMetadata extends AbstractHashable {
     }
 
     /**
-     * Override the birth round for this event and potentially any parents associated with the event. Parents will
-     * have their birth round overridden if their  generation is greater or equal to the specified
+     * Override the birth round for this event and potentially any parents associated with the event. Parents will have
+     * their birth round overridden if their  generation is greater or equal to the specified
      * {@code ancientGenerationThreshold} value.
      *
-     * @param birthRound the birth round to use for this event and potential parents
+     * @param birthRound                 the birth round to use for this event and potential parents
      * @param ancientGenerationThreshold the threshold used to determine if parents will also have their birth round
      *                                   overridden
      */

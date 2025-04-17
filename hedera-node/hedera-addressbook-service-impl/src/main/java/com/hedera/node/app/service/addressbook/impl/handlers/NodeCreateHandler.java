@@ -94,6 +94,9 @@ public class NodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
+        if (op.grpcProxyEndpoint() != null) {
+            addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+        }
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
         final var nodeBuilder = new Node.Builder()
@@ -101,6 +104,7 @@ public class NodeCreateHandler implements TransactionHandler {
                 .description(op.description())
                 .gossipEndpoint(op.gossipEndpoint())
                 .serviceEndpoint(op.serviceEndpoint())
+                .grpcProxyEndpoint(op.grpcProxyEndpoint())
                 .gossipCaCertificate(op.gossipCaCertificate())
                 .grpcCertificateHash(op.grpcCertificateHash())
                 .declineReward(op.declineReward())

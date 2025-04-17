@@ -14,16 +14,16 @@ import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.crypto.TransactionSignature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
 
 /**
  * A concrete implementation of {@link SignatureVerifier} that uses the {@link Cryptography} engine to verify the

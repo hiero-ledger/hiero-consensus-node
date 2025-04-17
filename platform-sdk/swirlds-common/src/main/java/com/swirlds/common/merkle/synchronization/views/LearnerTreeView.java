@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
@@ -13,9 +12,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
