@@ -111,6 +111,24 @@ class ConfigApiTests {
     }
 
     @Test
+    void checkOverwriteConverter() {
+        // given
+        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create();
+        configurationBuilder.withSource(new SimpleConfigSource("TEST", "123"));
+
+
+        // when
+        configurationBuilder.withConverter(Duration.class, value -> Duration.ofSeconds(1));
+        final Configuration configuration = configurationBuilder.build();
+
+        // then
+        assertEquals(Duration.ofSeconds(1), configuration.getValue("TEST", Duration.class), "The defined converter should be used");
+    }
+
+
+
+
+    @Test
     void readStringProperty() {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
