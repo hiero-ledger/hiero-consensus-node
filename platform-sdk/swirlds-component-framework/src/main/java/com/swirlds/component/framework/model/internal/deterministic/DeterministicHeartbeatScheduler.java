@@ -35,8 +35,8 @@ public class DeterministicHeartbeatScheduler extends AbstractHeartbeatScheduler 
      * Constructor.
      *
      * @param model the wiring model containing this heartbeat scheduler
-     * @param time  provides wall clock time
-     * @param name  the name of the heartbeat scheduler
+     * @param time provides wall clock time
+     * @param name the name of the heartbeat scheduler
      */
     public DeterministicHeartbeatScheduler(
             @NonNull final TraceableWiringModel model, @NonNull final Time time, @NonNull final String name) {
@@ -48,8 +48,7 @@ public class DeterministicHeartbeatScheduler extends AbstractHeartbeatScheduler 
      */
     public void tick() {
         if (!started) {
-            return;
-            //            throw new IllegalStateException("Cannot tick the heartbeat before it has started");
+            throw new IllegalStateException("Cannot tick the heartbeat before it has started");
         }
 
         final Instant currentTime = time.now();
