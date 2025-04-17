@@ -407,7 +407,7 @@ public class EthereumSuite {
                     final var subop5 = getAccountBalance(RELAYER)
                             .hasTinyBars(changeFromSnapshot(
                                     payerBalance,
-                                    success ? -(wholeTransactionFee - senderCharged) : -ETH_TXN_FAILURE_FEE));
+                                    success ? -(wholeTransactionFee - senderCharged) : -wholeTransactionFee));
                     allRunFor(spec, subop4, subop5);
                 })));
     }
@@ -519,10 +519,11 @@ public class EthereumSuite {
                                     .ethereumHash(
                                             ByteString.copyFrom(spec.registry().getBytes(ETH_HASH_KEY))));
                     allRunFor(spec, payTxn);
+                    final var fee = payTxn.getResponseRecord().getTransactionFee();
                     // The relayer account is charged on error for 0.0001$ - 83_333 tinybars with the testing exchange
                     // rate conversion
-                    final var relayerBalance = getAccountBalance(RELAYER)
-                            .hasTinyBars(changeFromSnapshot(relayerSnapshot, -ETH_TXN_FAILURE_FEE));
+                    final var relayerBalance =
+                            getAccountBalance(RELAYER).hasTinyBars(changeFromSnapshot(relayerSnapshot, -fee));
                     final var senderBalance = getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
                             .hasTinyBars(unchangedFromSnapshot(senderSnapshot));
                     allRunFor(spec, relayerBalance, senderBalance);
@@ -539,7 +540,7 @@ public class EthereumSuite {
                         .fee(810000000L)
                         .maxGasAllowance(0L)
                         .nonce(999L)
-                        .hasKnownStatus(WRONG_NONCE));
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
