@@ -2,7 +2,9 @@
 package com.swirlds.platform.test.fixtures.turtle.runner;
 
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusStateValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -32,6 +34,7 @@ public class TurtleBuilder {
     private boolean timeReportingEnabled;
     private Path outputDirectory;
     private ConsensusRoundValidator consensusRoundValidator;
+    private ConsensusStateValidator consensusStateValidator;
 
     /**
      * Create a new TurtleBuilder.
@@ -171,11 +174,31 @@ public class TurtleBuilder {
     }
 
     /**
+     * Set consensus state validator to assert {@link ReservedSignedState} objects.
+     *
+     * @param consensusStateValidator the consensus state validator
+     * @return this builder
+     */
+    public TurtleBuilder withConsensusStateValidator(@NonNull final ConsensusStateValidator consensusStateValidator) {
+        this.consensusStateValidator = Objects.requireNonNull(consensusStateValidator);
+        return this;
+    }
+
+    /**
      * Get the consensus round validator.
      *
      * @return the consensus round validator
      */
     public ConsensusRoundValidator getConsensusRoundValidator() {
         return consensusRoundValidator;
+    }
+
+    /**
+     * Get the consensus state validator.
+     *
+     * @return the consensus state validator
+     */
+    public ConsensusStateValidator getConsensusStateValidator() {
+        return consensusStateValidator;
     }
 }
