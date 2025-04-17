@@ -18,7 +18,7 @@ import org.hiero.base.constructable.ConstructableRegistryFactory;
 import org.hiero.base.constructable.ConstructorRegistry;
 import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -112,7 +112,7 @@ class ConstructableRegistryTest {
                 "generated class ID string should match expected");
 
         assertEquals(
-                "org.hiero.consensus.model.crypto.Hash:-854880720348154850(0xF422DA83A251741E)",
+                "org.hiero.base.crypto.Hash:-854880720348154850(0xF422DA83A251741E)",
                 ClassIdFormatter.classIdString(new Hash()),
                 "generated class ID string should match expected");
     }

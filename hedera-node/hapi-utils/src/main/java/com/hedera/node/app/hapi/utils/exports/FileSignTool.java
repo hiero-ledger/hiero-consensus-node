@@ -14,9 +14,6 @@ import com.hedera.services.stream.proto.HashObject;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SignatureFile;
 import com.hedera.services.stream.proto.SignatureObject;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.SignatureType;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.common.stream.internal.StreamTypeFromJson;
@@ -53,8 +50,11 @@ import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * This is a standalone utility tool to generate signature files for event/record stream, and

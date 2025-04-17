@@ -19,7 +19,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.UUID;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;

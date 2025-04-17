@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.hash;
 
-import static com.swirlds.common.crypto.Cryptography.DEFAULT_SET_HASH;
+import static org.hiero.base.crypto.Cryptography.DEFAULT_SET_HASH;
 
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -12,7 +11,8 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This class is responsible for hashing a merkle tree.

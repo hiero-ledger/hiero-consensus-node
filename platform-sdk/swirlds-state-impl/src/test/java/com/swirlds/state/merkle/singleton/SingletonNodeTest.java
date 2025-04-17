@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

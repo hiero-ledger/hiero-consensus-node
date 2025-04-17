@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHashBytes;
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.mockito.Mockito.spy;
 
@@ -19,7 +19,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
@@ -44,9 +43,10 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

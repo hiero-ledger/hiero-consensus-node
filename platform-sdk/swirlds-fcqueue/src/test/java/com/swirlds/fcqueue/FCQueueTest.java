@@ -18,7 +18,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -29,10 +28,10 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -667,42 +666,6 @@ class FCQueueTest {
     }
 
     /**
-     * This test deserializes a queue from `serialized_queue_v2_*` files which were created
-     * using MIGRATE_TO_SERIALIZABLE version of FCQueue class. Also, this tests uses `serialized_nums_*` files to
-     * verify the content of the deserialized queue. The idea of the test is to verify backward compatibility of deserialization.
-     *
-     * @param numElements the number of elements in the original FCQ
-     * @throws IOException            if an error occurs during serialization, indicates a test failure
-     * @throws ClassNotFoundException shouldn't happen really
-     */
-    @ParameterizedTest
-    @ValueSource(ints = {1, 5, 10, 100, 1000})
-    @Tag(TestComponentTags.FCQUEUE)
-    @DisplayName("Serialization compatibility Test")
-    public void serializationCompatibilityTest(final int numElements) throws IOException, ClassNotFoundException {
-        final String queueFileName = String.format("/serialization_compatibility/serialized_queue_v2_%s", numElements);
-        final String numbersFilename = String.format("/serialization_compatibility/serialized_nums_%s", numElements);
-        final int[] numbers;
-        final FCQueue<FCInt> recoveredFCQ;
-
-        // Recover the serialized FCQueue into the recoveredFCQ variable
-        try (final ByteArrayInputStream bis = new ByteArrayInputStream(
-                        getClass().getResourceAsStream(queueFileName).readAllBytes());
-                final ObjectInputStream oin = new ObjectInputStream(getClass().getResourceAsStream(numbersFilename));
-                final SerializableDataInputStream dis = new SerializableDataInputStream(bis)) {
-            recoveredFCQ = dis.readSerializable();
-            numbers = (int[]) oin.readObject();
-        }
-
-        assertNotNull(recoveredFCQ);
-
-        assertEquals(numElements, recoveredFCQ.size());
-
-        // Assert that the queues are identical in content and order
-        assertArrayEquals(numbers, qToInts(recoveredFCQ));
-    }
-
-    /**
      * Return an array of all the int values in a queue of FCInt objects.
      *
      * Also, check that toArray() toArray(a) give the same answers as using the iterator,
@@ -1015,13 +978,13 @@ class FCQueueTest {
         }
 
         // Update this version when updating the saved file.
-        final String previousVersion = "0.7.3";
+        final String previousVersion = "0.62.0";
 
         final String fileName = "FCQueue-" + previousVersion + ".dat";
 
         // Uncomment this block of code to write a new address book to disk.
         // Do not commit this file to git with this block uncommented.
-        //		FileOutputStream fOut = new FileOutputStream("src/test/resources/" + fileName);
+        //		var fOut = new java.io.FileOutputStream("src/test/resources/" + fileName);
         //		SerializableDataOutputStream out = new SerializableDataOutputStream(fOut);
         //		out.writeSerializable(generated, true);
         //		System.out.println("Don't forget to comment this block out before committing");

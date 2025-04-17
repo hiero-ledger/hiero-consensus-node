@@ -12,8 +12,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.crypto.AbstractHashable;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.AbstractHashable;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
