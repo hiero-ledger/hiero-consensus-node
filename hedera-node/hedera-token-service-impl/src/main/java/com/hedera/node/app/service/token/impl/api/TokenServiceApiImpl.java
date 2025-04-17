@@ -348,10 +348,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final long retractedAmount = retractFromNetworkFundingAccounts(amount);
         final var payerAccount = lookupAccount("Payer", payerId);
         refundPayer(payerAccount, retractedAmount);
-        // TODO - ensure test with EthereumTransaction inside AtomicBatchTransaction, verify
-        // this must only be done when the rb.transactionFee() is already non-zero
-        //  -> Should be rb.transactionFee(Math.max(0, rb.transactionFee() - amount)) ?
-        rb.transactionFee(rb.transactionFee() - retractedAmount);
+        rb.transactionFee(Math.max(0, rb.transactionFee() - retractedAmount));
     }
 
     @Override
