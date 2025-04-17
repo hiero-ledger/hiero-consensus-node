@@ -17,6 +17,7 @@ testModuleInfo {
 }
 
 timingSensitiveModuleInfo {
+    runtimeOnly("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto")

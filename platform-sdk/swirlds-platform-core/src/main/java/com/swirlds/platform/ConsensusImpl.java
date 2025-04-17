@@ -814,7 +814,7 @@ public class ConsensusImpl implements Consensus {
         // "consensus" now has all events in history with receivedRound==round
         // there will never be any more events with receivedRound<=round (not even if the address
         // book changes)
-        consensus.sort(new ConsensusSorter(whitening));
+        ConsensusSorter.sort(consensus, whitening);
 
         // Set the consensus number for every event that just became a consensus
         // event. Add more info about it to the hashgraph. Set event.lastInRoundReceived
