@@ -72,7 +72,10 @@ public class ScheduleNativeCall extends AbstractCall {
         // Create the native call implied by the call data passed to scheduleNative()
         final var nativeAttempt =
                 htsCallFactory.createCallAttemptFrom(contractID, innerCallData, DIRECT_OR_PROXY_REDIRECT, frame);
-        final var call = requireNonNull(nativeAttempt.asExecutableCall());
+        final var call = nativeAttempt.asExecutableCall();
+        if (call == null) {
+            return gasOnly(successResult(Bytes.EMPTY, frame.getRemainingGas()), SUCCESS, false);
+        }
         final var scheduleTransactionBody = call.asSchedulableDispatchIn();
         final var scheduleCreateTransactionBody = bodyForScheduleCreate(scheduleTransactionBody);
         final var gasRequirement = dispatchGasCalculator.gasRequirement(
@@ -102,7 +105,7 @@ public class ScheduleNativeCall extends AbstractCall {
      * @param scheduleTransactionBody
      * @return
      */
-    private @NonNull TransactionBody bodyForScheduleCreate(SchedulableTransactionBody scheduleTransactionBody) {
+    private @NonNull TransactionBody bodyForScheduleCreate(final SchedulableTransactionBody scheduleTransactionBody) {
         return TransactionBody.newBuilder()
                 .transactionID(nativeOperations().getTransactionID())
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()

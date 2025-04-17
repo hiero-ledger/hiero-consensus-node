@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TRANSACTION_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -121,13 +120,19 @@ class ScheduleNativeCallTest extends CallTestBase {
     }
 
     @Test
-    void throwsWhenNativeCallIsNull() {
+    void correctResultWhenNativeCallIsNull() {
         // given
         given(htsCallFactory.createCallAttemptFrom(any(), any(), any(), any())).willReturn(nativeAttempt);
         given(nativeAttempt.asExecutableCall()).willReturn(null);
 
-        // when/then
-        assertThrows(NullPointerException.class, () -> subject.execute(frame));
+        // when
+        final var result = subject.execute(frame).fullResult();
+
+        // then
+        final var expectedOutput = successResult(Bytes.EMPTY, frame.getRemainingGas());
+
+        assertEquals(State.COMPLETED_SUCCESS, result.result().getState());
+        assertEquals(expectedOutput.result().getOutput(), result.result().getOutput());
     }
 
     @Test
