@@ -64,7 +64,6 @@ import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.BasicCommonConfig;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
@@ -82,6 +81,7 @@ import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.TransactionConfig;
 
