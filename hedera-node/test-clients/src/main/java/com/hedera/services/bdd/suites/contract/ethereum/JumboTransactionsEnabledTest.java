@@ -75,6 +75,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
     private record TestCombination(int txnSize, EthTxData.EthTransactionType type) {}
 
+    private record TestCombinationWithGas(
+            int txnSize, EthTxData.EthTransactionType type, int gasLimit, int expectedGas) {}
+
     private static HapiEthereumCall jumboEthCall(String contract, String function, byte[] payload) {
         return jumboEthCall(contract, function, payload, EthTxData.EthTransactionType.EIP1559);
     }
@@ -145,11 +148,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
 
-                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
-                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
-                //                prepareFakeUpgrade(),
-                //                upgradeToNextConfigVersion(Map.of("jumboTransactions.isEnabled", "true"), noOp()),
-
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gas(1_000_000L)
@@ -182,24 +180,38 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @OrderedInIsolation
     @DisplayName("Jumbo Ethereum Transactions Positive Tests")
     class JumboEthereumTransactionsPositiveTests {
-        private final Stream<TestCombination> positiveBoundariesTestCases = Stream.of(
-                new TestCombination(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
-                new TestCombination(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930),
-                new TestCombination(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559),
-                new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
-                new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930),
-                new TestCombination(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559));
+
+        private final Stream<TestCombinationWithGas> positiveBoundariesTestCases = Stream.of(
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 400_000, 320_000),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930, 400_000, 320_000),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559, 400_000, 320_000),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 9_000_000, 7_200_000),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930, 9_000_000, 7_200_000),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 7_200_000));
 
         @HapiTest
         @Order(5)
-        @DisplayName("Jumbo Ethereum transactions should pass for valid sizes")
-        // JUMBO_P_01, JUMBO_P_02, JUMBO_P_03, JUMBO_P_04
+        @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
         public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
-            return positiveBoundariesTestCases.flatMap(test -> hapiTest(
-                    logIt("Valid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB" + " and type: " + test.type),
-                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
-                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)));
+            return positiveBoundariesTestCases.flatMap(test -> {
+                var payload = new byte[test.txnSize];
+                return hapiTest(
+                        prepareFakeUpgrade(),
+                        logIt("Valid Jumbo Txn | Size: " + (test.txnSize / 1024) + "KB | Type: " + test.type
+                                + " | GasLimit: " + test.gasLimit + " | ExpectedGas: " + test.expectedGas),
+                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                        cryptoTransfer(
+                                tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS - 1)),
+                        jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload, test.type)
+                                .gasLimit(test.gasLimit)
+                                .exposingGasTo((s, gasUsed) -> assertEquals(
+                                        test.expectedGas,
+                                        gasUsed,
+                                        "Unexpected gas used for size: " + test.txnSize + ", type: " + test.type)));
+            });
         }
 
         @HapiTest
@@ -289,15 +301,16 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     @OrderedInIsolation
     @DisplayName("Jumbo Ethereum Transactions Negative Tests")
     class JumboEthereumTransactionsNegativeTests {
-        private final Stream<TestCombination> aboveMaxCases = Stream.of(
-                new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
-                new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP2930),
-                new TestCombination(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP1559));
 
         private final Stream<TestCombination> oversizedCases = Stream.of(
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM),
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP2930),
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP1559));
+
+        private final Stream<TestCombinationWithGas> aboveMaxCases = Stream.of(
+                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 8_500_000, 0),
+                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP2930, 8_500_000, 0),
+                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP1559, 8_500_000, 0));
 
         private final Stream<Integer> insufficientFeeCases = Stream.of(SIX_KB_SIZE, MAX_ALLOWED_SIZE);
 
@@ -358,17 +371,40 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @Order(9)
         // JUMBO_N_01
         public Stream<DynamicTest> jumboTxnWithAboveMaxDataShouldFail() {
-            return aboveMaxCases.flatMap(test -> hapiTest(
+            return aboveMaxCases.flatMap(test -> {
+                var payload = new byte[test.txnSize];
+                return hapiTest(
+                        logIt("Invalid Jumbo Txn | Size: " + (test.txnSize / 1024) + "KB | Type: " + test.type
+                                + " | GasLimit: " + test.gasLimit + " | ExpectedGas: " + test.expectedGas),
+                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                        cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                        jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload, test.type)
+                                .gasLimit(test.gasLimit)
+                                .noLogging()
+                                .exposingGasTo((s, gasUsed) -> assertEquals(
+                                        test.expectedGas,
+                                        gasUsed,
+                                        "Unexpected gas used for txn size " + test.txnSize + " and type " + test.type))
+                                .hasPrecheck(TRANSACTION_OVERSIZE));
+            });
+        }
+
+        @HapiTest
+        @DisplayName("Jumbo Ethereum transactions should fail for oversized data with grpc unavailable status")
+        @Order(10)
+        // JUMBO_N_02
+        public Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
+            return oversizedCases.flatMap(test -> hapiTest(
                     logIt("Invalid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB and type: " + test.type),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
                     jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)
                             .noLogging()
-                            .hasPrecheck(TRANSACTION_OVERSIZE)));
+                            .orUnavailableStatus()));
         }
 
         @HapiTest
-        @Order(10)
+        @Order(11)
         @DisplayName("Allows Ethereum jumbo contract create jumbo above max transaction size of 6kb")
         public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
             final var contract = "TokenCreateContract";
@@ -387,20 +423,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .maxGasAllowance(ONE_HUNDRED_HBARS)
                             .gasLimit(1_000_000L)
                             .via("payTxn"));
-        }
-
-        @HapiTest
-        @DisplayName("Jumbo Ethereum transactions should fail for oversized data with grpc unavailable status")
-        @Order(11)
-        // JUMBO_N_02
-        public Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
-            return oversizedCases.flatMap(test -> hapiTest(
-                    logIt("Invalid Jumbo Txn with size: " + (test.txnSize / 1024) + "KB and type: " + test.type),
-                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
-                    jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)
-                            .noLogging()
-                            .orUnavailableStatus()));
         }
 
         @HapiTest
