@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.impl.internal;
 
-import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
+import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.merkle.MerkleInternal;

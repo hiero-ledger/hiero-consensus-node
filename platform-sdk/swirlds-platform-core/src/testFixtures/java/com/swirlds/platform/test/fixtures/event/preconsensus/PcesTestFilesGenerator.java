@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.preconsensus;
 
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -102,7 +101,7 @@ public final class PcesTestFilesGenerator {
         if (!Files.exists(parentDir)) {
             Files.createDirectories(parentDir);
         }
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new FileOutputStream(descriptor.getPath().toFile()));
         out.writeInt(PcesFileVersion.currentVersionNumber());
         out.writeNormalisedString("foo bar baz");

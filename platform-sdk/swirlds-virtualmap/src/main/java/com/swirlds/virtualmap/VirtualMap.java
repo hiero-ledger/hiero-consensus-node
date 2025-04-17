@@ -8,8 +8,6 @@ import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -332,8 +330,8 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
 
         // Write the virtual map and sub nodes
         final Path outputFile = outputDirectory.resolve(outputFileName);
-        try (SerializableDataOutputStream serout = new SerializableDataOutputStreamImpl(
-                new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
+        try (SerializableDataOutputStream serout =
+                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
             serout.writeSerializable(state, true);
             serout.writeInt(root.getVersion());
             root.serialize(serout, outputDirectory);
@@ -375,8 +373,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
         final ValueReference<VirtualRootNode<K, V>> virtualRootNode = new ValueReference<>();
 
         deserializeAndDebugOnFailure(
-                () -> new SerializableDataInputStreamImpl(
-                        new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
+                () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
                     virtualMapState.setValue(stream.readSerializable());
                     virtualRootNode.setValue(

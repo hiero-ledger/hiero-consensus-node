@@ -15,11 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.io.streams.DebuggableMerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
@@ -45,10 +43,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.exceptions.InvalidVersionException;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -453,7 +452,7 @@ class MerkleSerializationTests {
 
         final Path notADirectory = testDirectory.resolve("notADirectory.txt");
         final SerializableDataOutputStream fOut =
-                new SerializableDataOutputStreamImpl(new FileOutputStream(notADirectory.toFile()));
+                new SerializableDataOutputStream(new FileOutputStream(notADirectory.toFile()));
         fOut.writeNormalisedString("this is not a directory");
         fOut.close();
         assertThrows(

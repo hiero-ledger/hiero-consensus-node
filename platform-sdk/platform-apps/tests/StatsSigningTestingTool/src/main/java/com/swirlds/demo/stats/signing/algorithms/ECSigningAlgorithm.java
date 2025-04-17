@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.swirlds.common.crypto.SignatureType;
 import java.io.IOException;
 import java.security.*;
 import org.apache.logging.log4j.LogManager;
@@ -17,6 +16,7 @@ import org.bouncycastle.jce.interfaces.ECPublicKey;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jce.spec.ECNamedCurveGenParameterSpec;
 import org.bouncycastle.math.ec.ECPoint;
+import org.hiero.base.crypto.SignatureType;
 
 /**
  * The base class for all ECDSA {@link  SigningAlgorithm} implementations.

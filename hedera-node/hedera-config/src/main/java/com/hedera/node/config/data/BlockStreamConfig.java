@@ -21,6 +21,7 @@ import java.time.Duration;
  * @param hashCombineBatchSize the number of items to hash in a batch
  * @param roundsPerBlock the number of rounds per block
  * @param waitPeriodForActiveConnection the time in minutes to wait for an active connection
+ * @param blockItemBatchSize the number of items to send in a batch to block nodes
  * @param grpcAddress the address of the gRPC server
  * @param grpcPort the port of the gRPC server
  */
@@ -35,6 +36,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "2") @NetworkProperty long waitPeriodForActiveConnection,
+        @ConfigProperty(defaultValue = "256") @NetworkProperty int blockItemBatchSize,
         @ConfigProperty(defaultValue = "localhost") String grpcAddress,
         @ConfigProperty(defaultValue = "8080") @Min(0) @Max(65535) int grpcPort) {
 
