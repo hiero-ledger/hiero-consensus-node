@@ -8,7 +8,6 @@ import java.util.Map;
 /**
  * Class holding X coordinates for branched events with a specific generation for a given node.
  * Note that it's normal the branch to contain events with different generations.
- *
  */
 public class GenerationCoordinates {
 

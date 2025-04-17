@@ -317,7 +317,7 @@ public class HashgraphPicture extends JPanel {
         }
 
         final GossipEvent gossipEvent = event.getBaseEvent().getGossipEvent();
-        if (options.showBranches()
+        if (options.writeBranches()
                 && hashgraphSource.getEventStorage().getBranchedEventsMetadata().containsKey(gossipEvent)) {
             s += " " + "\\/ "
                     + hashgraphSource

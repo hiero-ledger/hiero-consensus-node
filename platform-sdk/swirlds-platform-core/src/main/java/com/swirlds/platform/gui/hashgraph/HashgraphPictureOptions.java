@@ -56,11 +56,14 @@ public interface HashgraphPictureOptions {
     boolean writeBirthRound();
 
     /**
+     * @return should branch numbers be written for every branched event (if any)
+     */
+    boolean writeBranches();
+
+    /**
      * @return should simple colors be used in the picture
      */
     boolean simpleColors();
-
-    boolean showBranches();
 
     /**
      * @return the number of generations to display
