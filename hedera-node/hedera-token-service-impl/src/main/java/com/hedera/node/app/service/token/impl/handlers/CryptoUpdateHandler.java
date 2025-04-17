@@ -369,7 +369,12 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
      * @return the calculated bytes
      */
     private static int currentNonBaseBytes(final Account account) {
-        return account.memo().getBytes(StandardCharsets.UTF_8).length
+        // TODO: should this part be a new utility method so we don't repeat it over and over?
+        final var accountMemoSize = (account == null || account.memo() == null)
+                ? 0
+                : account.memo().getBytes(StandardCharsets.UTF_8).length;
+
+        return accountMemoSize
                 + getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
                 + (account.maxAutoAssociations() == 0 ? 0 : INT_SIZE);
     }
