@@ -87,7 +87,7 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
         @ConfigProperty(
                         defaultValue =
-                                "ScheduleService.SCHEDULED_COUNTS,ScheduleService.SCHEDULED_ORDERS,ScheduleService.SCHEDULED_USAGES,ScheduleService.SCHEDULES_BY_ID,ScheduleService.SCHEDULE_ID_BY_EQUALITY,TokenService.PENDING_AIRDROPS")
+                                "ScheduleService.SCHEDULED_COUNTS,ScheduleService.SCHEDULED_ORDERS,ScheduleService.SCHEDULED_USAGES,ScheduleService.SCHEDULES_BY_ID,ScheduleService.SCHEDULE_ID_BY_EQUALITY")
                 String tablesToRepairHdhm,
         @ConfigProperty(defaultValue = "75.0") double percentHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,
