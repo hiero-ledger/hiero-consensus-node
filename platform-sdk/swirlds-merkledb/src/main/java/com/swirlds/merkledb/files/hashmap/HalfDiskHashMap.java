@@ -394,7 +394,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         if (newDataFile.get()) {
             endWriting();
         }
-        final long expectedEntries = lastLeafPath - firstLeafPath + 1;
+        final long expectedEntries = (lastLeafPath == -1) ? 0 : (lastLeafPath - firstLeafPath + 1);
         if (liveEntries.get() != expectedEntries) {
             throw new IOException(
                     "HDHM repair failed, expected keys = " + expectedEntries + ", actual = " + liveEntries.get());
