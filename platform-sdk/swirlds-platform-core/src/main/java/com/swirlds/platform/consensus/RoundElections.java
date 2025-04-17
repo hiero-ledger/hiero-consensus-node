@@ -112,6 +112,9 @@ public class RoundElections {
         return minGeneration;
     }
 
+    /**
+     * @return the minimum non-deterministic generation of all the judges(unique famous witnesses) in this round
+     */
     public long getMinNGen() {
         if (minNgen == EventConstants.GENERATION_UNDEFINED) {
             throw new IllegalStateException(
