@@ -3,8 +3,6 @@ package com.swirlds.virtualmap.test.fixtures;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -19,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
@@ -114,8 +114,7 @@ public class VirtualTestBase {
         // Ensure VirtualNodeCache.release() returns clean
         System.setProperty("syncCleaningPool", "true");
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common.crypto");
-        registry.registerConstructables("org.hiero.consensus.model.crypto");
+        registry.registerConstructables("org.hiero.base.crypto");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
         registry.registerConstructable(new ClassConstructorPair(TestKey.class, () -> new TestKey(0L)));

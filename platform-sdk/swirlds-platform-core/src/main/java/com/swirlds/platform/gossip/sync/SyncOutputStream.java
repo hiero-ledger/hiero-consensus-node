@@ -15,8 +15,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 public class SyncOutputStream extends SerializableDataOutputStream {
     private final CountingStreamExtension syncByteCounter;

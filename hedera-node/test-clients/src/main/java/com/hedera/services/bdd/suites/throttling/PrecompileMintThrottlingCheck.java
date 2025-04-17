@@ -51,7 +51,7 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
     // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 55 to test the throttle
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(55);
-    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.15;
+    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.12;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
     public static final int GAS_TO_OFFER = 1_000_000;
 

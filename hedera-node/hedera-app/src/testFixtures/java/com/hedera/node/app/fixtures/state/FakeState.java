@@ -42,7 +42,7 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.hiero.base.constructable.ConstructableIgnored;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A useful test double for {@link State}. Works together with {@link MapReadableStates} and other fixtures.

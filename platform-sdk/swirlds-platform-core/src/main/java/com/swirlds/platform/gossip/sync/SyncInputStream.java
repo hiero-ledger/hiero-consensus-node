@@ -13,8 +13,8 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 public class SyncInputStream extends SerializableDataInputStream {
 

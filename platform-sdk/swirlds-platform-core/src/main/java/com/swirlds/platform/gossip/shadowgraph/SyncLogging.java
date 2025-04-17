@@ -4,7 +4,7 @@ package com.swirlds.platform.gossip.shadowgraph;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Utility routines to generate formatted log string for sync-related variables.
