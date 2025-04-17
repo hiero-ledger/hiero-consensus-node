@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
-public class FreezeCheckHolder implements FreezePeriodChecker {
+public class FreezeCheckHolder implements FreezePeriodChecker, Predicate<Instant> {
     private final AtomicReference<Predicate<Instant>> freezeCheckRef = new AtomicReference<>();
 
     @Override
@@ -18,5 +18,10 @@ public class FreezeCheckHolder implements FreezePeriodChecker {
 
     public void setFreezeCheckRef(final Predicate<Instant> freezeCheckRef) {
         this.freezeCheckRef.set(freezeCheckRef);
+    }
+
+    @Override
+    public boolean test(final Instant instant) {
+        return isInFreezePeriod(instant);
     }
 }

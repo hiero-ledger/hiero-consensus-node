@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.consensus;
 
+import com.swirlds.platform.freeze.FreezePeriodChecker;
+import java.time.Instant;
+import java.util.Iterator;
+import java.util.function.Predicate;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -47,6 +51,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final AddedEventMetrics eventAddedMetrics;
 
+    /** Checks if consensus time has reached the freeze period */
+    private final Predicate<Instant> freezeChecker;
+    /** When the consensus engine is frozen, it will not process any incoming events ever, so consensus will not advance */
+    private boolean frozen = false;
+
     /**
      * Constructor
      *
@@ -57,7 +66,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public DefaultConsensusEngine(
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            @NonNull final Predicate<Instant> freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
@@ -73,6 +83,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 .roundsNonAncient();
 
         eventAddedMetrics = new AddedEventMetrics(selfId, platformContext.getMetrics());
+        this.freezeChecker = Objects.requireNonNull(freezeChecker);
     }
 
     /**
@@ -91,6 +102,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
+        if (frozen) {
+            // If we are frozen, ignore all events
+            return List.of();
+        }
+
         final EventImpl linkedEvent = linker.linkEvent(event);
         if (linkedEvent == null) {
             // linker discarded an ancient event
@@ -100,13 +116,38 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
         eventAddedMetrics.eventAdded(linkedEvent);
 
-        if (!consensusRounds.isEmpty()) {
-            // If multiple rounds reach consensus at the same moment there is no need to pass in
-            // each event window. The latest event window is sufficient to keep event storage clean.
-            linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+        if (consensusRounds.isEmpty()) {
+            return consensusRounds;
+        }
+
+        // if multiple rounds reach consensus at the same time and multiple rounds are in the freeze period,
+        // we need to freeze on the first one. this means discarding the rest of the rounds
+        boolean freezeRoundFound = false;
+        final Iterator<ConsensusRound> iterator = consensusRounds.iterator();
+        while (iterator.hasNext()) {
+            if (freezeRoundFound) {
+                iterator.remove();
+                continue;
+            }
+            if (isInFreezePeriod(iterator.next())) {
+                freezeRoundFound = true;
+            }
+        }
+
+        // If multiple rounds reach consensus at the same moment there is no need to pass in
+        // each event window. The latest event window is sufficient to keep event storage clean.
+        linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+
+        if (freezeChecker.test(consensusRounds.getLast().getConsensusTimestamp())) {
+            // If the consensus time has reached the freeze period, we will not process any more events
+            frozen = true;
         }
 
         return consensusRounds;
+    }
+
+    private boolean isInFreezePeriod(final ConsensusRound round) {
+        return freezeChecker.test(round.getConsensusTimestamp());
     }
 
     /**

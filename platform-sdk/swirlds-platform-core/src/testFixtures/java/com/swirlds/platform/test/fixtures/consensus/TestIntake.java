@@ -84,7 +84,7 @@ public class TestIntake {
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
-        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(platformContext, roster, selfId);
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(platformContext, roster, selfId, (i)->false);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, directScheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
