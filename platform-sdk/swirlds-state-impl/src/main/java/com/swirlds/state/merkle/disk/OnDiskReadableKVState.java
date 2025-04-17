@@ -11,7 +11,6 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
 
 /**
@@ -24,36 +23,38 @@ import java.util.Iterator;
 public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
 
     /** The backing merkle data structure to use */
-    private final VirtualMap<OnDiskKey<K>, OnDiskValue<V>> virtualMap;
+    private final VirtualMap virtualMap;
 
-    private final long keyClassId;
+    @NonNull
     private final Codec<K> keyCodec;
+
+    @NonNull
+    private final Codec<V> valueCodec;
 
     /**
      * Create a new instance
      *
      * @param stateKey
-     * @param keyClassId
      * @param keyCodec
+     * @param valueCodec
      * @param virtualMap the backing merkle structure to use
      */
     public OnDiskReadableKVState(
             String stateKey,
-            final long keyClassId,
-            @Nullable final Codec<K> keyCodec,
-            @NonNull final VirtualMap<OnDiskKey<K>, OnDiskValue<V>> virtualMap) {
+            @NonNull final Codec<K> keyCodec,
+            @NonNull final Codec<V> valueCodec,
+            @NonNull final VirtualMap virtualMap) {
         super(stateKey);
-        this.keyClassId = keyClassId;
-        this.keyCodec = keyCodec;
+        this.keyCodec = requireNonNull(keyCodec);
+        this.valueCodec = requireNonNull(valueCodec);
         this.virtualMap = requireNonNull(virtualMap);
     }
 
     /** {@inheritDoc} */
     @Override
     protected V readFromDataSource(@NonNull K key) {
-        final var k = new OnDiskKey<>(keyClassId, keyCodec, key);
-        final var v = virtualMap.get(k);
-        final var value = v == null ? null : v.getValue();
+        final var kb = keyCodec.toBytes(key);
+        final var value = virtualMap.get(kb, valueCodec);
         // Log to transaction state log, what was read
         logMapGet(getStateKey(), key, value);
         return value;
@@ -64,8 +65,8 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
-        logMapIterate(getStateKey(), virtualMap);
-        return new OnDiskIterator<>(virtualMap);
+        logMapIterate(getStateKey(), virtualMap, keyCodec);
+        return new OnDiskIterator<>(virtualMap, keyCodec);
     }
 
     /** {@inheritDoc} */
@@ -80,7 +81,7 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
 
     @Override
     public void warm(@NonNull final K key) {
-        final var k = new OnDiskKey<>(keyClassId, keyCodec, key);
-        virtualMap.warm(k);
+        final var kb = keyCodec.toBytes(key);
+        virtualMap.warm(kb);
     }
 }

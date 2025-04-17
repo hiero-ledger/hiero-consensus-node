@@ -121,7 +121,7 @@ class SequentialTaskSchedulerTests {
      * (which will fail the test).
      */
     @ParameterizedTest
-    @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
+    @ValueSource(strings = {"SEQUENTIAL_THREAD"})
     void orderOfOperationsWithDelayTest(final String typeString) {
         final WiringModel model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);

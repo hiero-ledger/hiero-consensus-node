@@ -25,9 +25,9 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableSingletonState;
-import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,13 +44,13 @@ public class StateNetworkInfoTest {
     private ConfigProvider configProvider;
 
     @Mock
-    private ReadableKVState<EntityNumber, Node> nodeState;
+    private WritableKVState<EntityNumber, Node> nodeState;
 
     @Mock
-    private ReadableSingletonState<EntityCounts> entityCountsState;
+    private WritableSingletonState<EntityCounts> entityCountsState;
 
     @Mock
-    private ReadableStates readableStates;
+    private WritableStates writableStates;
 
     private static final long SELF_ID = 1L;
     private final Roster activeRoster = new Roster(List.of(
@@ -63,14 +63,14 @@ public class StateNetworkInfoTest {
     public void setUp() {
         when(configProvider.getConfiguration())
                 .thenReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
-        when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY))
+        when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
+        when(writableStates.<EntityCounts>getSingleton(V0590EntityIdSchema.ENTITY_COUNTS_KEY))
                 .thenReturn(entityCountsState);
         when(entityCountsState.get())
                 .thenReturn(EntityCounts.newBuilder().numNodes(1L).build());
-        when(state.getReadableStates(AddressBookService.NAME)).thenReturn(readableStates);
-        when(readableStates.<EntityNumber, Node>get("NODES")).thenReturn(nodeState);
-        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
+        when(state.getWritableStates(AddressBookService.NAME)).thenReturn(writableStates);
+        when(writableStates.<EntityNumber, Node>get("NODES")).thenReturn(nodeState);
+        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(writableStates);
         networkInfo = new StateNetworkInfo(SELF_ID, state, activeRoster, configProvider, () -> Network.DEFAULT);
     }
 
