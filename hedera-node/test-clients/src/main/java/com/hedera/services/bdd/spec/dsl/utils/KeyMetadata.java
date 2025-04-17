@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hederahashgraph.api.proto.java.Key;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,10 +33,10 @@ public record KeyMetadata(
         Registration registration) {
 
     public interface Registration {
-        void save(HapiSpecRegistry registry, String name, Key key);
+        void save(HapiSpecRegistry registry, String name, KeyRole keyRole, Key key);
     }
 
-    private static final Registration DEFAULT_REGISTRATION = HapiSpecRegistry::saveKey;
+    private static final Registration DEFAULT_REGISTRATION = HapiSpecRegistry::saveRoleKey;
 
     /**
      * Constructs a {@link KeyMetadata} instance from the given protoc key and {@link HapiSpec}
@@ -103,7 +104,7 @@ public record KeyMetadata(
     public void registerAs(@NonNull final String name, @NonNull final HapiSpec spec) {
         requireNonNull(spec);
         requireNonNull(name);
-        registration.save(spec.registry(), name, protoKey);
+        registration.save(spec.registry(), name, null, protoKey);
         spec.keys().setControl(protoKey, sigControl);
         spec.keys().addPrivateKeyMap(privateKeyMap);
     }
