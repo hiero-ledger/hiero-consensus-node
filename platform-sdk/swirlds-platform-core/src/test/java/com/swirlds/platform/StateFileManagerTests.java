@@ -469,8 +469,8 @@ class StateFileManagerTests {
         }
     }
 
-    private static void hashState(MerkleNodeState issState) {
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(issState.getRoot());
+    private static void hashState(MerkleNodeState state) {
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(state.getRoot());
     }
 
     private static void makeImmutable(SignedState signedState) {

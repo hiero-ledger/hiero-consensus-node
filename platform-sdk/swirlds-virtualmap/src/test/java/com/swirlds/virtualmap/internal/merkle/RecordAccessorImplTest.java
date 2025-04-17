@@ -103,8 +103,8 @@ public class RecordAccessorImplTest {
         cache.putHash(rightChanged);
 
         // Set up the state for a 6 leaf in memory tree
-        state.setFirstLeafPath(5);
         state.setLastLeafPath(10);
+        state.setFirstLeafPath(5);
     }
 
     @Test

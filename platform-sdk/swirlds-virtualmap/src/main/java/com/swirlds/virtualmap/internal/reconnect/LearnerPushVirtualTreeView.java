@@ -249,8 +249,8 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // of the VirtualRootNode. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
-            reconnectState.setFirstLeafPath(firstLeafPath);
             reconnectState.setLastLeafPath(lastLeafPath);
+            reconnectState.setFirstLeafPath(firstLeafPath);
             root.prepareReconnectHashing(firstLeafPath, lastLeafPath);
             nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
         }
