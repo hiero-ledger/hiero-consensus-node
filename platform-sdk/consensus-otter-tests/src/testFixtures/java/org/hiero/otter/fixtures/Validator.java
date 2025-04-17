@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +21,7 @@ public interface Validator {
      * @return this {@code Validator} instance for method chaining
      */
     @NonNull
-    Validator assertLogErrors(@NonNull LogErrorConfig... configs);
+    Validator assertLogs(@NonNull LogErrorConfig... configs);
 
     /**
      * Allows to configure the stdout validator that checks there are no Exceptions in the stdout.
@@ -94,28 +93,6 @@ public interface Validator {
      */
     @NonNull
     Validator assertMetrics(@NonNull MetricsConfig... configs);
-
-    /**
-     * Configuration for the log error validator that checks for error messages in the logs.
-     *
-     * <p>This configuration can for example be used to specify errors that are expected and can be ignored.
-     */
-    class LogErrorConfig {
-
-        private static final Logger log = LogManager.getLogger(LogErrorConfig.class);
-
-        /**
-         * Creates a configuration to ignore specific log markers.
-         *
-         * @param markers the log markers to ignore
-         * @return a {@code LogErrorConfig} instance
-         */
-        @NonNull
-        public static LogErrorConfig ignoreMarkers(@NonNull final LogMarker... markers) {
-            log.warn("Creating a log error config is not implemented yet.");
-            return new LogErrorConfig();
-        }
-    }
 
     /**
      * Configuration for the event stream validator that checks the event stream for unexpected entries.

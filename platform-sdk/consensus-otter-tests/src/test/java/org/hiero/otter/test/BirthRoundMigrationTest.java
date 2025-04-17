@@ -46,6 +46,6 @@ class BirthRoundMigrationTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator().assertPlatformStatus().assertLogErrors().assertMetrics();
+        env.validator().assertPlatformStatus().assertLogs().assertMetrics();
     }
 }

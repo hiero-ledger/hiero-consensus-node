@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static org.hiero.otter.fixtures.LogErrorConfig.ignoreMarkers;
 import static org.hiero.otter.fixtures.Validator.EventStreamConfig.ignoreNode;
-import static org.hiero.otter.fixtures.Validator.LogErrorConfig.ignoreMarkers;
 import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
 
 import com.swirlds.logging.legacy.LogMarker;
@@ -52,7 +52,7 @@ public class SandboxTest {
 
         // Validations
         env.validator()
-                .assertLogErrors(
+                .assertLogs(
                         ignoreMarkers(LogMarker.SOCKET_EXCEPTIONS, LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
                 .assertStdOut()
                 .eventStream(ignoreNode(node))

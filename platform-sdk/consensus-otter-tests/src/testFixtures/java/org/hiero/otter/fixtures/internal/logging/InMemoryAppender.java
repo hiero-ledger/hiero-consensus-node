@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.internal.logging;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -60,14 +61,27 @@ public class InMemoryAppender extends AbstractAppender {
      */
     @Override
     public void append(@NonNull final LogEvent event) {
+        final long nodeId = convertSafelyToLong(event.getContextData().getValue(TurtleNode.THREAD_CONTEXT_NODE_ID));
         final StructuredLog log = new StructuredLog(
+                event.getTimeMillis(),
                 event.getLevel(),
                 event.getMessage().getFormattedMessage(),
                 event.getLoggerName(),
                 event.getThreadName(),
                 event.getMarker(),
-                event.getContextData().getValue(TurtleNode.THREAD_CONTEXT_NODE_ID));
+                nodeId);
         logs.add(log);
+    }
+
+    private static long convertSafelyToLong(@Nullable final String value) {
+        if (value == null) {
+            return -1L;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
     }
 
     /**

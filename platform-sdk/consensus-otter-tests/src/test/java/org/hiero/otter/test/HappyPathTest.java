@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import com.swirlds.logging.legacy.LogMarker;
 import java.time.Duration;
+import org.apache.logging.log4j.Level;
+import org.hiero.otter.fixtures.LogErrorConfig;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -26,6 +29,11 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofMinutes(2L));
 
         // Validations
-        env.validator().validateRemaining(Profile.DEFAULT);
+        env.validator()
+                .assertLogs(
+                        LogErrorConfig.maxLogLevel(Level.INFO),
+                        LogErrorConfig.ignoreMarkers(LogMarker.STARTUP),
+                        LogErrorConfig.ignoreNodes(network.getNodes().getFirst()))
+                .validateRemaining(Profile.DEFAULT);
     }
 }
