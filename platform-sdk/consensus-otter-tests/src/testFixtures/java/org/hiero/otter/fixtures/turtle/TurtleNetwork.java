@@ -114,8 +114,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
             @NonNull final AddressBook addressBook,
             @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(randotron, timeManager.time(), nodeId, addressBook, privateKeys, simulatedNetwork,
-                outputDir);
+        return new TurtleNode(
+                randotron, timeManager.time(), nodeId, addressBook, privateKeys, simulatedNetwork, outputDir);
     }
 
     /**
@@ -210,11 +210,10 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
-        CompletableFuture.allOf(
-                nodes.stream()
+        CompletableFuture.allOf(nodes.stream()
                         .map(node -> CompletableFuture.runAsync(() -> node.tick(now), executorService))
-                        .toArray(CompletableFuture[]::new)
-        ).join();
+                        .toArray(CompletableFuture[]::new))
+                .join();
     }
 
     /**
@@ -236,7 +235,6 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * @return the {@link BooleanSupplier}
      */
     private BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
-        return () -> nodes.stream()
-                .allMatch(node -> node.platformStatus() == status);
+        return () -> nodes.stream().allMatch(node -> node.platformStatus() == status);
     }
 }

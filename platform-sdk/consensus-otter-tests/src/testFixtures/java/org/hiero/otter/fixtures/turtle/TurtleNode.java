@@ -227,7 +227,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
             // Clean the output directory and start the node
-            final String rootPath = nodeConfiguration.createConfiguration().getValue(FileSystemManagerConfig_.ROOT_PATH);
+            final String rootPath =
+                    nodeConfiguration.createConfiguration().getValue(FileSystemManagerConfig_.ROOT_PATH);
             log.info("Deleting directory: {}", rootPath);
             if (rootPath != null) {
                 try {
@@ -293,15 +294,13 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
-        final SemanticVersion version =
-                SemanticVersion.newBuilder().major(1).build();
+        final SemanticVersion version = SemanticVersion.newBuilder().major(1).build();
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
         final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
-        final RecycleBin recycleBin =
-                RecycleBin.create(metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager,
-                        selfId);
+        final RecycleBin recycleBin = RecycleBin.create(
+                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
 
         final HashedReservedSignedState reservedState = getInitialState(
                 recycleBin,
