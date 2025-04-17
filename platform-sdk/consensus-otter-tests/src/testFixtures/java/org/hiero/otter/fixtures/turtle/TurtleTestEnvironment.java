@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,7 +18,6 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.otter.fixtures.Network;
@@ -81,9 +79,9 @@ public class TurtleTestEnvironment implements TestEnvironment {
         final Randotron randotron = Randotron.create();
 
         try {
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(
-                            new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
+            final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+            registry.registerConstructables("org.hiero");
+            registry.registerConstructables("com.swirlds");
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
@@ -99,12 +97,13 @@ public class TurtleTestEnvironment implements TestEnvironment {
             log.warn("Failed to delete directory: " + rootOutputDirectory, ex);
         }
 
+        timeManager = new TurtleTimeManager(time, GRANULARITY);
+
         network = new TurtleNetwork(
-                randotron, time, rootOutputDirectory, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+                randotron, timeManager, rootOutputDirectory, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
         generator = new TurtleTransactionGenerator(network, randotron);
 
-        timeManager = new TurtleTimeManager(time, GRANULARITY);
         timeManager.addTimeTickReceiver(network);
         timeManager.addTimeTickReceiver(generator);
     }

@@ -12,6 +12,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.model;
     requires org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
+    requires org.assertj.core;
 
     exports org.hiero.otter.fixtures;
     exports org.hiero.otter.fixtures.junit;

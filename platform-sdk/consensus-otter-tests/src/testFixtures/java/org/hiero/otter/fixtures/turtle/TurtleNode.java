@@ -27,6 +27,7 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -49,6 +50,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 
@@ -78,10 +80,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private final SimulatedNetwork network;
     private final TurtleNodeConfiguration nodeConfiguration;
 
+    private final PlatformStatusChangeListener platformStatusChangeListener =
+            data -> TurtleNode.this.platformStatus = data.getNewStatus();
+
     private DeterministicWiringModel model;
     private Platform platform;
     private PlatformWiring platformWiring;
     private LifeCycle lifeCycle = LifeCycle.INIT;
+
+    private PlatformStatus platformStatus;
 
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -105,6 +112,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
+    }
+
+    /**
+     * Returns the status of the platform while the node is running or {@code null} if not.
+     *
+     * @return the status of the platform
+     */
+    PlatformStatus platformStatus() {
+        return platformStatus;
     }
 
     /**
@@ -254,6 +270,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             // TODO: Release all resources
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
             platformWiring.stop();
+            platform.getNotificationEngine().unregisterAll();
+            platformStatus = null;
             platform = null;
             platformWiring = null;
             model = null;
@@ -325,6 +343,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         platformWiring = platformBuildingBlocks.platformWiring();
 
         platform = platformComponentBuilder.build();
+        platformStatus = PlatformStatus.STARTING_UP;
+        platform.getNotificationEngine().register(PlatformStatusChangeListener.class, platformStatusChangeListener);
         platform.start();
 
         lifeCycle = LifeCycle.STARTED;
