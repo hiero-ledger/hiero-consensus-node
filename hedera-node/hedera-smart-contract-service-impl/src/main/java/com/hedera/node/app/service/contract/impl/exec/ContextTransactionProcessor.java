@@ -132,10 +132,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 result = result.withSignerNonce(sender.getNonce());
             }
 
-            if (!result.isSuccess()) {
-                chargeOnFailedEthTxn(hevmTransaction);
-            }
-
             // For mono-service fidelity, externalize an initcode-only sidecar when a top-level creation fails
             if (!result.isSuccess() && hevmTransaction.needsInitcodeExternalizedOnFailure()) {
                 final var contractBytecode = ContractBytecode.newBuilder()
@@ -177,7 +173,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     senderId, hederaEvmContext, rootProxyWorldUpdater, hevmTransaction);
         }
 
-        chargeOnFailedEthTxn(hevmTransaction);
         rootProxyWorldUpdater.commit();
         ContractID recipientId = null;
         if (!INVALID_CONTRACT_ID.equals(status)) {
@@ -192,25 +187,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);
-    }
-
-    /**
-     * Charges hapi fees to the relayer if an Ethereum transaction failed.
-     * The charge is the canonical price of an Ethereum transaction in tinybars.
-     * @param hevmTransaction the Hedera EVM transaction
-     */
-    private void chargeOnFailedEthTxn(@NonNull final HederaEvmTransaction hevmTransaction) {
-        final var zeroHapiFeesEnabled = contractsConfig.evmEthTransactionZeroHapiFeesEnabled();
-        if (hevmTransaction.isEthereumTransaction() && zeroHapiFeesEnabled) {
-            final var relayerId = hevmTransaction.relayerId();
-
-            final var fee = hederaEvmContext
-                    .systemContractGasCalculator()
-                    .canonicalPriceInTinycents(DispatchType.ETHEREUM_TRANSACTION);
-            final var feeInTinyBars = ConversionUtils.fromTinycentsToTinybars(
-                    context.exchangeRateInfo().activeRate(context.consensusNow()), fee);
-            rootProxyWorldUpdater.collectFee(relayerId, feeInTinyBars);
-        }
     }
 
     private void assertEthTxDataValidIfApplicable() {

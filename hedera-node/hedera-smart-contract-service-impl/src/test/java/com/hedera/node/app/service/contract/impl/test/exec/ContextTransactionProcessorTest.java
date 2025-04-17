@@ -95,12 +95,6 @@ class ContextTransactionProcessorTest {
     private HederaEvmAccount senderAccount;
 
     @Mock
-    private SystemContractGasCalculator systemContractGasCalculator;
-
-    @Mock
-    private ExchangeRateInfo exchangeRateInfo;
-
-    @Mock
     private EntityIdFactory entityIdFactory;
 
     @Test
@@ -234,44 +228,6 @@ class ContextTransactionProcessorTest {
 
         verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
         verify(rootProxyWorldUpdater).commit();
-    }
-
-    @Test
-    void chargeHapiFeeOnFailedEthTransaction() {
-        final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
-        final var processors = processorsForAllCurrentEvmVersions(processor);
-        final var subject = new ContextTransactionProcessor(
-                null,
-                context,
-                contractsConfig,
-                CONFIGURATION,
-                hederaEvmContext,
-                null,
-                tracer,
-                rootProxyWorldUpdater,
-                hevmTransactionFactory,
-                feesOnlyUpdater,
-                processor,
-                customGasCharging);
-
-        given(context.body()).willReturn(TransactionBody.DEFAULT);
-        given(context.payer()).willReturn(AccountID.DEFAULT);
-        final var ethTx = wellKnownRelayedHapiCallWithGasLimit(1_000_000L);
-        given(hevmTransactionFactory.fromHapiTransaction(TransactionBody.DEFAULT, context.payer()))
-                .willReturn(ethTx);
-        given(processor.processTransaction(
-                        ethTx, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
-                .willThrow(new HandleException(INVALID_CONTRACT_ID));
-
-        given(hederaEvmContext.systemContractGasCalculator()).willReturn(systemContractGasCalculator);
-        given(systemContractGasCalculator.canonicalPriceInTinycents(any())).willReturn(1000L);
-        given(context.exchangeRateInfo()).willReturn(exchangeRateInfo);
-        final ExchangeRate exchangeRate = new ExchangeRate(1, 2, TimestampSeconds.DEFAULT);
-        given(exchangeRateInfo.activeRate(any())).willReturn(exchangeRate);
-
-        subject.call();
-        verify(rootProxyWorldUpdater).commit();
-        verify(rootProxyWorldUpdater).collectFee(any(), anyLong());
     }
 
     @Test
