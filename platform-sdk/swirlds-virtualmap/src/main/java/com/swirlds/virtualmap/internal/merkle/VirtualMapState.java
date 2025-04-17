@@ -1,34 +1,57 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
+import static com.hedera.pbj.runtime.ProtoParserTools.readFixed64;
+import static com.hedera.pbj.runtime.ProtoParserTools.readString;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLong;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfString;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.pbj.runtime.FieldDefinition;
+import com.hedera.pbj.runtime.FieldType;
+import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoParserTools;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Objects;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import java.io.UncheckedIOException;
 
 /**
- * Contains state for a {@link VirtualMap}. This state is stored in memory in the merkle tree as
- * the first (left) child of the VFCMap / {@link VirtualMap}.
+ * Contains state for a {@link VirtualMap}. This state is stored in memory. When an instance of {@link VirtualMap}
+ * is serialized, it's stored as one of the key-value pairs.
  */
-public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
-    public static final long CLASS_ID = 0x9e698c13a408250dL;
-    private static final int CLASS_VERSION = 1;
-
-    public static final int MAX_LABEL_CHARS = 512;
-    public static final int MAX_LABEL_LENGTH = MAX_LABEL_CHARS * 3;
+public class VirtualMapState {
 
     /**
-     * The path of the very first leaf in the tree. Can be null if there are no leaves.
+     * The value must not clash with values from {@code StateIdentifier}. By convention defined by {@code StateIdentifier}
+     * we use first two bytes to identify the service and the state. To prevent potential clashes let's use [-1, -1]
+     * as these values
+     */
+    public static final Bytes VM_STATE_KEY = Bytes.fromHex("ffff");
+
+    public static final FieldDefinition FIELD_FIRST_LEAF_PATH =
+            new FieldDefinition("firstLeafPath", FieldType.FIXED64, false, true, false, 1);
+    public static final FieldDefinition FIELD_LAST_LEAF_PATH =
+            new FieldDefinition("lastLeafPath", FieldType.FIXED64, false, true, false, 2);
+    public static final FieldDefinition FIELD_LABEL =
+            new FieldDefinition("label", FieldType.STRING, false, true, false, 3);
+
+    public static final int MAX_LABEL_CHARS = 512;
+
+    /**
+     * The path of the very first leaf in the tree. Can be -1 if there are no leaves.
      */
     private long firstLeafPath;
 
     /**
-     * The path of the very last leaf in the tree. Can be null if there are no leaves.
+     * The path of the very last leaf in the tree. Can be -1 if there are no leaves.
      */
     private long lastLeafPath;
 
@@ -40,30 +63,70 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
     /**
      * Create a new {@link VirtualMapState}.
      */
-    public VirtualMapState() {
-        // Only use this constructor for serialization
-        this((String) null);
-    }
-
-    /**
-     * Create a new {@link VirtualMapState}.
-     */
-    public VirtualMapState(String label) {
+    public VirtualMapState(@NonNull final String label) {
+        requireNonNull(label);
         firstLeafPath = -1;
         lastLeafPath = -1;
         this.label = label;
     }
 
     /**
-     * Create a copy of the {@link VirtualMapState}.
+     * Create a new {@link VirtualMapState} base on an {@link ExternalVirtualMapState} instance.
+     * To be removed with ExternalVirtualMapState.
      *
-     * @param source
-     * 		The map state to copy. Cannot be null.
+     * @param virtualMapState The map state to copy. Cannot be null.
      */
-    private VirtualMapState(final VirtualMapState source) {
-        this.firstLeafPath = source.firstLeafPath;
-        this.lastLeafPath = source.lastLeafPath;
-        this.label = source.label;
+    @Deprecated(forRemoval = true)
+    public VirtualMapState(@NonNull final ExternalVirtualMapState virtualMapState) {
+        requireNonNull(virtualMapState);
+        firstLeafPath = virtualMapState.getFirstLeafPath();
+        lastLeafPath = virtualMapState.getLastLeafPath();
+        label = virtualMapState.getLabel();
+    }
+
+    /**
+     * Copy constructor.
+     */
+    private VirtualMapState(final VirtualMapState virtualMapState) {
+        firstLeafPath = virtualMapState.getFirstLeafPath();
+        lastLeafPath = virtualMapState.getLastLeafPath();
+        label = virtualMapState.getLabel();
+    }
+
+    /**
+     * Create a new {@link VirtualMapState} from the given bytes.
+     *
+     * @param bytes The bytes to read. Cannot be null.
+     */
+    public VirtualMapState(@NonNull final Bytes bytes) {
+        requireNonNull(bytes);
+        final ReadableSequentialData data = bytes.toReadableSequentialData();
+        while (data.hasRemaining()) {
+            final int field = data.readVarInt(false);
+            final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
+            if (tag == FIELD_FIRST_LEAF_PATH.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                firstLeafPath = readFixed64(data);
+            } else if (tag == FIELD_LAST_LEAF_PATH.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                lastLeafPath = readFixed64(data);
+            } else if (tag == FIELD_LABEL.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                try {
+                    label = readString(data);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            } else {
+                throw new IllegalArgumentException("Unknown field: " + field);
+            }
+        }
     }
 
     /**
@@ -78,10 +141,8 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
     /**
      * Set the first leaf path.
      *
-     * @param path
-     * 		The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
-     * @throws IllegalArgumentException
-     * 		If the path is not valid
+     * @param path The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+     * @throws IllegalArgumentException If the path is not valid
      */
     public void setFirstLeafPath(final long path) {
         if (path < 1 && path != Path.INVALID_PATH) {
@@ -105,22 +166,23 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
     /**
      * Set the last leaf path.
      *
-     * @param path
-     * 		The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
-     * @throws IllegalArgumentException
-     * 		If the path is not valid
+     * @param path The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+     * @throws IllegalArgumentException If the path is not valid
      */
     public void setLastLeafPath(final long path) {
         if (path < 1 && path != Path.INVALID_PATH) {
             throw new IllegalArgumentException("The path must be positive, or INVALID_PATH, but was " + path);
         }
-        if (path < firstLeafPath) {
+        if (path < firstLeafPath && path != Path.INVALID_PATH) {
             throw new IllegalArgumentException("The lastLeafPath must be greater than or equal to the firstLeafPath");
         }
         this.lastLeafPath = path;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
+    /**
+     * Gets the size of the virtual map. The size is defined as the number of leaves in the tree.
+     * @return The size of the virtual map.
+     */
     public long getSize() {
         if (firstLeafPath == -1) {
             return 0;
@@ -129,14 +191,21 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
         return lastLeafPath - firstLeafPath + 1;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
+    /**
+     * Gets the label for the virtual tree.
+     *
+     * @return The label.
+     */
     public String getLabel() {
         return label;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
-    public void setLabel(final String label) {
-        Objects.requireNonNull(label);
+    /**
+     * Sets the label for the virtual tree.  Needed to differentiate between different VirtualMaps.
+     * @param label The new label. Cannot be null or empty. Cannot be longer than 512 characters.
+     */
+    public void setLabel(@NonNull final String label) {
+        requireNonNull(label);
         if (label.length() > MAX_LABEL_CHARS) {
             throw new IllegalArgumentException("Label cannot be greater than 512 characters");
         }
@@ -144,46 +213,27 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
     }
 
     /**
-     * {@inheritDoc}
+     * Converts current object into instance of {@link Bytes}
+     * @return resulting bytes
      */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
+    public Bytes toBytes() {
+        int size = sizeOfLong(FIELD_FIRST_LEAF_PATH, firstLeafPath)
+                + sizeOfLong(FIELD_LAST_LEAF_PATH, lastLeafPath)
+                + sizeOfString(FIELD_LABEL, label);
+
+        BufferedData out = BufferedData.allocate(size);
+        writeLong(out, FIELD_FIRST_LEAF_PATH, firstLeafPath);
+        writeLong(out, FIELD_LAST_LEAF_PATH, lastLeafPath);
+        try {
+            writeString(out, FIELD_LABEL, label);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        out.flip();
+        return out.readBytes(size);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return CLASS_VERSION;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeLong(firstLeafPath);
-        out.writeLong(lastLeafPath);
-
-        out.writeNormalisedString(label);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        firstLeafPath = in.readLong();
-        lastLeafPath = in.readLong();
-        label = in.readNormalisedString(MAX_LABEL_LENGTH);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public VirtualMapState copy() {
         return new VirtualMapState(this);
     }

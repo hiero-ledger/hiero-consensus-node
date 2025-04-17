@@ -8,12 +8,15 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 
 /**
  * Methods for testing {@link VirtualMap}.
  */
 public final class VirtualMapTestUtils {
+
+    public static final String VM_LABEL = "Test";
 
     private VirtualMapTestUtils() {}
 
@@ -31,7 +34,7 @@ public final class VirtualMapTestUtils {
     }
 
     public static VirtualMap createMap() {
-        return createMap("Test");
+        return createMap(VM_LABEL);
     }
 
     public static VirtualRootNode createRoot() {
@@ -41,11 +44,11 @@ public final class VirtualMapTestUtils {
     public static VirtualRootNode createRoot(final Configuration configuration) {
         final VirtualRootNode root =
                 new VirtualRootNode(new InMemoryBuilder(), configuration.getConfigData(VirtualMapConfig.class));
-        root.postInit(new DummyVirtualStateAccessor());
+        root.postInit(new VirtualMapState(VM_LABEL));
         return root;
     }
 
     public static VirtualRootNode getRoot(VirtualMap map) {
-        return map.getChild(1);
+        return map.getChild(0);
     }
 }

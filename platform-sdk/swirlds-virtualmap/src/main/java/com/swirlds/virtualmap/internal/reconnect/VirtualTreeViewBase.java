@@ -8,9 +8,9 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import java.util.Objects;
 
@@ -28,14 +28,14 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
      * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
      * For the learner, this is the state of the tree being serialized into.
      */
-    protected final VirtualStateAccessor reconnectState;
+    protected final VirtualMapState reconnectState;
 
     /**
      * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
      * this is the same as {@link #reconnectState}. For the learner, it is the state of the detached, unmodified
      * tree.
      */
-    protected final VirtualStateAccessor originalState;
+    protected final VirtualMapState originalState;
 
     /**
      * Create a new {@link VirtualTreeViewBase}.
@@ -48,9 +48,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
      * 		The state of the trees being reconnected. Cannot be null.
      */
     protected VirtualTreeViewBase(
-            final VirtualRootNode root,
-            final VirtualStateAccessor originalState,
-            final VirtualStateAccessor reconnectState) {
+            final VirtualRootNode root, final VirtualMapState originalState, final VirtualMapState reconnectState) {
         this.root = Objects.requireNonNull(root);
         this.originalState = Objects.requireNonNull(originalState);
         this.reconnectState = Objects.requireNonNull(reconnectState);
@@ -81,7 +79,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
 
         // Based on isOriginal I can know whether the node is out of the original state or the reconnect state.
         // This only matters on the learner, on the teacher they are both the same instances.
-        final VirtualStateAccessor state = isOriginal ? originalState : reconnectState;
+        final VirtualMapState state = isOriginal ? originalState : reconnectState;
         checkValidNode(node, state);
         return node == ROOT_PATH || (node > ROOT_PATH && node < state.getFirstLeafPath());
     }
@@ -132,20 +130,20 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
         return childPath > originalState.getLastLeafPath() ? null : childPath;
     }
 
-    protected void checkValidNode(final Long node, final VirtualStateAccessor state) {
+    protected void checkValidNode(final Long node, final VirtualMapState state) {
         if (node != ROOT_PATH && !(node > ROOT_PATH && node <= state.getLastLeafPath())) {
             throw new MerkleSynchronizationException(
                     "node path out of bounds. path=" + node + ", lastLeafPath=" + state.getLastLeafPath());
         }
     }
 
-    protected void checkValidInternal(final Long node, final VirtualStateAccessor state) {
+    protected void checkValidInternal(final Long node, final VirtualMapState state) {
         if (node != ROOT_PATH && !(node > ROOT_PATH && node < state.getFirstLeafPath())) {
             throw new MerkleSynchronizationException("internal path out of bounds. path=" + node);
         }
     }
 
-    protected void checkValidLeaf(final Long node, final VirtualStateAccessor state) {
+    protected void checkValidLeaf(final Long node, final VirtualMapState state) {
         if (node < state.getFirstLeafPath() || node > state.getLastLeafPath()) {
             throw new MerkleSynchronizationException("leaf path out of bounds. path=" + node);
         }

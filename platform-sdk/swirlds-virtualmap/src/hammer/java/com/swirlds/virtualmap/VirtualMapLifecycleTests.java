@@ -120,7 +120,8 @@ class VirtualMapLifecycleTests {
                     return;
                 }
                 do {
-                    if (map.isEmpty()) {
+                    // VirtualMap has state metadata only
+                    if (map.size() == 1) {
                         break;
                     }
 

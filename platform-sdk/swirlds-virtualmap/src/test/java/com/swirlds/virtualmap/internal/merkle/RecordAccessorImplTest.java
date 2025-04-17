@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -18,7 +19,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import com.swirlds.virtualmap.test.fixtures.DummyVirtualStateAccessor;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -56,7 +56,7 @@ public class RecordAccessorImplTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        DummyVirtualStateAccessor state = new DummyVirtualStateAccessor();
+        VirtualMapState state = new VirtualMapState(VM_LABEL);
         VirtualNodeCache cache = new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         dataSource = new BreakableDataSource();
         records = new RecordAccessorImpl(state, cache, dataSource);
@@ -103,8 +103,8 @@ public class RecordAccessorImplTest {
         cache.putHash(rightChanged);
 
         // Set up the state for a 6 leaf in memory tree
-        state.setFirstLeafPath(5);
         state.setLastLeafPath(10);
+        state.setFirstLeafPath(5);
     }
 
     @Test

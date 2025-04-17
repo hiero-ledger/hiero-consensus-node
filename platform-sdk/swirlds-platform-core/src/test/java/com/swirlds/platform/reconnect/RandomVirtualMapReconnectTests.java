@@ -61,10 +61,10 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     public static final int ZZZZZ = 26 * 26 * 26 * 26 * 26; // key value corresponding to five Z's (plus 1)
 
     @Override
-    protected VirtualDataSourceBuilder createBuilder() throws IOException {
+    protected VirtualDataSourceBuilder createBuilder(String postfix) throws IOException {
         // The tests create maps with identical names. They would conflict with each other in the default
         // MerkleDb instance, so let's use a new (temp) database location for every run
-        final Path defaultVirtualMapPath = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
+        final Path defaultVirtualMapPath = LegacyTemporaryFileBuilder.buildTemporaryFile(postfix, CONFIGURATION);
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
@@ -72,7 +72,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 DigestType.SHA_384,
                 merkleDbConfig.maxNumOfKeys(),
                 merkleDbConfig.hashesRamToDiskThreshold());
-        return new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+        return new MerkleDbDataSourceBuilder(defaultVirtualMapPath, tableConfig, CONFIGURATION);
     }
 
     public String randomWord(final Random random, final int maximumKeySize) {
@@ -295,7 +295,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         // Create a copy of the resulting map
         final VirtualMap afterCopy = afterMap.copy();
         // Enforce computing the hash of its root node
-        assertNotNull(afterCopy.getRight().getHash());
+        assertNotNull(afterCopy.getLeft().getHash());
 
         afterSyncLearnerTree.release();
         copy.release();
@@ -318,14 +318,14 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 metricsConfig);
         learnerMap.registerMetrics(metrics);
 
-        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_Learner");
+        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_Test");
         assertNotNull(sizeMetric);
         assertEquals(0L, sizeMetric.get(ValueType.VALUE));
 
         final Bytes zeroKey = TestKey.longToKey(0);
         teacherMap.put(zeroKey, new TestValue("value0"), TestValueCodec.INSTANCE);
         learnerMap.put(zeroKey, new TestValue("value0"), TestValueCodec.INSTANCE);
-        assertEquals(1L, sizeMetric.get(ValueType.VALUE));
+        assertEquals(2L, sizeMetric.get(ValueType.VALUE));
 
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final Bytes key = TestKey.longToKey(123);
@@ -343,11 +343,11 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
         assertTrue(afterCopy.containsKey(key));
         assertEquals("value123", afterCopy.get(key, TestValueCodec.INSTANCE).getValue());
-        assertEquals(2L, sizeMetric.get(ValueType.VALUE));
+        assertEquals(3L, sizeMetric.get(ValueType.VALUE));
 
         final Bytes key2 = TestKey.longToKey(456);
         afterCopy.put(key2, new TestValue("value456"), TestValueCodec.INSTANCE);
-        assertEquals(3L, sizeMetric.get(ValueType.VALUE));
+        assertEquals(4L, sizeMetric.get(ValueType.VALUE));
 
         teacherCopy.release();
         afterCopy.release();

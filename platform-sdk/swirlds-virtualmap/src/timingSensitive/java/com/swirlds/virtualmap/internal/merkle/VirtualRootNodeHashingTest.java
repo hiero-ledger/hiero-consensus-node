@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.test.fixtures.DummyVirtualStateAccessor;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -39,16 +37,13 @@ class VirtualRootNodeHashingTest {
         final Hash hash = root.getHash();
         assertNotNull(hash, "hash should not be null");
 
-        final Hash expectedHash = new VirtualHasher().emptyRootHash();
-        assertEquals(expectedHash, hash, "empty root hash value didn't match expectations");
-
         root.release();
         copy.release();
     }
 
     @Test
     @Tag(TestComponentTags.VMAP)
-    @DisplayName("Hash Root With One Entry")
+    @DisplayName("Hash Root With One Data Entry")
     void hashMapWithOneEntry() {
         final VirtualRootNode root = createRoot();
         root.put(TestKey.longToKey('a'), new TestValue("a"), TestValueCodec.INSTANCE);
@@ -70,7 +65,7 @@ class VirtualRootNodeHashingTest {
         }
 
         final VirtualRootNode root1 = root0.copy();
-        root1.postInit(new DummyVirtualStateAccessor());
+        root1.postInit(root0.getState());
         final Hash hash0 = root0.getHash();
         assertNotNull(hash0, "hash should not be null");
 
@@ -79,7 +74,7 @@ class VirtualRootNodeHashingTest {
         }
 
         final VirtualRootNode root2 = root1.copy();
-        root2.postInit(new DummyVirtualStateAccessor());
+        root2.postInit(root1.getState());
         final Hash hash1 = root1.getHash();
         assertNotNull(hash1, "hash should not be null");
 

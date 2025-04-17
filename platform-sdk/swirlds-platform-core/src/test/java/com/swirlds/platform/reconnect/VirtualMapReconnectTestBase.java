@@ -21,7 +21,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
+import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
@@ -53,18 +53,19 @@ public abstract class VirtualMapReconnectTestBase {
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
 
-    protected abstract VirtualDataSourceBuilder createBuilder() throws IOException;
+    protected abstract VirtualDataSourceBuilder createBuilder(String postfix) throws IOException;
 
     @BeforeEach
     void setupEach() throws Exception {
         // Some tests set custom default VirtualMap settings, e.g. StreamEventParserTest calls
         // Browser.populateSettingsCommon(). These custom settings can't be used to run VM reconnect
         // tests. As a workaround, set default settings here explicitly
-        final VirtualDataSourceBuilder dataSourceBuilder = createBuilder();
-        teacherBuilder = new BrokenBuilder(dataSourceBuilder);
-        learnerBuilder = new BrokenBuilder(dataSourceBuilder);
-        teacherMap = new VirtualMap("Teacher", teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap("Learner", learnerBuilder, CONFIGURATION);
+        final VirtualDataSourceBuilder teacherDataSourceBuilder = createBuilder("Teacher");
+        teacherBuilder = new BrokenBuilder(teacherDataSourceBuilder);
+        final VirtualDataSourceBuilder learnerDataSourceBuilder = createBuilder("Learner");
+        learnerBuilder = new BrokenBuilder(learnerDataSourceBuilder);
+        teacherMap = new VirtualMap("Test", teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap("Test", learnerBuilder, CONFIGURATION);
     }
 
     @BeforeAll
@@ -76,7 +77,8 @@ public abstract class VirtualMapReconnectTestBase {
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMapState.class, VirtualMapState::new));
+        registry.registerConstructable(
+                new ClassConstructorPair(ExternalVirtualMapState.class, ExternalVirtualMapState::new));
         registry.registerConstructable(new ClassConstructorPair(
                 VirtualRootNode.class, () -> new VirtualRootNode(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
         registry.registerConstructable(new ClassConstructorPair(BrokenBuilder.class, BrokenBuilder::new));
