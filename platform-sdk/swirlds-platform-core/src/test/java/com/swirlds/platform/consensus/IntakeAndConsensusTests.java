@@ -7,20 +7,20 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.consensus.TestIntake;
-import com.swirlds.platform.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class IntakeAndConsensusTests {
     /**
@@ -38,8 +38,9 @@ class IntakeAndConsensusTests {
      * <p>
      * Tests the workaround described in #5762
      */
-    @Test
-    void nonAncientEventWithMissingParents() {
+    @ParameterizedTest
+    @ValueSource(strings = {"true", "false"})
+    void nonAncientEventWithMissingParents(String useBirthRounds) {
         final long seed = 0;
         final int numNodes = 10;
         final List<Integer> partitionNodes = List.of(0, 1);
@@ -47,6 +48,7 @@ class IntakeAndConsensusTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 25)
                 .withValue(ConsensusConfig_.ROUNDS_EXPIRED, 25)
+                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRounds)
                 .getOrCreateConfig();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
@@ -124,8 +126,8 @@ class IntakeAndConsensusTests {
         final int secondBatchSize = 1000;
         batch = generator.generateEvents(secondBatchSize);
         for (final EventImpl event : batch) {
-            node1.addEvent(event.getBaseEvent());
-            node2.addEvent(event.getBaseEvent());
+            node1.addEvent(event.getBaseEvent().copyGossipedData());
+            node2.addEvent(event.getBaseEvent().copyGossipedData());
         }
         assertThat(node1.getConsensusRounds().getLast().getRoundNum())
                 .isGreaterThan(consRoundBeforeLastBatch)
@@ -134,13 +136,7 @@ class IntakeAndConsensusTests {
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
-        final RoundInternalEqualityValidation roundInternalEqualityValidation = new RoundInternalEqualityValidation();
-
-        final Iterator<ConsensusRound> iterator1 = node1.getConsensusRounds().iterator();
-        final Iterator<ConsensusRound> iterator2 = node2.getConsensusRounds().iterator();
-        while (iterator1.hasNext() && iterator2.hasNext()) {
-            roundInternalEqualityValidation.validate(iterator1.next(), iterator2.next());
-        }
+        new ConsensusRoundValidator().validate(node1.getConsensusRounds(), node2.getConsensusRounds());
         node1.getConsensusRounds().clear();
         node2.getConsensusRounds().clear();
     }
