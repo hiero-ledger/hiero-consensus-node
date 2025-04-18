@@ -289,11 +289,12 @@ public class SimulatedBlockNodeServer {
                         blockTrackingLock.writeLock().lock();
                         try {
                             boolean alreadyHasHeader = blocksWithHeaders.contains(blockNumber);
+                            boolean alreadyHasProof = blocksWithProofs.contains(blockNumber);
                             // Always add to the set of blocks with headers
                             blocksWithHeaders.add(blockNumber);
 
                             // If we've already seen this block header, send SkipBlock
-                            if (alreadyHasHeader) {
+                            if (alreadyHasHeader && blockNumber == lastVerifiedBlockNumber.get() + 1) {
                                 log.info("Already received header for block {}, sending SkipBlock", blockNumber);
                                 sendSkipBlock(responseObserver, blockNumber);
                                 // Note: The sendSkipBlock method already tracks that we've sent a SkipBlock
@@ -310,6 +311,14 @@ public class SimulatedBlockNodeServer {
                                             "No proof yet for block {}, acknowledgment will be sent when proof is received",
                                             blockNumber);
                                 }
+                            } else if (blockNumber > lastVerifiedBlockNumber.get() + 1) {
+                                log.info("BlockHeader for Block " + blockNumber + " > lastVerified("
+                                        + lastVerifiedBlockNumber.get() + ") + 1");
+                                // This is a gap in the block stream, we need to send EndOfStream
+                                sendEndOfStream(
+                                        responseObserver,
+                                        PublishStreamResponseCode.STREAM_ITEMS_BEHIND,
+                                        lastVerifiedBlockNumber.get());
                             }
                         } finally {
                             blockTrackingLock.writeLock().unlock();

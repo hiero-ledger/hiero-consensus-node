@@ -132,11 +132,11 @@ public class BlockStreamStateManager {
                     "Creating request from remaining items in block {} size {}",
                     blockNumber,
                     blockState.items().size());
+            // Mark the block as complete
+            blockState.setComplete();
             createRequestFromCurrentItems(blockState);
         }
 
-        // Mark the block as complete
-        blockState.setComplete();
         logger.debug(
                 "Closed block in BlockStreamStateManager {} - request count: {}",
                 blockNumber,

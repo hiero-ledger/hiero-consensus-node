@@ -66,6 +66,7 @@ public abstract class AbstractNode implements HederaNode {
         requireNonNull(path);
         final var workingDir = requireNonNull(metadata.workingDir());
         return switch (path) {
+            case WORKING_DIR -> workingDir;
             case APPLICATION_LOG -> workingDir.resolve(OUTPUT_DIR).resolve(HGCAA_LOG);
             case SWIRLDS_LOG -> workingDir.resolve(OUTPUT_DIR).resolve(SWIRLDS_LOG);
             case ADDRESS_BOOK -> workingDir.resolve(CONFIG_TXT);

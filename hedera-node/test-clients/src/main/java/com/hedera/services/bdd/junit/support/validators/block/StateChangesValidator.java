@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROP
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
@@ -67,6 +68,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.Service;
@@ -159,6 +161,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
                         "525279ce448629033053af7fd64e1439f415c0acb5ad6819b73363807122847b2d68ded6d47db36b59920474093f0651"),
+                node0Dir,
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
@@ -214,6 +217,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
             return new StateChangesValidator(
                     rootHash,
+                    node0.getExternalPath(WORKING_DIR),
                     node0.getExternalPath(SWIRLDS_LOG),
                     node0.getExternalPath(APPLICATION_PROPERTIES),
                     node0.getExternalPath(DATA_CONFIG_DIR),
@@ -230,6 +234,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     public StateChangesValidator(
             @NonNull final Bytes expectedRootHash,
+            @NonNull final Path pathToNode0,
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
@@ -251,6 +256,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         System.setProperty("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES));
         System.setProperty("tss.initialCrsParties", "" + crsSize);
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
+        MerkleDb.setDefaultPath(pathToNode0.resolve("stateChangesValidator"));
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
