@@ -279,10 +279,11 @@ class IssDetectorTests extends PlatformTest {
                     switch (expectedRoundStatus.get((int) notification.getRound())) {
                         case SELF_ISS -> IssNotification.IssType.SELF_ISS;
                         case CATASTROPHIC_ISS -> IssNotification.IssType.CATASTROPHIC_ISS;
-                            // if there was an other-ISS, then the round should still be valid
+                        // if there was an other-ISS, then the round should still be valid
                         case VALID -> IssNotification.IssType.OTHER_ISS;
-                        default -> throw new IllegalStateException(
-                                "Unexpected value: " + expectedRoundStatus.get((int) notification.getRound()));
+                        default ->
+                            throw new IllegalStateException(
+                                    "Unexpected value: " + expectedRoundStatus.get((int) notification.getRound()));
                     };
             assertEquals(
                     expectedType,
