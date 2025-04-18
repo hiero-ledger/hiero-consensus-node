@@ -74,11 +74,6 @@ public class CustomGasCalculator extends CancunGasCalculator {
         return Math.max(evmGasCost, hevmGasCost);
     }
 
-    @Override
-    public long codeDepositGasCost(final int codeSize) {
-        return 0L;
-    }
-
     /**
      * Gas charge to do a signature verification for an ED key.
      *

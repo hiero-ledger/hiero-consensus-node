@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static java.util.Objects.requireNonNull;
+
+import com.swirlds.common.config.StateCommonConfig_;
+import com.swirlds.common.io.config.FileSystemManagerConfig_;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.config.BasicConfig_;
+import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 import org.hiero.otter.fixtures.NodeConfiguration;
 
 /**
@@ -11,7 +21,29 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  */
 public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConfiguration> {
 
-    private static final Logger log = LogManager.getLogger(TurtleNodeConfiguration.class);
+    private final Map<String, String> overriddenProperties = new HashMap<>();
+    private final Path outputDirectory;
+
+    /**
+     * Constructor for the {@link TurtleNodeConfiguration} class.
+     *
+     * @param outputDirectory the directory where the node output will be stored, like saved state and so on
+     */
+    public TurtleNodeConfiguration(@NonNull final Path outputDirectory) {
+        this.outputDirectory = requireNonNull(outputDirectory);
+    }
+
+    /**
+     * Creates a configuration for the Turtle node using the overridden properties.
+     *
+     * @return the configuration for the Turtle node
+     */
+    @NonNull
+    Configuration createConfiguration() {
+        return createBasicConfigBuilder()
+                .withSource(new SimpleConfigSource(overriddenProperties))
+                .getOrCreateConfig();
+    }
 
     /**
      * {@inheritDoc}
@@ -19,7 +51,15 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
     @Override
     @NonNull
     public TurtleNodeConfiguration set(@NonNull String key, boolean value) {
-        log.warn("Setting a node configuration property has not been implemented yet.");
+        overriddenProperties.put(key, Boolean.toString(value));
         return this;
+    }
+
+    private TestConfigBuilder createBasicConfigBuilder() {
+        return new TestConfigBuilder()
+                .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
+                .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
+                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.toString())
+                .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.toString());
     }
 }

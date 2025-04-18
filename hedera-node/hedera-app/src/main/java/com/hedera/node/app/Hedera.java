@@ -1186,9 +1186,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                     .initLastBlockHash(
                             switch (trigger) {
                                 case GENESIS -> ZERO_BLOCK_HASH;
-                                default -> blockStreamService
-                                        .migratedLastBlockHash()
-                                        .orElseGet(() -> startBlockHashFrom(state));
+                                default ->
+                                    blockStreamService
+                                            .migratedLastBlockHash()
+                                            .orElseGet(() -> startBlockHashFrom(state));
                             });
             migrationStateChanges = null;
         }
@@ -1355,12 +1356,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
-            final var writableStates = initState.getWritableStates(HintsService.NAME);
-            final var entityCounters = new WritableEntityIdStore(writableStates);
-            final var store = new WritableHintsStoreImpl(writableStates, entityCounters);
+            final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
+            final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
+            final var entityCounters = new WritableEntityIdStore(writableEntityStates);
+            final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
             hintsService.manageRosterAdoption(
                     store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
-            ((CommittableWritableStates) writableStates).commit();
+            ((CommittableWritableStates) writableHintsStates).commit();
         }
     }
 

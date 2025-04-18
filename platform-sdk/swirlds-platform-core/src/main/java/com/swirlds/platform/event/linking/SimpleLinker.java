@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gui;
+package com.swirlds.platform.event.linking;
 
 import com.swirlds.platform.event.EventCounter;
-import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,18 +164,6 @@ public class SimpleLinker {
     @NonNull
     public List<EventImpl> getNonAncientEvents() {
         return parentHashMap.values().stream().toList();
-    }
-
-    /**
-     * Get all non-ancient events tracked by this linker sorted in topological order.
-     *
-     * @return all non-ancient events
-     */
-    @NonNull
-    public List<EventImpl> getSortedNonAncientEvents() {
-        return parentHashMap.values().stream()
-                .sorted(Comparator.comparing(EventImpl::getGeneration))
-                .toList();
     }
 
     /**
