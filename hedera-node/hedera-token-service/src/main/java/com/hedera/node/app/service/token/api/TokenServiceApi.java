@@ -167,27 +167,37 @@ public interface TokenServiceApi {
      * @param amount the amount to charge
      * @param recordBuilder the record builder to record the fees in
      * @param cb if not null, a callback to receive the fee disbursements
-     * @return true if the full amount was charged, false otherwise
+     * @return the total fees charged
      */
-    boolean chargeNetworkFee(
+    Fees chargeFee(
             @NonNull AccountID payer,
             long amount,
             @NonNull FeeStreamBuilder recordBuilder,
             @Nullable ObjLongConsumer<AccountID> cb);
 
     /**
+     * Refunds the given fees to the given receiver, and records those refunds in the given record builder.
+     *
+     * @param payerId the id of the account that should be refunded
+     * @param amount the amount to refund
+     * @param recordBuilder the record builder to record the fees in
+     */
+    void refundFee(@NonNull AccountID payerId, long amount, @NonNull FeeStreamBuilder recordBuilder);
+
+    /**
      * Charges the payer the given fees, and records those fees in the given record builder.
      *
      * @param payer the id of the account that should be charged
-     * @param nodeAccount the id of the node that should receive the node fee, if present and payable
+     * @param nodeAccountId the id of the node that should receive the node fee, if present and payable
      * @param fees the fees to charge
      * @param recordBuilder the record builder to record the fees in
      * @param cb if not null, a map to record the balance adjustments in
      * @param onNodeFee a callback to receive the node fee disbursement
+     * @return the amount of fees charged
      */
-    void chargeFees(
+    Fees chargeFees(
             @NonNull AccountID payer,
-            AccountID nodeAccount,
+            @NonNull AccountID nodeAccountId,
             @NonNull Fees fees,
             @NonNull FeeStreamBuilder recordBuilder,
             @Nullable ObjLongConsumer<AccountID> cb,
@@ -196,11 +206,18 @@ public interface TokenServiceApi {
     /**
      * Refunds the given fees to the given receiver, and records those fees in the given record builder.
      *
-     * @param receiver      the id of the account that should be refunded
-     * @param fees          the fees to refund
+     * @param payerId the id of the account that should be refunded
+     * @param nodeAccountId the id of the node fee collection account
+     * @param fees the fees to refund
      * @param recordBuilder the record builder to record the fees in
+     * @param onNodeRefund a callback to receive the node fee refund
      */
-    void refundFees(@NonNull AccountID receiver, @NonNull Fees fees, @NonNull FeeStreamBuilder recordBuilder);
+    void refundFees(
+            @NonNull AccountID payerId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull Fees fees,
+            @NonNull FeeStreamBuilder recordBuilder,
+            @NonNull LongConsumer onNodeRefund);
 
     /**
      * Returns the number of storage slots used by the given account before any changes were made via

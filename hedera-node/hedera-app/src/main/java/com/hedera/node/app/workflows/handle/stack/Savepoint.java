@@ -64,6 +64,12 @@ public interface Savepoint extends BuilderSink {
     void trackCollectedNodeFee(long amount);
 
     /**
+     * Tracks the given amount of fees refunded from node accounts in this savepoint.
+     * @param amount the amount to track
+     */
+    void trackRefundedNodeFee(long amount);
+
+    /**
      * The total fees collected into node accounts and not rolled back in this savepoint.
      * @return the total fees collected
      */
