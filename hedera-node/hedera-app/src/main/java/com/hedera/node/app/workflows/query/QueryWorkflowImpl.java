@@ -279,8 +279,10 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             } catch (InsufficientBalanceException e) {
                 response = createErrorResponse(handler, responseType, e.responseCode(), e.getEstimatedFee());
             } catch (PreCheckException e) {
+                logger.debug("Query failed", e);
                 response = createErrorResponse(handler, responseType, e.responseCode(), 0L);
             } catch (HandleException e) {
+                logger.debug("Query failed", e);
                 // Conceptually, this should never happen, because we should use PreCheckException only for queries
                 // But we catch it here to play it safe
                 response = createErrorResponse(handler, responseType, e.getStatus(), 0L);
