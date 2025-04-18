@@ -74,10 +74,13 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                 runWithProvider(precompileMintsFactory())
                         .lasting(duration::get, unit::get)
                         .maxOpsPerSec(maxOpsPerSec::get)
+                        .waitForPendingOps()
                         .assertStatusCounts((precheckStatusCountMap, statusCountMap) -> {
                             // To avoid external factors (e.g., limited CI resources or network issues),
                             // we will only consider statuses SUCCESS and CONTRACT_REVERT_EXECUTED.
-                            final var successCount = statusCountMap.get(SUCCESS).get();
+                            final var successCount = statusCountMap
+                                    .getOrDefault(SUCCESS, new AtomicInteger(0))
+                                    .get();
                             final var revertCount = statusCountMap
                                     .getOrDefault(CONTRACT_REVERT_EXECUTED, new AtomicInteger(0))
                                     .get();
