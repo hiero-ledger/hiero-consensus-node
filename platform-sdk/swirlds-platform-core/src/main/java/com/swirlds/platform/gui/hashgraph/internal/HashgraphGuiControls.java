@@ -49,6 +49,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private final Checkbox labelGenerationCheckbox;
     /** the birth round number for the event */
     private final Checkbox labelBirthroundCheckbox;
+    /** the branch number for the event */
+    private final Checkbox labelBranchNumberCheckbox;
     /** check to display the latest events available */
     private final Checkbox displayLatestEvents;
 
@@ -71,6 +73,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelConsTimestampCheckbox = new Checkbox("Labels: Timestamp (consensus)");
         labelGenerationCheckbox = new Checkbox("Labels: Generation");
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
+        labelBranchNumberCheckbox = new Checkbox("Labels: Branch number");
         displayLatestEvents = new Checkbox("Display latest events");
         displayLatestEvents.setState(true);
 
@@ -109,6 +112,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelConsTimestampCheckbox,
             labelGenerationCheckbox,
             labelBirthroundCheckbox,
+            labelBranchNumberCheckbox,
             displayLatestEvents
         };
     }
@@ -196,7 +200,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
                                 - Non-famous witnesses are yellow\s
                                 - Famous witnesses are green\s
                                 - Undecided witnesses are red\s
-                                - The selected event is magenta\s
+                                - The selected event is magenta with green border\s
+                                - The parents of the selected event have magenta borders\s
                                 - The events the selected event can strongly see are cyan\s""")),
                 constr);
         constr.gridy++;
@@ -280,6 +285,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean displayLatestEvents() {
         return displayLatestEvents.getState();
+    }
+
+    @Override
+    public boolean writeBranches() {
+        return labelBranchNumberCheckbox.getState();
     }
 
     @Override

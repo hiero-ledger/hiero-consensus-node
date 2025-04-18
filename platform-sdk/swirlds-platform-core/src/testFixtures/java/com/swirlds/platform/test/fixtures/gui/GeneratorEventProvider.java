@@ -3,10 +3,12 @@ package com.swirlds.platform.test.fixtures.gui;
 
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
+import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Provides events for the GUI by generating them using a {@link GraphGenerator}
@@ -34,5 +36,16 @@ public class GeneratorEventProvider implements GuiEventProvider {
     @Override
     public void reset() {
         graphGenerator.reset();
+    }
+
+    /**
+     * Get the event source for a node specified by id.
+     *
+     * @param nodeID the id to filter with
+     *
+     * @return the specific event source
+     */
+    public EventSource getNodeSource(@NonNull final NodeId nodeID) {
+        return graphGenerator.getSource(nodeID);
     }
 }
