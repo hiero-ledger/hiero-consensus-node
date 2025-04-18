@@ -34,6 +34,7 @@ import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -139,7 +140,11 @@ public class DispatchProcessor {
             dispatcher.dispatchHandle(dispatch.handleContext());
             dispatch.streamBuilder().status(SUCCESS);
             if (functionality == ETHEREUM_TRANSACTION) {
-                dispatch.feeChargingOrElse(appFeeCharging).refund(dispatch, fees);
+                final boolean refundsEnabled =
+                        dispatch.config().getConfigData(ContractsConfig.class).evmEthTransactionZeroHapiFeesEnabled();
+                if (refundsEnabled) {
+                    dispatch.feeChargingOrElse(appFeeCharging).refund(dispatch, fees);
+                }
             }
             handleSystemUpdates(dispatch);
         } catch (HandleException e) {
