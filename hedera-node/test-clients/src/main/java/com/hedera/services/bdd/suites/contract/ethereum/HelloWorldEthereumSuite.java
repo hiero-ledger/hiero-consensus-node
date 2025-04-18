@@ -516,7 +516,7 @@ public class HelloWorldEthereumSuite {
                         .payingWith(RELAYER)
                         .nonce(0)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(1_000_000L)));
+                        .gasLimit(4_000_000L)));
     }
 
     @HapiTest
@@ -536,7 +536,7 @@ public class HelloWorldEthereumSuite {
                         .payingWith(RELAYER)
                         .nonce(0)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(1_000_000L)
+                        .gasLimit(4_000_000L)
                         .via("payTxn")
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),

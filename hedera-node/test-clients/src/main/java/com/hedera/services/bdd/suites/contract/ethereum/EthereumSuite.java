@@ -167,7 +167,7 @@ public class EthereumSuite {
                         .bytecode(TOKEN_CREATE_CONTRACT)
                         .gasPrice(10L)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(1_000_000L)
+                        .gasLimit(4_000_000L)
                         .hasKnownStatusFrom(SUCCESS)
                         .via("deployTokenCreateContract"),
                 getContractInfo(TOKEN_CREATE_CONTRACT)
@@ -1098,7 +1098,7 @@ public class EthereumSuite {
                         .keyShape(SigControl.ED25519_ON)
                         .balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).gas(GAS_LIMIT),
+                contractCreate(contract).gas(4_000_000L),
                 tokenCreate(EXISTING_TOKEN).decimals(5),
                 tokenAssociate(feeCollectorAndAutoRenew, EXISTING_TOKEN),
                 cryptoUpdate(feeCollectorAndAutoRenew).key(SECP_256K1_SOURCE_KEY),
@@ -1164,7 +1164,7 @@ public class EthereumSuite {
                         .keyShape(SigControl.ED25519_ON)
                         .balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).gas(GAS_LIMIT),
+                contractCreate(contract).gas(4_000_000L),
                 tokenCreate(EXISTING_TOKEN).decimals(5),
                 tokenAssociate(feeCollectorAndAutoRenew, EXISTING_TOKEN),
                 cryptoUpdate(feeCollectorAndAutoRenew).key(SECP_256K1_SOURCE_KEY),

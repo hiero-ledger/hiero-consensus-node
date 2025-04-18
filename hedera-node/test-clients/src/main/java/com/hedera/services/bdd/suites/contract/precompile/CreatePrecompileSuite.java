@@ -87,7 +87,7 @@ public class CreatePrecompileSuite {
     public static final String FALSE = "false";
     public static final String CREATE_TOKEN_WITH_ALL_CUSTOM_FEES_AVAILABLE = "createTokenWithAllCustomFeesAvailable";
     private static final Logger log = LogManager.getLogger(CreatePrecompileSuite.class);
-    private static final long GAS_TO_OFFER = 1_000_000L;
+    private static final long GAS_TO_OFFER = 4_000_000L;
     private static final long GAS_TO_OFFER_2 = 4_000_000L;
     public static final long AUTO_RENEW_PERIOD = 8_000_000L;
     public static final String TOKEN_SYMBOL = "tokenSymbol";

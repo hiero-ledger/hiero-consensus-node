@@ -42,7 +42,7 @@ public class ERC721ContractInteractions {
                 contractCreate(CONTRACT)
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .hasKnownStatus(SUCCESS)
-                        .gas(500_000L)
+                        .gas(2_500_000L)
                         .via(CREATE_TX),
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_CONTRACT_SENDER, DEFAULT_CONTRACT_RECEIVER, 10 * ONE_HBAR))
                         .payingWith(DEFAULT_CONTRACT_SENDER),

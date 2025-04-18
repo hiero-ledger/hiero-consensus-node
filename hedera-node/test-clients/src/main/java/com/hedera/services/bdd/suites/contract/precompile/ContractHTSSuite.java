@@ -74,7 +74,7 @@ public class ContractHTSSuite {
     public static final String TRANSFER_NFT = "transferNFTPublic";
     public static final String TRANSFER_NFTS = "transferNFTsPublic";
 
-    private static final long GAS_TO_OFFER = 2_000_000L;
+    private static final long GAS_TO_OFFER = 4_000_000L;
     private static final long TOTAL_SUPPLY = 1_000;
     private static final String TOKEN_TREASURY = "treasury";
 
@@ -130,7 +130,7 @@ public class ContractHTSSuite {
                 cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
                 cryptoTransfer(movingUnique(KNOWABLE_TOKEN, 1, 2, 3, 4).between(TOKEN_TREASURY, ACCOUNT)),
                 uploadInitCode(contract),
-                contractCreate(contract).gas(500_000L),
+                contractCreate(contract).gas(GAS_TO_OFFER),
                 // Do transfers by calling contract from EOA, and should be failing with
                 // CONTRACT_REVERT_EXECUTED
                 withOpContext((spec, opLog) -> {
@@ -242,7 +242,7 @@ public class ContractHTSSuite {
                 tokenAssociate(RECEIVER, VANILLA_TOKEN),
                 cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
                 uploadInitCode(contract),
-                contractCreate(contract).gas(500_000L),
+                contractCreate(contract).gas(GAS_TO_OFFER),
                 withOpContext((spec, opLog) -> {
                     final var receiver1 =
                             asHeadlongAddress(asAddress(spec.registry().getAccountID(RECEIVER)));

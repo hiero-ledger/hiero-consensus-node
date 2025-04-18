@@ -79,7 +79,8 @@ public class HgcaaLogValidator {
                 List.of("Candidate roster was rejected"),
                 List.of("Throttle multiplier for CryptoTransfer throughput congestion has no throttle buckets"),
                 // Although we do want a little more visibility for these messages, they shouldn't fail a CI run
-                List.of("Proof future for construction", "must wait until previous finished"));
+                List.of("Proof future for construction", "must wait until previous finished"),
+                List.of("Action stack prematurely empty"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

@@ -365,7 +365,7 @@ public class SelfDestructSuite {
                 }),
                 quickSelfDestructContract
                         .call("createAndDeleteChild")
-                        .gas(100_000L)
+                        .gas(400_000L)
                         .payingWith(payerAccount)
                         .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
                 withOpContext((spec, opLog) -> {

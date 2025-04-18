@@ -334,7 +334,10 @@ public class ContractCreateSuite {
                         .via("constructorCreate")
                         .maxAutomaticTokenAssociations(5)
                         .hasKnownStatus(SUCCESS),
-                contractCall(createContract, "create").via("createViaCall").hasKnownStatus(SUCCESS),
+                contractCall(createContract, "create")
+                        .via("createViaCall")
+                        .gas(400_000L)
+                        .hasKnownStatus(SUCCESS),
                 ethereumCall(createContract, "create")
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)

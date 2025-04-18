@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 class TokenClaimAirdropSystemContractTest {
 
-    @Contract(contract = "ClaimAirdrop", creationGas = 1_000_000L)
+    @Contract(contract = "ClaimAirdrop", creationGas = 2_000_000L)
     static SpecContract claimAirdrop;
 
     @Account(name = "sender", tinybarBalance = 100_000_000_000L)

@@ -193,7 +193,7 @@ public class LeakyContractTestsSuite {
     public static final String CREATE_TX = "createTX";
     public static final String CREATE_TX_REC = "createTXRec";
     public static final String FALSE = "false";
-    public static final int GAS_TO_OFFER = 1_000_000;
+    public static final int GAS_TO_OFFER = 2_000_000;
     private static final Logger log = LogManager.getLogger(LeakyContractTestsSuite.class);
     public static final String SENDER = "yahcliSender";
     public static final String RECEIVER = "yahcliReceiver";
@@ -831,7 +831,7 @@ public class LeakyContractTestsSuite {
                 inParallel(IntStream.range(0, createBurstSize)
                         .mapToObj(i -> contractCustomCreate(contract, String.valueOf(i), numSlots)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .gas(300_000L)
+                                .gas(800_000L)
                                 .payingWith(GENESIS)
                                 .noLogging()
                                 .deferStatusResolution()
@@ -925,7 +925,7 @@ public class LeakyContractTestsSuite {
                 overriding("contracts.evm.version", "v0.34"),
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
                 uploadInitCode(LAZY_CREATE_CONTRACT),
-                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC),
+                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(6_000_000L),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged().exposingAllTo(records -> {
                     final var lastChildResult = records.getLast().getContractCreateResult();
                     evmAddressOfChildContract.set(lastChildResult.getEvmAddress());
@@ -1024,7 +1024,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
                 newKeyNamed(ECDSA_KEY2).shape(SECP_256K1_SHAPE),
                 uploadInitCode(LAZY_CREATE_CONTRACT),
-                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC),
+                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(2_000_000),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged(),
                 withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
@@ -1216,7 +1216,7 @@ public class LeakyContractTestsSuite {
                 overriding("contracts.nonces.externalization.enabled", "false"),
                 cryptoCreate(payer).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).logged().gas(500_000L).via("txn"),
+                contractCreate(contract).logged().gas(1_000_000L).via("txn"),
                 withOpContext((spec, opLog) -> {
                     HapiGetTxnRecord op = getTxnRecord("txn")
                             .logged()
@@ -1240,7 +1240,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(MULTI_KEY_NAME),
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000L),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1348,7 +1348,7 @@ public class LeakyContractTestsSuite {
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 cryptoCreate(B_CIVILIAN).exposingCreatedIdTo(id -> bCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1424,7 +1424,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(MULTI_KEY_NAME),
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)

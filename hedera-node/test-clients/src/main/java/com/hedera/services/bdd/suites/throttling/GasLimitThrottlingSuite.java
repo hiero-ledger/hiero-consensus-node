@@ -27,7 +27,7 @@ public class GasLimitThrottlingSuite {
                 overriding("contracts.maxGasPerSec", String.valueOf(MAX_GAS_PER_SECOND)),
                 cryptoCreate(PAYER_ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT),
+                contractCreate(CONTRACT).gas(1_000_000),
                 contractCall(
                                 CONTRACT,
                                 "twoSSTOREs",

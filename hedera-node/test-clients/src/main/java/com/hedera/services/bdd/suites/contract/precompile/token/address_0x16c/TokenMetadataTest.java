@@ -66,10 +66,10 @@ public class TokenMetadataTest {
     @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS)
     static SpecAccount alice;
 
-    @Contract(contract = "CreateTokenVersioned", creationGas = 1_000_000L, variant = VARIANT_16C)
+    @Contract(contract = "CreateTokenVersioned", creationGas = 5_000_000L, variant = VARIANT_16C)
     static SpecContract contractTarget;
 
-    @Contract(contract = "TokenInfo", creationGas = 1_000_000L, variant = VARIANT_16C)
+    @Contract(contract = "TokenInfo", creationGas = 5_000_000L, variant = VARIANT_16C)
     static SpecContract tokenInfoContract;
 
     @FungibleToken(name = "fungibleToken", initialSupply = 1_000L, maxSupply = 1_200L)

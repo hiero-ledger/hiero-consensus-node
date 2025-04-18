@@ -573,9 +573,11 @@ public class NonceSuite {
                                 .signingWith(SECP_256K1_SOURCE_KEY)
                                 .payingWith(RELAYER)
                                 .nonce(0)
+                                .gasLimit(ENOUGH_GAS_LIMIT)
                                 .via(TX))),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
                 getTxnRecord(TX)
+                        .logged()
                         .hasPriority(
                                 recordWith().contractCallResult(resultWith().signerNonce(1L))));
     }
@@ -849,7 +851,7 @@ public class NonceSuite {
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
                         .nonce(0)
-                        .gasLimit(ENOUGH_GAS_LIMIT)
+                        .gasLimit(4_000_000L)
                         .via(TX),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
                 getTxnRecord(TX)
