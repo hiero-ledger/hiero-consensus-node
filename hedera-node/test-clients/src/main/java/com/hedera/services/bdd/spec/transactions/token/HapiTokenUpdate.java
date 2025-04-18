@@ -14,7 +14,9 @@ import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
 import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
+import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.infrastructure.RegistryNotFound;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.HapiSuite;
@@ -429,8 +431,8 @@ public class HapiTokenUpdate extends HapiTxnOp<HapiTokenUpdate> {
                                         case PAUSE_KEY -> b.setPauseKey(contractKey);
                                         case SUPPLY_KEY -> b.setSupplyKey(contractKey);
                                         case WIPE_KEY -> b.setWipeKey(contractKey);
-                                        default -> throw new IllegalStateException(
-                                                "Unexpected tokenKeyType: " + tokenKeyType);
+                                        default ->
+                                            throw new IllegalStateException("Unexpected tokenKeyType: " + tokenKeyType);
                                     }
                                 }
                             }
@@ -444,7 +446,7 @@ public class HapiTokenUpdate extends HapiTxnOp<HapiTokenUpdate> {
         signers.add(spec -> spec.registry().getKey(effectivePayer(spec)));
         signers.add(spec -> {
             try {
-                return spec.registry().getAdminKey(token);
+                return spec.registry().getRoleKey(token, KeyRole.ADMIN);
             } catch (RegistryNotFound ignore) {
                 // Some tests attempt to update an immutable token,
                 // skip the admin key if it's not found
@@ -463,47 +465,46 @@ public class HapiTokenUpdate extends HapiTxnOp<HapiTokenUpdate> {
             return;
         }
         var registry = spec.registry();
-        if (useEmptyAdminKey) {
-            registry.forgetAdminKey(token);
+
+        for (KeyRole role : KeyRole.values()) {
+            if (shouldForget(role)) {
+                registry.forgetRoleKey(token, role);
+            }
         }
-        if (useEmptyKycKey) {
-            registry.forgetKycKey(token);
-        }
-        if (useEmptyWipeKey) {
-            registry.forgetWipeKey(token);
-        }
-        if (useEmptySupplyKey) {
-            registry.forgetSupplyKey(token);
-        }
-        if (useEmptyFreezeKey) {
-            registry.forgetFreezeKey(token);
-        }
-        if (useEmptyFeeScheduleKey) {
-            registry.forgetFeeScheduleKey(token);
-        }
-        if (useEmptyPauseKey) {
-            registry.forgetPauseKey(token);
-        }
-        if (useEmptyMetadataKey) {
-            registry.forgetMetadataKey(token);
-        }
+
         newMemo.ifPresent(m -> registry.saveMemo(token, m));
-        newAdminKey.ifPresent(n -> registry.saveAdminKey(token, registry.getKey(n)));
         newSymbol.ifPresent(s -> registry.saveSymbol(token, s));
         newName.ifPresent(s -> registry.saveName(token, s));
-        newFreezeKey.ifPresent(n -> registry.saveFreezeKey(token, registry.getKey(n)));
-        newSupplyKey.ifPresent(n -> registry.saveSupplyKey(token, registry.getKey(n)));
-        newWipeKey.ifPresent(n -> registry.saveWipeKey(token, registry.getKey(n)));
-        newKycKey.ifPresent(n -> registry.saveKycKey(token, registry.getKey(n)));
-        newFeeScheduleKey.ifPresent(n -> registry.saveFeeScheduleKey(token, registry.getKey(n)));
-        newPauseKey.ifPresent(n -> registry.savePauseKey(token, registry.getKey(n)));
-        newMetadataKey.ifPresent(n -> registry.saveMetadataKey(token, registry.getKey(n)));
         newMetadata.ifPresent(n -> registry.saveMetadata(token, n));
+        saveNewKeysIfPresent(registry);
     }
 
     @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
-        MoreObjects.ToStringHelper helper = super.toStringHelper().add("token", token);
-        return helper;
+        return super.toStringHelper().add("token", token);
+    }
+
+    private void saveNewKeysIfPresent(HapiSpecRegistry registry) {
+        newAdminKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.ADMIN, registry.getKey(n)));
+        newFreezeKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.FREEZE, registry.getKey(n)));
+        newSupplyKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.SUPPLY, registry.getKey(n)));
+        newWipeKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.WIPE, registry.getKey(n)));
+        newKycKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.KYC, registry.getKey(n)));
+        newFeeScheduleKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.FEE_SCHEDULE, registry.getKey(n)));
+        newPauseKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.PAUSE, registry.getKey(n)));
+        newMetadataKey.ifPresent(n -> registry.saveRoleKey(token, KeyRole.METADATA, registry.getKey(n)));
+    }
+
+    private boolean shouldForget(KeyRole role) {
+        return switch (role) {
+            case ADMIN -> useEmptyAdminKey;
+            case FREEZE -> useEmptyFreezeKey;
+            case SUPPLY -> useEmptySupplyKey;
+            case WIPE -> useEmptyWipeKey;
+            case KYC -> useEmptyKycKey;
+            case FEE_SCHEDULE -> useEmptyFeeScheduleKey;
+            case PAUSE -> useEmptyPauseKey;
+            case METADATA -> useEmptyMetadataKey;
+        };
     }
 }

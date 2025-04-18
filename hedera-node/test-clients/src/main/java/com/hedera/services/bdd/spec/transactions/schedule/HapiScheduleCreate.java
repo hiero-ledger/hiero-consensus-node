@@ -15,6 +15,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.schedule.ScheduleUtils;
@@ -310,8 +311,8 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
 
         newScheduleIdObserver.ifPresent(obs -> obs.accept(scheduleId));
 
-        adminKey.ifPresent(
-                k -> registry.saveAdminKey(scheduleEntity, spec.registry().getKey(k)));
+        adminKey.ifPresent(k -> registry.saveRoleKey(
+                scheduleEntity, KeyRole.ADMIN, spec.registry().getKey(k)));
         if (saveExpectedScheduledTxnId) {
             if (verboseLoggingOn) {
                 log.info("Returned receipt for scheduled txn is {}", lastReceipt.getScheduledTransactionID());

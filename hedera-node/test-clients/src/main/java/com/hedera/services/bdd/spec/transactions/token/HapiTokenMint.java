@@ -14,6 +14,7 @@ import com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -133,7 +134,7 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
         return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), spec -> spec.registry()
-                .getSupplyKey(token));
+                .getRoleKey(token, KeyRole.SUPPLY));
     }
 
     @Override
