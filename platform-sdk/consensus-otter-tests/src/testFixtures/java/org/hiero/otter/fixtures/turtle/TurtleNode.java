@@ -59,7 +59,11 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  *
  * <p>This class implements the {@link Node} interface and provides methods to control the state of the node.
  */
+@SuppressWarnings("removal")
 public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
+
+    private static final SemanticVersion DEFAULT_VERSION =
+            SemanticVersion.newBuilder().major(1).build();
 
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
     private static final Logger log = LogManager.getLogger(TurtleNode.class);
@@ -294,7 +298,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
-        final SemanticVersion version = SemanticVersion.newBuilder().major(1).build();
+        final SemanticVersion version = currentConfiguration.getValue(
+                TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class, DEFAULT_VERSION);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);

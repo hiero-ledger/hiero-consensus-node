@@ -5,6 +5,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.junit.jupiter.api;
+    requires com.hedera.node.config;
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base.test.fixtures;
