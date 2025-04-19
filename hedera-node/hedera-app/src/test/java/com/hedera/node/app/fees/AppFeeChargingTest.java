@@ -53,6 +53,8 @@ class AppFeeChargingTest {
     void chargesEverythingOnSuccess() {
         final var result = ValidationResult.newSuccess(CREATOR_ID, PAYER);
         given(ctx.category()).willReturn(HandleContext.TransactionCategory.NODE);
+        given(ctx.payerId()).willReturn(PAYER_ID);
+        given(ctx.nodeAccountId()).willReturn(CREATOR_ID);
 
         subject.charge(ctx, result, FEES);
 
@@ -63,6 +65,8 @@ class AppFeeChargingTest {
     void waivesServiceFeeIfPayerUnableToAffordSvcComponent() {
         final var result = ValidationResult.newSuccess(CREATOR_ID, PAYER).withoutServiceFee();
         given(ctx.category()).willReturn(HandleContext.TransactionCategory.USER);
+        given(ctx.payerId()).willReturn(PAYER_ID);
+        given(ctx.nodeAccountId()).willReturn(CREATOR_ID);
 
         subject.charge(ctx, result, FEES);
 
@@ -73,6 +77,8 @@ class AppFeeChargingTest {
     void waivesServiceFeeOnDuplicate() {
         final var result = ValidationResult.newPayerDuplicateError(CREATOR_ID, PAYER);
         given(ctx.category()).willReturn(HandleContext.TransactionCategory.USER);
+        given(ctx.payerId()).willReturn(PAYER_ID);
+        given(ctx.nodeAccountId()).willReturn(CREATOR_ID);
 
         subject.charge(ctx, result, FEES);
 
@@ -83,9 +89,31 @@ class AppFeeChargingTest {
     void defaultsToSkippingNodeAccountDisbursement() {
         final var result = ValidationResult.newSuccess(CREATOR_ID, PAYER);
         given(ctx.category()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+        given(ctx.payerId()).willReturn(PAYER_ID);
 
         subject.charge(ctx, result, FEES);
 
         verify(ctx).charge(PAYER_ID, FEES, null);
+    }
+
+    @Test
+    void defaultsToNotRefundingNodeAccount() {
+        given(ctx.category()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+        given(ctx.payerId()).willReturn(PAYER_ID);
+
+        subject.refund(ctx, FEES);
+
+        verify(ctx).refund(PAYER_ID, FEES);
+    }
+
+    @Test
+    void refundsWithNodeAccountOnUser() {
+        given(ctx.category()).willReturn(HandleContext.TransactionCategory.USER);
+        given(ctx.payerId()).willReturn(PAYER_ID);
+        given(ctx.nodeAccountId()).willReturn(CREATOR_ID);
+
+        subject.refund(ctx, FEES);
+
+        verify(ctx).refund(PAYER_ID, FEES, CREATOR_ID);
     }
 }

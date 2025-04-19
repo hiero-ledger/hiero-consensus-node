@@ -216,18 +216,39 @@ public interface Dispatch extends FeeCharging.Context {
     }
 
     @Override
-    default void charge(
+    default Fees charge(
             @NonNull final AccountID payerId, @NonNull final Fees fees, @Nullable final ObjLongConsumer<AccountID> cb) {
-        feeAccumulator().chargeNetworkFee(payerId, fees.totalFee(), cb);
+        return feeAccumulator().chargeFee(payerId, fees.totalFee(), cb);
     }
 
     @Override
-    default void charge(
+    default void refund(@NonNull final AccountID receiverId, @NonNull final Fees fees) {
+        requireNonNull(receiverId);
+        requireNonNull(fees);
+        feeAccumulator().refundFee(receiverId, fees.totalFee());
+    }
+
+    @Override
+    default Fees charge(
             @NonNull final AccountID payerId,
             @NonNull final Fees fees,
             @NonNull final AccountID nodeAccountId,
             @Nullable ObjLongConsumer<AccountID> cb) {
-        feeAccumulator().chargeFees(payerId, nodeAccountId, fees, cb);
+        return feeAccumulator().chargeFees(payerId, nodeAccountId, fees, cb);
+    }
+
+    @Override
+    default void refund(
+            @NonNull final AccountID payerId, @NonNull final Fees fees, @NonNull final AccountID nodeAccountId) {
+        requireNonNull(payerId);
+        requireNonNull(fees);
+        requireNonNull(nodeAccountId);
+        feeAccumulator().refundFees(payerId, fees, nodeAccountId);
+    }
+
+    @Override
+    default AccountID nodeAccountId() {
+        return creatorInfo().accountId();
     }
 
     @Override

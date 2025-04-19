@@ -202,7 +202,7 @@ class DispatchProcessorTest {
         subject.processDispatch(dispatch);
 
         verifyTrackedFeePayments();
-        verify(feeAccumulator).chargeNetworkFee(CREATOR_ACCOUNT_ID, FEES.networkFee(), null);
+        verify(feeAccumulator).chargeFee(CREATOR_ACCOUNT_ID, FEES.networkFee(), null);
         verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
         assertFinished(IsRootStack.NO);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -245,6 +245,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -270,6 +271,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -297,6 +299,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -324,6 +327,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -351,6 +355,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -380,6 +385,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -408,6 +414,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -437,6 +444,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -464,6 +472,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -497,7 +506,7 @@ class DispatchProcessorTest {
 
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
-        verify(feeAccumulator).chargeNetworkFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
         verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
         assertFinished(IsRootStack.NO);
     }
@@ -519,6 +528,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -547,6 +557,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -578,6 +589,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -608,10 +620,9 @@ class DispatchProcessorTest {
 
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(SUCCESS);
-        verify(feeAccumulator).chargeNetworkFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
         verify(feeAccumulator)
-                .chargeNetworkFee(
-                        PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
+                .chargeFee(PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
         assertFinished(IsRootStack.NO);
     }
@@ -651,6 +662,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -673,6 +685,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 
@@ -698,6 +711,7 @@ class DispatchProcessorTest {
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.processDispatch(dispatch);
 

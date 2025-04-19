@@ -107,6 +107,9 @@ class TokenServiceApiImplTest {
     @Mock
     private LongConsumer onNodeFee;
 
+    @Mock
+    private LongConsumer onNodeRefund;
+
     private WritableEntityCounters entityCounters;
 
     private TokenServiceApiImpl subject;
@@ -516,6 +519,41 @@ class TokenServiceApiImplTest {
             verify(onNodeFee).accept(2L);
 
             assertThat(rb.transactionFee()).isEqualTo(ALL_FEES);
+        }
+
+        @Test
+        void balancesAreUnchangedAfterRefunds() {
+            // Given that staking is enabled
+            final var config = configBuilder
+                    .withValue("staking.isEnabled", true)
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .getOrCreateConfig();
+
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+
+            // When we charge network+service fees of 10 tinybars and a node fee of 2 tinybars
+            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, (id, amount) -> {}, onNodeFee);
+            subject.refundFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, onNodeRefund);
+
+            // Then we find that 10% go to node rewards, 20% to staking rewards, and the rest to the funding account
+            final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
+            assertThat(payerAccount.tinybarBalance()).isEqualTo(ORIGINAL_PAYER_BALANCE);
+
+            final var nodeRewardAccount = requireNonNull(accountState.get(NODE_REWARD_ACCOUNT_ID));
+            assertThat(nodeRewardAccount.tinybarBalance()).isEqualTo(0L);
+
+            final var stakingRewardAccount = requireNonNull(accountState.get(STAKING_REWARD_ACCOUNT_ID));
+            assertThat(stakingRewardAccount.tinybarBalance()).isEqualTo(0);
+
+            final var fundingAccount = requireNonNull(accountState.get(FUNDING_ACCOUNT_ID));
+            assertThat(fundingAccount.tinybarBalance()).isEqualTo(0);
+
+            final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
+            assertThat(nodeAccount.tinybarBalance()).isEqualTo(0);
+            verify(onNodeFee).accept(2L);
+            verify(onNodeRefund).accept(2L);
+
+            assertThat(rb.transactionFee()).isEqualTo(0L);
         }
 
         @Test
