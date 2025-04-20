@@ -10,22 +10,21 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.fcqueue.FCQueueStatistics;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
 import com.swirlds.merkle.map.MerkleMapMetrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -66,7 +65,6 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     public static final int SOFTWARE_VERSION = 61;
     public static final SemanticVersion PREVIOUS_SOFTWARE_VERSION =
             SemanticVersion.newBuilder().major(SOFTWARE_VERSION - 1).build();
-    private final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(SOFTWARE_VERSION);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(SOFTWARE_VERSION).build();
 
@@ -178,14 +176,6 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     @Override
     public ConsensusStateEventHandler<MigrationTestingToolState> newConsensusStateEvenHandler() {
         return new MigrationTestToolConsensusStateEventHandler();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
     }
 
     /**

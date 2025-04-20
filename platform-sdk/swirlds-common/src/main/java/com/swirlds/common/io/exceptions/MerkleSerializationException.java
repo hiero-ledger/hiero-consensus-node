@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.exceptions;
 
-import static com.swirlds.common.constructable.ClassIdFormatter.versionedClassIdString;
+import static org.hiero.base.constructable.ClassIdFormatter.versionedClassIdString;
 
 import com.swirlds.common.merkle.MerkleNode;
 import java.io.IOException;

@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createRoot;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,8 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.config.api.Configuration;
@@ -47,11 +46,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
@@ -230,7 +228,7 @@ class VirtualRootNodeTest extends VirtualTestBase {
     private void deserializeRootNodeAndVerify(InputStream resourceAsStream, int version) throws IOException {
         final VirtualRootNode<TestKey, TestValue> root = createRoot();
 
-        try (SerializableDataInputStream input = new SerializableDataInputStreamImpl(resourceAsStream)) {
+        try (SerializableDataInputStream input = new SerializableDataInputStream(resourceAsStream)) {
             root.deserialize(input, tempDir, version);
             root.postInit(new DummyVirtualStateAccessor());
             final VirtualNodeCache<TestKey, TestValue> cache = root.getCache();
@@ -253,7 +251,7 @@ class VirtualRootNodeTest extends VirtualTestBase {
     private void serializeRoot(String fileName) throws IOException {
         try (FileOutputStream fileOutputStream =
                         new FileOutputStream(tempDir.resolve(fileName).toFile());
-                SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(fileOutputStream)) {
+                SerializableDataOutputStream out = new SerializableDataOutputStream(fileOutputStream)) {
             VirtualRootNode<TestKey, TestValue> testKeyTestValueVirtualRootNode = prepareRootForSerialization();
             testKeyTestValueVirtualRootNode.serialize(out, tempDir);
             fileOutputStream.flush();
@@ -293,32 +291,36 @@ class VirtualRootNodeTest extends VirtualTestBase {
     void moveDataAcrossMaps() throws InterruptedException {
         final int totalSize = 1_000_000;
         final VirtualRootNode<TestKey, TestValue> root1 = createRoot();
-        for (int index = 0; index < totalSize; index++) {
-            final TestKey key = new TestKey(index);
-            final TestValue value = new TestValue(index);
-            root1.put(key, value);
-        }
-
         final VirtualRootNode<TestKey, TestValue> root2 = createRoot();
-        final long firstLeafPath = root1.getState().getFirstLeafPath();
-        final long lastLeafPath = root1.getState().getLastLeafPath();
-        for (long index = firstLeafPath; index <= lastLeafPath; index++) {
-            final VirtualLeafRecord<TestKey, TestValue> leaf =
-                    root1.getRecords().findLeafRecord(index, false);
-            final TestKey key = leaf.getKey().copy();
-            final TestValue value = leaf.getValue().copy();
-            root2.put(key, value);
+
+        try {
+            for (int index = 0; index < totalSize; index++) {
+                final TestKey key = new TestKey(index);
+                final TestValue value = new TestValue(index);
+                root1.put(key, value);
+            }
+
+            final long firstLeafPath = root1.getState().getFirstLeafPath();
+            final long lastLeafPath = root1.getState().getLastLeafPath();
+            for (long index = firstLeafPath; index <= lastLeafPath; index++) {
+                final VirtualLeafRecord<TestKey, TestValue> leaf =
+                        root1.getRecords().findLeafRecord(index, false);
+                final TestKey key = leaf.getKey().copy();
+                final TestValue value = leaf.getValue().copy();
+                root2.put(key, value);
+            }
+
+            for (int index = 0; index < totalSize; index++) {
+                final TestKey key = new TestKey(index);
+                root1.remove(key);
+            }
+
+            assertTrue(root1.isEmpty(), "All elements have been removed");
+        } finally {
+            root1.release();
+            assertTrue(root1.getPipeline().awaitTermination(30, SECONDS), "Pipeline termination timed out");
         }
 
-        for (int index = 0; index < totalSize; index++) {
-            final TestKey key = new TestKey(index);
-            root1.remove(key);
-        }
-
-        assertTrue(root1.isEmpty(), "All elements have been removed");
-        root1.release();
-        TimeUnit.MILLISECONDS.sleep(100);
-        System.gc();
         assertEquals(totalSize, root2.size(), "New map still has all data");
         for (int index = 0; index < totalSize; index++) {
             final TestKey key = new TestKey(index);
@@ -375,10 +377,10 @@ class VirtualRootNodeTest extends VirtualTestBase {
         final Path snapshotPath =
                 LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAndRestore", CONFIGURATION);
         try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
-                final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(bout)) {
+                final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
             copy5.serialize(out, snapshotPath);
             try (final ByteArrayInputStream bin = new ByteArrayInputStream(bout.toByteArray());
-                    final SerializableDataInputStream in = new SerializableDataInputStreamImpl(bin)) {
+                    final SerializableDataInputStream in = new SerializableDataInputStream(bin)) {
                 final VirtualMap<TestKey, TestValue> restored = new VirtualMap<>(CONFIGURATION);
                 restored.deserialize(in, snapshotPath, copy0.getVersion());
                 // All keys 1 to 5 should be in the snapshot

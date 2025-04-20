@@ -96,7 +96,7 @@ public class KeyFactory {
         this.setup = requireNonNull(setup);
         this.registry = requireNonNull(registry);
         final var genesisKey = TypedKey.from(setup.payerKey());
-        final var pubKeyHex = org.hiero.consensus.model.utility.CommonUtils.hex(genesisKey.pubKey());
+        final var pubKeyHex = org.hiero.base.utility.CommonUtils.hex(genesisKey.pubKey());
         incorporate(
                 setup.genesisAccountName(), pubKeyHex, genesisKey.privateKey(), KeyShape.listSigs(genesisKey.type()));
     }
@@ -237,7 +237,7 @@ public class KeyFactory {
      */
     public void incorporate(
             @NonNull final String name, @NonNull final EdDSAPrivateKey key, @NonNull final SigControl control) {
-        final var pubKeyHex = org.hiero.consensus.model.utility.CommonUtils.hex(key.getAbyte());
+        final var pubKeyHex = org.hiero.base.utility.CommonUtils.hex(key.getAbyte());
         pkMap.put(pubKeyHex, key);
         controlMap.put(registry.getKey(name), control);
     }
@@ -254,7 +254,7 @@ public class KeyFactory {
      */
     public void incorporateEd25519SimpleWacl(@NonNull final String name, @NonNull final EdDSAPrivateKey key) {
         final var pubKey = Ed25519Utils.extractEd25519PublicKey(key);
-        final var pubKeyHex = org.hiero.consensus.model.utility.CommonUtils.hex(Bytes.wrap(pubKey));
+        final var pubKeyHex = org.hiero.base.utility.CommonUtils.hex(Bytes.wrap(pubKey));
         incorporate(name, pubKeyHex, key, KeyShape.listOf(1));
     }
 
@@ -541,12 +541,12 @@ public class KeyFactory {
             @NonNull final com.hedera.hapi.node.base.Key key, @NonNull final Map<String, PrivateKey> keyMap) {
         switch (key.key().kind()) {
             case ED25519 -> {
-                final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(
+                final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(
                         key.ed25519OrThrow().toByteArray());
                 keyMap.put(hexedPubKey, requireNonNull(pkMap.get(hexedPubKey)));
             }
             case ECDSA_SECP256K1 -> {
-                final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(
+                final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(
                         key.ecdsaSecp256k1OrThrow().toByteArray());
                 keyMap.put(hexedPubKey, requireNonNull(pkMap.get(hexedPubKey)));
             }
@@ -574,7 +574,7 @@ public class KeyFactory {
             @NonNull final Function<Key, byte[]> targetKeyExtractor,
             @NonNull final String passphrase) {
         final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
-        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKeyBytes);
+        final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
         final var key = (EdDSAPrivateKey) pkMap.get(hexedPubKey);
         KeyUtils.writeKeyTo(key, loc, passphrase);
     }
@@ -585,7 +585,7 @@ public class KeyFactory {
             @NonNull final String pass,
             @NonNull final Function<Key, byte[]> targetKeyExtractor) {
         final var pubKeyBytes = targetKeyExtractor.apply(registry.getKey(name));
-        final var hexedPubKey = org.hiero.consensus.model.utility.CommonUtils.hex(pubKeyBytes);
+        final var hexedPubKey = org.hiero.base.utility.CommonUtils.hex(pubKeyBytes);
         final var key = (ECPrivateKey) pkMap.get(hexedPubKey);
         final var explicitLoc = loc != null ? loc : explicitEcdsaLocFor(name);
         KeyUtils.writeKeyTo(key, explicitLoc, pass);
@@ -663,7 +663,7 @@ public class KeyFactory {
 
         private void signIfNecessary(final Key key) throws GeneralSecurityException {
             final var pk = extractPubKey(key);
-            final var hexedPk = org.hiero.consensus.model.utility.CommonUtils.hex(pk);
+            final var hexedPk = org.hiero.base.utility.CommonUtils.hex(pk);
             if (!used.contains(hexedPk)) {
                 final var privateKey = pkMap.get(hexedPk);
                 final byte[] sig;

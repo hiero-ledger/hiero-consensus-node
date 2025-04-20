@@ -8,8 +8,8 @@ import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Objects;
 import java.util.Random;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public class Value extends PartialMerkleLeaf implements Keyed<Key>, MerkleLeaf {
 

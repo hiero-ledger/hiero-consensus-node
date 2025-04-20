@@ -22,9 +22,6 @@ import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHa
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
@@ -32,7 +29,6 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,6 +36,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -47,7 +46,6 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class StressTestingToolMain implements SwirldMain<StressTestingToolState> {
     private static final Logger logger = LogManager.getLogger(StressTestingToolMain.class);
-    private static final BasicSoftwareVersion SOFTWARE_VERSION = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -249,14 +247,6 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
     @Override
     public ConsensusStateEventHandler<StressTestingToolState> newConsensusStateEvenHandler() {
         return new StressTestingToolConsensusStateEventHandler();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return SOFTWARE_VERSION;
     }
 
     /**

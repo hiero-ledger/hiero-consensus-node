@@ -64,7 +64,7 @@ public class GetScheduledInfoTest {
     private static final int MINIMUM_TO_COLLECT = 5;
     private static final int MAXIMUM_TO_COLLECT = 400;
 
-    @Contract(contract = "GetScheduleInfo")
+    @Contract(contract = "GetScheduleInfo", creationGas = 5_000_000)
     static SpecContract contract;
 
     @HapiTest

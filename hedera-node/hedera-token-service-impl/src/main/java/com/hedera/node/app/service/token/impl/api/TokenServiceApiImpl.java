@@ -10,7 +10,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.service.token.api.TokenServiceApi.FreeAliasOnDeletion.YES;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -65,9 +64,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     /**
      * Constructs a {@link TokenServiceApiImpl}.
      *
-     * @param config         the configuration
+     * @param config the configuration
      * @param writableStates the writable states
-     * @param customFeeTest  a predicate for determining if a transfer has custom fees
+     * @param customFeeTest a predicate for determining if a transfer has custom fees
      * @param entityCounters the entity counters
      */
     public TokenServiceApiImpl(
@@ -332,7 +331,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
         chargePayer(payerAccount, amountToCharge, cb);
         // We may be charging for preceding child record fees, which are additive to the base fee
-        rb.transactionFee(rb.transactionFee() + amountToCharge);
+        // The callback is not null for the atomic batch transactions.
+        // For each atomic batch transaction, the transaction fee of inner transactions is
+        // accumulated in the inner transaction
+        if (cb == null) {
+            rb.transactionFee(rb.transactionFee() + amountToCharge);
+        }
         distributeToNetworkFundingAccounts(amountToCharge, cb);
         return amountToCharge == amount;
     }
@@ -500,8 +504,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull final FreeAliasOnDeletion freeAliasOnDeletion) {
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
         final var deleteAndTransferAccounts = validateSemantics(deletedId, obtainerId, expiryValidator);
@@ -511,10 +514,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // commit the account with deleted flag set to true
         final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
         final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
-        if (freeAliasOnDeletion == YES) {
-            accountStore.removeAlias(updatedDeleteAccount.alias());
-            builder.alias(Bytes.EMPTY);
-        }
+        accountStore.removeAlias(updatedDeleteAccount.alias());
+        builder.alias(Bytes.EMPTY);
         accountStore.put(builder.build());
 
         // add the transfer account for this deleted account to record builder.

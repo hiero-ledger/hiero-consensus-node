@@ -12,7 +12,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.UtilPrngConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
@@ -78,10 +77,6 @@ public class UtilPrngHandler implements TransactionHandler {
      */
     @Override
     public void handle(@NonNull final HandleContext context) {
-        if (!context.configuration().getConfigData(UtilPrngConfig.class).isEnabled()) {
-            // (FUTURE) Should this throw NOT_SUPPORTED instead? As written is the legacy behavior.
-            return;
-        }
         final var op = context.body().utilPrngOrThrow();
         final var range = op.range();
 

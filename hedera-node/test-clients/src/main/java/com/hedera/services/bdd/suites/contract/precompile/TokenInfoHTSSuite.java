@@ -158,7 +158,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(PAUSE_KEY),
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -258,7 +258,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(PAUSE_KEY),
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(FUNGIBLE_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -362,7 +362,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(PAUSE_KEY),
                 newKeyNamed(TokenKeyType.METADATA_KEY.name()),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(FEE_DENOM).treasury(HTS_COLLECTOR),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -470,7 +470,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -514,7 +514,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -556,7 +556,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyType(TokenSupplyType.FINITE)
@@ -596,7 +596,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyType(TokenSupplyType.FINITE)
@@ -673,7 +673,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -709,7 +709,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -751,7 +751,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(ADMIN_KEY),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyType(TokenSupplyType.FINITE)
@@ -787,7 +787,7 @@ public class TokenInfoHTSSuite {
                 cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
                 cryptoCreate(HTS_COLLECTOR),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(PRIMARY_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .name(PRIMARY_TOKEN_NAME)
@@ -857,7 +857,7 @@ public class TokenInfoHTSSuite {
                 cryptoCreate(HTS_COLLECTOR),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(FEE_DENOM).treasury(HTS_COLLECTOR),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -926,7 +926,7 @@ public class TokenInfoHTSSuite {
                 cryptoCreate(HTS_COLLECTOR),
                 newKeyNamed(SUPPLY_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(FEE_DENOM).treasury(HTS_COLLECTOR),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -1005,7 +1005,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(FEE_SCHEDULE_KEY),
                 newKeyNamed(PAUSE_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(FUNGIBLE_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -1116,7 +1116,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(FEE_SCHEDULE_KEY),
                 newKeyNamed(PAUSE_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(FUNGIBLE_TOKEN_NAME)
                         .supplyType(TokenSupplyType.FINITE)
                         .entityMemo(MEMO)
@@ -1229,7 +1229,7 @@ public class TokenInfoHTSSuite {
                 newKeyNamed(FEE_SCHEDULE_KEY),
                 newKeyNamed(PAUSE_KEY),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 tokenCreate(FEE_DENOM).treasury(HTS_COLLECTOR),
                 tokenCreate(NON_FUNGIBLE_TOKEN_NAME)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -1341,7 +1341,7 @@ public class TokenInfoHTSSuite {
                 cryptoCreate(HTS_COLLECTOR),
                 cryptoCreate(ACCOUNT),
                 uploadInitCode(TOKEN_INFO_CONTRACT),
-                contractCreate(TOKEN_INFO_CONTRACT).gas(1_000_000L),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
                 newKeyNamed(MULTI_KEY),
                 newKeyNamed(TOKEN_INFO_AS_KEY).shape(CONTRACT.signedWith(TOKEN_INFO_CONTRACT)),
                 tokenCreate(FUNGIBLE_TOKEN_NAME)

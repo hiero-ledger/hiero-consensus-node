@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.acquiredSenderAuthorizationViaDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.alreadyHalted;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementHederaGasUsage;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isPrecompileEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isTopLevelTransaction;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -29,7 +30,6 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -192,11 +192,10 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
     }
 
     /**
-     * @param config the current configuration
      * @return whether the implicit creation is currently enabled
      */
-    public boolean isImplicitCreationEnabled(@NonNull Configuration config) {
-        return featureFlags.isImplicitCreationEnabled(config);
+    public boolean isImplicitCreationEnabled() {
+        return featureFlags.isImplicitCreationEnabled();
     }
 
     private void handleNonExtantSystemAccount(
@@ -216,6 +215,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             frame.decrementRemainingGas(gasRequirement);
+            incrementHederaGasUsage(frame, gasRequirement);
             result = precompile.computePrecompile(frame.getInputData(), frame);
             if (result.isRefundGas()) {
                 frame.incrementRemainingGas(gasRequirement);
@@ -255,6 +255,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         } else {
             if (!fullResult.isRefundGas()) {
                 frame.decrementRemainingGas(gasRequirement);
+                incrementHederaGasUsage(frame, gasRequirement);
             }
             result = fullResult.result();
         }

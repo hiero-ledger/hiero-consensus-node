@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.platform.internal.EventImpl;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Utility types to define equality of events, sets of shadow events and hashes.

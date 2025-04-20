@@ -87,7 +87,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHERE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -122,7 +122,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -167,7 +167,7 @@ public class EthereumSuite {
                         .bytecode(TOKEN_CREATE_CONTRACT)
                         .gasPrice(10L)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(1_000_000L)
+                        .gasLimit(4_000_000L)
                         .hasKnownStatusFrom(SUCCESS)
                         .via("deployTokenCreateContract"),
                 getContractInfo(TOKEN_CREATE_CONTRACT)
@@ -1098,7 +1098,7 @@ public class EthereumSuite {
                         .keyShape(SigControl.ED25519_ON)
                         .balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).gas(GAS_LIMIT),
+                contractCreate(contract).gas(4_000_000L),
                 tokenCreate(EXISTING_TOKEN).decimals(5),
                 tokenAssociate(feeCollectorAndAutoRenew, EXISTING_TOKEN),
                 cryptoUpdate(feeCollectorAndAutoRenew).key(SECP_256K1_SOURCE_KEY),
@@ -1164,7 +1164,7 @@ public class EthereumSuite {
                         .keyShape(SigControl.ED25519_ON)
                         .balance(ONE_MILLION_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).gas(GAS_LIMIT),
+                contractCreate(contract).gas(4_000_000L),
                 tokenCreate(EXISTING_TOKEN).decimals(5),
                 tokenAssociate(feeCollectorAndAutoRenew, EXISTING_TOKEN),
                 cryptoUpdate(feeCollectorAndAutoRenew).key(SECP_256K1_SOURCE_KEY),

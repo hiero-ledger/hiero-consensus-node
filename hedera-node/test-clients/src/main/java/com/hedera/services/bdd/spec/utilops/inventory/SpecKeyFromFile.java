@@ -27,7 +27,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 public class SpecKeyFromFile extends UtilOp {

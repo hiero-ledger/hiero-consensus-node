@@ -4,7 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.extendable.ExtendableOutputStream;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.FileDescriptor;
@@ -12,7 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.SyncFailedException;
 import java.nio.file.Path;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Writes events to a file using an output stream.
@@ -39,7 +38,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
         counter = new CountingStreamExtension(false);
         final FileOutputStream fileOutputStream = new FileOutputStream(filePath.toFile());
         fileDescriptor = fileOutputStream.getFD();
-        out = new SerializableDataOutputStreamImpl(
+        out = new SerializableDataOutputStream(
                 new ExtendableOutputStream(new BufferedOutputStream(fileOutputStream), counter));
     }
 

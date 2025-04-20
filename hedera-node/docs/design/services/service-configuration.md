@@ -11,7 +11,6 @@ For more detailed information on other types of configuration, please refer to t
 
 - **AccountsConfig.java**: Provides configuration settings for various account-related properties, including admin roles and treasury accounts.
 - **ApiPermissionConfig.java**: Manages permissions for different API functionalities, specifying which accounts are allowed to execute certain operations.
-- **AutoCreationConfig.java**: Configures settings related to the automatic creation of accounts.
 - **AutoRenew2Config.java**: Contains settings for automatic renewal processes, specifying scan and renewal parameters.
 - **AutoRenewConfig.java**: Defines configurations for the auto-renewal feature, including target types for auto-renewal.
 - **BalancesConfig.java**: Manages the export and handling of account balance information, including export directory and compression settings.
@@ -27,7 +26,6 @@ For more detailed information on other types of configuration, please refer to t
 - **FilesConfig.java**: Configures file-related settings, including file IDs for various system files and maximum file sizes.
 - **GrpcConfig.java**: Manages gRPC configuration settings, including port numbers, message size limits, and node operator port settings.
 - **HederaConfig.java**: Contains general Hedera network settings, including user entity IDs, transaction parameters, and active profiles.
-- **LazyCreationConfig.java**: Enables or disables the lazy creation feature for accounts.
 - **LedgerConfig.java**: Manages ledger-related settings including system accounts, auto-renew periods, and token transfer limits.
 - **NettyConfig.java**: Contains settings for Netty-based gRPC server configurations, including connection limits, retry intervals, and TLS paths.
 - **NetworkAdminConfig.java**: Configures the network administration service, including paths for upgrade artifacts and system file locations.
@@ -40,5 +38,4 @@ For more detailed information on other types of configuration, please refer to t
 - **TopicsConfig.java**: Configures topic-related settings including the maximum number of topics.
 - **TraceabilityConfig.java**: Manages traceability settings including export limits and gas throttle ratios.
 - **TssConfig.java**: Configures the Threshold Signature Scheme (TSS) service, including retry settings and ledger ID enabling.
-- **UtilPrngConfig.java**: Contains settings related to the pseudo-random number generator utility.
 - **VersionConfig.java**: Manages version-related settings including software version numbers and configuration versions.
