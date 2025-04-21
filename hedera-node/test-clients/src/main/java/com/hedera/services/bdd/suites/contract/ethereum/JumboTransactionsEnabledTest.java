@@ -271,7 +271,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .payingWith(RELAYER)
                         .nonce(0)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(1_000_000L)
+                        .gasLimit(6_000_000L)
                         .via("payTxn"));
     }
 

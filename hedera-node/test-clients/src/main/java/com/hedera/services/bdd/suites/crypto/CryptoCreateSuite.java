@@ -161,7 +161,7 @@ public class CryptoCreateSuite {
     @HapiTest
     @DisplayName("canonical EVM addresses are determined by aliases")
     final Stream<DynamicTest> canonicalEvmAddressesDeterminedByAliases(
-            @Contract(contract = "MakeCalls") SpecContract makeCalls) {
+            @Contract(contract = "MakeCalls", creationGas = 3_000_000) SpecContract makeCalls) {
         return hapiTest(
                 newKeyNamed("oneKey").shape(SECP256K1_ON),
                 newKeyNamed("twoKey").shape(SECP256K1_ON),
