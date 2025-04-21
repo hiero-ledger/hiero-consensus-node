@@ -157,7 +157,7 @@ public class CryptoUpdateSuite {
                         accountsToHaveKeysRotated.stream().map(ROTATION_TXN))
                 .toArray(String[]::new);
         return hapiTest(flatten(
-                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)).via("marker"),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 recordStreamMustIncludePassFrom(
                         visibleNonSyntheticItems(keyRotationsValidator(accountsToHaveKeysRotated), allTxnIds),
                         Duration.ofSeconds(15)),
