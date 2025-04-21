@@ -85,4 +85,9 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
 
         return state;
     }
+
+    @Override
+    public int getMinimumSupportedVersion() {
+        return ClassVersion.ORIGINAL;
+    }
 }

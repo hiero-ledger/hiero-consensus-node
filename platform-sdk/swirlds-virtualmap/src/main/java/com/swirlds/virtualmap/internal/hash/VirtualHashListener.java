@@ -2,7 +2,7 @@
 package com.swirlds.virtualmap.internal.hash;
 
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Listens to various events that occur during the hashing process.

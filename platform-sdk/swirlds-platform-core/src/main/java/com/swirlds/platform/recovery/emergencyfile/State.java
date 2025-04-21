@@ -8,7 +8,7 @@ import com.swirlds.common.jackson.HashDeserializer;
 import com.swirlds.common.jackson.InstantDeserializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Data about the state written to disk, either during normal operation or at the end of event recovery.

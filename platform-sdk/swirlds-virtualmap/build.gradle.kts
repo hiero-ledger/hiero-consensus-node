@@ -47,6 +47,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap.test.fixtures")
+    requires("org.hiero.base.crypto")
     requires("org.hiero.consensus.model")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.utility.test.fixtures")

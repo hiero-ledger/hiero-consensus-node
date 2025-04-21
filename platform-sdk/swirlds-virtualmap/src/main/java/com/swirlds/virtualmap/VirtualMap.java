@@ -11,8 +11,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -299,8 +297,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
         // Write the virtual map and sub nodes
         final Path outputFile = outputDirectory.resolve(outputFileName);
-        try (SerializableDataOutputStream serout = new SerializableDataOutputStreamImpl(
-                new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
+        try (SerializableDataOutputStream serout =
+                new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
             serout.writeNormalisedString(root.getState().getLabel());
             serout.writeInt(root.getVersion());
             root.serialize(serout, outputDirectory);
@@ -342,8 +340,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         final ValueReference<VirtualRootNode> virtualRootNodeRef = new ValueReference<>();
 
         deserializeAndDebugOnFailure(
-                () -> new SerializableDataInputStreamImpl(
-                        new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
+                () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
                     if (vmStateExternal) {
                         final ExternalVirtualMapState value = stream.readSerializable();

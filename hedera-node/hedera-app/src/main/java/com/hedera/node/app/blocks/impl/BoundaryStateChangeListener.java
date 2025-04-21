@@ -269,8 +269,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(serviceName);
         requireNonNull(stateKey);
         switch (mode) {
-            case DEFERRING_COMMITS -> throw new IllegalStateException(
-                    "Queue push should have been deferred for " + serviceName + "." + stateKey);
+            case DEFERRING_COMMITS ->
+                throw new IllegalStateException(
+                        "Queue push should have been deferred for " + serviceName + "." + stateKey);
             case COMMITTING -> {
                 final var stateChange = StateChange.newBuilder()
                         .stateId(stateId)
@@ -286,8 +287,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(serviceName);
         requireNonNull(stateKey);
         switch (mode) {
-            case DEFERRING_COMMITS -> throw new IllegalStateException(
-                    "Queue pop should have been deferred for " + serviceName + "." + stateKey);
+            case DEFERRING_COMMITS ->
+                throw new IllegalStateException(
+                        "Queue pop should have been deferred for " + serviceName + "." + stateKey);
             case COMMITTING -> {
                 final var stateChange = StateChange.newBuilder()
                         .stateId(stateId)
@@ -308,8 +310,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(serviceName);
         requireNonNull(stateKey);
         switch (mode) {
-            case DEFERRING_COMMITS -> throw new IllegalStateException(
-                    "Singleton update should have been deferred for " + serviceName + "." + stateKey);
+            case DEFERRING_COMMITS ->
+                throw new IllegalStateException(
+                        "Singleton update should have been deferred for " + serviceName + "." + stateKey);
             case COMMITTING -> {
                 final var stateChange = StateChange.newBuilder()
                         .stateId(stateId)
@@ -390,8 +393,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                         QueuePushChange.ValueOneOfType.TRANSACTION_RECEIPT_ENTRIES_ELEMENT,
                         transactionReceiptEntriesElement);
             }
-            default -> throw new IllegalArgumentException(
-                    "Unknown value type " + value.getClass().getName());
+            default ->
+                throw new IllegalArgumentException(
+                        "Unknown value type " + value.getClass().getName());
         }
     }
 
@@ -457,8 +461,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             case CRSState crsState -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
             }
-            default -> throw new IllegalArgumentException(
-                    "Unknown value type " + value.getClass().getName());
+            default ->
+                throw new IllegalArgumentException(
+                        "Unknown value type " + value.getClass().getName());
         }
     }
 }

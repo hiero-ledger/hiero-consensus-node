@@ -7,7 +7,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.Validator.Profile;
-import org.hiero.otter.fixtures.turtle.TurtleNode;
 import org.junit.jupiter.api.Disabled;
 
 public class HappyPathTest {
@@ -25,9 +24,6 @@ public class HappyPathTest {
 
         // Wait for two minutes
         timeManager.waitFor(Duration.ofMinutes(2L));
-
-        // Temporary to show that "something" happened
-        ((TurtleNode) network.getNodes().getFirst()).dump();
 
         // Validations
         env.validator().validateRemaining(Profile.DEFAULT);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignature;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,9 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.state.signed.SigSet;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -23,6 +20,7 @@ import java.util.Random;
 import java.util.Set;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Signature;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
@@ -98,12 +96,12 @@ class SigSetTests {
         generateSignatureMap(random).forEach(sigSet::addSignature);
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
 
         out.writeSerializable(sigSet, true);
 
         final SerializableDataInputStream in =
-                new SerializableDataInputStreamImpl(new ByteArrayInputStream(byteOut.toByteArray()));
+                new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final SigSet deserializedSigSet = in.readSerializable();
 

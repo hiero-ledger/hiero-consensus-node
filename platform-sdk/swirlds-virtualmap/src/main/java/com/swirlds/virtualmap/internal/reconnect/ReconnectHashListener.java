@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A {@link VirtualHashListener} implementation used by the learner during reconnect. During reconnect,

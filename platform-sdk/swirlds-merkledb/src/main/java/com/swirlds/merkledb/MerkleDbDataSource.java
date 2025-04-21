@@ -58,8 +58,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
@@ -174,13 +174,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final int tableId,
             final MerkleDbTableConfig tableConfig,
             final boolean compactionEnabled,
-            final boolean preferDiskBasedIndices)
+            final boolean offlineUse)
             throws IOException {
         this.database = database;
         this.tableName = tableName;
         this.tableId = tableId;
         this.tableConfig = tableConfig;
-        this.preferDiskBasedIndices = preferDiskBasedIndices;
+        this.preferDiskBasedIndices = offlineUse;
 
         final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
 
@@ -346,11 +346,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 tableName + ":objectKeyToPath",
                 preferDiskBasedIndices);
         keyToPath.printStats();
-        final String tablesToRepairHdhmConfig = merkleDbConfig.tablesToRepairHdhm();
-        if (tablesToRepairHdhmConfig != null) {
-            final String[] tableNames = tablesToRepairHdhmConfig.split(",");
-            if (Arrays.stream(tableNames).filter(s -> !s.isBlank()).anyMatch(tableName::equals)) {
-                keyToPath.repair(getFirstLeafPath(), getLastLeafPath(), pathToKeyValue);
+        // Repair keyToPath based on pathToKeyValue data, if requested and not offlineUse
+        if (!offlineUse) {
+            final String tablesToRepairHdhmConfig = merkleDbConfig.tablesToRepairHdhm();
+            if (tablesToRepairHdhmConfig != null) {
+                final String[] tableNames = tablesToRepairHdhmConfig.split(",");
+                if (Arrays.stream(tableNames).filter(s -> !s.isBlank()).anyMatch(tableName::equals)) {
+                    keyToPath.repair(getFirstLeafPath(), getLastLeafPath(), pathToKeyValue);
+                }
             }
         }
 

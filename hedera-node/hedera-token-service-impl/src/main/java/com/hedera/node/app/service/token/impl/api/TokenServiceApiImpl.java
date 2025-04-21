@@ -64,9 +64,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     /**
      * Constructs a {@link TokenServiceApiImpl}.
      *
-     * @param config         the configuration
+     * @param config the configuration
      * @param writableStates the writable states
-     * @param customFeeTest  a predicate for determining if a transfer has custom fees
+     * @param customFeeTest a predicate for determining if a transfer has custom fees
      * @param entityCounters the entity counters
      */
     public TokenServiceApiImpl(
@@ -331,7 +331,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
         chargePayer(payerAccount, amountToCharge, cb);
         // We may be charging for preceding child record fees, which are additive to the base fee
-        rb.transactionFee(rb.transactionFee() + amountToCharge);
+        // The callback is not null for the atomic batch transactions.
+        // For each atomic batch transaction, the transaction fee of inner transactions is
+        // accumulated in the inner transaction
+        if (cb == null) {
+            rb.transactionFee(rb.transactionFee() + amountToCharge);
+        }
         distributeToNetworkFundingAccounts(amountToCharge, cb);
         return amountToCharge == amount;
     }

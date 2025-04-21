@@ -25,7 +25,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ScheduledExecutorService;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Supports parameterized testing of {@link MerkleDbDataSource} with

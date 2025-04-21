@@ -757,7 +757,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     // update bucketIndexToBucketLocation
                     bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
                 }
-                next.send();
                 return true;
             } finally {
                 // Let the current submit task know that a bucket is fully processed, and
@@ -769,6 +768,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     // will be called on a different submit task than the one currently running
                     currentSubmitTask.get().notifyBucketProcessed();
                 }
+                next.send();
             }
         }
 
