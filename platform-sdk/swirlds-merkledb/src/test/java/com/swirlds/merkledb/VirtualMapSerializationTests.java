@@ -205,7 +205,7 @@ class VirtualMapSerializationTests {
             map1.release();
             map2.release();
 
-            final VirtualRootNode root = map2.getRight();
+            final VirtualRootNode root = map2.getLeft();
             assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
@@ -256,7 +256,7 @@ class VirtualMapSerializationTests {
         System.out.println("seed = " + seed);
 
         final VirtualMap map = generateRandomMap(seed, count, "test");
-        final VirtualRootNode root = map.getChild(1).cast();
+        final VirtualRootNode root = map.getChild(0).cast();
         final VirtualMap copy = map.copy();
 
         try {
