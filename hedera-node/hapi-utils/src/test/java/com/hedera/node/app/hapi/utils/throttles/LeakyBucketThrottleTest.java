@@ -103,4 +103,13 @@ class LeakyBucketThrottleTest {
         assertEquals(
                 BUCKET_CAPACITY - ((BUCKET_CAPACITY / 3) * 2), subject.bucket().capacityFree());
     }
+
+    @Test
+    void testAllowsInitialBurst() {
+        LeakyBucketThrottle throttle = new LeakyBucketThrottle(BUCKET_CAPACITY, 2);
+        for (int i = 0; i < 3; i++) {
+            assertTrue(throttle.allow(BUCKET_CAPACITY, SECONDS_TO_NANOSECONDS / 2));
+        }
+        assertFalse(throttle.allow(BUCKET_CAPACITY, 0));
+    }
 }
