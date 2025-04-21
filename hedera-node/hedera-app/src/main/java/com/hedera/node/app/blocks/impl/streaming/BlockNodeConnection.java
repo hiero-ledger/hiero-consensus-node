@@ -358,7 +358,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             // Update the last verified block by the current connection
             blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
             // Remove all block states up to and including this block number
-            blockStreamStateManager.removeBlockStatesUpTo(acknowledgedBlockNumber);
+            blockStreamStateManager.setAckWatermark(acknowledgedBlockNumber);
 
             if (blockAlreadyExists) {
                 logger.warn("Block {} already exists on block node {}", acknowledgedBlockNumber, connectionDescriptor);

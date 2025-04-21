@@ -98,12 +98,12 @@ class BlockNodeConnectionTest {
                 blockStreamMetrics);
 
         // Set requestObserver via reflection to avoid establishing an actual gRPC connection
-        Field requestObserverField = BlockNodeConnection.class.getDeclaredField("requestObserver");
+        final Field requestObserverField = BlockNodeConnection.class.getDeclaredField("requestObserver");
         requestObserverField.setAccessible(true);
         requestObserverField.set(connection, requestObserver);
 
         // Set connectionState to true via reflection
-        Field connectionStateField = BlockNodeConnection.class.getDeclaredField("connectionState");
+        final Field connectionStateField = BlockNodeConnection.class.getDeclaredField("connectionState");
         connectionStateField.setAccessible(true);
         connectionStateField.set(connection, BlockNodeConnection.ConnectionState.ACTIVE);
     }
@@ -119,20 +119,20 @@ class BlockNodeConnectionTest {
     @Test
     void testRequestWorkerLoop_WaitsForNewBlock() throws Exception {
         // Arrange
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerStarted = new AtomicBoolean(false);
-        AtomicBoolean workerStopped = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean workerStarted = new AtomicBoolean(false);
+        final AtomicBoolean workerStopped = new AtomicBoolean(false);
 
         // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             workerStarted.set(true);
 
             // Call the method under test via reflection
             try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
                 // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
+                final Thread methodExecutor = Thread.ofPlatform().start(() -> {
                     try {
                         requestWorkerLoopMethod.invoke(connection);
                     } catch (Exception e) {
@@ -140,7 +140,7 @@ class BlockNodeConnectionTest {
                     }
                 });
                 methodExecutor.interrupt();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
 
@@ -187,21 +187,18 @@ class BlockNodeConnectionTest {
         connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
         when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).thenReturn(null);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerStarted = new AtomicBoolean(false);
-        AtomicBoolean validBlockState = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean validBlockState = new AtomicBoolean(false);
 
         // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            workerStarted.set(true);
-
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             // Call the method under test via reflection
             try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
 
                 // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
+                final Thread methodExecutor = Thread.ofPlatform().start(() -> {
                     try {
                         requestWorkerLoopMethod.invoke(connection);
                     } catch (Exception e) {
@@ -227,7 +224,7 @@ class BlockNodeConnectionTest {
                 connection.close();
                 methodExecutor.interrupt();
 
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
 
@@ -262,30 +259,30 @@ class BlockNodeConnectionTest {
         when(blockState.requests()).thenReturn(List.of());
         when(blockState.isComplete()).thenReturn(false);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerStarted = new AtomicBoolean(false);
-        AtomicBoolean notificationReceived = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean workerStarted = new AtomicBoolean(false);
+        final AtomicBoolean notificationReceived = new AtomicBoolean(false);
 
         // Act - Start the worker thread
 
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             workerStarted.set(true);
 
             // Call the method under test via reflection
             try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
                 // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
+                final Thread methodExecutor = Thread.ofPlatform().start(() -> {
                     try {
                         requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
+                    } catch (final Exception e) {
                         // Ignore
                     }
                 });
 
                 methodExecutor.interrupt();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
 
@@ -347,29 +344,27 @@ class BlockNodeConnectionTest {
         when(request1.blockItems()).thenReturn(blockItems);
         when(request2.blockItems()).thenReturn(blockItems);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean processedRequests = new AtomicBoolean(false);
-        AtomicReference<Long> finalBlockNumber = new AtomicReference<>(0L);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Long> finalBlockNumber = new AtomicReference<>(0L);
 
         // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             // Call the method under test via reflection
             try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
                 // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
+                final Thread methodExecutor = Thread.ofPlatform().start(() -> {
                     try {
                         requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
+                    } catch (final Exception e) {
                         // Ignore
                     }
                 });
                 methodExecutor.interrupt();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
-            processedRequests.set(true);
             latch.countDown();
         });
 
@@ -421,25 +416,25 @@ class BlockNodeConnectionTest {
         // For the next block, return null to stop the loop
         when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER + 1L)).thenReturn(null);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Long> finalBlockNumber = new AtomicReference<>(0L);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Long> finalBlockNumber = new AtomicReference<>(0L);
 
         // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             // Call the method under test via reflection
             try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
                 // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
+                final Thread methodExecutor = Thread.ofPlatform().start(() -> {
                     try {
                         requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
+                    } catch (final Exception e) {
                         // Ignore
                     }
                 });
                 methodExecutor.interrupt();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
 
@@ -477,25 +472,25 @@ class BlockNodeConnectionTest {
         connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
 
         // Make waiting for new block throw an InterruptedException
-        Object mockNewBlockAvailable = mock(Object.class);
+        final Object mockNewBlockAvailable = mock(Object.class);
         doThrow(new InterruptedException()).when(mockNewBlockAvailable).wait();
 
-        Field newBlockAvailableField = BlockNodeConnection.class.getDeclaredField("newBlockAvailable");
+        final Field newBlockAvailableField = BlockNodeConnection.class.getDeclaredField("newBlockAvailable");
         newBlockAvailableField.setAccessible(true);
         newBlockAvailableField.set(connection, mockNewBlockAvailable);
 
         // We expect the worker to exit after the InterruptedException
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerExited = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean workerExited = new AtomicBoolean(false);
 
         // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             // Call the method under test via reflection
             try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
                 requestWorkerLoopMethod.invoke(connection);
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
 
@@ -525,19 +520,19 @@ class BlockNodeConnectionTest {
         // Make blockStreamStateManager.getBlockState throw a RuntimeException
         when(blockStreamStateManager.getBlockState(anyLong())).thenThrow(new RuntimeException("Test exception"));
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerContinued = new AtomicBoolean(false);
-        AtomicInteger iterationCount = new AtomicInteger(0);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean workerContinued = new AtomicBoolean(false);
+        final AtomicInteger iterationCount = new AtomicInteger(0);
 
         // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             // Call the method under test via reflection
             try {
                 // Make the connectionState field accessible and override it to stop after a few iterations
-                Field connectionStateField = BlockNodeConnection.class.getDeclaredField("connectionState");
+                final Field connectionStateField = BlockNodeConnection.class.getDeclaredField("connectionState");
                 connectionStateField.setAccessible(true);
 
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
 
                 // Only allow a few iterations to avoid an infinite loop
@@ -549,7 +544,7 @@ class BlockNodeConnectionTest {
                 workerContinued.set(true);
                 connectionStateField.set(connection, BlockNodeConnection.ConnectionState.CLOSED);
 
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
 
@@ -583,28 +578,29 @@ class BlockNodeConnectionTest {
         when(blockState.requests()).thenReturn(requests);
         when(blockState.isComplete()).thenReturn(false);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean requestIndexResetCalled = new AtomicBoolean(false);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean requestIndexResetCalled = new AtomicBoolean(false);
 
         // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
+        Thread.ofPlatform().name("TestWorker").start(() -> {
             // Call the method under test via reflection
             try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
+                final Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
                 requestWorkerLoopMethod.setAccessible(true);
 
                 // Call once, which should trigger the IndexOutOfBoundsException
                 requestWorkerLoopMethod.invoke(connection);
 
                 // Check if the currentRequestIndex was reset to a safe value
-                Field currentRequestIndexField = BlockNodeConnection.class.getDeclaredField("currentRequestIndex");
+                final Field currentRequestIndexField =
+                        BlockNodeConnection.class.getDeclaredField("currentRequestIndex");
                 currentRequestIndexField.setAccessible(true);
-                AtomicInteger resetIndex = (AtomicInteger) currentRequestIndexField.get(connection);
+                final AtomicInteger resetIndex = (AtomicInteger) currentRequestIndexField.get(connection);
 
                 if (resetIndex.get() == 0) {
                     requestIndexResetCalled.set(true);
                 }
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Ignore
             }
 
@@ -714,7 +710,7 @@ class BlockNodeConnectionTest {
         connection.onNext(response);
 
         verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+        verify(blockStreamStateManager, times(1)).setAckWatermark(TEST_BLOCK_NUMBER);
 
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER - 1L))
                 .isNull();
@@ -750,7 +746,7 @@ class BlockNodeConnectionTest {
         connection.onNext(response);
 
         verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+        verify(blockStreamStateManager, times(1)).setAckWatermark(TEST_BLOCK_NUMBER);
 
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER - 1L))
                 .isNull();
@@ -786,7 +782,7 @@ class BlockNodeConnectionTest {
         connection.onNext(response);
 
         verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+        verify(blockStreamStateManager, times(1)).setAckWatermark(TEST_BLOCK_NUMBER);
 
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER - 1L))
                 .isNull();
@@ -829,7 +825,7 @@ class BlockNodeConnectionTest {
         connectionSpy.onNext(response);
 
         verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+        verify(blockStreamStateManager, times(1)).setAckWatermark(TEST_BLOCK_NUMBER);
         verify(connectionSpy, times(1)).jumpToBlock(TEST_BLOCK_NUMBER + 1L);
         verify(connectionSpy, times(1)).setCurrentBlockNumber(TEST_BLOCK_NUMBER + 1L);
 
@@ -1042,7 +1038,7 @@ class BlockNodeConnectionTest {
                 "Expected log message not found: " + expectedLog);
         final String expectedLogForCorrectResendBlock = "Setting current block number to " + shouldSkipToBlock
                 + " for node " + TEST_CONNECTION_DESCRIPTOR + " without ending stream";
-        ;
+
         assertTrue(
                 logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLogForCorrectResendBlock)),
                 "Expected log message not found: " + expectedLogForCorrectResendBlock);
@@ -1198,7 +1194,7 @@ class BlockNodeConnectionTest {
     @Test
     void testOnError() {
         // Arrange
-        Throwable error = new RuntimeException("Stream error");
+        final Throwable error = new RuntimeException("Stream error");
 
         // Act
         connection.onError(error);

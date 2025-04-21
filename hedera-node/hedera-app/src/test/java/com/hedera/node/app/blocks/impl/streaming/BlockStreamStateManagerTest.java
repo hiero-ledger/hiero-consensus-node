@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
@@ -15,6 +17,11 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.time.Duration;
+import java.util.concurrent.BlockingQueue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +30,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamStateManagerTest {
+
+    private static final VarHandle blockBufferHandle;
+
+    static {
+        try {
+            blockBufferHandle = MethodHandles.privateLookupIn(BlockStreamStateManager.class, MethodHandles.lookup())
+                    .findVarHandle(BlockStreamStateManager.class, "blockBuffer", BlockingQueue.class);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private static final long TEST_BLOCK_NUMBER = 1L;
     private static final long TEST_BLOCK_NUMBER2 = 2L;
     private static final long TEST_BLOCK_NUMBER3 = 3L;
@@ -37,7 +56,7 @@ class BlockStreamStateManagerTest {
 
     @BeforeEach
     void setUp() {
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
+        lenient().when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
         blockStreamStateManager = new BlockStreamStateManager(configProvider);
     }
 
@@ -67,10 +86,11 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
 
         // when
-        blockStreamStateManager.removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.setAckWatermark(TEST_BLOCK_NUMBER);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
+        assertThat(blockStreamStateManager.isAcked(TEST_BLOCK_NUMBER)).isTrue();
     }
 
     @Test
@@ -101,7 +121,7 @@ class BlockStreamStateManagerTest {
     @Test
     void testHandleNonExistentBlockState() {
         // when
-        BlockState blockState = blockStreamStateManager.getBlockState(999L);
+        final BlockState blockState = blockStreamStateManager.getBlockState(999L);
 
         // then
         assertThat(blockState).isNull();
@@ -111,7 +131,7 @@ class BlockStreamStateManagerTest {
     void testPublishStreamRequestIsNotCreatedWhenBatchSizeIsNotMet() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 4)
                 .getOrCreateConfig();
@@ -122,12 +142,8 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
@@ -136,7 +152,7 @@ class BlockStreamStateManagerTest {
         // then
         // verify that request is still not created and block items are added to state
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(0);
+                .isEmpty();
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
                 .hasSize(2);
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
@@ -147,7 +163,7 @@ class BlockStreamStateManagerTest {
     void testPublishStreamRequestIsCreatedWhenBatchSizeIsMet() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 2)
                 .getOrCreateConfig();
@@ -158,12 +174,8 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
@@ -174,14 +186,14 @@ class BlockStreamStateManagerTest {
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
                 .hasSize(1);
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
-                .hasSize(0);
+                .isEmpty();
     }
 
     @Test
     void testWithMoreBlockItemsThanBlockItemBatchSize() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 2)
                 .getOrCreateConfig();
@@ -192,15 +204,9 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
-        var blockItem3 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
+        final var blockItem3 = newBlockTxItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
@@ -221,7 +227,7 @@ class BlockStreamStateManagerTest {
     void testPublishStreamRequestIsCreatedWithRemainingItemsAndBlockProof() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 5)
                 .getOrCreateConfig();
@@ -232,22 +238,16 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
-        var blockProof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
+        final var blockProof = newBlockHeaderItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockProof);
-        var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
-        blockStreamStateManager.createRequestFromCurrentItems(blockState);
+        final var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.createRequestFromCurrentItems(blockState, true);
 
         // then
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
@@ -258,7 +258,7 @@ class BlockStreamStateManagerTest {
     void testPublishStreamRequestIsCreatedWithBlockProofOnly() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 5)
                 .getOrCreateConfig();
@@ -269,14 +269,12 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockProof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().build())
-                .build();
+        final var blockProof = newBlockProofItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockProof);
-        var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
-        blockStreamStateManager.createRequestFromCurrentItems(blockState);
+        final var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.createRequestFromCurrentItems(blockState, true);
 
         // then
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
@@ -287,7 +285,7 @@ class BlockStreamStateManagerTest {
     void testPublishStreamRequestCreatedWithRemainingBlockItemsOnBlockCLose() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 5)
                 .getOrCreateConfig();
@@ -298,12 +296,8 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
@@ -325,7 +319,7 @@ class BlockStreamStateManagerTest {
     void testBLockStateIsRemovedUpToSpecificBlockNumber() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 5)
                 .getOrCreateConfig();
@@ -339,18 +333,20 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER2);
 
         // when
-        blockStreamStateManager.removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.setAckWatermark(TEST_BLOCK_NUMBER);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
+        assertThat(blockStreamStateManager.isAcked(TEST_BLOCK_NUMBER)).isTrue();
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2)).isNotNull();
+        assertThat(blockStreamStateManager.isAcked(TEST_BLOCK_NUMBER2)).isFalse();
     }
 
     @Test
     void testPublishStreamRequestsCreatedForMultipleBLocks() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 2)
                 .getOrCreateConfig();
@@ -363,21 +359,11 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER2);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER3);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
-        var blockItem3 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
-        var blockItem4 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
-        var blockItem5 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
+        final var blockItem3 = newBlockTxItem();
+        final var blockItem4 = newBlockTxItem();
+        final var blockItem5 = newBlockTxItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
@@ -392,7 +378,7 @@ class BlockStreamStateManagerTest {
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2).requests())
                 .hasSize(1);
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER3).requests())
-                .hasSize(0);
+                .isEmpty();
     }
 
     @Test
@@ -401,7 +387,7 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
 
         // when and then
-        assertThat(blockStreamStateManager.getBlockNumber()).isEqualTo(0L);
+        assertThat(blockStreamStateManager.getBlockNumber()).isZero();
     }
 
     @Test
@@ -424,7 +410,7 @@ class BlockStreamStateManagerTest {
         assertThatThrownBy(() -> blockStreamStateManager.openBlock(-1L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Block number must be non-negative");
-        assertThat(blockStreamStateManager.getBlockNumber()).isEqualTo(0L);
+        assertThat(blockStreamStateManager.getBlockNumber()).isZero();
     }
 
     @Test
@@ -486,7 +472,7 @@ class BlockStreamStateManagerTest {
     void testSetBlockItemBatchSizeToZero() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 0)
                 .getOrCreateConfig();
@@ -497,12 +483,8 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
@@ -517,7 +499,7 @@ class BlockStreamStateManagerTest {
     void testSetBlockItemBatchSizeToOne() {
         // given
         // mock the number of batch items by modifying the default config
-        var mockConfig = HederaTestConfigBuilder.create()
+        final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 1)
                 .getOrCreateConfig();
@@ -528,12 +510,8 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        var blockItem1 = BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-        var blockItem2 = BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
 
         // when
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
@@ -542,5 +520,136 @@ class BlockStreamStateManagerTest {
         // then
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
                 .hasSize(2);
+    }
+
+    @Test
+    void testMultiBatch() {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.blockItemBatchSize", 3)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        assertThat(blockStreamStateManager.isBufferSaturated()).isFalse();
+
+        // batch size is 3, add 8 items
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockHeaderItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockProofItem());
+
+        final BlockState blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
+
+        // #addItem(...) will attempt to create a new request if there are enough items. With a batch size of 3, we
+        // should expect 2 requests created with 2 more pending items
+        assertThat(blockState.requests()).hasSize(2);
+        assertThat(blockState.items()).hasSize(2);
+
+        // now force the creation of the final request
+        blockStreamStateManager.createRequestFromCurrentItems(blockState, true);
+
+        // there should be 3 requests now and no outstanding items
+        assertThat(blockState.requests()).hasSize(3);
+        assertThat(blockState.items()).isEmpty();
+    }
+
+    @Test
+    void testOpenExistingBlock() {
+        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(2L);
+
+        // try to open the same block number
+        assertThatThrownBy(() -> blockStreamStateManager.openBlock(2L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Attempted to open a new block with number 2, but a block with the same or "
+                        + "later number (latest: 2) has already been opened");
+
+        // try to open an older block
+        assertThatThrownBy(() -> blockStreamStateManager.openBlock(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Attempted to open a new block with number 1, but a block with the same or "
+                        + "later number (latest: 2) has already been opened");
+    }
+
+    @Test
+    void testBuffer() throws Exception {
+        final Duration blockTtl = Duration.ofSeconds(1);
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.blockItemBatchSize", 3)
+                .withValue("blockStream.blockBufferTtl", blockTtl)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // add some blocks, but don't ack them
+        blockStreamStateManager.openBlock(1L);
+        assertThat(blockStreamStateManager.isBufferSaturated()).isFalse();
+        blockStreamStateManager.openBlock(2L);
+        assertThat(blockStreamStateManager.isBufferSaturated()).isFalse();
+
+        // wait for the TTL period, with a little padding
+        Thread.sleep(blockTtl.plusMillis(250));
+
+        // try to add another block; it should be created but `false` will be returned indicating the buffer has old
+        // blocks that can't be removed due to lack of ack
+        blockStreamStateManager.openBlock(3L);
+        assertThat(blockStreamStateManager.isBufferSaturated()).isTrue();
+
+        // verify that there are three blocks in the buffer
+        final BlockingQueue<?> buffer = (BlockingQueue<?>) blockBufferHandle.get(blockStreamStateManager);
+        assertThat(buffer).hasSize(3);
+
+        // ack up to block 3
+        blockStreamStateManager.setAckWatermark(3L);
+
+        // now blocks 1-3 are acked, future attempts to open another block should be successful and return `true`
+        // since there are no old blocks waiting for acks
+        assertThat(blockStreamStateManager.isAcked(1L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(2L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(3L)).isTrue();
+
+        blockStreamStateManager.openBlock(4L);
+        assertThat(blockStreamStateManager.isBufferSaturated()).isFalse();
+
+        // there should now be 2 blocks in the buffer
+        assertThat(buffer).hasSize(2);
+
+        // only blocks 3 and 4 should be available, with block 4 yet to be acked
+        assertThat(blockStreamStateManager.getBlockState(1L)).isNull();
+        assertThat(blockStreamStateManager.getBlockState(2L)).isNull();
+        assertThat(blockStreamStateManager.getBlockState(3L)).isNotNull();
+        assertThat(blockStreamStateManager.getBlockState(4L)).isNotNull();
+        assertThat(blockStreamStateManager.isAcked(3L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(4L)).isFalse();
+    }
+
+    private static BlockItem newBlockHeaderItem() {
+        return BlockItem.newBuilder()
+                .blockHeader(BlockHeader.newBuilder().build())
+                .build();
+    }
+
+    private static BlockItem newBlockTxItem() {
+        return BlockItem.newBuilder()
+                .transactionOutput(TransactionOutput.newBuilder().build())
+                .build();
+    }
+
+    private static BlockItem newBlockProofItem() {
+        return BlockItem.newBuilder()
+                .blockProof(BlockProof.newBuilder().build())
+                .build();
     }
 }
