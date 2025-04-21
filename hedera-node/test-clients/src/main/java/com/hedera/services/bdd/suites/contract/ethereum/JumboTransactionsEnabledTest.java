@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(UPGRADE)
-@Order(Integer.MAX_VALUE - 123)
+@Order(Integer.MAX_VALUE - 2)
 @HapiTestLifecycle
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
@@ -271,7 +271,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         .payingWith(RELAYER)
                         .nonce(0)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
-                        .gasLimit(1_000_000L)
+                        .gasLimit(6_000_000L)
                         .via("payTxn"));
     }
 

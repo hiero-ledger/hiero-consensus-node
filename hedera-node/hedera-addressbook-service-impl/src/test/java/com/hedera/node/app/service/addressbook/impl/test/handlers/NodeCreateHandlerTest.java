@@ -156,6 +156,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .build(payerId);
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -169,6 +170,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(1).getEncoded()))
                 .build(payerId);
         given(pureChecksContext.body()).willReturn(txn);
@@ -183,6 +185,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(IMMUTABILITY_SENTINEL_KEY)
                 .build(payerId);
@@ -198,6 +201,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(invalidKey)
                 .build(payerId);
@@ -213,6 +217,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(2).getEncoded()))
                 .withAdminKey(key)
                 .build(payerId);
@@ -500,6 +505,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint1)
                 .withAdminKey(invalidKey)
                 .build(payerId);
         setupHandle();
@@ -524,6 +530,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withDescription("Description")
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint1)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withGrpcCertificateHash(Bytes.wrap("hash"))
                 .withAdminKey(key)
@@ -626,6 +633,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         private List<ServiceEndpoint> serviceEndpoint = null;
 
+        private ServiceEndpoint grpcWebProxyEndpoint = null;
+
         private Bytes gossipCaCertificate = null;
 
         private Bytes grpcCertificateHash = null;
@@ -649,6 +658,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             }
             if (serviceEndpoint != null) {
                 txnBody.serviceEndpoint(serviceEndpoint);
+            }
+            if (grpcWebProxyEndpoint != null) {
+                txnBody.grpcProxyEndpoint(grpcWebProxyEndpoint);
             }
             if (gossipCaCertificate != null) {
                 txnBody.gossipCaCertificate(gossipCaCertificate);
@@ -684,6 +696,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         public NodeCreateBuilder withServiceEndpoint(final List<ServiceEndpoint> serviceEndpoint) {
             this.serviceEndpoint = serviceEndpoint;
+            return this;
+        }
+
+        public NodeCreateBuilder withGrpcWebProxyEndpoint(final ServiceEndpoint proxyEndpoint) {
+            this.grpcWebProxyEndpoint = proxyEndpoint;
             return this;
         }
 

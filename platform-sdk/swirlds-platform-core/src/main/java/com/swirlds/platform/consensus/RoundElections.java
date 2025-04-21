@@ -39,6 +39,8 @@ public class RoundElections {
     private final List<CandidateWitness> elections = new ArrayList<>();
     /** the minimum generation of all the judges, this is only set once the judges are found */
     private long minGeneration = EventConstants.GENERATION_UNDEFINED;
+    /** The minimum non-deterministic generation of all the judges. Only set once the judges are found. */
+    private long minNgen = EventConstants.GENERATION_UNDEFINED;
     /** the minimum birth round of all the judges, this is only set once the judges are found */
     private long minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
 
@@ -111,6 +113,17 @@ public class RoundElections {
     }
 
     /**
+     * @return the minimum non-deterministic generation of all the judges(unique famous witnesses) in this round
+     */
+    public long getMinNGen() {
+        if (minNgen == EventConstants.GENERATION_UNDEFINED) {
+            throw new IllegalStateException(
+                    "Cannot provide the minimum non-deterministic generation until all judges are found");
+        }
+        return minNgen;
+    }
+
+    /**
      * @return the minimum birth round of all the judges(unique famous witnesses) in this round
      */
     private long getMinBirthRound() {
@@ -152,9 +165,11 @@ public class RoundElections {
             throw new IllegalStateException("No judges found in round " + round);
         }
         allJudges.sort(Comparator.comparingLong(e -> e.getCreatorId().id()));
+        minNgen = Long.MAX_VALUE;
         minGeneration = Long.MAX_VALUE;
         minBirthRound = Long.MAX_VALUE;
         for (final EventImpl judge : allJudges) {
+            minNgen = Math.min(minNgen, judge.getNGen());
             minGeneration = Math.min(minGeneration, judge.getGeneration());
             minBirthRound = Math.min(minBirthRound, judge.getBirthRound());
             judge.setJudgeTrue();
@@ -189,6 +204,7 @@ public class RoundElections {
         round++;
         numUnknownFame.set(0);
         elections.clear();
+        minNgen = EventConstants.GENERATION_UNDEFINED;
         minGeneration = EventConstants.GENERATION_UNDEFINED;
         minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
     }

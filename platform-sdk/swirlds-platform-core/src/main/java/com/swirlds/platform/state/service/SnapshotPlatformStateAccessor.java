@@ -11,7 +11,7 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Provides access to a snapshot of the platform state.

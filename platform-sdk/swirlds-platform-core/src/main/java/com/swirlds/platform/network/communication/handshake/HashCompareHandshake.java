@@ -12,8 +12,8 @@ import java.io.IOException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.consensus.model.crypto.Hash;
 
 /**
  * Exchanges a hash with the peer, either throws a {@link HandshakeException} or logs an error if the hashes

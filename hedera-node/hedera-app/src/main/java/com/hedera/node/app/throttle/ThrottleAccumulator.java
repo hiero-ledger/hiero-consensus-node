@@ -13,6 +13,7 @@ import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
+import static com.hedera.node.app.hapi.utils.throttles.LeakyBucketThrottle.DEFAULT_BURST_SECONDS;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
@@ -843,10 +844,13 @@ public class ThrottleAccumulator {
     public void applyGasConfig() {
         final var configuration = configSupplier.get();
         final var contractsConfig = configuration.getConfigData(ContractsConfig.class);
-        if (contractsConfig.throttleThrottleByGas() && contractsConfig.maxGasPerSec() == 0) {
+        final var maxGasPerSec = maxGasPerSecOf(contractsConfig);
+        if (contractsConfig.throttleThrottleByGas() && maxGasPerSec == 0) {
             log.warn("{} gas throttling enabled, but limited to 0 gas/sec", throttleType.name());
         }
-        gasThrottle = new LeakyBucketDeterministicThrottle(contractsConfig.maxGasPerSec(), "Gas");
+
+        gasThrottle =
+                new LeakyBucketDeterministicThrottle(maxGasPerSec, "Gas", gasThrottleBurstSecondsOf(contractsConfig));
         if (throttleMetrics != null) {
             throttleMetrics.setupGasThrottleMetric(gasThrottle, configuration);
         }
@@ -859,6 +863,18 @@ public class ThrottleAccumulator {
         }
     }
 
+    private long maxGasPerSecOf(@NonNull final ContractsConfig contractsConfig) {
+        return throttleType.equals(ThrottleType.BACKEND_THROTTLE)
+                ? contractsConfig.maxGasPerSecBackend()
+                : contractsConfig.maxGasPerSec();
+    }
+
+    private int gasThrottleBurstSecondsOf(@NonNull final ContractsConfig contractsConfig) {
+        return throttleType.equals(ThrottleType.BACKEND_THROTTLE)
+                ? contractsConfig.gasThrottleBurstSeconds()
+                : DEFAULT_BURST_SECONDS;
+    }
+
     public void applyBytesConfig() {
         final var configuration = configSupplier.get();
         final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
@@ -866,7 +882,7 @@ public class ThrottleAccumulator {
         if (jumboConfig.isEnabled() && bytesPerSec == 0) {
             log.warn("{} jumbo transactions are enabled, but limited to 0 bytes/sec", throttleType.name());
         }
-        bytesThrottle = new LeakyBucketDeterministicThrottle(bytesPerSec, "Bytes");
+        bytesThrottle = new LeakyBucketDeterministicThrottle(bytesPerSec, "Bytes", DEFAULT_BURST_SECONDS);
         if (throttleMetrics != null) {
             throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
         }

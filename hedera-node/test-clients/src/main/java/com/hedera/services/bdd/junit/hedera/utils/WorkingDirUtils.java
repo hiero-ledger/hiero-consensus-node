@@ -417,7 +417,8 @@ public class WorkingDirUtils {
                                 weight,
                                 false,
                                 CLASSIC_ADMIN_KEY,
-                                false));
+                                false,
+                                null));
                     }
                     return metadata.build();
                 })

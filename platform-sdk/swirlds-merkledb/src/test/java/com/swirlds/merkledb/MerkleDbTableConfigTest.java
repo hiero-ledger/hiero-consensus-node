@@ -9,7 +9,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
