@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.stale;
+package org.hiero.consensus.event.creator.impl.stale;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,11 +30,9 @@ public class StaleEventDetectorMetrics {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param metrics the {@link Metrics} system
      */
-    public StaleEventDetectorMetrics(@NonNull final PlatformContext platformContext) {
-        final Metrics metrics = platformContext.getMetrics();
-
+    public StaleEventDetectorMetrics(@NonNull final Metrics metrics) {
         staleEventCount = metrics.getOrCreate(STALE_EVENTS_CONFIG);
         staleAppTransactionCount = metrics.getOrCreate(STALE_APP_TRANSACTIONS_CONFIG);
     }
