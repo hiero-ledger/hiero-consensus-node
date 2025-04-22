@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.logging.test.fixtures.internal;
+package com.swirlds.logging.test.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
