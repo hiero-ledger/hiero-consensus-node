@@ -41,6 +41,12 @@ import org.apache.logging.log4j.Logger;
 public class GrpcUsageTracker implements ServerInterceptor {
 
     /**
+     * The maximum length used for user-agent parsing and caching. If a user-agent exceeds this length, only the
+     * beginning up to the max will be used.
+     */
+    private static final int MAX_UA_LENGTH = 250;
+
+    /**
      * Logger used to write GRPC access information to a unique log file.
      */
     private static final Logger accessLogger = LogManager.getLogger("grpc-access-log");
@@ -122,12 +128,19 @@ public class GrpcUsageTracker implements ServerInterceptor {
 
         if (isEnabled.get()) {
             final MethodDescriptor<?, ?> descriptor = call.getMethodDescriptor();
-            final String userAgentStr = headers.get(userAgentHeaderKey);
+            final String userAgentString = headers.get(userAgentHeaderKey);
+            final String uaString;
+
+            if (userAgentString != null && userAgentString.length() > MAX_UA_LENGTH) {
+                uaString = userAgentString.substring(0, MAX_UA_LENGTH);
+            } else {
+                uaString = userAgentString;
+            }
 
             final RpcEndpointName rpcEndpointName = RpcEndpointName.from(descriptor);
-            final UserAgent userAgent = userAgentStr == null || userAgentStr.isBlank()
+            final UserAgent userAgent = uaString == null || uaString.isBlank()
                     ? UserAgent.UNSPECIFIED
-                    : userAgentCache.get(userAgentStr, UserAgent::from);
+                    : userAgentCache.get(uaString, UserAgent::from);
 
             bucketRef.get().recordInteraction(rpcEndpointName, userAgent);
         }

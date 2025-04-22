@@ -32,7 +32,7 @@ public record UserAgent(@NonNull UserAgentType agentType, @NonNull String versio
      * @param userAgentStr the user-agent string to parse
      * @return a user-agent object representing the parsed user-agent string provided
      */
-    public static UserAgent from(@Nullable final String userAgentStr) {
+    public static @NonNull UserAgent from(@Nullable final String userAgentStr) {
         if (userAgentStr == null || userAgentStr.isBlank()) {
             return UserAgent.UNSPECIFIED;
         }

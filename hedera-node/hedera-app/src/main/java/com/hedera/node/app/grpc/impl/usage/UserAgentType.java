@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Enum containing the known types of SDKs, along with values for cases where they SDK type is not known or not specifeid.
+ * Enum containing the known types of SDKs, along with values for cases where they SDK type is not known or not specified.
  */
 public enum UserAgentType {
     HIERO_SDK_CPP("HieroSdkCpp", true, "hiero-sdk-cpp"),
@@ -46,7 +46,9 @@ public enum UserAgentType {
     private final String[] variations;
 
     /**
-     * Is this user-agent a 'known' type? (that is, it is one of our known SDKs)
+     * Flag to indicate if this is a "known" type (i.e. it is one of our SDKs). When parsing a string into a type,
+     * if it resolves to a type where this is true, it means that it matched one of the variations associated with this
+     * type.
      */
     private final boolean isKnownType;
 
