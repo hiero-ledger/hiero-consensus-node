@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilOp.flatten;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.createEthereumAccountsWithECKeysAllDifferentWays;
@@ -41,6 +42,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
+import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -62,7 +64,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -79,9 +80,7 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
@@ -151,8 +150,6 @@ public class CryptoUpdateSuite {
      */
     @HapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddress() {
-        final Map<String, Address> evmAddresses = new HashMap<>();
-
         final var accountsToHaveKeysRotated =
                 ECKind.defaultAccountNames().values().stream().sorted().toList();
         final var allTxnIds = Stream.concat(
@@ -160,9 +157,9 @@ public class CryptoUpdateSuite {
                         accountsToHaveKeysRotated.stream().map(ROTATION_TXN))
                 .toArray(String[]::new);
         return hapiTest(flatten(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
                 recordStreamMustIncludePassFrom(
-                        visibleNonSyntheticItems(
-                                keyRotationsValidator(evmAddresses, accountsToHaveKeysRotated), allTxnIds),
+                        visibleNonSyntheticItems(keyRotationsValidator(accountsToHaveKeysRotated), allTxnIds),
                         Duration.ofSeconds(15)),
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
                 // first couple of creations, so wait for a new record file boundary
@@ -177,11 +174,11 @@ public class CryptoUpdateSuite {
                                     newKeyNamed(newKey).shape(KeyShape.SECP256K1),
                                     cryptoUpdate(targetAccount).key(newKey).via(ROTATION_TXN.apply(targetAccount)));
                         })
-                        .toArray(SpecOperation[]::new))));
+                        .toArray(SpecOperation[]::new)),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)));
     }
 
-    private static VisibleItemsValidator keyRotationsValidator(
-            @NonNull final Map<String, Address> evmAddresses, @NonNull final List<String> accountsToHaveKeysRotated) {
+    private static VisibleItemsValidator keyRotationsValidator(@NonNull final List<String> accountsToHaveKeysRotated) {
         return (spec, records) -> {
             final var rotationTxnIds =
                     accountsToHaveKeysRotated.stream().map(ROTATION_TXN).toArray(String[]::new);

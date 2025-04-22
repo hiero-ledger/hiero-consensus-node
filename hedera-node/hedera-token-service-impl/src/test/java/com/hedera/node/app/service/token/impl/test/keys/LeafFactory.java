@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.keys;
 
-import com.swirlds.common.crypto.SignatureType;
+import org.hiero.base.crypto.SignatureType;
 
 public class LeafFactory implements NodeFactory {
     private final String label;
