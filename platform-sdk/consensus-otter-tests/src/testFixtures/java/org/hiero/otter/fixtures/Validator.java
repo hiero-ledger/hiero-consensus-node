@@ -113,6 +113,14 @@ public interface Validator {
      */
     interface LogFilter {
         /**
+         * Specifies how the {@link LogMarkerFilter} interprets the marker set.
+         */
+        enum Mode {
+            INCLUDE,
+            EXCLUDE
+        }
+
+        /**
          * Determines whether a given log message should be filtered out.
          *
          * @param logMsg the structured log message to evaluate
@@ -131,7 +139,7 @@ public interface Validator {
             Objects.requireNonNull(markers, "markers cannot be null");
             final Set<Marker> markerSet =
                     Stream.of(markers).map(LogMarker::getMarker).collect(Collectors.toSet());
-            return new LogMarkerFilter(false, markerSet);
+            return new LogMarkerFilter(Mode.EXCLUDE, markerSet);
         }
 
         /**
@@ -145,7 +153,7 @@ public interface Validator {
             Objects.requireNonNull(nodes, "nodes cannot be null");
             final Set<Long> nodeSet =
                     Stream.of(nodes).map(Node::getSelfId).map(NodeId::id).collect(Collectors.toSet());
-            return new LogNodeFilter(false, nodeSet);
+            return new LogNodeFilter(Mode.EXCLUDE, nodeSet);
         }
 
         /**

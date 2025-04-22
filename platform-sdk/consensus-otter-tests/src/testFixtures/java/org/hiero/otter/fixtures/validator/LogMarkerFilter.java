@@ -13,19 +13,19 @@ import org.hiero.otter.fixtures.logging.StructuredLog;
  * <p>This filter allows inclusion or exclusion of log messages depending on whether
  * their marker is present in a given set of markers.
  *
- * @param include if {@code true}, messages whose marker is <b>not</b> in the set are filtered out;
- *                if {@code false}, messages whose marker <b>is</b> in the set are filtered out
+ * @param mode    the filtering mode: {@code INCLUDE} means only messages with the given markers are allowed;
+ *                {@code EXCLUDE} means messages with the given markers are filtered out.
  * @param markers the set of markers used for filtering
  */
-public record LogMarkerFilter(boolean include, @NonNull Set<Marker> markers) implements LogFilter {
+public record LogMarkerFilter(@NonNull Mode mode, @NonNull Set<Marker> markers) implements LogFilter {
 
     /**
      * Determines whether the given log message should be filtered based on its marker.
      *
      * <ul>
-     *   <li>If {@code include} is {@code true}, this returns {@code true} (filter out)
+     *   <li>If {@code mode} is {@code INCLUDE}, this returns {@code true} (filter out)
      *       when the message's marker is <b>not</b> in the {@code markers} set.</li>
-     *   <li>If {@code include} is {@code false}, this returns {@code true} when the message's
+     *   <li>If {@code mode} is {@code EXCLUDE}, this returns {@code true} when the message's
      *       marker <b>is</b> in the {@code markers} set.</li>
      * </ul>
      *
@@ -35,6 +35,10 @@ public record LogMarkerFilter(boolean include, @NonNull Set<Marker> markers) imp
      */
     @Override
     public boolean filter(@NonNull final StructuredLog logMsg) {
-        return include != markers.contains(logMsg.marker());
+        final boolean contains = markers.contains(logMsg.marker());
+        return switch (mode) {
+            case INCLUDE -> !contains;
+            case EXCLUDE -> contains;
+        };
     }
 }

@@ -12,19 +12,19 @@ import org.hiero.otter.fixtures.logging.StructuredLog;
  * <p>This filter allows inclusion or exclusion of log messages depending on whether
  * their {@code nodeId} is present in a given set of node IDs.
  *
- * @param include if {@code true}, messages whose node ID is <b>not</b> in the set are filtered out;
- *                if {@code false}, messages whose node ID <b>is</b> in the set are filtered out
+ * @param mode    the filtering mode: {@code INCLUDE} means only messages with the given markers are allowed;
+ *                {@code EXCLUDE} means messages with the given markers are filtered out.
  * @param nodeIds the set of node IDs used for filtering
  */
-public record LogNodeFilter(boolean include, @NonNull Set<Long> nodeIds) implements LogFilter {
+public record LogNodeFilter(@NonNull Mode mode, @NonNull Set<Long> nodeIds) implements LogFilter {
 
     /**
      * Determines whether the given log message should be filtered based on its node ID.
      *
      * <ul>
-     *   <li>If {@code include} is {@code true}, this returns {@code true} (filter out)
+     *   <li>If {@code mode} is {@code INCLUDE}, this returns {@code true} (filter out)
      *       when the message's node ID is <b>not</b> in the {@code nodeIds} set.</li>
-     *   <li>If {@code include} is {@code false}, this returns {@code true} when the message's
+     *   <li>If {@code mode} is {@code EXCLUDE}, this returns {@code true} when the message's
      *       node ID <b>is</b> in the {@code nodeIds} set.</li>
      * </ul>
      *
@@ -34,6 +34,10 @@ public record LogNodeFilter(boolean include, @NonNull Set<Long> nodeIds) impleme
      */
     @Override
     public boolean filter(@NonNull final StructuredLog logMsg) {
-        return include != nodeIds.contains(logMsg.nodeId());
+        final boolean contains = nodeIds.contains(logMsg.nodeId());
+        return switch (mode) {
+            case INCLUDE -> !contains;
+            case EXCLUDE -> contains;
+        };
     }
 }

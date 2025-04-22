@@ -29,6 +29,7 @@ public class ValidatorImpl implements Validator {
     @NonNull
     public Validator assertLogs(@NonNull final LogFilter... configs) {
         Objects.requireNonNull(configs, "configs cannot be null");
+        // Take a snapshot of current logs to ensure consistent view and avoid race conditions during filtering
         final List<StructuredLog> logs = new ArrayList<>(InMemoryAppender.getLogs());
         final List<StructuredLog> filteredLogs = logs.stream()
                 .filter(log -> Arrays.stream(configs).allMatch(filter -> filter.filter(log)))
