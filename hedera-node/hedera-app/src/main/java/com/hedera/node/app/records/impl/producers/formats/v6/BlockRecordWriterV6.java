@@ -59,13 +59,9 @@ import org.hiero.base.crypto.HashingOutputStream;
 public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private static final Logger logger = LogManager.getLogger(BlockRecordWriterV6.class);
 
-    /**
-     * The file extension for record files as per the v6 specification
-     */
+    /** The file extension for record files as per the v6 specification */
     public static final String RECORD_EXTENSION = "rcd";
-    /**
-     * The suffix added to RECORD_EXTENSION when they are compressed as per the v6 specification
-     */
+    /** The suffix added to RECORD_EXTENSION when they are compressed as per the v6 specification */
     public static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
 
     private enum State {
@@ -74,18 +70,12 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
         CLOSED
     }
 
-    /**
-     * The {@link Signer} used to sign the hashed bytes of the record file to write as the signature file
-     */
+    /** The {@link Signer} used to sign the hashed bytes of the record file to write as the signature file */
     private final Signer signer;
-    /**
-     * The maximum size of a sidecar file in bytes.
-     */
+    /** The maximum size of a sidecar file in bytes. */
     private final int maxSideCarSizeInBytes;
     /** Whether to compress the record file and sidecar files. */
-    /**
-     * The node-specific path to the directory where record files are written
-     */
+    /** The node-specific path to the directory where record files are written */
     private final Path nodeScopedRecordDir;
     /**
      * The node-specific path to the directory where sidecar files are written. Relative to
@@ -124,42 +114,28 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
      * for these are stored in {@link #sidecarMetadata} so that they can be included in the footer of the record file.
      */
     private SidecarWriterV6 sidecarFileWriter;
-    /**
-     * The path to the record file we are writing
-     */
+    /** The path to the record file we are writing */
     private Path recordFilePath;
-    /**
-     * The file output stream we are writing to, which writes to {@link #recordFilePath}
-     */
+    /** The file output stream we are writing to, which writes to {@link #recordFilePath} */
     private OutputStream fileOutputStream;
-    /**
-     * The gzip output stream we are writing to, wraps {@link #fileOutputStream}
-     */
+    /** The gzip output stream we are writing to, wraps {@link #fileOutputStream} */
     private GZIPOutputStream gzipOutputStream = null;
-    /**
-     * HashingOutputStream for hashing the file contents, wraps {@link #gzipOutputStream} or {@link #fileOutputStream}
-     */
+    /** HashingOutputStream for hashing the file contents, wraps {@link #gzipOutputStream} or {@link #fileOutputStream} */
     private HashingOutputStream hashingOutputStream;
-    /**
-     * The buffered output stream we are writing to, wraps {@link #hashingOutputStream}
-     */
+    /** The buffered output stream we are writing to, wraps {@link #hashingOutputStream} */
     private BufferedOutputStream bufferedOutputStream;
-    /**
-     * WritableStreamingData we are writing to, wraps {@link #bufferedOutputStream}
-     */
+    /** WritableStreamingData we are writing to, wraps {@link #bufferedOutputStream} */
     private WritableStreamingData outputStream;
-    /**
-     * The state of this writer
-     */
+    /** The state of this writer */
     private State state;
 
     /**
      * Creates a new incremental record file writer on a new file.
      *
      * @param config The configuration to be used for writing this block. Since this cannot change in the middle of
-     * writing a file, we just need the config, not a config provider.
+     *               writing a file, we just need the config, not a config provider.
      * @param nodeInfo The node info for the node writing this file. This is used to get the node-specific directory
-     * where the file will be written.
+     *                 where the file will be written.
      * @param signer The signer to use to sign the file bytes to produce the signature file
      * @param fileSystem The file system to use to write the file
      */
@@ -204,9 +180,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     // =================================================================================================================
     // Implementation of methods in BlockRecordWriter
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void init(
             @NonNull final SemanticVersion hapiProtoVersion,
@@ -247,9 +221,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     @SuppressWarnings("java:S125")
     public void writeItem(@NonNull final SerializedSingleTransactionRecord rec) {
@@ -267,9 +239,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
         handleSidecarItems(rec);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void close(@NonNull final HashObject endRunningHash) {
         if (state != State.OPEN) {
@@ -351,6 +321,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     }
 
     /**
+     *
      * @param rec Current item to write to the sidecar(s)
      */
     private void handleSidecarItems(@NonNull final SerializedSingleTransactionRecord rec) {
@@ -443,7 +414,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     /**
      * Get the record file path for a record file with the given consensus time
      *
-     * @param consensusTime a consensus timestamp of the first object to be written in the file
+     * @param consensusTime  a consensus timestamp of the first object to be written in the file
      * @return Path to a record file for that consensus time
      */
     @NonNull
@@ -455,7 +426,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     /**
      * Get full sidecar file path from given Instant object
      *
-     * @param sidecarId the sidecar id of this sidecar file
+     * @param sidecarId                                           the sidecar id of this sidecar file
      * @return the new sidecar file path
      */
     @NonNull
