@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.stale;
+package org.hiero.consensus.event.creator.impl.stale;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.transformers.RoutableData;

@@ -6,6 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -38,8 +39,6 @@ import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.signing.DefaultSelfEventSigner;
 import com.swirlds.platform.event.signing.SelfEventSigner;
-import com.swirlds.platform.event.stale.DefaultStaleEventDetector;
-import com.swirlds.platform.event.stale.StaleEventDetector;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
@@ -84,6 +83,8 @@ import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.pool.DefaultTransactionPool;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
+import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
+import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -842,7 +843,9 @@ public class PlatformComponentBuilder {
     @NonNull
     public StaleEventDetector buildStaleEventDetector() {
         if (staleEventDetector == null) {
-            staleEventDetector = new DefaultStaleEventDetector(blocks.platformContext(), blocks.selfId());
+            final PlatformContext context = blocks.platformContext();
+            staleEventDetector =
+                    new DefaultStaleEventDetector(context.getConfiguration(), context.getMetrics(), blocks.selfId());
         }
         return staleEventDetector;
     }

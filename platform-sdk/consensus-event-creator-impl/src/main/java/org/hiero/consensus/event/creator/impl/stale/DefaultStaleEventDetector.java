@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.stale;
+package org.hiero.consensus.event.creator.impl.stale;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.transformers.RoutableData;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,21 +47,17 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
     /**
      * Constructor.
      *
-     * @param platformContext the platform context
-     * @param selfId          the ID of this node
+     * @param configuration the configuration
+     * @param metrics       the {@link Metrics} system
+     * @param selfId        the ID of this node
      */
-    public DefaultStaleEventDetector(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
-
+    public DefaultStaleEventDetector(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final NodeId selfId) {
         this.selfId = Objects.requireNonNull(selfId);
-
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-
-        selfEvents = new StandardSequenceMap<>(0, 1024, true, ancientMode::selectIndicator);
-
-        metrics = new StaleEventDetectorMetrics(platformContext);
+        final AncientMode ancientMode =
+                configuration.getConfigData(EventConfig.class).getAncientMode();
+        this.selfEvents = new StandardSequenceMap<>(0, 1024, true, ancientMode::selectIndicator);
+        this.metrics = new StaleEventDetectorMetrics(metrics);
     }
 
     /**

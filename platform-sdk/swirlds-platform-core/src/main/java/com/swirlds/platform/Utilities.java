@@ -4,7 +4,6 @@ package com.swirlds.platform;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.Deserializer;
 import com.swirlds.platform.internal.Serializer;
 import com.swirlds.platform.network.PeerInfo;
@@ -19,6 +18,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
@@ -364,7 +364,7 @@ public final class Utilities {
                 .filter(entry -> entry.nodeId() != selfId.id())
                 // Only include peers with valid gossip certificates
                 // https://github.com/hashgraph/hedera-services/issues/16648
-                .filter(entry -> CryptoStatic.checkCertificate((RosterUtils.fetchGossipCaCertificate(entry))))
+                .filter(entry -> CryptoUtils.checkCertificate((RosterUtils.fetchGossipCaCertificate(entry))))
                 .map(Utilities::toPeerInfo)
                 .toList();
     }
