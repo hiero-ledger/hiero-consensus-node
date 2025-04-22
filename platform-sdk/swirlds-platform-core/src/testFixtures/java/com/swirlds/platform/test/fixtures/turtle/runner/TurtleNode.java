@@ -70,6 +70,16 @@ public class TurtleNode {
     private final Platform platform;
     private final ConsensusRoundsHolder consensusRoundsHolder;
 
+    @NonNull
+    private static Configuration createBasicConfiguration(final @NonNull Path outputDirectory) {
+        return new TestConfigBuilder()
+                .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
+                .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
+                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.toString())
+                .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.toString())
+                .getOrCreateConfig();
+    }
+
     /**
      * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
      *
@@ -89,13 +99,28 @@ public class TurtleNode {
             @NonNull final KeysAndCerts privateKeys,
             @NonNull final SimulatedNetwork network,
             @NonNull final Path outputDirectory) {
+        this(randotron, time, nodeId, addressBook, privateKeys, network, createBasicConfiguration(outputDirectory));
+    }
 
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
-                .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.toString())
-                .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.toString())
-                .getOrCreateConfig();
+    /**
+     * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
+     *
+     * @param randotron   a source of randomness
+     * @param time        the current time
+     * @param nodeId      the ID of this node
+     * @param addressBook the address book for the network
+     * @param privateKeys the private keys for this node
+     * @param network     the simulated network
+     * @param configuration the configuration for this node
+     */
+    public TurtleNode(
+            @NonNull final Randotron randotron,
+            @NonNull final Time time,
+            @NonNull final NodeId nodeId,
+            @NonNull final AddressBook addressBook,
+            @NonNull final KeysAndCerts privateKeys,
+            @NonNull final SimulatedNetwork network,
+            @NonNull final Configuration configuration) {
 
         setupGlobalMetrics(configuration);
 
@@ -174,6 +199,15 @@ public class TurtleNode {
     }
 
     /**
+     * Returns the {@link Configuration} of this node.
+     *
+     * @return the {@link Configuration} of this node
+     */
+    public Configuration getConfiguration() {
+        return platform.getContext().getConfiguration();
+    }
+
+    /**
      * Start this node.
      */
     public void start() {
@@ -199,5 +233,14 @@ public class TurtleNode {
     @NonNull
     public ConsensusRoundsHolder getConsensusRoundsHolder() {
         return consensusRoundsHolder;
+    }
+
+    /**
+     * Shut down the node immediately. No attempt is made to finish ongoing tasks or to save
+     * the current state. All resources are released. This method is idempotent and can be
+     * called multiple times without any side effects after the first call.
+     */
+    public void destroy() throws InterruptedException {
+        getMetricsProvider().removePlatformMetrics(platform.getSelfId());
     }
 }

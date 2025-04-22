@@ -44,8 +44,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -175,9 +175,9 @@ class VirtualPipelineTests {
             }
         }
 
-        if (allAreDestroyed && copies.size() > 0) {
+        if (allAreDestroyed && !copies.isEmpty()) {
             final VirtualPipeline<VirtualKey, VirtualValue> pipeline =
-                    copies.get(0).getPipeline();
+                    copies.getFirst().getPipeline();
             assertTrue(pipeline.awaitTermination(2, TimeUnit.SECONDS), "thread should stop");
         }
     }

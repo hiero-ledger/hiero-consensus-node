@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSA
 import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HEDERA_GAS_COUNTER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE;
@@ -83,7 +84,7 @@ public class FrameBuilder {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(worldUpdater.entityIdFactory(), ledgerConfig.fundingAccount());
-        final var contextVariables = contextVariablesFrom(config, context);
+        final var contextVariables = contextVariablesFrom(config, context, intrinsicGas);
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
@@ -109,7 +110,7 @@ public class FrameBuilder {
     }
 
     private Map<String, Object> contextVariablesFrom(
-            @NonNull final Configuration config, @NonNull final HederaEvmContext context) {
+            @NonNull final Configuration config, @NonNull final HederaEvmContext context, final long intrinsicGas) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
@@ -123,6 +124,7 @@ public class FrameBuilder {
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
+        contextEntries.put(HEDERA_GAS_COUNTER, new HederaGasCounter(intrinsicGas));
         return contextEntries;
     }
 

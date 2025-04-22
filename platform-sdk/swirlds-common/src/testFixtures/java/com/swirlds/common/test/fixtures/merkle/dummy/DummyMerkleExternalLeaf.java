@@ -3,8 +3,6 @@ package com.swirlds.common.test.fixtures.merkle.dummy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
@@ -74,7 +72,7 @@ public class DummyMerkleExternalLeaf extends PartialMerkleLeaf implements DummyM
         out.writeInt(averageSize);
         out.writeInt(standardDeviation);
 
-        try (final SerializableDataOutputStream fileOut = new SerializableDataOutputStreamImpl(
+        try (final SerializableDataOutputStream fileOut = new SerializableDataOutputStream(
                 new FileOutputStream(getFile(outputDirectory).toFile()))) {
             fileOut.writeNormalisedString(generateValue());
         }
@@ -87,7 +85,7 @@ public class DummyMerkleExternalLeaf extends PartialMerkleLeaf implements DummyM
         averageSize = in.readInt();
         standardDeviation = in.readInt();
 
-        try (final SerializableDataInputStream fileIn = new SerializableDataInputStreamImpl(
+        try (final SerializableDataInputStream fileIn = new SerializableDataInputStream(
                 new FileInputStream(getFile(inputDirectory).toFile()))) {
 
             assertEquals(

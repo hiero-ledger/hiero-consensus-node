@@ -37,7 +37,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
     private static final Logger LOG = LogManager.getLogger(HapiContractCallLocal.class);

@@ -16,7 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(

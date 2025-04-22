@@ -11,7 +11,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Cre
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Delete;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Expire;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType.Rebuild;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.swirlds.common.merkle.MerkleNode;
@@ -50,7 +50,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Implementation of {#link ExpectedFCMFamily} that keeps track of keys available in either of the FCMs from

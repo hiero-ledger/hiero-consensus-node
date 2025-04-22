@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomSignatureBytes;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.serializePlatformEvent;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignatureBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

@@ -9,7 +9,7 @@ import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 // Note: This class is intended to be used with a human in the loop who is watching standard in and standard err.
 

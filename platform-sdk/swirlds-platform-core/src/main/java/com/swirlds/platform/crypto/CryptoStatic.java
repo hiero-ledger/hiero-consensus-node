@@ -9,8 +9,6 @@ import static com.swirlds.platform.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
@@ -46,7 +44,6 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -74,6 +71,8 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -651,28 +650,5 @@ public final class CryptoStatic {
             store.setCertificateEntry(SIGNING.storeName(peer.nodeId()), sigCert);
         }
         return store;
-    }
-
-    /**
-     * Check if a certificate is valid.  A certificate is valid if it is not null, has a public key, and can be encoded.
-     *
-     * @param certificate the certificate to check
-     * @return true if the certificate is valid, false otherwise
-     */
-    public static boolean checkCertificate(@Nullable final Certificate certificate) {
-        if (certificate == null) {
-            return false;
-        }
-        if (certificate.getPublicKey() == null) {
-            return false;
-        }
-        try {
-            if (certificate.getEncoded().length == 0) {
-                return false;
-            }
-        } catch (final CertificateEncodingException e) {
-            return false;
-        }
-        return true;
     }
 }

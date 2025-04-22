@@ -43,8 +43,9 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -52,7 +53,6 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.utility.CommonUtils;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
@@ -479,8 +479,8 @@ public class ConsensusImpl implements Consensus {
         });
         // This value is normally updated when a round gets decided, but since we are starting from
         // a snapshot, we need to set it here.
-        rounds.setConsensusRelevantGeneration(initJudges.getJudges().stream()
-                .map(EventImpl::getGeneration)
+        rounds.setConsensusRelevantNGen(initJudges.getJudges().stream()
+                .map(EventImpl::getNGen)
                 .min(Long::compareTo)
                 .orElse(EventConstants.FIRST_GENERATION));
         initJudges = null;
@@ -814,7 +814,7 @@ public class ConsensusImpl implements Consensus {
         // "consensus" now has all events in history with receivedRound==round
         // there will never be any more events with receivedRound<=round (not even if the address
         // book changes)
-        consensus.sort(new ConsensusSorter(whitening));
+        ConsensusSorter.sort(consensus, whitening);
 
         // Set the consensus number for every event that just became a consensus
         // event. Add more info about it to the hashgraph. Set event.lastInRoundReceived

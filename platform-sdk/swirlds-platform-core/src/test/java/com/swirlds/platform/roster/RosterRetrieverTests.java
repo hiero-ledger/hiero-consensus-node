@@ -15,7 +15,6 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.internal.CryptoUtils;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
@@ -28,6 +27,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -201,7 +201,7 @@ public class RosterRetrieverTests {
 
     public static X509Certificate randomX509Certificate() {
         try {
-            final SecureRandom secureRandom = CryptoUtils.getDetRandom();
+            final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
 
             final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
             rsaKeyGen.initialize(3072, secureRandom);
