@@ -134,7 +134,7 @@ public class RecordStreamingUtils {
 
     public static List<String> orderedSidecarFilesFrom(final String streamDir) throws IOException {
         return filteredFilesFrom(
-                streamDir, RecordStreamingUtils::isSidecarMarkerFile, RecordStreamingUtils::compareSidecarFiles);
+                streamDir, RecordStreamingUtils::isSidecarFile, RecordStreamingUtils::compareSidecarFiles);
     }
 
     public static boolean isRecordFile(final String file) {
