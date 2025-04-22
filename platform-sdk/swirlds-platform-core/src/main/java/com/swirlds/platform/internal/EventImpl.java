@@ -571,6 +571,8 @@ public class EventImpl implements Clearable {
      */
     public void setCGen(final int cGen) {
         this.cGen = cGen;
+    }
+
     public int getDeGen() {
         return deGen;
     }
