@@ -1,26 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.internal;
 
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 
-public abstract class CryptoUtils {
-    /** the type of hash to use */
-    private static final String HASH_TYPE = "SHA-384";
+public class DetRandomProvider {
 
     private static final String PRNG_TYPE = "SHA1PRNG";
     private static final String PRNG_PROVIDER = "SUN";
 
-    // return the MessageDigest for the type of hash function used throughout the code
-    public static MessageDigest getMessageDigest() {
-        try {
-            return MessageDigest.getInstance(HASH_TYPE);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    private DetRandomProvider() {}
 
     /**
      * Create an instance of the default deterministic {@link SecureRandom}

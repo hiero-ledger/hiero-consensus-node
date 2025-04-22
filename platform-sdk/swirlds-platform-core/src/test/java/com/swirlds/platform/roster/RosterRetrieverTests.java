@@ -27,7 +27,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -201,7 +201,7 @@ public class RosterRetrieverTests {
 
     public static X509Certificate randomX509Certificate() {
         try {
-            final SecureRandom secureRandom = CryptoUtils.getDetRandom();
+            final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
 
             final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
             rsaKeyGen.initialize(3072, secureRandom);
