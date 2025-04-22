@@ -8,6 +8,7 @@ import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_AD
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_NULL;
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_USED;
 import static com.swirlds.platform.state.address.AddressBookInitializer.USED_ADDRESS_BOOK_HEADER;
+import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -533,21 +534,21 @@ class AddressBookInitializerTest {
         final String usedFileContent = Files.readString(usedFile.toPath());
 
         // check used AddressBook content
-        final String usedAddressBookText = usedAddressBook.toConfigText();
+        final String usedAddressBookText = addressBookConfigText(usedAddressBook);
         assertEquals(
                 usedAddressBookText,
                 usedFileContent,
                 "The used file content is not the same as the used address book.");
 
         // check debug AddressBook content
-        final String configText = CONFIG_ADDRESS_BOOK_HEADER + "\n" + configAddressBook.toConfigText();
+        final String configText = CONFIG_ADDRESS_BOOK_HEADER + "\n" + addressBookConfigText(configAddressBook);
         assertTrue(
                 debugFileContent.contains(configText),
                 "The configAddressBook content is not:\n" + configText + "\n\n debugFileContent:\n" + debugFileContent);
 
         // check stateAddressBook content
         final String stateAddressBookText =
-                (stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : stateAddressBook.toConfigText());
+                (stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : addressBookConfigText(stateAddressBook));
         final String stateText = STATE_ADDRESS_BOOK_HEADER + "\n" + stateAddressBookText;
 
         assertTrue(
@@ -561,7 +562,7 @@ class AddressBookInitializerTest {
         } else if (Objects.equals(usedAddressBook, stateAddressBook)) {
             usedText += STATE_ADDRESS_BOOK_USED;
         } else {
-            usedText += usedAddressBook.toConfigText();
+            usedText += addressBookConfigText(usedAddressBook);
         }
         assertTrue(
                 debugFileContent.contains(usedText),
