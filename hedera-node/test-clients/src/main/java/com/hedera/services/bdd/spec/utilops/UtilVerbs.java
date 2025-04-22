@@ -522,6 +522,7 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that waits for the target node to be any of the given statuses.
+     *
      * @param selector the selector for the node to wait for
      * @param timeout the maximum time to wait for the node to reach one of the desired statuses
      * @param statuses the statuses to wait for
@@ -537,6 +538,7 @@ public class UtilVerbs {
     /**
      * Returns an operation that waits for the target network to be active, and if this is a subprocess network,
      * refreshes the gRPC clients to reflect reassigned ports.
+     *
      * @param timeout the maximum time to wait for the network to become active
      * @return the operation that waits for the network to become active
      */
@@ -597,6 +599,7 @@ public class UtilVerbs {
     /**
      * Returns an operation that initiates background traffic running until the target network's
      * first node has reached {@link PlatformStatus#FREEZE_COMPLETE}.
+     *
      * @return the operation
      */
     public static SpecOperation runBackgroundTrafficUntilFreezeComplete() {
@@ -736,6 +739,7 @@ public class UtilVerbs {
 
     /**
      * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next block stream block.
+     *
      * @return the operation that sleeps until the beginning of the next block stream block
      */
     public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
@@ -929,6 +933,7 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that overrides the throttles on the target network to the values from the named resource.
+     *
      * @param resource the resource to load the throttles from
      * @return the operation that overrides the throttles
      */
@@ -944,6 +949,7 @@ public class UtilVerbs {
     /**
      * Returns an operation that attempts overrides the throttles on the target network to the values from the
      * named resource and expects the given failure status.
+     *
      * @param resource the resource to load the throttles from
      * @param status the expected status
      * @return the operation that overrides the throttles and expects failure
@@ -1052,6 +1058,7 @@ public class UtilVerbs {
     /**
      * Returns an operation that creates the requested number of hollow accounts with names given by the
      * given name function, and then executes the given creation function on each account.
+     *
      * @param n the number of hollow accounts to create
      * @param nameFn the function that computes the spec registry names for the accounts
      * @param creationFn the function that computes the creation operation for each account
@@ -1094,6 +1101,7 @@ public class UtilVerbs {
      * Returns an operation that creates the requested number of HIP-32 auto-created accounts using a key alias
      * of the given type, with names given by the given name function and default {@link HapiCryptoTransfer} using
      * the standard transfer of tinybar to a key alias.
+     *
      * @param n the number of HIP-32 accounts to create
      * @param keyShape the type of key alias to use
      * @param nameFn the function that computes the spec registry names for the accounts
@@ -1118,6 +1126,7 @@ public class UtilVerbs {
      * Returns an operation that creates the requested number of HIP-32 auto-created accounts using a key alias
      * of the given type, with names given by the given name function and {@link HapiCryptoTransfer} derived
      * from the given factory.
+     *
      * @param n the number of HIP-32 accounts to create
      * @param keyShape the type of key alias to use
      * @param nameFn the function that computes the spec registry names for the accounts
@@ -1219,20 +1228,50 @@ public class UtilVerbs {
     /**
      * Returns an operation that asserts that the record stream must include a pass from the given assertion
      * before its timeout elapses.
+     *
      * @param assertion the assertion to apply to the record stream
      * @param timeout the timeout for the assertion
      * @return the operation that asserts a passing record stream
      */
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return recordStreamMustIncludePassFrom(assertion, timeout, false);
+    }
+
+    /**
+     * Returns an operation that asserts that the record stream must include a pass from the given assertion
+     * before its timeout elapses, and that background traffic is running.
+     * @param assertion the assertion to apply to the record stream
+     * @param timeout the timeout for the assertion
+     * @return the operation that asserts a passing record stream
+     */
+    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return recordStreamMustIncludePassFrom(assertion, timeout, true);
+    }
+
+    /**
+     * Returns an operation that asserts that the record stream must include a pass from the given assertion
+     * before its timeout elapses, and if the background traffic should be running.
+     * @param assertion the assertion to apply to the record stream
+     * @param timeout the timeout for the assertion
+     * @param needsBackgroundTraffic whether background traffic should be running
+     * @return the operation that asserts a passing record stream
+     */
+    private static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
+            @NonNull final Duration timeout,
+            final boolean needsBackgroundTraffic) {
         requireNonNull(assertion);
         requireNonNull(timeout);
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
+        final var result = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
+        return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
     }
 
     /**
      * Returns an operation that asserts that the block stream must include no failures from the given assertion
      * before its timeout elapses.
+     *
      * @param assertion the assertion to apply to the block stream
      * @return the operation that asserts no block stream problems
      */
@@ -1244,6 +1283,7 @@ public class UtilVerbs {
     /**
      * Returns an operation that asserts that the block stream must include a pass from the given assertion
      * before its timeout elapses.
+     *
      * @param assertion the assertion to apply to the block stream
      * @return the operation that asserts a passing block stream
      */
@@ -1270,6 +1310,7 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that exposes the consensus time of the current spec to the given observer.
+     *
      * @param observer the observer to pass the consensus time to
      * @return the operation that exposes the consensus time
      */
@@ -1279,6 +1320,7 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that exposes the consensus time of the current spec to the given observer.
+     *
      * @param observer the observer to pass the consensus time to
      * @return the operation that exposes the consensus time
      */
@@ -1967,6 +2009,7 @@ public class UtilVerbs {
     /**
      * Validates that fee charged for a transaction is within the allowedPercentDiff of expected fee (taken
      * from pricing calculator) without the charge for gas.
+     *
      * @param txn txn to be validated
      * @param expectedUsd expected fee in usd
      * @param allowedPercentDiff allowed percentage difference
@@ -1989,6 +2032,7 @@ public class UtilVerbs {
 
     /**
      * Validates that the gas charge for a transaction is within the allowedPercentDiff of expected gas in USD.
+     *
      * @param txn txn to be validated
      * @param expectedUsdForGas expected gas charge in usd
      * @param allowedPercentDiff allowed percentage difference
@@ -2010,6 +2054,7 @@ public class UtilVerbs {
 
     /**
      * Validates that an amount is within a certain percentage of an expected value.
+     *
      * @param expected expected value
      * @param actual actual value
      * @param allowedPercentDiff allowed percentage difference
@@ -2092,6 +2137,7 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that writes the requested contents to the working directory of each node.
+     *
      * @param contents the contents to write
      * @param segments the path segments to the file relative to the node working directory
      * @return the operation
@@ -2278,6 +2324,7 @@ public class UtilVerbs {
     public interface ScheduledExecutionAssertion {
         /**
          * Tests that a scheduled execution body and result are as expected within the given spec.
+         *
          * @param spec the context in which the assertion is being made
          * @param body the transaction body of the scheduled execution
          * @param result the transaction result of the scheduled execution
@@ -2292,6 +2339,7 @@ public class UtilVerbs {
     /**
      * Returns a {@link ScheduledExecutionAssertion} that asserts the status of the execution result
      * is as expected; and that the record of the scheduled execution is queryable, again with the expected status.
+     *
      * @param status the expected status
      * @return the assertion
      */
@@ -2307,6 +2355,7 @@ public class UtilVerbs {
     /**
      * Returns a {@link ScheduledExecutionAssertion} that asserts the status of the execution result
      * is as expected; and that a query for its record, customized by the given spec, passes.
+     *
      * @return the assertion
      */
     public static ScheduledExecutionAssertion withRecordSpec(@NonNull final Consumer<HapiGetTxnRecord> querySpec) {
@@ -2325,6 +2374,7 @@ public class UtilVerbs {
     /**
      * Returns a {@link BlockStreamAssertion} factory that asserts the result of a scheduled execution
      * of the given named transaction passes the given assertion.
+     *
      * @param creationTxn the name of the transaction that created the scheduled execution
      * @param assertion the assertion to apply to the scheduled execution
      * @return a factory for a {@link BlockStreamAssertion} that asserts the result of the scheduled execution

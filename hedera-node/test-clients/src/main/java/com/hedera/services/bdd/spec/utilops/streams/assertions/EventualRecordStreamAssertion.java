@@ -35,6 +35,8 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
     @Nullable
     private RecordStreamAssertion assertion;
 
+    private boolean needsBackgroundTraffic = false;
+
     /**
      * Returns an {@link EventualRecordStreamAssertion} that will pass as long as the given assertion does not
      * throw an {@link AssertionError} before its timeout.
@@ -68,6 +70,20 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
             @NonNull final Duration timeout) {
         requireNonNull(assertionFactory);
         return new EventualRecordStreamAssertion(assertionFactory, false, timeout, true);
+    }
+
+    @Override
+    public boolean needsBackgroundTraffic() {
+        return needsBackgroundTraffic;
+    }
+
+    /**
+     * Returns an {@link EventualRecordStreamAssertion} enabling background traffic.
+     * @return the eventual record stream assertion with background traffic
+     */
+    public EventualRecordStreamAssertion withBackgroundTraffic() {
+        this.needsBackgroundTraffic = true;
+        return this;
     }
 
     /**

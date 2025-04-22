@@ -18,7 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -105,17 +105,20 @@ public class RepeatableHip1064Tests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(selectedItems(
-                        nodeRewardsValidator(expectedNodeRewards::get),
-                        // We expect two node rewards payments in this test.
-                        // But first staking period all nodes are inactive and minReward is 0.
-                        // So no synthetic node rewards payment is expected.
-                        1,
-                        (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(
-                                                aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)
-                                && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                        .isAfter(startConsensusTime.get()))),
+                recordStreamMustIncludePassWithBackgroundTrafficFrom(
+                        selectedItems(
+                                nodeRewardsValidator(expectedNodeRewards::get),
+                                // We expect two node rewards payments in this test.
+                                // But first staking period all nodes are inactive and minReward is 0.
+                                // So no synthetic node rewards payment is expected.
+                                1,
+                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
+                        Duration.ofSeconds(1)),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
@@ -196,7 +199,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.adjustNodeFees", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get),
                                 // We expect two node rewards payments in this test.
@@ -290,7 +293,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.minPerPeriodNodeRewardUsd", "10"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidatorWithInactiveNodes(
                                         expectedNodeRewards::get, expectedMinNodeReward::get),
@@ -372,7 +375,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.preserveMinNodeRewardBalance", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get),
                                 // We expect two node rewards payments in this test.
