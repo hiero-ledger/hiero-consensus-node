@@ -134,11 +134,15 @@ public class RecordStreamingUtils {
 
     public static List<String> orderedSidecarFilesFrom(final String streamDir) throws IOException {
         return filteredFilesFrom(
-                streamDir, RecordStreamingUtils::isSidecarFile, RecordStreamingUtils::compareSidecarFiles);
+                streamDir, RecordStreamingUtils::isSidecarMarkerFile, RecordStreamingUtils::compareSidecarFiles);
     }
 
     public static boolean isRecordFile(final String file) {
         return isRelevant(file) && !file.contains(SIDECAR_ONLY_TOKEN);
+    }
+
+    public static boolean isSidecarMarkerFile(final String file) {
+        return file.contains(SIDECAR_ONLY_TOKEN) && file.contains(".mf");
     }
 
     public static boolean isSidecarFile(final String file) {

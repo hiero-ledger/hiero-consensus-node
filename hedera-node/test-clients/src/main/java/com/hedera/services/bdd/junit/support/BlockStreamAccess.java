@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
+import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
 import static java.util.Comparator.comparing;
 
 import com.hedera.hapi.block.stream.Block;
@@ -275,6 +276,8 @@ public enum BlockStreamAccess {
      * @return true if the file is a block marker file, false otherwise
      */
     public static boolean isBlockMarkerFile(@NonNull final File file) {
-        return file.isFile() && file.getName().endsWith(".mf");
+        return file.isFile()
+                && file.getName().endsWith(".mf")
+                && !file.getName().contains(SIDECAR_ONLY_TOKEN);
     }
 }
