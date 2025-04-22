@@ -113,7 +113,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // if an exception occurs during a ContractCall, charge fees to the sender and return a CallOutcome reflecting
         // the error.
         final var hevmTransaction = safeCreateHevmTransaction();
-        validateHevmTransaction(hevmTransaction);
         if (hevmTransaction.isException()) {
             return maybeChargeFeesAndReturnOutcome(
                     hevmTransaction,
@@ -160,21 +159,23 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         }
     }
 
-    private void validateHevmTransaction(HederaEvmTransaction hevmTransaction) {
+    private HederaEvmTransaction safeCreateHevmTransaction() {
+        try {
+            final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
+            validatePayloadLength(hevmTransaction);
+            return hevmTransaction;
+        } catch (HandleException e) {
+            // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
+            return hevmTransactionFactory.fromContractTxException(context.body(), e);
+        }
+    }
+
+    private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
         final var maxJumboEthereumCallDataSize =
                 configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
 
         if (hevmTransaction.payload().length() > maxJumboEthereumCallDataSize) {
             throw new HandleException(TRANSACTION_OVERSIZE);
-        }
-    }
-
-    private HederaEvmTransaction safeCreateHevmTransaction() {
-        try {
-            return hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
-        } catch (HandleException e) {
-            // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
-            return hevmTransactionFactory.fromContractTxException(context.body(), e);
         }
     }
 
