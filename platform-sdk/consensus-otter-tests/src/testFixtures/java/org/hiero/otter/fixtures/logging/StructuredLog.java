@@ -58,7 +58,7 @@ public record StructuredLog(
                 "%s [%s] [%s] (%s) [%s] (%s) - %s\n",
                 dateTime.format(FORMATTER),
                 level,
-                nodeId,
+                nodeId >= 0 ? nodeId : "unknown",
                 threadName,
                 marker,
                 abbreviateClassName(loggerName),
