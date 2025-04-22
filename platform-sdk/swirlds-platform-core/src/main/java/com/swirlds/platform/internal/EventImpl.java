@@ -84,6 +84,7 @@ public class EventImpl implements Clearable {
 
     /** Local consensus generation, for more info, see {@link com.swirlds.platform.consensus.LocalConsensusGeneration} */
     private int cGen = LocalConsensusGeneration.GENERATION_UNDEFINED;
+
     private int deGen = 0;
 
     public EventImpl(

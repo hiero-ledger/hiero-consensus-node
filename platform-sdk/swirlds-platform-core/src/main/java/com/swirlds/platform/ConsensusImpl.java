@@ -3,7 +3,6 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import com.swirlds.platform.consensus.DeGen;
 import static java.util.stream.Collectors.toSet;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
@@ -24,6 +23,7 @@ import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
+import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.consensus.InitJudges;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;

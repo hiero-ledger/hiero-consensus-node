@@ -1,15 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import java.util.List;
-import static org.assertj.core.api.Assertions.assertThat;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.junit.jupiter.api.Test;
 
 class DeGenTest {
-
 
     private List<EventImpl> events;
 
@@ -64,6 +65,5 @@ class DeGenTest {
                         "Event with index %d is expected to have a DeGen of %d, but has %d",
                         eventIndex, expectedDeGen, event.getDeGen())
                 .isEqualTo(expectedDeGen);
-
     }
 }

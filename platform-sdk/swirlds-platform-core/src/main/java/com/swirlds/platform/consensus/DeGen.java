@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
 import com.swirlds.platform.internal.EventImpl;
@@ -29,9 +30,9 @@ public class DeGen {
     }
 
     public static int parentDeGen(@Nullable final EventImpl event) {
-        return event == null || event.getRoundCreated() == ConsensusConstants.ROUND_NEGATIVE_INFINITY ?
-                GENERATION_UNDEFINED :
-                event.getDeGen();
+        return event == null || event.getRoundCreated() == ConsensusConstants.ROUND_NEGATIVE_INFINITY
+                ? GENERATION_UNDEFINED
+                : event.getDeGen();
     }
 
     public static void clearDeGen(@NonNull final EventImpl event) {
