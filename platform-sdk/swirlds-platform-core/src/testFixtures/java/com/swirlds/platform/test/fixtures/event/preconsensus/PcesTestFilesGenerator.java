@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.preconsensus;
 
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,8 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Predicate;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
 
 /**
  * A utility class for generating test PCES (Preconsensus event stream) files.
@@ -102,7 +101,7 @@ public final class PcesTestFilesGenerator {
         if (!Files.exists(parentDir)) {
             Files.createDirectories(parentDir);
         }
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new FileOutputStream(descriptor.getPath().toFile()));
         out.writeInt(PcesFileVersion.currentVersionNumber());
         out.writeNormalisedString("foo bar baz");

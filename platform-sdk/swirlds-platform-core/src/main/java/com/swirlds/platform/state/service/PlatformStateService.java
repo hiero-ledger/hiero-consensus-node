@@ -3,9 +3,9 @@ package com.swirlds.platform.state.service;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -26,7 +26,7 @@ public enum PlatformStateService implements Service {
     /**
      * Temporary access to a function that computes an application version from config.
      */
-    private static final AtomicReference<Function<Configuration, SoftwareVersion>> APP_VERSION_FN =
+    private static final AtomicReference<Function<Configuration, SemanticVersion>> APP_VERSION_FN =
             new AtomicReference<>();
     /**
      * The schemas to register with the {@link SchemaRegistry}.
@@ -50,9 +50,10 @@ public enum PlatformStateService implements Service {
 
     /**
      * Sets the application version to the given version.
+     *
      * @param appVersionFn the version to set as the application version
      */
-    public void setAppVersionFn(@NonNull final Function<Configuration, SoftwareVersion> appVersionFn) {
+    public void setAppVersionFn(@NonNull final Function<Configuration, SemanticVersion> appVersionFn) {
         APP_VERSION_FN.set(requireNonNull(appVersionFn));
     }
 }

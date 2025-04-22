@@ -19,8 +19,8 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * MapValue with a {@link FCQueue}

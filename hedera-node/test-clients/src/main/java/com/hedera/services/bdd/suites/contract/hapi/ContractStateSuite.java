@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAnyLogAfter;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static java.lang.Integer.MAX_VALUE;
@@ -36,8 +37,9 @@ public class ContractStateSuite {
     final Stream<DynamicTest> netZeroSlotUsageUpdateLogsNoErrors() {
         final var contract = "ThreeSlots";
         return hapiTest(
+                overriding("contracts.maxGasPerSec", "15_000_000_000"),
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).gas(500_000),
                 // Use slot 'b' only
                 contractCall(contract, "setAB", BigInteger.ZERO, BigInteger.ONE),
                 // Clear slot 'b', use slot 'a' (net-zero slot usage but first key impact)
@@ -45,7 +47,7 @@ public class ContractStateSuite {
                 // And now use slot 'c' (will trigger ERROR log unless first key is 'a')
                 contractCall(contract, "setC", BigInteger.ONE),
                 // Ensure there are still no problems in the logs
-                validateAnyLogAfter(Duration.ofMillis(250)));
+                validateAnyLogAfter(Duration.ofMillis(450)));
     }
 
     @HapiTest
@@ -76,7 +78,8 @@ public class ContractStateSuite {
                                                 .map(type -> contractCall(
                                                         CONTRACT, "setVar" + type, integralTypes.get(type))),
                                         Stream.of(contractCall(CONTRACT, "setVarAddress", randomHeadlongAddress())),
-                                        Stream.of(contractCall(CONTRACT, "setVarContractType")),
+                                        Stream.of(contractCall(CONTRACT, "setVarContractType")
+                                                .gas(5_000_000)),
                                         Stream.of(contractCall(CONTRACT, "setVarBytes32", randomBytes32())),
                                         Stream.of(contractCall(CONTRACT, "setVarString", randomString())),
                                         Stream.of(contractCall(CONTRACT, "setVarEnum", randomEnum())),

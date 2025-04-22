@@ -3,7 +3,7 @@ package com.swirlds.common.io.extendable.extensions;
 
 import static com.swirlds.common.io.extendable.ExtendableInputStream.extendInputStream;
 import static com.swirlds.common.io.extendable.ExtendableOutputStream.extendOutputStream;
-import static org.hiero.base.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.CompareTo.isGreaterThan;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

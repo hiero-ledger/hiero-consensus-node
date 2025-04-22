@@ -12,8 +12,8 @@ import com.swirlds.common.merkle.interfaces.MerkleType;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.utility.AbstractReservable;
 import java.beans.Transient;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * This class implements boilerplate functionality for a {@link MerkleNode}.

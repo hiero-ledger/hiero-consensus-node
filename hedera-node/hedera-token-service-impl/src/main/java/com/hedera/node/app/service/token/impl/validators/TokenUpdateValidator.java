@@ -105,6 +105,6 @@ public class TokenUpdateValidator {
                 op.hasExpiry() ? op.expiryOrThrow().seconds() : NA,
                 op.hasAutoRenewPeriod() ? op.autoRenewPeriodOrThrow().seconds() : NA,
                 op.autoRenewAccount());
-        return expiryValidator.resolveUpdateAttempt(givenExpiryMeta, updateExpiryMeta, true);
+        return expiryValidator.resolveUpdateAttempt(givenExpiryMeta, updateExpiryMeta);
     }
 }

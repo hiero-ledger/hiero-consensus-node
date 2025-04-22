@@ -4,7 +4,6 @@ package com.swirlds.platform.recovery.internal;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.extendable.ExtendableInputStream;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.FileInputStream;
@@ -14,8 +13,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.NoSuchElementException;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Iterates over objects in an object stream.
@@ -75,7 +74,7 @@ public class ObjectStreamIterator<T extends SelfSerializable> implements IOItera
      */
     public ObjectStreamIterator(final InputStream in, final boolean toleratePartialFile) throws IOException {
         this.byteCounter = new CountingStreamExtension();
-        this.in = new SerializableDataInputStreamImpl(new ExtendableInputStream(in, byteCounter));
+        this.in = new SerializableDataInputStream(new ExtendableInputStream(in, byteCounter));
         this.toleratePartialFile = toleratePartialFile;
 
         try {

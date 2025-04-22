@@ -24,7 +24,7 @@ class LeakyBucketDeterministicThrottleTest {
 
     @BeforeEach
     void setup() {
-        subject = new LeakyBucketDeterministicThrottle(DEFAULT_CAPACITY, THROTTLE_NAME);
+        subject = new LeakyBucketDeterministicThrottle(DEFAULT_CAPACITY, THROTTLE_NAME, 1);
     }
 
     @Test
@@ -52,7 +52,7 @@ class LeakyBucketDeterministicThrottleTest {
     void canGetPercentUsed() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         assertEquals(0.0, subject.percentUsed(now));
         subject.allow(now, capacity / 2);
         assertEquals(50.0, subject.percentUsed(now));
@@ -63,7 +63,7 @@ class LeakyBucketDeterministicThrottleTest {
     void canGetInstantaneousPercentUsed() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         assertEquals(0.0, subject.instantaneousPercentUsed());
         subject.allow(now, capacity / 2);
         assertEquals(50.0, subject.instantaneousPercentUsed());
@@ -73,7 +73,7 @@ class LeakyBucketDeterministicThrottleTest {
     void canGetFreeToUsedRatio() {
         final var now = Instant.ofEpochSecond(1_234_567L);
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         subject.allow(now, capacity / 4);
         assertEquals(3, subject.instantaneousFreeToUsedRatio());
     }
@@ -81,7 +81,7 @@ class LeakyBucketDeterministicThrottleTest {
     @Test
     void leaksUntilNowBeforeEstimatingFreeToUsed() {
         final var capacity = 1_000_000;
-        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME);
+        final var subject = new LeakyBucketDeterministicThrottle(capacity, THROTTLE_NAME, 1);
         assertEquals(Long.MAX_VALUE, subject.instantaneousFreeToUsedRatio());
     }
 

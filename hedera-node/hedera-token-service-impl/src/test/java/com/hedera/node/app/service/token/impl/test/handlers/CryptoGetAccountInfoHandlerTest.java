@@ -68,7 +68,7 @@ import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -462,7 +462,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .value(id, stakingNodeInfo)
                 .build();
         given(readableStates4.<AccountID, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
-        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4);
+        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4, readableEntityCounters);
         when(context.createStore(ReadableStakingInfoStore.class)).thenReturn(readableStakingInfoStore);
     }
 

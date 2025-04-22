@@ -6,10 +6,6 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static com.swirlds.common.stream.internal.TimestampStreamFileWriter.OBJECT_STREAM_VERSION;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamFilesIterator;
@@ -23,11 +19,13 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Iterator;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Utilities methods for: parsing stream files and stream signature files; generating fileName from Instant; calculating
@@ -272,7 +270,7 @@ public final class LinkedObjectStreamUtilities {
                     file.getName(), streamType.getSigExtension()));
         } else {
             try (SerializableDataInputStream inputStream =
-                    new SerializableDataInputStreamImpl(new BufferedInputStream(new FileInputStream(file)))) {
+                    new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(file)))) {
                 // read signature file header
                 for (int i = 0; i < streamType.getSigFileHeader().length; i++) {
                     inputStream.readByte();
@@ -330,7 +328,7 @@ public final class LinkedObjectStreamUtilities {
             throws IOException, NoSuchAlgorithmException, InvalidStreamFileException {
         MessageDigest md = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
         try (SerializableDataOutputStream outputStream =
-                new SerializableDataOutputStreamImpl(new HashingOutputStream(md))) {
+                new SerializableDataOutputStream(new HashingOutputStream(md))) {
             // digest file header
             for (int num : streamType.getFileHeader()) {
                 outputStream.writeInt(num);
@@ -357,7 +355,7 @@ public final class LinkedObjectStreamUtilities {
      */
     public static int readFirstIntFromFile(final File file) throws IOException {
         try (FileInputStream fis = new FileInputStream(file);
-                SerializableDataInputStream inputStream = new SerializableDataInputStreamImpl(fis)) {
+                SerializableDataInputStream inputStream = new SerializableDataInputStream(fis)) {
             return inputStream.readInt();
         }
     }

@@ -3,16 +3,21 @@ package com.hedera.node.app.service.token.impl.test.comparator;
 
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.ACCOUNT_AMOUNT_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.NFT_TRANSFER_COMPARATOR;
+import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.TOKEN_ID_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.TOKEN_TRANSFER_LIST_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
+import static com.hedera.node.app.service.token.impl.test.util.CommonTestUtils.assertUnsupportedConstructor;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.NftTransfer;
+import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
+import com.hedera.node.app.service.token.impl.comparator.TokenComparators;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,6 +26,11 @@ class TokenComparatorsTest {
 
     private static final AccountID ACCOUNT_1234_ID = asAccount(0L, 0L, 1234);
     private static final AccountID ACCOUNT_9876_ID = asAccount(0L, 0L, 9876);
+
+    @Test
+    void throwsInConstructor() {
+        assertUnsupportedConstructor(TokenComparators.class);
+    }
 
     @Nested
     class AccountAmountComparatorTest {
@@ -143,6 +153,78 @@ class TokenComparatorsTest {
             Assertions.assertThat(NFT_TRANSFER_COMPARATOR.compare(NFT_TRANSFER_LIST_2, NFT_TRANSFER_LIST_4))
                     .isNegative();
             Assertions.assertThat(NFT_TRANSFER_COMPARATOR.compare(NFT_TRANSFER_LIST_4, NFT_TRANSFER_LIST_2))
+                    .isPositive();
+        }
+    }
+
+    @Nested
+    class PendingAirdropComparatorTest {
+        private static final PendingAirdropId airdrop1 = PendingAirdropId.newBuilder()
+                .senderId(asAccount(0L, 0L, 1111))
+                .receiverId(asAccount(0L, 0L, 2222))
+                .fungibleTokenType(asToken(1111))
+                .build();
+        private static final PendingAirdropId airdrop2 = PendingAirdropId.newBuilder()
+                .senderId(asAccount(0L, 0L, 1111))
+                .receiverId(asAccount(0L, 0L, 2222))
+                .fungibleTokenType(asToken(2222))
+                .build();
+        private static final PendingAirdropId airdrop_no_token = PendingAirdropId.newBuilder()
+                .senderId(asAccount(0L, 0L, 1111))
+                .receiverId(asAccount(0L, 0L, 2222))
+                .build();
+        private static final PendingAirdropId airdrop3 = PendingAirdropId.newBuilder()
+                .senderId(asAccount(0L, 0L, 1111))
+                .receiverId(asAccount(0L, 0L, 2222))
+                .nonFungibleToken(NftID.newBuilder().tokenId(asToken(1111)).serialNumber(3333))
+                .build();
+
+        @Test
+        void nullChecks() {
+            // null checks
+            Assertions.assertThatThrownBy(() -> PENDING_AIRDROP_ID_COMPARATOR.compare(null, null))
+                    .isInstanceOf(NullPointerException.class);
+            Assertions.assertThatThrownBy(() -> PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop1, null))
+                    .isInstanceOf(NullPointerException.class);
+            Assertions.assertThatThrownBy(() -> PENDING_AIRDROP_ID_COMPARATOR.compare(null, airdrop1))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void tokenVsUnset() {
+            // token vs unset
+            Assertions.assertThat(PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop1, airdrop_no_token))
+                    .isPositive();
+        }
+
+        @Test
+        void fungibleTokens() {
+            // compare by fungible token id
+            Assertions.assertThat(PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop1, airdrop1))
+                    .isZero();
+            Assertions.assertThat(PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop1, airdrop2))
+                    .isNegative();
+            Assertions.assertThat(PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop2, airdrop1))
+                    .isPositive();
+        }
+
+        @Test
+        void nonFungibleTokens() {
+            // compare NFTs
+            Assertions.assertThat(PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop3, airdrop3))
+                    .isZero();
+            Assertions.assertThatThrownBy(() -> PENDING_AIRDROP_ID_COMPARATOR.compare(null, airdrop3))
+                    .isInstanceOf(NullPointerException.class);
+            Assertions.assertThatThrownBy(() -> PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop3, null))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void NFTvsFT() {
+            // NFTs rank higher than FTs
+            Assertions.assertThat(PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop1, airdrop3))
+                    .isNegative();
+            Assertions.assertThat(PENDING_AIRDROP_ID_COMPARATOR.compare(airdrop3, airdrop2))
                     .isPositive();
         }
     }

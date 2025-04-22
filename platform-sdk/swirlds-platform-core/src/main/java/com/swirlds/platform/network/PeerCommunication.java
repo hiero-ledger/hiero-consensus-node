@@ -6,8 +6,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.TypedStoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
-import com.swirlds.common.threading.locks.AutoClosableLock;
-import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
@@ -32,8 +30,10 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
 
 /**
  * Opening and monitoring of new connections for gossip/chatter neighbours.

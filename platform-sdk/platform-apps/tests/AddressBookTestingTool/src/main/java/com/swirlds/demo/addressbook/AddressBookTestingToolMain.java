@@ -9,15 +9,11 @@ import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHa
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,6 +25,9 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -63,9 +62,6 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
             throw new RuntimeException(e);
         }
     }
-
-    /** The software version of this application. */
-    private BasicSoftwareVersion softwareVersion;
 
     /** The semantic version of this application. */
     private SemanticVersion semanticVersion;
@@ -125,35 +121,6 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
     @NonNull
     public ConsensusStateEventHandler<AddressBookTestingToolState> newConsensusStateEvenHandler() {
         return new AddressBookTestingToolConsensusStateEventHandler(new PlatformStateFacade());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public BasicSoftwareVersion getSoftwareVersion() {
-        if (softwareVersion != null) {
-            return softwareVersion;
-        }
-
-        // Preload configuration so that we can change the software version on the fly
-        final Configuration configuration;
-        try {
-            final ConfigurationBuilder configurationBuilder =
-                    ConfigurationBuilder.create().withConfigDataType(AddressBookTestingToolConfig.class);
-            configuration = DefaultConfiguration.buildBasicConfiguration(
-                    configurationBuilder, getAbsolutePath("settings.txt"), List.of());
-        } catch (final IOException e) {
-            throw new UncheckedIOException("unable to load settings.txt", e);
-        }
-
-        final int version =
-                configuration.getConfigData(AddressBookTestingToolConfig.class).softwareVersion();
-        this.softwareVersion = new BasicSoftwareVersion(version);
-
-        logger.info(STARTUP.getMarker(), "returning software version {}", softwareVersion);
-        return softwareVersion;
     }
 
     /**

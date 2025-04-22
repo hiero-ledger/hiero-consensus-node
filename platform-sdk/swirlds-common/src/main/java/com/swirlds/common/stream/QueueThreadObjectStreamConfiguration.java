@@ -6,7 +6,7 @@ import com.swirlds.common.threading.framework.config.QueueThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.model.crypto.RunningHashable;
+import org.hiero.base.crypto.RunningHashable;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

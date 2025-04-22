@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import java.nio.ByteBuffer;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Test;
 
 class HashToolsTest {

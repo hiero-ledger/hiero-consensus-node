@@ -3,7 +3,6 @@ package com.swirlds.common.stream.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.logging.legacy.payload.StreamParseErrorPayload;
@@ -17,8 +16,8 @@ import java.util.NoSuchElementException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Parse an inputStream, return an Iterator from which we can get all SelfSerializable objects in the inputStream
@@ -50,7 +49,7 @@ public class SingleStreamIterator<T extends SelfSerializable> implements Iterato
      */
     public SingleStreamIterator(final File file, final StreamType streamType) {
         try {
-            stream = new SerializableDataInputStreamImpl(new BufferedInputStream(new FileInputStream(file)));
+            stream = new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(file)));
             logger.info(LOGM_OBJECT_STREAM, "SingleStreamIterator :: reading file: {}", () -> file.getName());
             // read stream file header
             for (int i = 0; i < streamType.getFileHeader().length; i++) {
@@ -80,7 +79,7 @@ public class SingleStreamIterator<T extends SelfSerializable> implements Iterato
      * 		a stream to be parsed
      */
     public SingleStreamIterator(InputStream inputStream) {
-        stream = new SerializableDataInputStreamImpl(new BufferedInputStream(inputStream));
+        stream = new SerializableDataInputStream(new BufferedInputStream(inputStream));
     }
 
     @Override

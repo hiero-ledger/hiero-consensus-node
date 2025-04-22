@@ -244,7 +244,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 op.hasExpirationTime() ? op.expirationTime().seconds() : NA,
                 op.hasAutoRenewPeriod() ? op.autoRenewPeriod().seconds() : NA,
                 null);
-        context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta, false);
+        context.expiryValidator().resolveUpdateAttempt(currentMetadata, updateMeta);
 
         // If an account is detached and pending removal, it cannot be updated
         // It can only be updated to extend expiration time

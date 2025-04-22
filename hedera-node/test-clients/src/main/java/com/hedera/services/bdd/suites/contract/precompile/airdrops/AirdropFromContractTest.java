@@ -70,7 +70,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class AirdropFromContractTest {
 
-    @Contract(contract = "Airdrop")
+    @Contract(contract = "Airdrop", creationGas = 5_000_000)
     static SpecContract airdropContract;
 
     @HapiTest
@@ -211,7 +211,7 @@ public class AirdropFromContractTest {
     @DisplayName("Contract account airdrops a single token to an ECDSA account")
     public Stream<DynamicTest> airdropTokenToECDSAAccount(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
-            @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
+            @Contract(contract = "EmptyOne", creationGas = 15_000_000L) final SpecContract sender,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
 
         return hapiTest(withOpContext((spec, opLog) -> {
