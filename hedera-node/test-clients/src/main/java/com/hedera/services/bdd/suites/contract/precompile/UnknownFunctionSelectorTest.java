@@ -35,7 +35,7 @@ public class UnknownFunctionSelectorTest {
     @Account(tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount account;
 
-    @Contract(contract = "UnknownFunctionSelectorContract")
+    @Contract(contract = "UnknownFunctionSelectorContract", creationGas = 1_500_000)
     static SpecContract contract;
 
     @BeforeAll
