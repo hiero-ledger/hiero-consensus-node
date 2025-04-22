@@ -196,19 +196,19 @@ public class DiskStartupNetworks implements StartupNetworks {
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
-        Optional.ofNullable(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
-                .ifPresent(activeRoster -> {
-                    final var network = Network.newBuilder();
-                    final List<NodeMetadata> nodeMetadata = new ArrayList<>();
-                    activeRoster.rosterEntries().forEach(entry -> {
-                        final var node = requireNonNull(nodeStore.get(entry.nodeId()));
-                        nodeMetadata.add(new NodeMetadata(
-                                infoTypes.contains(InfoType.ROSTER) ? entry : null,
-                                infoTypes.contains(InfoType.NODE_DETAILS) ? node : null));
-                    });
-                    network.nodeMetadata(nodeMetadata);
-                    tryToExport(network.build(), path);
-                });
+        final long round = platformStateFacade.roundOf(state);
+        Optional.ofNullable(RosterRetriever.retrieveActive(state, round)).ifPresent(activeRoster -> {
+            final var network = Network.newBuilder();
+            final List<NodeMetadata> nodeMetadata = new ArrayList<>();
+            activeRoster.rosterEntries().forEach(entry -> {
+                final var node = requireNonNull(nodeStore.get(entry.nodeId()));
+                nodeMetadata.add(new NodeMetadata(
+                        infoTypes.contains(InfoType.ROSTER) ? entry : null,
+                        infoTypes.contains(InfoType.NODE_DETAILS) ? node : null));
+            });
+            network.nodeMetadata(nodeMetadata);
+            tryToExport(network.build(), path);
+        });
     }
 
     /**

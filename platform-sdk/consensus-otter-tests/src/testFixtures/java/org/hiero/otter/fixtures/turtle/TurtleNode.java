@@ -40,6 +40,7 @@ import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.test.fixtures.turtle.runner.TurtleTestingToolState;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
@@ -314,6 +315,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
 
+        final State state = initialState.get().getState();
+        final long round = platformStateFacade.roundOf(state);
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,
@@ -322,7 +325,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                         TurtleApp.INSTANCE,
                         selfId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, selfId),
-                        RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),
+                        RosterUtils.buildRosterHistory(state, round),
                         platformStateFacade)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))

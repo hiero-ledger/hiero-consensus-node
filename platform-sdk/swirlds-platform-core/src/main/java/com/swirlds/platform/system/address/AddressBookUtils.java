@@ -257,14 +257,14 @@ public class AddressBookUtils {
                 // we might as well validate this fact here just to ensure the update is correct.
                 final Roster previousRoster =
                         RosterRetriever.buildRoster(addressBookInitializer.getPreviousAddressBook());
-                if (!previousRoster.equals(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
+                final long round = platformStateFacade.roundOf(state);
+                if (!previousRoster.equals(RosterRetriever.retrieveActive(state, round))
                         && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state))) {
                     throw new IllegalStateException(
                             "The previousRoster in the AddressBookInitializer doesn't match either the active or previous roster in state."
                                     + " AddressBookInitializer previousRoster = " + RosterUtils.toString(previousRoster)
                                     + ", state currentRoster = "
-                                    + RosterUtils.toString(
-                                            RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
+                                    + RosterUtils.toString(RosterRetriever.retrieveActive(state, round))
                                     + ", state previousRoster = "
                                     + RosterUtils.toString(RosterRetriever.retrievePreviousRoster(state)));
                 }
@@ -281,8 +281,8 @@ public class AddressBookUtils {
         }
 
         // At this point the initial state must have the current address book set.  If not, something is wrong.
-        final AddressBook addressBook =
-                RosterUtils.buildAddressBook(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade));
+        final long round = platformStateFacade.roundOf(state);
+        final AddressBook addressBook = RosterUtils.buildAddressBook(RosterRetriever.retrieveActive(state, round));
         if (addressBook == null) {
             throw new IllegalStateException("The current address book of the initial state is null.");
         }
