@@ -56,7 +56,7 @@ public class StackTracePrinter {
                 writer.append("\tat ");
                 if (moduleName != null) {
                     writer.append(moduleName);
-                    if (moduleVersion != null && !JDK_MODULES.contains(moduleName)) {
+                    if (moduleVersion != null) {
                         writer.append("@");
                         writer.append(moduleVersion);
                     }
@@ -99,68 +99,4 @@ public class StackTracePrinter {
             }
         }
     }
-
-    private static final Set<String> JDK_MODULES = Set.of(
-            "java.base",
-            "java.compiler",
-            "java.datatransfer",
-            "java.desktop",
-            "java.instrument",
-            "java.logging",
-            "java.management",
-            "java.management.rmi",
-            "java.naming",
-            "java.net.http",
-            "java.prefs",
-            "java.rmi",
-            "java.scripting",
-            "java.se",
-            "java.security.jgss",
-            "java.security.sasl",
-            "java.smartcardio",
-            "java.sql",
-            "java.sql.rowset",
-            "java.transaction.xa",
-            "java.xml",
-            "java.xml.crypto",
-            "jdk.accessibility",
-            "jdk.attach",
-            "jdk.charsets",
-            "jdk.compiler",
-            "jdk.crypto.cryptoki",
-            "jdk.crypto.ec",
-            "jdk.dynalink",
-            "jdk.editpad",
-            "jdk.hotspot.agent",
-            "jdk.httpserver",
-            "jdk.incubator.foreign",
-            "jdk.incubator.vector",
-            "jdk.jartool",
-            "jdk.javadoc",
-            "jdk.jcmd",
-            "jdk.jconsole",
-            "jdk.jdeps",
-            "jdk.jdi",
-            "jdk.jdwp.agent",
-            "jdk.jfr",
-            "jdk.jlink",
-            "jdk.jpackage",
-            "jdk.jshell",
-            "jdk.jsobject",
-            "jdk.jstatd",
-            "jdk.localedata",
-            "jdk.management",
-            "jdk.management.agent",
-            "jdk.management.jfr",
-            "jdk.naming.dns",
-            "jdk.naming.rmi",
-            "jdk.net",
-            "jdk.nio.mapmode",
-            "jdk.sctp",
-            "jdk.security.auth",
-            "jdk.security.jgss",
-            "jdk.unsupported",
-            "jdk.unsupported.desktop",
-            "jdk.xml.dom",
-            "jdk.zipfs");
 }
