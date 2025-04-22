@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.junit;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.Parameter;
-import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -124,13 +123,11 @@ public class OtterLogTestExtension implements InvocationInterceptor, ParameterRe
         final TestEnvironment testEnvironment =
                 (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
         if (testEnvironment != null) {
-            testEnvironment.network().getNodes().forEach(node -> {
-                try {
-                    node.kill(Duration.ofSeconds(30));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+            try {
+                testEnvironment.destroy();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }
