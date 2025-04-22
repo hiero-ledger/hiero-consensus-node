@@ -85,6 +85,7 @@ public class EventImpl implements Clearable {
     /** Local consensus generation, for more info, see {@link com.swirlds.platform.consensus.LocalConsensusGeneration} */
     private int cGen = LocalConsensusGeneration.GENERATION_UNDEFINED;
 
+    /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
     public EventImpl(
@@ -574,10 +575,22 @@ public class EventImpl implements Clearable {
         this.cGen = cGen;
     }
 
+    /**
+     * Returns the deterministic generation (deGen) of this event.
+     *
+     * @return the deterministic generation
+     * @see com.swirlds.platform.consensus.DeGen
+     */
     public int getDeGen() {
         return deGen;
     }
 
+    /**
+     * Sets the deterministic generation (deGen) of this event.
+     *
+     * @param deGen the deterministic generation to set
+     * @see com.swirlds.platform.consensus.DeGen
+     */
     public void setDeGen(final int deGen) {
         this.deGen = deGen;
     }

@@ -10,6 +10,9 @@ import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Unit tests for {@link DeGen}.
+ */
 class DeGenTest {
 
     private List<EventImpl> events;

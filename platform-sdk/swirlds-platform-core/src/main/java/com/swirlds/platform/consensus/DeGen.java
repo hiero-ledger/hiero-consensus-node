@@ -17,9 +17,13 @@ public class DeGen {
      * degen)
      */
     public static final int GENERATION_UNDEFINED = 0;
-    /** The generation value that indicates that ... */
+    /** The first DeGen value */
     public static final int FIRST_GENERATION = 1;
 
+    /**
+     * Calculates and sets the DeGen value for the event.
+     * @param event the event to set the DeGen value for
+     */
     public static void calculateDeGen(@NonNull final EventImpl event) {
         final int maxParentDeGen = Math.max(parentDeGen(event.getSelfParent()), parentDeGen(event.getOtherParent()));
         if (maxParentDeGen == GENERATION_UNDEFINED) {
@@ -29,12 +33,21 @@ public class DeGen {
         }
     }
 
+    /**
+     * Gets the DeGen value for the parent event.
+     * @param event the event to get the DeGen value for
+     * @return the DeGen value
+     */
     public static int parentDeGen(@Nullable final EventImpl event) {
         return event == null || event.getRoundCreated() == ConsensusConstants.ROUND_NEGATIVE_INFINITY
                 ? GENERATION_UNDEFINED
                 : event.getDeGen();
     }
 
+    /**
+     * Clears the DeGen value for the event.
+     * @param event the event to clear the DeGen value for
+     */
     public static void clearDeGen(@NonNull final EventImpl event) {
         event.setDeGen(GENERATION_UNDEFINED);
     }
