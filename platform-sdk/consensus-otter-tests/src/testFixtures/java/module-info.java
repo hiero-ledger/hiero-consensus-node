@@ -3,8 +3,10 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.platform.core.test.fixtures;
     requires transitive com.swirlds.platform.core;
+    requires transitive com.google.protobuf;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.junit.jupiter.api;
+    requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
