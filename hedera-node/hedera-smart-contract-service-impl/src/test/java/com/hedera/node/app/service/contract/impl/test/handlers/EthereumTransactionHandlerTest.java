@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CR
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.hederaGasUsed;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -223,7 +224,8 @@ class EthereumTransactionHandlerTest {
                 CALLED_CONTRACT_ID,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
                 null,
-                null);
+                null,
+                hederaGasUsed / 2);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -263,7 +265,8 @@ class EthereumTransactionHandlerTest {
                 CALLED_CONTRACT_ID,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
                 null,
-                null);
+                null,
+                hederaGasUsed / 2);
 
         given(createRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);

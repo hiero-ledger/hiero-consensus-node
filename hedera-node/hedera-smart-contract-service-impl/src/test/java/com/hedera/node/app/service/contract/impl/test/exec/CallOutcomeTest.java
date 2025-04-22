@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.hederaGasUsed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,8 +42,8 @@ class CallOutcomeTest {
 
     @Test
     void setsAbortCallResult() {
-        final var abortedCall =
-                new CallOutcome(ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, 123L, null, null);
+        final var abortedCall = new CallOutcome(
+                ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, 123L, null, null, hederaGasUsed);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
@@ -51,16 +52,16 @@ class CallOutcomeTest {
     void recognizesCreatedIdWhenEvmAddressIsSet() {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
-        final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
+        final var outcome = new CallOutcome(
+                SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null, hederaGasUsed);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
 
     @Test
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
-        final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
+        final var outcome = new CallOutcome(
+                SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null, hederaGasUsed);
         assertNull(outcome.recipientIdIfCreated());
     }
 
@@ -73,7 +74,8 @@ class CallOutcomeTest {
                 CALLED_CONTRACT_ID,
                 SUCCESS_RESULT.gasPrice(),
                 null,
-                null);
+                null,
+                hederaGasUsed);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());
     }
 }

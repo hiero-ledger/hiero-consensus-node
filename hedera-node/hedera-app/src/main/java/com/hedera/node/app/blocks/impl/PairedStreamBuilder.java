@@ -190,6 +190,11 @@ public class PairedStreamBuilder
         return recordStreamBuilder.getGasUsedForContractTxn();
     }
 
+    @Override
+    public long getHederaGasUsedForContractTxn() {
+        return recordStreamBuilder.getHederaGasUsedForContractTxn();
+    }
+
     @NonNull
     @Override
     public ResponseCodeEnum status() {
@@ -393,6 +398,13 @@ public class PairedStreamBuilder
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration) {
         recordStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
         blockStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
+        return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder hederaGasUsed(long hederaGasUsed) {
+        recordStreamBuilder.hederaGasUsed(hederaGasUsed);
+        blockStreamBuilder.hederaGasUsed(hederaGasUsed);
         return this;
     }
 

@@ -119,10 +119,12 @@ public class DispatchUsageManager {
         // much actual work was done; in such cases, the gas used is still reported to be at
         // least 80% of the gas limit. If we want to be more precise, we can probably use the
         // EVM action tracer to get a better estimate of the actual gas used and the gas limit.
+        final var contractsConfig = dispatch.config().getConfigData(ContractsConfig.class);
         if (builder.hasContractResult()) {
-            final var gasUsed = builder.getGasUsedForContractTxn();
+            final var gasUsed = contractsConfig.useHederaGas()
+                    ? builder.getHederaGasUsedForContractTxn()
+                    : builder.getGasUsedForContractTxn();
             opWorkflowMetrics.addGasUsed(gasUsed);
-            final var contractsConfig = dispatch.config().getConfigData(ContractsConfig.class);
             if (contractsConfig.throttleThrottleByGas()) {
                 final var txnInfo = dispatch.txnInfo();
                 final var gasLimitForContractTx = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());

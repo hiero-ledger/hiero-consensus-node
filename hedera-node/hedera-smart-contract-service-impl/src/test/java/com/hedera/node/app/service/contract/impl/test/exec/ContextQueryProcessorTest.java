@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.hederaGasUsed;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.processorsForAllCurrentEvmVersions;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -82,7 +83,13 @@ class ContextQueryProcessorTest {
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
         final var expectedResult = new CallOutcome(
-                protoResult, SUCCESS, HEVM_CREATION.contractId(), SUCCESS_RESULT.gasPrice(), null, null);
+                protoResult,
+                SUCCESS,
+                HEVM_CREATION.contractId(),
+                SUCCESS_RESULT.gasPrice(),
+                null,
+                null,
+                hederaGasUsed / 2);
         assertEquals(expectedResult, subject.call());
     }
 }

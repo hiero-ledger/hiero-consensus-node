@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.hederaGasUsed;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.processorsForAllCurrentEvmVersions;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -124,7 +125,8 @@ class ContextTransactionProcessorTest {
                 HEVM_CREATION.contractId(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
                 null,
-                null);
+                null,
+                hederaGasUsed / 2);
         verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
         assertEquals(expectedResult, subject.call());
     }
@@ -161,7 +163,8 @@ class ContextTransactionProcessorTest {
                 HEVM_CREATION.contractId(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
                 null,
-                null);
+                null,
+                hederaGasUsed / 2);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
     }
@@ -191,7 +194,13 @@ class ContextTransactionProcessorTest {
 
         final var protoResult = SUCCESS_RESULT.asProtoResultOf(null, rootProxyWorldUpdater);
         final var expectedResult = new CallOutcome(
-                protoResult, SUCCESS, HEVM_CREATION.contractId(), SUCCESS_RESULT.gasPrice(), null, null);
+                protoResult,
+                SUCCESS,
+                HEVM_CREATION.contractId(),
+                SUCCESS_RESULT.gasPrice(),
+                null,
+                null,
+                hederaGasUsed / 2);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
     }

@@ -99,6 +99,12 @@ public interface StreamBuilder {
     long getGasUsedForContractTxn();
 
     /**
+     * Returns the hedera gas used already set in construction of this builder.
+     * @return the hedera gas used
+     */
+    long getHederaGasUsedForContractTxn();
+
+    /**
      * Returns the status that is currently set in the record builder.
      *
      * @return the status of the transaction
