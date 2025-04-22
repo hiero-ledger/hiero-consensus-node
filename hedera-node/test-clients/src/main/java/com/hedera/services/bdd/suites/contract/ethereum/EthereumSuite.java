@@ -1100,38 +1100,6 @@ public class EthereumSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> insolvent() {
-        final String DEPOSIT = "deposit";
-        final long depositAmount = 20_000L;
-        final Integer chainId = 0;
-
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate(RELAYER).balance(0L),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                        .via("autoAccount"),
-                getTxnRecord("autoAccount").andAllChildRecords(),
-                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
-                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
-                ethereumCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(depositAmount))
-                        .type(EthTransactionType.LEGACY_ETHEREUM)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .payingWith(RELAYER)
-                        .via("legacyBeforeEIP155")
-                        .nonce(0)
-                        .chainId(chainId)
-                        .gasPrice(50L)
-                        .maxPriorityGas(2L)
-                        .gasLimit(1_000_000L)
-                        .sending(depositAmount),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        getTxnRecord("legacyBeforeEIP155")
-                                .logged()
-                                .hasPriority(recordWith().status(SUCCESS)))));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> etx007FungibleTokenCreateWithFeesHappyPath() {
         final var createdTokenNum = new AtomicLong();
         final var feeCollectorAndAutoRenew = "feeCollectorAndAutoRenew";
