@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(UPGRADE)
-@Order(Integer.MAX_VALUE - 123)
+@Order(Integer.MAX_VALUE - 2)
 @HapiTestLifecycle
 @OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {

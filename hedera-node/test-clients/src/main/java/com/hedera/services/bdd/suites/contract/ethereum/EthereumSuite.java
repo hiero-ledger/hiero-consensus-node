@@ -41,6 +41,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
@@ -53,6 +54,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ETH_HASH_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -86,6 +88,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_P
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_NONCE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
@@ -404,7 +407,7 @@ public class EthereumSuite {
                     final var subop5 = getAccountBalance(RELAYER)
                             .hasTinyBars(changeFromSnapshot(
                                     payerBalance,
-                                    success ? -(wholeTransactionFee - senderCharged) : -ETH_TXN_FAILURE_FEE));
+                                    success ? -(wholeTransactionFee - senderCharged) : -wholeTransactionFee));
                     allRunFor(spec, subop4, subop5);
                 })));
     }
@@ -490,6 +493,7 @@ public class EthereumSuite {
     final Stream<DynamicTest> etx031InvalidNonceEthereumTxFailsAndChargesRelayer() {
         final var relayerSnapshot = "relayer";
         final var senderSnapshot = "sender";
+        final AtomicLong balanceRef = new AtomicLong();
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
@@ -507,7 +511,7 @@ public class EthereumSuite {
                         .payingWith(RELAYER)
                         .nonce(999L)
                         .via(PAY_TXN)
-                        .hasKnownStatus(ResponseCodeEnum.WRONG_NONCE),
+                        .hasKnownStatus(WRONG_NONCE),
                 withOpContext((spec, opLog) -> {
                     final var payTxn = getTxnRecord(PAY_TXN)
                             .logged()
@@ -515,15 +519,28 @@ public class EthereumSuite {
                                     .ethereumHash(
                                             ByteString.copyFrom(spec.registry().getBytes(ETH_HASH_KEY))));
                     allRunFor(spec, payTxn);
+                    final var fee = payTxn.getResponseRecord().getTransactionFee();
                     // The relayer account is charged on error for 0.0001$ - 83_333 tinybars with the testing exchange
                     // rate conversion
-                    final var relayerBalance = getAccountBalance(RELAYER)
-                            .hasTinyBars(changeFromSnapshot(relayerSnapshot, -ETH_TXN_FAILURE_FEE));
+                    final var relayerBalance =
+                            getAccountBalance(RELAYER).hasTinyBars(changeFromSnapshot(relayerSnapshot, -fee));
                     final var senderBalance = getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
                             .hasTinyBars(unchangedFromSnapshot(senderSnapshot));
                     allRunFor(spec, relayerBalance, senderBalance);
                 }),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)));
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)),
+                // But the failing call attempt is rejected at ingest if the relayer's balance is too low
+                getAccountBalance(RELAYER).exposingBalanceTo(balanceRef::set),
+                sourcing(() ->
+                        cryptoTransfer(tinyBarsFromTo(RELAYER, FUNDING, balanceRef.get() - ETH_TXN_FAILURE_FEE + 1))),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .fee(810000000L)
+                        .maxGasAllowance(0L)
+                        .nonce(999L)
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest

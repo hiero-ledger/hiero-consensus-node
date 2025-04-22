@@ -15,7 +15,7 @@ import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import org.hiero.base.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -135,8 +135,8 @@ public record KeysAndCerts(KeyPair sigKeyPair, KeyPair agrKeyPair, X509Certifica
         sigKeyGen = KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
         agrKeyGen = KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
 
-        sigDetRandom = CryptoUtils.getDetRandom(); // deterministic, not shared
-        agrDetRandom = CryptoUtils.getDetRandom(); // deterministic, not shared
+        sigDetRandom = DetRandomProvider.getDetRandom(); // deterministic, not shared
+        agrDetRandom = DetRandomProvider.getDetRandom(); // deterministic, not shared
 
         sigDetRandom.setSeed(masterKey);
         sigDetRandom.setSeed(swirldId);

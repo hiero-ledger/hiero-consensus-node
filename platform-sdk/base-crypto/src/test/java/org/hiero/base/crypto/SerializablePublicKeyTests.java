@@ -10,7 +10,7 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -26,7 +26,7 @@ class SerializablePublicKeyTests {
     void serializeDeserialize(String keyType, int keySize, boolean writeClassId)
             throws NoSuchAlgorithmException, NoSuchProviderException, IOException {
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance(keyType);
-        keyGen.initialize(keySize, CryptoUtils.getDetRandom());
+        keyGen.initialize(keySize, DetRandomProvider.getDetRandom());
         KeyPair keyPair = keyGen.generateKeyPair();
 
         SerializablePublicKey original = new SerializablePublicKey(keyPair.getPublic());
