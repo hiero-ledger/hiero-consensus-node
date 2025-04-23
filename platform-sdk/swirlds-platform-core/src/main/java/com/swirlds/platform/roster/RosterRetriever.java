@@ -13,9 +13,6 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -26,6 +23,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A utility class to help retrieve a Roster instance from the state.
@@ -37,28 +36,6 @@ public final class RosterRetriever {
     private static final String IP_ADDRESS_COMPONENT_REGEX = "(\\d{1,2}|(?:0|1)\\d{2}|2[0-4]\\d|25[0-5])";
     private static final Pattern IP_ADDRESS_PATTERN =
             Pattern.compile("^%N\\.%N\\.%N\\.%N$".replace("%N", IP_ADDRESS_COMPONENT_REGEX));
-
-    /**
-     * Retrieve the current active Roster from the state.
-     * <p>
-     * This method tries to read an active roster from the RosterState/RosterMap entities,
-     * and if they contain the active roster, then returns it.
-     * <p>
-     * This method may return null in case the RosterService states are not populated,
-     * which generally represents a new network genesis case.
-     *
-     * @return an active Roster for the round of the state, or a Roster that represents the current AddressBook in PlatformState
-     */
-    @Nullable
-    public static Roster retrieveActiveOrGenesisRoster(
-            @NonNull final State state, @NonNull final PlatformStateFacade platformStateFacade) {
-        final var roster = retrieveActive(state, platformStateFacade.roundOf(state));
-        if (roster != null) {
-            return roster;
-        }
-        // This shouldn't normally happen, but as an edge case at genesis that's the best we can do here:
-        return null;
-    }
 
     /**
      * Retrieve the previous Roster from the state, or null if the roster has never changed yet.

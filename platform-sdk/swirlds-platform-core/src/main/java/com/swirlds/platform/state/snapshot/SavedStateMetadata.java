@@ -162,7 +162,8 @@ public record SavedStateMetadata(
         Objects.requireNonNull(state.getHash(), "state must be hashed");
         Objects.requireNonNull(now, "now must not be null");
 
-        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+        final long round = platformStateFacade.roundOf(state);
+        final Roster roster = RosterRetriever.retrieveActive(state, round);
 
         final List<NodeId> signingNodes = signedState.getSigSet().getSigningNodes();
         Collections.sort(signingNodes);

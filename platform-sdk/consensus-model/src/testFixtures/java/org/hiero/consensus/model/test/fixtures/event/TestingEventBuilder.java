@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.event;
+package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 

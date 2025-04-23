@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.address;
+package org.hiero.consensus.model.roster;
 
-import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
+import static org.hiero.base.utility.NonCryptographicHashing.hash32;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.SerializableX509Certificate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -14,6 +12,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Objects;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.SerializablePublicKey;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -641,7 +640,7 @@ public class Address implements SelfSerializable {
         if (certificate == null) {
             return null;
         }
-        return CryptoStatic.checkCertificate(certificate.getCertificate()) ? certificate : null;
+        return CryptoUtils.checkCertificate(certificate.getCertificate()) ? certificate : null;
     }
 
     /**

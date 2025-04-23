@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.stale;
+package org.hiero.consensus.event.creator.impl.stale;
 
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,13 +9,11 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.transformers.RoutableData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -28,6 +26,7 @@ import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.Test;
 
 class StaleEventDetectorTests {
@@ -94,10 +93,7 @@ class StaleEventDetectorTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
-        final StaleEventDetector detector = new DefaultStaleEventDetector(platformContext, selfId);
+        final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final PlatformEvent event = new TestingEventBuilder(randotron).build();
 
@@ -112,10 +108,7 @@ class StaleEventDetectorTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
-        final StaleEventDetector detector = new DefaultStaleEventDetector(platformContext, selfId);
+        final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final long ancientThreshold = randotron.nextPositiveLong() + 100;
         final long eventBirthRound = ancientThreshold
@@ -169,10 +162,7 @@ class StaleEventDetectorTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
-        final StaleEventDetector detector = new DefaultStaleEventDetector(platformContext, selfId);
+        final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final Set<PlatformEvent> detectedStaleEvents = new HashSet<>();
         final Set<PlatformEvent> expectedStaleEvents = new HashSet<>();
@@ -248,10 +238,7 @@ class StaleEventDetectorTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
-        final StaleEventDetector detector = new DefaultStaleEventDetector(platformContext, selfId);
+        final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final long ancientThreshold1 = randotron.nextPositiveInt() + 100;
         final long eventBirthRound1 = ancientThreshold1 + randotron.nextPositiveInt(10);

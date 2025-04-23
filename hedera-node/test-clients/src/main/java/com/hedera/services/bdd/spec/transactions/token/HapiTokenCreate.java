@@ -27,7 +27,7 @@ import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.utils.KeyMetadata;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
-import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
@@ -390,8 +390,8 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
                                         case SUPPLY_KEY -> b.setSupplyKey(contractKey);
                                         case WIPE_KEY -> b.setWipeKey(contractKey);
                                         case METADATA_KEY -> b.setMetadataKey(contractKey);
-                                        default -> throw new IllegalStateException(
-                                                "Unexpected tokenKeyType: " + tokenKeyType);
+                                        default ->
+                                            throw new IllegalStateException("Unexpected tokenKeyType: " + tokenKeyType);
                                     }
                                 }
                             }
@@ -461,29 +461,12 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
         final var registry = spec.registry();
         final var submittedBody = extractTransactionBodyUnchecked(txnSubmitted);
         final var op = submittedBody.getTokenCreation();
-        if (op.hasKycKey()) {
-            registry.saveKycKey(token, op.getKycKey());
-        }
-        if (op.hasWipeKey()) {
-            registry.saveWipeKey(token, op.getWipeKey());
-        }
-        if (op.hasAdminKey()) {
-            registry.saveAdminKey(token, op.getAdminKey());
-        }
-        if (op.hasSupplyKey()) {
-            registry.saveSupplyKey(token, op.getSupplyKey());
-        }
-        if (op.hasFreezeKey()) {
-            registry.saveFreezeKey(token, op.getFreezeKey());
-        }
-        if (op.hasFeeScheduleKey()) {
-            registry.saveFeeScheduleKey(token, op.getFeeScheduleKey());
-        }
-        if (op.hasPauseKey()) {
-            registry.savePauseKey(token, op.getPauseKey());
-        }
-        if (op.hasMetadataKey()) {
-            registry.saveMetadataKey(token, op.getMetadataKey());
+
+        for (KeyRole role : KeyRole.values()) {
+            final var key = getKeyFromOp(op, role);
+            if (key != null) {
+                registry.saveRoleKey(token, role, key);
+            }
         }
     }
 
@@ -505,30 +488,27 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
         final List<KeyMetadata> metadata = new ArrayList<>();
         final var submittedBody = extractTransactionBodyUnchecked(txnSubmitted);
         final var op = submittedBody.getTokenCreation();
-        if (op.hasKycKey()) {
-            metadata.add(KeyMetadata.from(op.getKycKey(), spec, HapiSpecRegistry::saveKycKey));
+
+        for (KeyRole role : KeyRole.values()) {
+            final var key = getKeyFromOp(op, role);
+            if (key != null) {
+                metadata.add(KeyMetadata.from(key, spec, KeyMetadata.roleBasedRegistration(role)));
+            }
         }
-        if (op.hasWipeKey()) {
-            metadata.add(KeyMetadata.from(op.getWipeKey(), spec, HapiSpecRegistry::saveWipeKey));
-        }
-        if (op.hasAdminKey()) {
-            metadata.add(KeyMetadata.from(op.getAdminKey(), spec, HapiSpecRegistry::saveAdminKey));
-        }
-        if (op.hasSupplyKey()) {
-            metadata.add(KeyMetadata.from(op.getSupplyKey(), spec, HapiSpecRegistry::saveSupplyKey));
-        }
-        if (op.hasFreezeKey()) {
-            metadata.add(KeyMetadata.from(op.getFreezeKey(), spec, HapiSpecRegistry::saveFreezeKey));
-        }
-        if (op.hasFeeScheduleKey()) {
-            metadata.add(KeyMetadata.from(op.getFeeScheduleKey(), spec, HapiSpecRegistry::saveFeeScheduleKey));
-        }
-        if (op.hasPauseKey()) {
-            metadata.add(KeyMetadata.from(op.getPauseKey(), spec, HapiSpecRegistry::savePauseKey));
-        }
-        if (op.hasMetadataKey()) {
-            metadata.add(KeyMetadata.from(op.getMetadataKey(), spec, HapiSpecRegistry::saveMetadataKey));
-        }
+
         return metadata;
+    }
+
+    private Key getKeyFromOp(TokenCreateTransactionBody op, KeyRole role) {
+        return switch (role) {
+            case KYC -> op.hasKycKey() ? op.getKycKey() : null;
+            case WIPE -> op.hasWipeKey() ? op.getWipeKey() : null;
+            case ADMIN -> op.hasAdminKey() ? op.getAdminKey() : null;
+            case SUPPLY -> op.hasSupplyKey() ? op.getSupplyKey() : null;
+            case FREEZE -> op.hasFreezeKey() ? op.getFreezeKey() : null;
+            case FEE_SCHEDULE -> op.hasFeeScheduleKey() ? op.getFeeScheduleKey() : null;
+            case PAUSE -> op.hasPauseKey() ? op.getPauseKey() : null;
+            case METADATA -> op.hasMetadataKey() ? op.getMetadataKey() : null;
+        };
     }
 }

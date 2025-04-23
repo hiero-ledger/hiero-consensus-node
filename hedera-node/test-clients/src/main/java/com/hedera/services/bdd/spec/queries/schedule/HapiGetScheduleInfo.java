@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -219,7 +220,7 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         assertFor(
                 actualInfo.getAdminKey(),
                 expectedAdminKey,
-                (n, r) -> r.getAdminKey(schedule),
+                (n, r) -> r.getRoleKey(schedule, KeyRole.ADMIN),
                 "Wrong schedule admin key!",
                 registry);
 

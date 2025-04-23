@@ -9,12 +9,8 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.RosterStateId;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.state.service.WritableRosterStore;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.util.PbjRecordHasher;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -30,9 +26,12 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A utility class to help use Rooster and RosterEntry instances.
@@ -76,7 +75,7 @@ public final class RosterUtils {
      */
     public static X509Certificate fetchGossipCaCertificate(@NonNull final RosterEntry entry) {
         try {
-            return CryptoStatic.decodeCertificate(entry.gossipCaCertificate().toByteArray());
+            return CryptoUtils.decodeCertificate(entry.gossipCaCertificate().toByteArray());
         } catch (final CryptographyException e) {
             return null;
         }
@@ -266,19 +265,19 @@ public final class RosterUtils {
      * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap.
      *
      * @param state a State object to fetch data from
+     * @param round of the provided state
      * @return a RosterHistory
      * @deprecated To be removed once AddressBook to Roster refactoring is complete and Browser/Turtle stop using it
      */
     @Deprecated(forRemoval = true)
     @NonNull
-    public static RosterHistory buildRosterHistory(
-            final State state, @NonNull final PlatformStateFacade platformStateFacade) {
+    public static RosterHistory buildRosterHistory(final State state, final long round) {
         final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
 
-        final Roster currentRoster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+        final Roster currentRoster = RosterRetriever.retrieveActive(state, round);
         final Bytes currentHash = RosterUtils.hash(currentRoster).getBytes();
-        roundRosterPairList.add(new RoundRosterPair(platformStateFacade.roundOf(state), currentHash));
+        roundRosterPairList.add(new RoundRosterPair(round, currentHash));
         rosterMap.put(currentHash, currentRoster);
 
         final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
@@ -349,7 +348,7 @@ public final class RosterUtils {
 
         X509Certificate sigCert;
         try {
-            sigCert = CryptoStatic.decodeCertificate(entry.gossipCaCertificate().toByteArray());
+            sigCert = CryptoUtils.decodeCertificate(entry.gossipCaCertificate().toByteArray());
         } catch (final CryptographyException e) {
             // Malformed or missing gossip certificates are nullified.
             // https://github.com/hashgraph/hedera-services/issues/16648

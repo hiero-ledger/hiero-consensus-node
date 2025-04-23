@@ -18,9 +18,7 @@ import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.event.hashing.DefaultEventHasher;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -34,6 +32,8 @@ import java.util.function.Consumer;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 

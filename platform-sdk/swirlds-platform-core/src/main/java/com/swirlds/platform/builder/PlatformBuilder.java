@@ -57,6 +57,7 @@ import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
@@ -318,7 +319,7 @@ public final class PlatformBuilder {
         this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
         // Ensure that the platform has a valid signing cert that matches the signing private key.
         // https://github.com/hashgraph/hedera-services/issues/16648
-        if (!CryptoStatic.checkCertificate(keysAndCerts.sigCert())) {
+        if (!CryptoUtils.checkCertificate(keysAndCerts.sigCert())) {
             throw new IllegalStateException("Starting the platform requires a signing cert.");
         }
         final PlatformSigner platformSigner = new PlatformSigner(keysAndCerts);

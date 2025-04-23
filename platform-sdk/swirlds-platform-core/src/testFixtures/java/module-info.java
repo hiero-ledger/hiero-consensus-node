@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.platform.core.test.fixtures {
     requires transitive com.hedera.node.hapi;
-    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
@@ -17,8 +16,10 @@ module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
     requires transitive org.junit.jupiter.api;
+    requires com.hedera.pbj.runtime;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
