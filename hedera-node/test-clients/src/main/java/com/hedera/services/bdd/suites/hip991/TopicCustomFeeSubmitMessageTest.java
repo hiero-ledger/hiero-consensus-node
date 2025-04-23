@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -1765,7 +1766,11 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     // create topic with hbar fees
                     createTopic(TOPIC).withConsensusCustomFee(fixedConsensusHbarFee(10, "collector")),
                     // submit message
-                    submitMessageTo(TOPIC).message("TEST").payingWith(SUBMITTER).via("submit"),
+                    submitMessageTo(TOPIC)
+                            .message("TEST")
+                            .payingWith(SUBMITTER)
+                            .fee(10000 * ONE_HBAR)
+                            .via("submit"),
                     // validate 0 child records and 1 assessed custom fees
                     withOpContext((spec, log) -> {
                         final var record = getTxnRecord("submit")
@@ -1776,7 +1781,8 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         allRunFor(spec, record);
                     }),
                     // assert topic fee collector balance
-                    getAccountBalance("collector").hasTinyBars(10)));
+                    getAccountBalance("collector").hasTinyBars(10),
+                    validateChargedUsdWithin("submit", 0.05, 0.1)));
         }
 
         @HapiTest
@@ -1805,6 +1811,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                 .logged();
                         allRunFor(spec, record);
                     }),
+                    validateChargedUsdWithin("submit", 0.05, 0.1),
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10).hasTokenBalance("token", 1)));
         }

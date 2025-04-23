@@ -504,9 +504,19 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var op = feeContext.body().consensusSubmitMessageOrThrow();
+        final var calculatorFactory = feeContext.feeCalculatorFactory();
 
-        return feeContext
-                .feeCalculatorFactory()
+        final var topic =
+                feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
+        if (topic != null && !topic.customFees().isEmpty()) {
+            final var fees =  calculatorFactory
+                    .feeCalculator(SubType.TOPIC_CREATE_WITH_CUSTOM_FEES)
+                    .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
+                    .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + op.message().length())
+                    .calculate();
+        }
+
+        return calculatorFactory
                 .feeCalculator(SubType.DEFAULT)
                 .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + op.message().length())
                 .addNetworkRamByteSeconds((LONG_SIZE + TX_HASH_SIZE) * RECEIPT_STORAGE_TIME_SEC)
