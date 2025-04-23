@@ -6,12 +6,12 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.randomIp;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * A builder for creating random {@link RosterEntry} instances.

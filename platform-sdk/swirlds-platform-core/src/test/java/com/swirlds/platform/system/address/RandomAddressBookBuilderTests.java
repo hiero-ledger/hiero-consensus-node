@@ -18,6 +18,8 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.Test;
 
 class RandomAddressBookBuilderTests {

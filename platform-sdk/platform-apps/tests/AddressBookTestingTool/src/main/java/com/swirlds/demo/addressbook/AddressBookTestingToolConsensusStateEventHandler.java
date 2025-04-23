@@ -24,8 +24,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -46,6 +44,8 @@ import org.hiero.base.utility.ByteUtils;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -259,7 +259,7 @@ public class AddressBookTestingToolConsensusStateEventHandler
                 case UPGRADE_REMOVE_NODE:
                     return softwareUpgradeRemoveNodeWeightingBehavior1(testScenario, state);
                 case SKIP_VALIDATION:
-                    // fall into default case. No validation performed.
+                // fall into default case. No validation performed.
                 default:
                     logger.info(DEMO_INFO.getMarker(), "Test Scenario {}: no validation performed.", testScenario);
                     return true;

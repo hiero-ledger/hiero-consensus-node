@@ -6,6 +6,10 @@ module com.swirlds.state.impl {
     exports com.swirlds.state.merkle.disk;
     exports com.swirlds.state.merkle;
 
+    // allow reflective access for tests
+    opens com.swirlds.state.merkle.disk to
+            com.hedera.node.app;
+
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
