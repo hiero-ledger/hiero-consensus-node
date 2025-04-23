@@ -8,7 +8,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.apache.logging.log4j;
     requires transitive org.junit.jupiter.api;
-fixm    requires com.hedera.node.app.hapi.utils;
+    requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
