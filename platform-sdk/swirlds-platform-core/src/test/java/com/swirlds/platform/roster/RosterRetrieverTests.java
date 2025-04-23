@@ -27,7 +27,7 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -143,7 +143,7 @@ public class RosterRetrieverTests {
 
     @Test
     void testRetrieveActiveOrGenesisActiveRoster() {
-        assertEquals(ROSTER_666, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
+        assertEquals(ROSTER_666, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
     }
 
     private static Stream<Arguments> provideArgumentsForRetrieveActiveOrGenesisActiveParametrizedRoster() {
@@ -163,7 +163,7 @@ public class RosterRetrieverTests {
     @MethodSource("provideArgumentsForRetrieveActiveOrGenesisActiveParametrizedRoster")
     void testRetrieveActiveOrGenesisActiveParametrizedRoster(final long round, final Roster roster) {
         doReturn(round).when(consensusSnapshot).round();
-        assertEquals(roster, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
+        assertEquals(roster, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
     }
 
     private static Stream<Arguments> provideArgumentsForRetrieveActiveOrGenesisActiveForRoundRoster() {
@@ -189,19 +189,19 @@ public class RosterRetrieverTests {
     void testRetrieveActiveOrGenesisActiveAddressBookRoster() {
         // First try a very old round for which there's not a roster
         doReturn(554L).when(consensusSnapshot).round();
-        assertEquals(null, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
+        assertEquals(null, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
 
         // Then try a newer round, but remove the roster from the RosterMap
         doReturn(666L).when(consensusSnapshot).round();
         doReturn(null)
                 .when(rosterMap)
                 .get(eq(ProtoBytes.newBuilder().value(HASH_666).build()));
-        assertEquals(null, RosterRetriever.retrieveActiveOrGenesisRoster(state, TEST_PLATFORM_STATE_FACADE));
+        assertEquals(null, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
     }
 
     public static X509Certificate randomX509Certificate() {
         try {
-            final SecureRandom secureRandom = CryptoUtils.getDetRandom();
+            final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
 
             final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
             rsaKeyGen.initialize(3072, secureRandom);

@@ -10,7 +10,6 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.RosterStateId;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.system.address.Address;
@@ -266,19 +265,19 @@ public final class RosterUtils {
      * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap.
      *
      * @param state a State object to fetch data from
+     * @param round of the provided state
      * @return a RosterHistory
      * @deprecated To be removed once AddressBook to Roster refactoring is complete and Browser/Turtle stop using it
      */
     @Deprecated(forRemoval = true)
     @NonNull
-    public static RosterHistory buildRosterHistory(
-            final State state, @NonNull final PlatformStateFacade platformStateFacade) {
+    public static RosterHistory buildRosterHistory(final State state, final long round) {
         final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
 
-        final Roster currentRoster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+        final Roster currentRoster = RosterRetriever.retrieveActive(state, round);
         final Bytes currentHash = RosterUtils.hash(currentRoster).getBytes();
-        roundRosterPairList.add(new RoundRosterPair(platformStateFacade.roundOf(state), currentHash));
+        roundRosterPairList.add(new RoundRosterPair(round, currentHash));
         rosterMap.put(currentHash, currentRoster);
 
         final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
