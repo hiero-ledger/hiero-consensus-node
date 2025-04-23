@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -52,12 +53,15 @@ class BlockStreamStateManagerTest {
     @Mock
     private BlockNodeConnectionManager blockNodeConnectionManager;
 
+    @Mock
+    private BlockStreamMetrics blockStreamMetrics;
+
     private BlockStreamStateManager blockStreamStateManager;
 
     @BeforeEach
     void setUp() {
         lenient().when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
     }
 
     @Test
@@ -138,7 +142,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -170,7 +174,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -200,7 +204,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -234,7 +238,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -265,7 +269,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -292,7 +296,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -326,7 +330,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -353,7 +357,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -479,7 +483,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -506,7 +510,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -530,7 +534,7 @@ class BlockStreamStateManagerTest {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -563,7 +567,7 @@ class BlockStreamStateManagerTest {
 
     @Test
     void testOpenExistingBlock() {
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(2L);
 
@@ -590,7 +594,7 @@ class BlockStreamStateManagerTest {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockStreamStateManager = new BlockStreamStateManager(configProvider);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
 
         // add some blocks, but don't ack them

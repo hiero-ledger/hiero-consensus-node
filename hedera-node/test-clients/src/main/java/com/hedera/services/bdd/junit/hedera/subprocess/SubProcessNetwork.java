@@ -242,15 +242,18 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         // First start block nodes if needed
         startBlockNodesAsApplicable();
 
+        log.info("Nodes size: {}", nodes.size());
         // Then start each network node
         for (int i = 0; i < nodes.size(); i++) {
             HederaNode node = nodes.get(i);
             log.info("Starting SubProcessNode {}", i);
 
+            log.info("Starting working directory initialization for node {}", i);
             // Initialize Working Directory for Node
             node.initWorkingDir(configTxt);
+            log.info("Initialized working directory for node {}", i);
 
-            configureBlockNodeConnectionInformation(i, node);
+            configureBlockNodeConnectionInformation(node);
 
             // Start the node
             node.start();
@@ -276,21 +279,21 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
     }
 
-    private void configureBlockNodeConnectionInformation(int i, HederaNode node) {
+    private void configureBlockNodeConnectionInformation(HederaNode node) {
         List<BlockNodeConfig> blockNodes = new ArrayList<>();
         long[] blockNodeIds = blockNodeIdsBySubProcessNodeId.get(node.getNodeId());
         if (blockNodeIds == null) {
+            log.info("No block nodes configured for node {}", node.getNodeId());
             return;
         }
-        for (Long blockNodeId : blockNodeIds) {
+        for (int blockNodeIndex = 0; blockNodeIndex < blockNodeIds.length; blockNodeIndex++) {
+            long blockNodeId = blockNodeIds[blockNodeIndex];
             BlockNodeMode mode = blockNodeModeById.get(blockNodeId);
             if (mode == BlockNodeMode.REAL) {
-                // TODO
+                throw new UnsupportedOperationException("Real block nodes are not supported yet");
             } else if (mode == BlockNodeMode.SIMULATOR) {
                 SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
-                int priority =
-                        (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeId.intValue()];
-                // TODO Add Priority
+                int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
                 blockNodes.add(new BlockNodeConfig("localhost", sim.getPort(), priority));
             } else if (mode == BlockNodeMode.LOCAL_NODE) {
                 blockNodes.add(new BlockNodeConfig("localhost", 8080, 0));
@@ -309,6 +312,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 throw new RuntimeException(e);
             }
         }
+        log.info("Configured block node connection information for node {}: {}", node.getNodeId(), blockNodes);
     }
 
     private static void updateApplicationPropertiesWithGrpcStreaming(HederaNode node) throws IOException {

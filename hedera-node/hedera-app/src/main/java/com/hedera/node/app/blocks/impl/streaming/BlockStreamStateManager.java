@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.BlockItemSet;
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -52,13 +53,18 @@ public class BlockStreamStateManager {
     // Reference to the connection manager for notifications
     private BlockNodeConnectionManager blockNodeConnectionManager;
 
+    private final BlockStreamMetrics blockStreamMetrics;
+
     /**
      * Creates a new BlockStreamStateManager with the given configuration.
      *
      * @param configProvider the configuration provider
+     * @param blockStreamMetrics metrics factory for block stream
      */
-    public BlockStreamStateManager(@NonNull final ConfigProvider configProvider) {
+    public BlockStreamStateManager(@NonNull final ConfigProvider configProvider,
+            @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
+        this.blockStreamMetrics = blockStreamMetrics;
     }
 
     /**
@@ -119,6 +125,7 @@ public class BlockStreamStateManager {
         blockBuffer.add(holder);
         blockStatesById.put(blockNumber, holder);
         this.blockNumber = blockNumber;
+        blockStreamMetrics.setProducingBlockNumber(blockNumber);
         blockNodeConnectionManager.openBlock(blockNumber);
 
         pruneBuffer();

@@ -45,8 +45,9 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    static BlockStreamStateManager provideBlockStreamStateManager(@NonNull final ConfigProvider configProvider) {
-        return new BlockStreamStateManager(configProvider);
+    static BlockStreamStateManager provideBlockStreamStateManager(
+            @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
+        return new BlockStreamStateManager(configProvider, blockStreamMetrics);
     }
 
     @Provides

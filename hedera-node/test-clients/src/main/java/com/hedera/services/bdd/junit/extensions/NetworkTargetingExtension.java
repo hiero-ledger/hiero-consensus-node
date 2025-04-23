@@ -121,7 +121,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                             .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodeIds());
                     targetNetwork
                             .getBlockNodePrioritiesBySubProcessNodeId()
-                            .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.simulatorPriorities());
+                            .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodePriorities());
                 }
 
                 targetNetwork.start();

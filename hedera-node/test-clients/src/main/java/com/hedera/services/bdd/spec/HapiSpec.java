@@ -58,6 +58,7 @@ import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -65,6 +66,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -587,6 +589,26 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public List<HederaNode> getNetworkNodes() {
         return requireNonNull(targetNetwork).nodes();
+    }
+
+    public int getBlockNodePortById(final long nodeId) {
+        if (targetNetworkType() != TargetNetworkType.SUBPROCESS_NETWORK) {
+            throw new IllegalStateException("getBlockNodePortById() is only available for SUBPROCESS_NETWORK");
+        }
+
+        SubProcessNetwork subProcessNetwork = (SubProcessNetwork) targetNetwork;
+        BlockNodeMode mode = subProcessNetwork.getBlockNodeModeById().get(nodeId);
+        if (mode == null) {
+            throw new IllegalStateException("Node " + nodeId + " is not a block node");
+        } else if (mode == BlockNodeMode.REAL) {
+            return subProcessNetwork.getBlockNodeContainerById().get(nodeId).getGrpcPort();
+        } else if (mode == BlockNodeMode.SIMULATOR) {
+            return subProcessNetwork.getSimulatedBlockNodeById().get(nodeId).getPort();
+        } else if (mode == BlockNodeMode.LOCAL_NODE) {
+            return 8080;
+        } else {
+            throw new IllegalStateException("Node " + nodeId + " is not a block node");
+        }
     }
 
     public static boolean ok(HapiSpec spec) {

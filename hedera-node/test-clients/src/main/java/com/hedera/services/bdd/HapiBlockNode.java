@@ -47,6 +47,6 @@ public @interface HapiBlockNode {
 
         long[] blockNodeIds() default {};
 
-        long[] simulatorPriorities() default {};
+        long[] blockNodePriorities() default {};
     }
 }

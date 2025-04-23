@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +35,10 @@ public class BlockStreamMetrics {
     private Counter skipBlockCounter;
     // Counter for ResendBlock responses
     private Counter resendBlockCounter;
+    // Counter for Acknowledgement responses
+    private Counter blockAckReceivedCounter;
+
+    private LongGauge producingBlockNumberGauge;
 
     @Inject
     public BlockStreamMetrics(@NonNull final Metrics metrics, @NonNull final NetworkInfo networkInfo) {
@@ -72,6 +77,16 @@ public class BlockStreamMetrics {
         final String resendMetricName = "resendBlock" + nodeLabel;
         resendBlockCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, resendMetricName)
                 .withDescription("Total number of ResendBlock responses received by node " + localNodeId));
+
+        // Register Block Acknowledgement counter
+        final String ackMetricName = "blockAckReceivedCount" + nodeLabel;
+        blockAckReceivedCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, ackMetricName)
+                .withDescription("Total number of block acknowledgements received by node " + localNodeId));
+
+        // Register Producing Block Number gauge
+        final String producingBlockNumMetricName = "producingBlockNumber" + nodeLabel;
+        producingBlockNumberGauge = metrics.getOrCreate(new LongGauge.Config(APP_CATEGORY, producingBlockNumMetricName)
+                .withDescription("Current block number being produced by node " + localNodeId));
 
         logger.info("Finished registering BlockStreamMetrics for node {}", localNodeId);
     }
@@ -114,6 +129,32 @@ public class BlockStreamMetrics {
         } else {
             // Should not happen if registration was successful
             logger.warn("ResendBlock counter not found.");
+        }
+    }
+
+    /**
+     * Increments the counter for Block Acknowledgement responses received.
+     */
+    public void incrementBlockAckReceivedCount() {
+        if (blockAckReceivedCounter != null) {
+            blockAckReceivedCounter.increment();
+        } else {
+            // Should not happen if registration was successful
+            logger.warn("blockAckReceivedCounter not found.");
+        }
+    }
+
+    /**
+     * Sets the current block number being produced.
+     *
+     * @param blockNumber The current block number.
+     */
+    public void setProducingBlockNumber(long blockNumber) {
+        if (producingBlockNumberGauge != null) {
+            producingBlockNumberGauge.set(blockNumber);
+        } else {
+            // Should not happen if registration was successful
+            logger.warn("producingBlockNumberGauge not found.");
         }
     }
 }
