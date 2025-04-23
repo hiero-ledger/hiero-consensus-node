@@ -87,7 +87,7 @@ dependencies.constraints {
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
-    api("org.apache.commons:commons-collections4:4.4") {
+    api("org.apache.commons:commons-collections4:4.5.0") {
         because("org.apache.commons.collections4")
     }
     api("commons-io:commons-io:2.18.0") { because("org.apache.commons.io") }
