@@ -10,7 +10,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -70,6 +69,7 @@ import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This class is responsible for loading the key stores for all nodes in the address book.
