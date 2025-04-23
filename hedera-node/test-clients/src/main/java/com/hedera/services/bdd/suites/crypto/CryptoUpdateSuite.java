@@ -35,7 +35,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -160,7 +160,7 @@ public class CryptoUpdateSuite {
                         accountsToHaveKeysRotated.stream().map(ROTATION_TXN))
                 .toArray(String[]::new);
         return hapiTest(flatten(
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         visibleNonSyntheticItems(
                                 keyRotationsValidator(evmAddresses, accountsToHaveKeysRotated), allTxnIds),
                         Duration.ofSeconds(15)),
@@ -177,7 +177,8 @@ public class CryptoUpdateSuite {
                                     newKeyNamed(newKey).shape(KeyShape.SECP256K1),
                                     cryptoUpdate(targetAccount).key(newKey).via(ROTATION_TXN.apply(targetAccount)));
                         })
-                        .toArray(SpecOperation[]::new))));
+                        .toArray(SpecOperation[]::new)),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)));
     }
 
     private static VisibleItemsValidator keyRotationsValidator(

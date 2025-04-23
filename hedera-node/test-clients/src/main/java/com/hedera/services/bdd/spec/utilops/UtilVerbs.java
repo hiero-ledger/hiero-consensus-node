@@ -1225,7 +1225,7 @@ public class UtilVerbs {
      */
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, false);
+        return recordStreamMustIncludePassFrom(assertion, timeout, true);
     }
 
     /**
@@ -1235,9 +1235,9 @@ public class UtilVerbs {
      * @param timeout the timeout for the assertion
      * @return the operation that asserts a passing record stream
      */
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithBackgroundTrafficFrom(
+    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, true);
+        return recordStreamMustIncludePassFrom(assertion, timeout, false);
     }
 
     /**
