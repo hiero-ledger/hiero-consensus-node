@@ -76,8 +76,10 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             estimatedFee = e.getEstimatedFee();
             result = e.responseCode();
         } catch (final PreCheckException e) {
+            logger.debug("Transaction failed pre-check", e);
             result = e.responseCode();
         } catch (final HandleException e) {
+            logger.debug("Transaction failed pre-check", e);
             // Conceptually, this should never happen, because we should use PreCheckException only during pre-checks
             // But we catch it here to play it safe
             result = e.getStatus();
