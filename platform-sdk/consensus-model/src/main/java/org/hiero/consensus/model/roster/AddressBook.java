@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.address;
+package org.hiero.consensus.model.roster;
 
 import com.swirlds.base.state.MutabilityException;
 import edu.umd.cs.findbugs.annotations.NonNull;

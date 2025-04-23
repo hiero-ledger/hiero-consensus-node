@@ -7,7 +7,6 @@ import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
 import java.util.List;
@@ -20,6 +19,7 @@ import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.roster.AddressBook;
 
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;

@@ -28,7 +28,6 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
-import com.swirlds.platform.system.address.Address;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -42,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
 
 /**
  * <p>

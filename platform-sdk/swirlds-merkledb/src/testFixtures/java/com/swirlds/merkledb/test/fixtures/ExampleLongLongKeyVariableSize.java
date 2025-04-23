@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
-import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
+import static org.hiero.base.utility.NonCryptographicHashing.hash32;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;

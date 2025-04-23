@@ -22,6 +22,8 @@ import java.text.ParseException;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A utility class for AddressBook functionality.

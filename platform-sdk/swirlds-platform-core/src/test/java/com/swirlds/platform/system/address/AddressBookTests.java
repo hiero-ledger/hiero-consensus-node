@@ -34,6 +34,8 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
