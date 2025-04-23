@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
+import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
 import static com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -396,10 +397,10 @@ class AddressBookTests {
         final NodeId secondNode = addressBook.getNodeId(1);
         addressBook.add(addressBook.getAddress(secondNode).copySetMemo("has a memo"));
 
-        final String addressBookText = addressBook.toConfigText();
+        final String addressBookText = addressBookConfigText(addressBook);
         final AddressBook parsedAddressBook = parseAddressBookText(addressBookText);
         // Equality done on toConfigText() strings since the randomly generated address book has public key data.
-        assertEquals(addressBookText, parsedAddressBook.toConfigText(), "The AddressBooks are not equal.");
+        assertEquals(addressBookText, addressBookConfigText(parsedAddressBook), "The AddressBooks are not equal.");
         assertTrue(parsedAddressBook.getAddress(firstNode).getMemo().isEmpty(), "memo is empty");
         assertEquals(parsedAddressBook.getAddress(secondNode).getMemo(), "has a memo", "memo matches");
 

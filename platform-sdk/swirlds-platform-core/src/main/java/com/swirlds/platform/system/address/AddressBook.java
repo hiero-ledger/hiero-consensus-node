@@ -2,7 +2,6 @@
 package com.swirlds.platform.system.address;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.platform.system.address.internal.AddressBookIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -583,16 +582,6 @@ public class AddressBook implements Iterable<Address>, SelfSerializable, Hashabl
     }
 
     /**
-     * The text form of an address book that appears in config.txt
-     *
-     * @return the string form of the AddressBook that would appear in config.txt
-     */
-    @NonNull
-    public String toConfigText() {
-        return AddressBookUtils.addressBookConfigText(this);
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -648,5 +637,36 @@ public class AddressBook implements Iterable<Address>, SelfSerializable, Hashabl
         sb.append("}");
 
         return sb.toString();
+    }
+
+    /**
+     * An iterator that walks over entries in an address book.
+     */
+    public static class AddressBookIterator implements Iterator<Address> {
+
+        private final Iterator<NodeId> orderedNodeIds;
+        private final Map<NodeId, Address> addresses;
+
+        public AddressBookIterator(
+                @NonNull final Iterator<NodeId> orderedNodeIds, @NonNull final Map<NodeId, Address> addresses) {
+            this.orderedNodeIds = Objects.requireNonNull(orderedNodeIds, "the orderedNodeIds cannot be null");
+            this.addresses = Objects.requireNonNull(addresses, "the addresses cannot be null");
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean hasNext() {
+            return orderedNodeIds.hasNext();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public Address next() {
+            return Objects.requireNonNull(addresses.get(orderedNodeIds.next()));
+        }
     }
 }

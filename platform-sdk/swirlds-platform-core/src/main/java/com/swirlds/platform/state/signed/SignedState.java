@@ -272,7 +272,7 @@ public class SignedState implements SignedStateInfo {
         Ideally the roster would be captured in the constructor but due to the mutable underlying state, the roster
         can change from underneath us. Therefore, the roster must be regenerated on each access.
          */
-        final Roster roster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+        final Roster roster = RosterRetriever.retrieveActive(state, getRound());
         return requireNonNull(roster, "Roster stored in signed state is null (this should never happen)");
     }
 

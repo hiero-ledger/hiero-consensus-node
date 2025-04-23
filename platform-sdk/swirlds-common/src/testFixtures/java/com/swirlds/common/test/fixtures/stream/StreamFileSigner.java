@@ -2,7 +2,7 @@
 package com.swirlds.common.test.fixtures.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.base.crypto.internal.CryptoUtils.getDetRandom;
+import static org.hiero.base.crypto.internal.DetRandomProvider.getDetRandom;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.swirlds.common.stream.Signer;

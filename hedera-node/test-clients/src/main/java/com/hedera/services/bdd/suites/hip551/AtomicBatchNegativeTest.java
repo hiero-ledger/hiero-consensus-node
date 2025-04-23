@@ -434,7 +434,7 @@ public class AtomicBatchNegativeTest {
                     overriding("contracts.maxGasPerSec", "2000000"),
                     cryptoCreate(batchOperator),
                     uploadInitCode(contract),
-                    contractCreate(contract),
+                    contractCreate(contract).gas(1_000_000),
                     atomicBatch(contractCall(contract, function, payload)
                                     .gas(2000001)
                                     .batchKey(batchOperator))

@@ -94,7 +94,7 @@ import org.junit.jupiter.api.TestMethodOrder;
  * the config version is still zero.
  */
 @Tag(UPGRADE)
-@Order(Integer.MAX_VALUE - 2)
+@Order(Integer.MAX_VALUE - 3)
 @HapiTestLifecycle
 @OrderedInIsolation
 public class DabEnabledUpgradeTest implements LifecycleTest {

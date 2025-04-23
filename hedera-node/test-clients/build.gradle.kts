@@ -105,9 +105,8 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
         "hapiTestSmartContract" to "tss.historyEnabled=false",
-        // FUTURE -
-        // "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s"
-        "hapiTestRestart" to "tss.hintsEnabled=false",
+        "hapiTestRestart" to
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         "hapiTestMisc" to "nodes.nodeRewardsEnabled=false",
         "hapiTestTimeConsuming" to "nodes.nodeRewardsEnabled=false",
     )

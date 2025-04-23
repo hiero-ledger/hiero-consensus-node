@@ -4,6 +4,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.platform.core.test.fixtures;
     requires transitive com.swirlds.platform.core;
     requires transitive org.hiero.consensus.model;
+    requires transitive com.google.protobuf;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.apache.logging.log4j;
     requires transitive org.junit.jupiter.api;
