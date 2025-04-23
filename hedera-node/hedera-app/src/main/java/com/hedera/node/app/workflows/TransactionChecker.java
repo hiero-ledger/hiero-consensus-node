@@ -378,7 +378,7 @@ public class TransactionChecker {
         final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
 
         if (jumboTxnEnabled
-                && txInfo.serializedTransaction().length() > hederaConfig.transactionMaxBytes()
+                && txInfo.transaction().protobufSize() > hederaConfig.transactionMaxBytes()
                 && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
