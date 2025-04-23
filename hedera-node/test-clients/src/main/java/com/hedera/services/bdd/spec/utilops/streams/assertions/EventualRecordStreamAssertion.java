@@ -45,7 +45,7 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
      */
     public static EventualRecordStreamAssertion eventuallyAssertingNoFailures(
             final Function<HapiSpec, RecordStreamAssertion> assertionFactory) {
-        return new EventualRecordStreamAssertion(assertionFactory, true, false);
+        return new EventualRecordStreamAssertion(assertionFactory, true, false).withBackgroundTraffic();
     }
 
     /**
@@ -69,7 +69,7 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
             @NonNull final Duration timeout) {
         requireNonNull(assertionFactory);
-        return new EventualRecordStreamAssertion(assertionFactory, false, timeout, true);
+        return new EventualRecordStreamAssertion(assertionFactory, false, timeout, true).withBackgroundTraffic();
     }
 
     @Override
