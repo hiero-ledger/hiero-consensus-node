@@ -24,3 +24,6 @@
 - Spotless / Check - :tada:
 - Milestone Check - :tada:
 - Assignee Check - :tada:
+
+:x: - cannot run on a forked PR
+:tada: - can run on a forked PR
