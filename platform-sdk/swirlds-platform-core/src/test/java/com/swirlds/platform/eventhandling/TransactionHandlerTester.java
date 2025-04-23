@@ -18,7 +18,6 @@ import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateValueAccumulator;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
@@ -27,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A helper class for testing the {@link DefaultTransactionHandler}.

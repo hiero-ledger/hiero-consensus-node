@@ -10,6 +10,7 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
@@ -33,7 +34,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -51,9 +51,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 
 /**
  * A node in the turtle network.
@@ -337,7 +339,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 .withKeysAndCerts(privateKeys)
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
-                .withSystemTransactionEncoderCallback(TurtleApp::encodeSystemTransaction);
+                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
+                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()));
 
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
         final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();

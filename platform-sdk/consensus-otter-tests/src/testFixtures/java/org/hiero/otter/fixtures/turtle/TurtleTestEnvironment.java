@@ -97,13 +97,12 @@ public class TurtleTestEnvironment implements TestEnvironment {
                 FileUtils.deleteDirectory(rootOutputDirectory);
             }
         } catch (IOException ex) {
-            log.warn("Failed to delete directory: " + rootOutputDirectory, ex);
+            log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
-        network = new TurtleNetwork(
-                randotron, timeManager, rootOutputDirectory, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+        network = new TurtleNetwork(randotron, timeManager, rootOutputDirectory);
 
         generator = new TurtleTransactionGenerator(network, randotron);
 

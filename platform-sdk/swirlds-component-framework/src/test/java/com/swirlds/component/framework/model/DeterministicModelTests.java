@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model;
 
-import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.CONCURRENT;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
@@ -12,6 +11,7 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Fail.fail;
+import static org.hiero.base.utility.NonCryptographicHashing.hash32;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -35,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import org.hiero.base.utility.NonCryptographicHashing;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;

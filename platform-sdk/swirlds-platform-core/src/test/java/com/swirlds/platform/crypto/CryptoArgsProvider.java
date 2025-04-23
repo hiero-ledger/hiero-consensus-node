@@ -10,7 +10,6 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.URISyntaxException;
@@ -23,6 +22,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**
