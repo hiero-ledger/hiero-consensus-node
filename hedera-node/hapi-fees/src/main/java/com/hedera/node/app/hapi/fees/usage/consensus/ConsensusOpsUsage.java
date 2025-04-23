@@ -29,7 +29,7 @@ public final class ConsensusOpsUsage {
         accumulator.resetForTransaction(baseMeta, sigUsage);
         if (submitMeta.numCustomFees() > 0) {
             accumulator.addVpt(Math.max(0, sigUsage.numSigs() - 1));
-            accumulator.addBpt(LONG_BASIC_ENTITY_ID_SIZE + submitMeta.numMsgBytes());
+            accumulator.addBpt(1);
         } else {
             accumulator.addBpt(LONG_BASIC_ENTITY_ID_SIZE + submitMeta.numMsgBytes());
             /* SubmitMessage receipts include a sequence number and running hash */

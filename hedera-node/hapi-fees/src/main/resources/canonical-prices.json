@@ -60,7 +60,7 @@
   },
   "ConsensusSubmitMessage": {
 	"DEFAULT": 0.0001,
-    "TOPIC_CREATE_WITH_CUSTOM_FEES": 0.05
+    "SUBMIT_MESSAGE_WITH_CUSTOM_FEES": 0.05
   },
   "ConsensusGetTopicInfo": {
 	"DEFAULT": 0.0001

@@ -1009,7 +1009,7 @@
                 }
             },
                 {
-                    "subType": "TOPIC_CREATE_WITH_CUSTOM_FEES",
+                    "subType": "SUBMIT_MESSAGE_WITH_CUSTOM_FEES",
                     "nodedata": {
                         "constant": 0,
                         "bpt": 100000000000,
@@ -4722,7 +4722,7 @@
                 }
             },
                 {
-                    "subType": "TOPIC_CREATE_WITH_CUSTOM_FEES",
+                    "subType": "SUBMIT_MESSAGE_WITH_CUSTOM_FEES",
                     "nodedata": {
                         "constant": 0,
                         "bpt": 100000000000,
