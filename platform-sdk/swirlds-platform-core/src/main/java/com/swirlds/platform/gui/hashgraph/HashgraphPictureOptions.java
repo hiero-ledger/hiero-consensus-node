@@ -56,6 +56,11 @@ public interface HashgraphPictureOptions {
     boolean writeBirthRound();
 
     /**
+     * @return should the DeGen be written for every event
+     */
+    boolean writeDeGen();
+
+    /**
      * @return should simple colors be used in the picture
      */
     boolean simpleColors();
