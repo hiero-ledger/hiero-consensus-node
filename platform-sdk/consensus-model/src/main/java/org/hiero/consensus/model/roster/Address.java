@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.address;
+package org.hiero.consensus.model.roster;
 
-import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
+import static org.hiero.base.utility.NonCryptographicHashing.hash32;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.platform.crypto.SerializableX509Certificate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;

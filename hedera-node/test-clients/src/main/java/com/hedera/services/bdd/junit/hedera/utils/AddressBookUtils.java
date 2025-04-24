@@ -16,7 +16,6 @@ import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -27,6 +26,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Utility class for generating an address book configuration file.

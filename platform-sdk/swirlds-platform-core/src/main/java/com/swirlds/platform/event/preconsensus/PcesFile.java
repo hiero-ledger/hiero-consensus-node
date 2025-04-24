@@ -7,7 +7,6 @@ import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.utility.NonCryptographicHashing;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -19,6 +18,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.utility.NonCryptographicHashing;
 import org.hiero.consensus.model.event.AncientMode;
 
 /**
