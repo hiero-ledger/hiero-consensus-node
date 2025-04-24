@@ -86,8 +86,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ConsensusSubmitMessageHandler implements TransactionHandler {
-    private static final int MESSAGE_OVERHEAD_BYTES = 1000;
-    private static final int BASE_UNIT_BYTES = 1024;
+    private static final int MESSAGE_OVERHEAD_BYTES = 475;
+    private static final int BASE_UNIT_BYTES = 500;
     /**
      * Running hash version
      */

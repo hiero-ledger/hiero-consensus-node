@@ -69,6 +69,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -1766,11 +1767,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     // create topic with hbar fees
                     createTopic(TOPIC).withConsensusCustomFee(fixedConsensusHbarFee(10, "collector")),
                     // submit message
-                    submitMessageTo(TOPIC)
-                            .message("TEST")
-                            .payingWith(SUBMITTER)
-                            .fee(10000 * ONE_HBAR)
-                            .via("submit"),
+                    submitMessageTo(TOPIC).message("TEST").payingWith(SUBMITTER).via("submit"),
                     // validate 0 child records and 1 assessed custom fees
                     withOpContext((spec, log) -> {
                         final var record = getTxnRecord("submit")
@@ -1783,6 +1780,26 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10),
                     validateChargedUsdWithin("submit", 0.05, 0.1)));
+        }
+
+        @HapiTest
+        @DisplayName("Submit a large message to topic with customFees and validate the fee")
+        final Stream<DynamicTest> submitLargeMessageToTopicWithFee() {
+            final byte[] messageBytes = new byte[501];
+            Arrays.fill(messageBytes, (byte) 0b1);
+
+            return hapiTest(flattened(
+                    cryptoCreate("collector").balance(0L),
+                    // create topic with hbar fees
+                    createTopic(TOPIC).withConsensusCustomFee(fixedConsensusHbarFee(10, "collector")),
+                    // submit message
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes)
+                            .payingWith(SUBMITTER)
+                            .via("submit"),
+                    // assert topic fee collector balance
+                    getAccountBalance("collector").hasTinyBars(10),
+                    validateChargedUsdWithin("submit", 0.10, 0.1)));
         }
 
         @HapiTest
