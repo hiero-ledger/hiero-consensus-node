@@ -81,7 +81,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             attempt = callFactory.createCallAttemptFrom(contractID, input, callType, frame);
             call = attempt.asExecutableCall();
             if (call == null) {
-                return successResult(Bytes.EMPTY, frame.getRemainingGas());
+                return successResult(Bytes.EMPTY, 0);
             }
             if (frame.isStatic() && !call.allowsStaticFrame()) {
                 // FUTURE - we should really set an explicit halt reason here; instead we just halt the frame
