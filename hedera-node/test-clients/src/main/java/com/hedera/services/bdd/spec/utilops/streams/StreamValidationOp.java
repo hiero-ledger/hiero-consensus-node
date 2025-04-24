@@ -19,6 +19,7 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
+import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -41,6 +42,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -162,6 +164,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                             }
                         },
                         () -> Assertions.fail("No block streams found"));
+        validateProofs(spec);
+
         return false;
     }
 
@@ -208,5 +212,28 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
         }
         return Optional.ofNullable(data);
+    }
+
+    private static void validateProofs(@NonNull final HapiSpec spec) {
+        log.info("Beginning block proof validation for each node in the network");
+        spec.getNetworkNodes().forEach(node -> {
+            final var nodeId = node.getNodeId();
+            final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
+            final var simulatedBlockNode = spec.getSimulatedBlockNodeById(nodeId);
+
+            try {
+                final var highestMarkerFileNumber = BlockStreamAccess.highestMarkerFileNumber(path);
+                final var lastVerifiedBlock = simulatedBlockNode.getLastVerifiedBlockNumber();
+
+                if (!Objects.equals(highestMarkerFileNumber, lastVerifiedBlock)) {
+                    Assertions.fail(String.format(
+                            "Last marker file {%d} for node %d differs than the last verified block {%d} by the respective block node simulator",
+                            highestMarkerFileNumber, nodeId, lastVerifiedBlock));
+                }
+            } catch (Exception ignore) {
+                // We will try to read the next node's streams
+            }
+        });
+        log.info("Block proofs validation completed successfully");
     }
 }

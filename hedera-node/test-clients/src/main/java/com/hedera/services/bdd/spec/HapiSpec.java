@@ -68,6 +68,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -604,6 +605,16 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getPort();
         } else if (mode == BlockNodeMode.LOCAL_NODE) {
             return BLOCK_NODE_LOCAL_PORT;
+        } else {
+            throw new IllegalStateException("Node " + nodeId + " is not a block node");
+        }
+    }
+
+    public SimulatedBlockNodeServer getSimulatedBlockNodeById(final long nodeId) {
+        BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId);
         } else {
             throw new IllegalStateException("Node " + nodeId + " is not a block node");
         }
