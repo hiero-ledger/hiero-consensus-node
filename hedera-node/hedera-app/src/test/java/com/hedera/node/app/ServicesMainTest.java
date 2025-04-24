@@ -19,7 +19,7 @@ import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.address.AddressBook;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

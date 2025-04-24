@@ -22,7 +22,6 @@ import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.merkle.utility.MerkleLong;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
@@ -169,7 +168,7 @@ class MerkleSerializationTests {
         final Path dir = getFile("merkle/serialized-tree-v3");
 
         final MerkleDataInputStream dataStream = new MerkleDataInputStream(
-                ResourceLoader.loadFileAsStream("merkle/serialized-tree-v3/serialized-tree-v3.dat"));
+                getClass().getResourceAsStream("/merkle/serialized-tree-v3/serialized-tree-v3.dat"));
         dataStream.readProtocolVersion();
         final DummyMerkleNode tree = dataStream.readMerkleTree(dir, Integer.MAX_VALUE);
         assertTrue(
@@ -240,7 +239,7 @@ class MerkleSerializationTests {
     void testHashFromFile() throws IOException {
         //		writeTreeToFile(MerkleTestUtils.buildLessSimpleTree(), "hashed-tree-merkle-v1.dat");
         final DataInputStream dataStream =
-                new DataInputStream(ResourceLoader.loadFileAsStream("merkle/hashed-tree-merkle-v1.dat"));
+                new DataInputStream(getClass().getResourceAsStream("/merkle/hashed-tree-merkle-v1.dat"));
 
         final Hash oldHash = new Hash(dataStream.readAllBytes(), DigestType.SHA_384);
         final MerkleNode tree = buildLessSimpleTree();

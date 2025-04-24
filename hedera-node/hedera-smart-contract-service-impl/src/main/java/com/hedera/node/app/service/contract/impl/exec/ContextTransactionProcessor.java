@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -23,6 +24,7 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -153,10 +155,21 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
     private HederaEvmTransaction safeCreateHevmTransaction() {
         try {
-            return hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
+            final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
+            validatePayloadLength(hevmTransaction);
+            return hevmTransaction;
         } catch (HandleException e) {
             // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
             return hevmTransactionFactory.fromContractTxException(context.body(), e);
+        }
+    }
+
+    private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
+        final var maxJumboEthereumCallDataSize =
+                configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
+
+        if (hevmTransaction.payload().length() > maxJumboEthereumCallDataSize) {
+            throw new HandleException(TRANSACTION_OVERSIZE);
         }
     }
 

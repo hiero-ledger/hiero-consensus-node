@@ -3,16 +3,15 @@ package com.swirlds.platform.state.address;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.roster.RosterRetriever.retrieveActiveOrGenesisRoster;
-import static com.swirlds.platform.roster.RosterUtils.buildAddressBook;
+import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
+import static org.hiero.consensus.roster.RosterRetriever.retrieveActive;
+import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -31,6 +30,8 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Determines the initial address book to use at platform start and validates it.
@@ -118,7 +119,8 @@ public class AddressBookInitializer {
                 platformContext.getConfiguration().getConfigData(AddressBookConfig.class);
         this.initialState = Objects.requireNonNull(initialState, "The initialState must not be null.");
 
-        final var book = buildAddressBook(retrieveActiveOrGenesisRoster(initialState.getState(), platformStateFacade));
+        final long round = platformStateFacade.roundOf(initialState.getState());
+        final var book = buildAddressBook(retrieveActive(initialState.getState(), round));
         this.stateAddressBook = (book == null || book.getSize() == 0) ? null : book;
         if (stateAddressBook == null && !initialState.isGenesisState()) {
             throw new IllegalStateException("Only genesis states can have null address books.");
@@ -298,10 +300,10 @@ public class AddressBookInitializer {
                     .toFile();
             try (final FileWriter out = new FileWriter(debugFile)) {
                 out.write(CONFIG_ADDRESS_BOOK_HEADER + "\n");
-                out.write(configAddressBook.toConfigText() + "\n\n");
+                out.write(addressBookConfigText(configAddressBook) + "\n\n");
                 out.write(STATE_ADDRESS_BOOK_HEADER + "\n");
                 final String text =
-                        stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : stateAddressBook.toConfigText();
+                        stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : addressBookConfigText(stateAddressBook);
                 out.write(text + "\n\n");
                 out.write(USED_ADDRESS_BOOK_HEADER + "\n");
                 if (usedAddressBook == configAddressBook) {
@@ -309,14 +311,14 @@ public class AddressBookInitializer {
                 } else if (usedAddressBook == stateAddressBook) {
                     out.write(STATE_ADDRESS_BOOK_USED);
                 } else {
-                    out.write(usedAddressBook.toConfigText());
+                    out.write(addressBookConfigText(usedAddressBook));
                 }
                 out.write("\n\n");
             }
             final File usedFile = Path.of(this.pathToAddressBookDirectory.toString(), addressBookFileName)
                     .toFile();
             try (final FileWriter out = new FileWriter(usedFile)) {
-                out.write(usedAddressBook.toConfigText());
+                out.write(addressBookConfigText(usedAddressBook));
             }
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "Not able to write address book to file. ", e);

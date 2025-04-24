@@ -14,6 +14,7 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -154,7 +155,7 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
                     k -> spec.registry().saveKey(contract, spec.registry().getKey(k)));
         }
         if (useEmptyAdminKeyList) {
-            spec.registry().forgetAdminKey(contract);
+            spec.registry().forgetRoleKey(contract, KeyRole.ADMIN);
         }
     }
 

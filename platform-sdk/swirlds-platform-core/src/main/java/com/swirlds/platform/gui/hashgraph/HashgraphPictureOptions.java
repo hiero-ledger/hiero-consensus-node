@@ -56,6 +56,11 @@ public interface HashgraphPictureOptions {
     boolean writeBirthRound();
 
     /**
+     * @return should branch numbers be written for every branched event (if any)
+     */
+    boolean writeBranches();
+
+   /**
      * @return should the DeGen be written for every event
      */
     boolean writeDeGen();

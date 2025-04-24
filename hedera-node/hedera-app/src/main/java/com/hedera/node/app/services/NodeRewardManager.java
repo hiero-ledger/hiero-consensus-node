@@ -33,7 +33,6 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -49,6 +48,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 
 /**
  * Manages the node rewards for the network. This includes tracking the number of rounds in the current staking
