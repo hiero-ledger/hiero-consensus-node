@@ -360,7 +360,7 @@ public class ConsensusImpl implements Consensus {
                 // - it will never decide a round
 
                 // The only exception to this the DeGen value. This needs to be recalculated on every round, and all
-                // descendants of decided judges will base their DeGen them.
+                // descendants of decided judges will base their DeGen on them.
                 DeGen.calculateDeGen(insertedEvent);
                 continue;
             }
@@ -1001,8 +1001,10 @@ public class ConsensusImpl implements Consensus {
             } else {
                 final EventImpl lsop = lastSee(op, mm);
                 final EventImpl lssp = lastSee(sp, mm);
-                final long lsopGen = lsop == null ? 0 : lsop.getDeGen();
-                final long lsspGen = lssp == null ? 0 : lssp.getDeGen();
+                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this will be for events
+                // that will not affect consensus, so it makes no difference
+                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
+                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
                 if ((round(lsop) > round(lssp)) || ((lsopGen > lsspGen) && (firstSee(op, mm) == firstSee(sp, mm)))) {
                     x.setLastSee(mm, lsop);
                 } else {
