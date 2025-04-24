@@ -10,20 +10,21 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.system.address.AddressBookValidator;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.State;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.ParseException;
 import java.util.concurrent.ExecutionException;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -68,8 +69,9 @@ public class ValidateAddressBookStateCommand extends AbstractCommand {
         final AddressBook stateAddressBook;
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             System.out.printf("Extracting the state address book for comparison %n");
-            stateAddressBook = RosterUtils.buildAddressBook(RosterRetriever.retrieveActiveOrGenesisRoster(
-                    reservedSignedState.get().getState(), DEFAULT_PLATFORM_STATE_FACADE));
+            final State state = reservedSignedState.get().getState();
+            stateAddressBook = RosterUtils.buildAddressBook(
+                    RosterRetriever.retrieveActive(state, DEFAULT_PLATFORM_STATE_FACADE.roundOf(state)));
         }
 
         System.out.printf("Validating address book %n");

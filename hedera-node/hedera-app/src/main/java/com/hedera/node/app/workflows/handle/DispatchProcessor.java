@@ -148,6 +148,7 @@ public class DispatchProcessor {
             }
             handleSystemUpdates(dispatch);
         } catch (HandleException e) {
+            logger.debug("Transaction failed handle", e);
             // In case of a ContractCall when it reverts, the gas charged should not be rolled back
             rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             if (e.shouldRollbackStack()) {

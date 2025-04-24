@@ -88,7 +88,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -117,8 +116,9 @@ import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.base.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -582,7 +582,7 @@ public class TransactionExecutorsTest {
 
     public static X509Certificate randomX509Certificate() {
         try {
-            final SecureRandom secureRandom = CryptoUtils.getDetRandom();
+            final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
 
             final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
             rsaKeyGen.initialize(3072, secureRandom);

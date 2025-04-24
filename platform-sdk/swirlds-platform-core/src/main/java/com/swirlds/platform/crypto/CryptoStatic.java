@@ -17,17 +17,12 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,9 +39,7 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,6 +68,9 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A collection of various static crypto methods
@@ -222,22 +218,6 @@ public final class CryptoStatic {
                     .getCertificate(v3CertBldr.build(signerBuilder.build(caPair.getPrivate())));
         } catch (CertificateException | OperatorCreationException e) {
             throw new KeyGeneratingException("Could not generate certificate!", e);
-        }
-    }
-
-    /**
-     * Decode a X509Certificate from a byte array that was previously obtained via X509Certificate.getEncoded().
-     *
-     * @param encoded a byte array with an encoded representation of a certificate
-     * @return the certificate reconstructed from its encoded form
-     */
-    @NonNull
-    public static X509Certificate decodeCertificate(@NonNull final byte[] encoded) {
-        try (final InputStream in = new ByteArrayInputStream(encoded)) {
-            final CertificateFactory factory = CertificateFactory.getInstance("X.509");
-            return (X509Certificate) factory.generateCertificate(in);
-        } catch (CertificateException | IOException e) {
-            throw new CryptographyException(e);
         }
     }
 
@@ -651,28 +631,5 @@ public final class CryptoStatic {
             store.setCertificateEntry(SIGNING.storeName(peer.nodeId()), sigCert);
         }
         return store;
-    }
-
-    /**
-     * Check if a certificate is valid.  A certificate is valid if it is not null, has a public key, and can be encoded.
-     *
-     * @param certificate the certificate to check
-     * @return true if the certificate is valid, false otherwise
-     */
-    public static boolean checkCertificate(@Nullable final Certificate certificate) {
-        if (certificate == null) {
-            return false;
-        }
-        if (certificate.getPublicKey() == null) {
-            return false;
-        }
-        try {
-            if (certificate.getEncoded().length == 0) {
-                return false;
-            }
-        } catch (final CertificateEncodingException e) {
-            return false;
-        }
-        return true;
     }
 }

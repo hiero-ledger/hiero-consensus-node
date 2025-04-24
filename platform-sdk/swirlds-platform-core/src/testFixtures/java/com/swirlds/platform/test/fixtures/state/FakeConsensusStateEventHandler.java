@@ -8,7 +8,6 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.RosterStateId;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
@@ -27,7 +26,6 @@ import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -54,7 +52,9 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.roster.RosterStateId;
 
 public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
     FAKE_CONSENSUS_STATE_EVENT_HANDLER;

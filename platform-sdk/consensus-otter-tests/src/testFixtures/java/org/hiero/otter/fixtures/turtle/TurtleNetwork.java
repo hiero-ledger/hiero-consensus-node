@@ -8,10 +8,8 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,14 +25,17 @@ import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
+@SuppressWarnings("removal")
 public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger(TurtleNetwork.class);
@@ -62,15 +63,11 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * @param randotron the random generator
      * @param timeManager the time manager
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
-     * @param averageNetworkDelay the average network delay
-     * @param standardDeviationNetworkDelay the standard deviation of the network delay
      */
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
-            @NonNull final Path rootOutputDirectory,
-            @NonNull final Duration averageNetworkDelay,
-            @NonNull final Duration standardDeviationNetworkDelay) {
+            @NonNull final Path rootOutputDirectory) {
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
@@ -167,8 +164,10 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         }
         log.info("Preparing upgrade...");
 
-        log.debug("Sending FREEZE transaction...");
-        nodes.getFirst().submitTransaction(Bytes.wrap("FREEZE").toByteArray());
+        log.debug("Sending TurtleFreezeTransaction transaction...");
+        final TurtleTransaction freezeTransaction =
+                TransactionFactory.createFreezeTransaction(timeManager.time().now());
+        nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
 
         log.debug("Waiting for nodes to freeze...");
         if (!timeManager.waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {

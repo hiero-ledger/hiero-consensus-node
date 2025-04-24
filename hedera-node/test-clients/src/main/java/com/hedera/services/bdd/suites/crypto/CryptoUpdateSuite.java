@@ -36,7 +36,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -158,7 +158,7 @@ public class CryptoUpdateSuite {
                 .toArray(String[]::new);
         return hapiTest(flatten(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         visibleNonSyntheticItems(keyRotationsValidator(accountsToHaveKeysRotated), allTxnIds),
                         Duration.ofSeconds(15)),
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
