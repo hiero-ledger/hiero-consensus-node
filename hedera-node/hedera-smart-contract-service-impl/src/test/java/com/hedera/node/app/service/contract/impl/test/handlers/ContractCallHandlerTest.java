@@ -7,7 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.hederaGasUsed;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -114,7 +114,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 SUCCESS_RESULT.gasPrice(),
                 null,
                 null,
-                hederaGasUsed);
+                opsDuration);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
@@ -132,7 +132,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
-                expectedResult, HALT_RESULT.finalStatus(), null, HALT_RESULT.gasPrice(), null, null, hederaGasUsed);
+                expectedResult, HALT_RESULT.finalStatus(), null, HALT_RESULT.gasPrice(), null, null, opsDuration);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);

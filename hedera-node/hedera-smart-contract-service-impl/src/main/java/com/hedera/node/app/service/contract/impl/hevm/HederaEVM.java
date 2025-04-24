@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementHederaGasUsage;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
 
 import java.util.Map;
 import java.util.Optional;
@@ -134,9 +134,8 @@ public class HederaEVM extends EVM {
                     case 86 -> JumpOperation.staticOperation(frame);
                     case 87 -> JumpiOperation.staticOperation(frame);
                     case 91 -> JumpDestOperation.JUMPDEST_SUCCESS;
-                    case 95 -> this.enableShanghai
-                            ? Push0Operation.staticOperation(frame)
-                            : InvalidOperation.INVALID_RESULT;
+                    case 95 ->
+                        this.enableShanghai ? Push0Operation.staticOperation(frame) : InvalidOperation.INVALID_RESULT;
                     case 96,
                             97,
                             98,
@@ -169,14 +168,15 @@ public class HederaEVM extends EVM {
                             125,
                             126,
                             127 -> PushOperation.staticOperation(frame, code, pc, opcode - 95);
-                    case 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 -> DupOperation
-                            .staticOperation(frame, opcode - 127);
-                    case 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159 -> SwapOperation
-                            .staticOperation(frame, opcode - 143);
+                    case 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 ->
+                        DupOperation.staticOperation(frame, opcode - 127);
+                    case 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159 ->
+                        SwapOperation.staticOperation(frame, opcode - 143);
                     default -> {
                         frame.setCurrentOperation(currentOperation);
                         yield currentOperation.execute(frame, this);
-                    }};
+                    }
+                };
             } catch (OverflowException var13) {
                 result = OVERFLOW_RESPONSE;
             } catch (UnderflowException var14) {
@@ -197,7 +197,7 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                incrementHederaGasUsage(frame, hederaGasSchedule.getOrDefault(opcode, result.getGasCost()));
+                incrementOpsDuration(frame, hederaGasSchedule.getOrDefault(opcode, 0L));
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {

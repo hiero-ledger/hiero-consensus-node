@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.v062;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaGasSchedule.HEDERA_GAS_SCHEDULE;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.HEDERA_OPS_DURATION;
 import static org.hyperledger.besu.evm.MainnetEVMs.registerCancunOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
@@ -38,7 +38,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
-import com.hedera.node.app.service.contract.impl.hevm.HederaGasSchedule;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -136,8 +136,8 @@ public interface V062Module {
         registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        final var hederaGasSchedule = new HederaGasSchedule(
-                () -> HederaGasSchedule.class.getClassLoader().getResourceAsStream(HEDERA_GAS_SCHEDULE),
+        final var hederaOpsDuration = new HederaOpsDuration(
+                () -> HederaOpsDuration.class.getClassLoader().getResourceAsStream(HEDERA_OPS_DURATION),
                 new ObjectMapper());
         // Create a return a custom HederaEVM instance
         return new HederaEVM(
@@ -145,7 +145,7 @@ public interface V062Module {
                 gasCalculator,
                 evmConfiguration,
                 EvmSpecVersion.CANCUN,
-                hederaGasSchedule.getGasSchedule());
+                hederaOpsDuration.getOpsDuration());
     }
 
     @Provides

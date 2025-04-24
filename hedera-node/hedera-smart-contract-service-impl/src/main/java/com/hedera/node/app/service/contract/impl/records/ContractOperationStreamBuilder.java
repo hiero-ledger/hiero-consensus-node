@@ -64,7 +64,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         if (outcome.hasStateChanges()) {
             addContractStateChanges(requireNonNull(outcome.stateChanges()), false);
         }
-        hederaGasUsed(outcome.hederaGasUsed());
+        opsDuration(outcome.hederaOpsDuration());
         return this;
     }
 
@@ -105,5 +105,5 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @param hederaGasUsed the gas used as calculated via the Hedera gas schedule
      * @return the updated {@link ContractOperationStreamBuilder}
      */
-    ContractOperationStreamBuilder hederaGasUsed(long hederaGasUsed);
+    ContractOperationStreamBuilder opsDuration(long hederaGasUsed);
 }

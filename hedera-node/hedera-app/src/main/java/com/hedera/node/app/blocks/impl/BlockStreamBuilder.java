@@ -380,9 +380,9 @@ public class BlockStreamBuilder
     private TransactionGroupRole role = TransactionGroupRole.STANDALONE;
 
     /**
-     * gas used by the contract transaction as calculated using the Hedera gas schedule
+     * ops duration by the contract transaction as calculated using the Hedera ops duration schedule
      */
-    private long hederaGasUsed;
+    private long opsDuration;
 
     /**
      * Constructs a builder for a user transaction with the given characteristics.
@@ -838,8 +838,8 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public long getHederaGasUsedForContractTxn() {
-        return hederaGasUsed;
+    public long getOpsDurationForContractTxn() {
+        return opsDuration;
     }
 
     @Override
@@ -978,8 +978,8 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public ContractOperationStreamBuilder hederaGasUsed(long hederaGasUsed) {
-        this.hederaGasUsed = hederaGasUsed;
+    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
+        this.opsDuration = opsDuration;
         return this;
     }
 

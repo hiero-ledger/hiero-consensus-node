@@ -198,9 +198,9 @@ public class RecordStreamBuilder
     private HederaFunctionality function;
 
     /**
-     * gas used by the contract transaction as calculated using the Hedera gas schedule
+     * ops duration used by the contract transaction
      */
-    private long hederaGasUsed;
+    private long opsDuration;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
@@ -801,8 +801,8 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public long getHederaGasUsedForContractTxn() {
-        return hederaGasUsed;
+    public long getOpsDurationForContractTxn() {
+        return opsDuration;
     }
 
     /**
@@ -1069,8 +1069,8 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public ContractOperationStreamBuilder hederaGasUsed(long hederaGasUsed) {
-        this.hederaGasUsed = hederaGasUsed;
+    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
+        this.opsDuration = opsDuration;
         return this;
     }
 

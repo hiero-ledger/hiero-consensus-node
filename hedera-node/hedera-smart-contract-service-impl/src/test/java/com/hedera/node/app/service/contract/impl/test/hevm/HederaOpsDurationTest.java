@@ -7,7 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hedera.node.app.service.contract.impl.hevm.HederaGasSchedule;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,15 +15,15 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
-class HederaGasScheduleTest {
+class HederaOpsDurationTest {
     @Test
     void loadsGasScheduleSuccessfully() {
         // Prepare a JSON content representing a valid map
         String jsonContent = "{\"100\":10000,\"101\":10100}";
         Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(jsonContent.getBytes());
-        HederaGasSchedule schedule = new HederaGasSchedule(streamSupplier, new ObjectMapper());
+        HederaOpsDuration schedule = new HederaOpsDuration(streamSupplier, new ObjectMapper());
 
-        Map<Integer, Long> result = schedule.getGasSchedule();
+        Map<Integer, Long> result = schedule.getOpsDuration();
 
         assertEquals(2, result.size());
         assertEquals(10000L, result.get(100));
@@ -35,9 +35,9 @@ class HederaGasScheduleTest {
         // Mock a supplier that throws an exception when get() is called
         Supplier<InputStream> streamSupplier = mock(Supplier.class);
         when(streamSupplier.get()).thenThrow(new RuntimeException("Test exception"));
-        HederaGasSchedule schedule = new HederaGasSchedule(streamSupplier, new ObjectMapper());
+        HederaOpsDuration schedule = new HederaOpsDuration(streamSupplier, new ObjectMapper());
 
-        Map<Integer, Long> result = schedule.getGasSchedule();
+        Map<Integer, Long> result = schedule.getOpsDuration();
 
         assertTrue(result.isEmpty());
     }

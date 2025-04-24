@@ -191,8 +191,8 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public long getHederaGasUsedForContractTxn() {
-        return recordStreamBuilder.getHederaGasUsedForContractTxn();
+    public long getOpsDurationForContractTxn() {
+        return recordStreamBuilder.getOpsDurationForContractTxn();
     }
 
     @NonNull
@@ -402,9 +402,9 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public ContractOperationStreamBuilder hederaGasUsed(long hederaGasUsed) {
-        recordStreamBuilder.hederaGasUsed(hederaGasUsed);
-        blockStreamBuilder.hederaGasUsed(hederaGasUsed);
+    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
+        recordStreamBuilder.opsDuration(opsDuration);
+        blockStreamBuilder.opsDuration(opsDuration);
         return this;
     }
 

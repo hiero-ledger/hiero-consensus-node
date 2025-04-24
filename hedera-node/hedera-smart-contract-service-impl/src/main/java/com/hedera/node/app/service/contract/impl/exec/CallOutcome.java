@@ -24,7 +24,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param tinybarGasPrice the tinybar-denominated gas price used for the call
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
- * @param hederaGasUsed gas used as accounted by the Hedera gas schedule
+ * @param hederaOpsDuration the duration of the evm ops performed during the transaction
  */
 public record CallOutcome(
         @NonNull ContractFunctionResult result,
@@ -33,7 +33,7 @@ public record CallOutcome(
         long tinybarGasPrice,
         @Nullable ContractActions actions,
         @Nullable ContractStateChanges stateChanges,
-        long hederaGasUsed) {
+        long hederaOpsDuration) {
 
     /**
      * @return whether some state changes appeared from the execution of the contract
@@ -56,7 +56,7 @@ public record CallOutcome(
                 hevmResult.gasPrice(),
                 hevmResult.actions(),
                 hevmResult.stateChanges(),
-                hevmResult.hederaGasUsed());
+                hevmResult.opsDuration());
     }
 
     /**
@@ -73,7 +73,7 @@ public record CallOutcome(
                 hevmResult.gasPrice(),
                 null,
                 null,
-                hevmResult.hederaGasUsed());
+                hevmResult.opsDuration());
     }
 
     /**

@@ -12,7 +12,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.hederaGasUsed;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.processorsForAllCurrentEvmVersions;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -126,7 +126,7 @@ class ContextTransactionProcessorTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
                 null,
                 null,
-                hederaGasUsed / 2);
+                opsDuration / 2);
         verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
         assertEquals(expectedResult, subject.call());
     }
@@ -164,7 +164,7 @@ class ContextTransactionProcessorTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
                 null,
                 null,
-                hederaGasUsed / 2);
+                opsDuration / 2);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
     }
@@ -200,7 +200,7 @@ class ContextTransactionProcessorTest {
                 SUCCESS_RESULT.gasPrice(),
                 null,
                 null,
-                hederaGasUsed / 2);
+                opsDuration / 2);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
     }

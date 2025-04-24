@@ -726,7 +726,7 @@ public class TestHelpers {
     public static byte[] signature = unhex(
             "aca7da997ad177f040240cdccf6905b71ab16b74434388c3a72f34fd25d6439346b2bac274ff29b48b3ea6e2d04c1336eaceafda3c53ab483fc3ff12fac3ebf200");
 
-    public static long hederaGasUsed = 1_000_000L;
+    public static long opsDuration = 1_000_000L;
 
     public static void assertSameResult(
             final Operation.OperationResult expected, final Operation.OperationResult actual) {
