@@ -259,7 +259,7 @@ public class HandleWorkflow {
             transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
             try {
                 // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
-                // Dispatch rewards for active nodes after atleast one user transaction is handled
+                // Dispatch rewards for active nodes after at least one user transaction is handled
                 final var timeStamp = boundaryStateChangeListener.lastConsensusTime();
                 if (timeStamp != null) {
                     transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(

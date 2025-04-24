@@ -315,7 +315,7 @@ class HintsControllerImplTest {
 
         assertTrue(subject.addPreprocessingVote(1L, vote, store));
 
-        verify(context).setConstructions(FINISHED_CONSTRUCTION);
+        verify(context).setConstruction(FINISHED_CONSTRUCTION);
     }
 
     @Test
@@ -341,7 +341,7 @@ class HintsControllerImplTest {
                 .willReturn(FINISHED_CONSTRUCTION);
         assertTrue(subject.addPreprocessingVote(2L, congruentVote, store));
 
-        verify(context).setConstructions(FINISHED_CONSTRUCTION);
+        verify(context).setConstruction(FINISHED_CONSTRUCTION);
     }
 
     @Test

@@ -259,14 +259,15 @@ public class HintsControllerImpl implements HintsController {
                 // If the threshold is not met, restart the process
                 restartFromFirstNode(now, hintsStore, tssConfig);
             } else {
-                final var finalUpdatedCrs = requireNonNull(finalCrsFuture).join();
+                final var crs = requireNonNull(finalCrsFuture).join().crs();
                 final var updatedState = crsState.copyBuilder()
-                        .crs(finalUpdatedCrs.crs())
+                        .crs(crs)
                         .stage(COMPLETED)
                         .contributionEndTime((Timestamp) null)
                         .build();
                 hintsStore.setCrsState(updatedState);
                 log.info("CRS construction complete");
+                context.setCrs(crs);
             }
         }
     }
@@ -442,7 +443,7 @@ public class HintsControllerImpl implements HintsController {
                 log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
                 // If this just completed the active construction, update the signing context
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstructions(construction);
+                    context.setConstruction(construction);
                 }
             });
             return true;

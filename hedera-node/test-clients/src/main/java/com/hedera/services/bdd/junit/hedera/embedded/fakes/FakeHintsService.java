@@ -96,12 +96,12 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public long activeSchemeId() {
-        return delegate.activeSchemeId();
+    public long schemeId() {
+        return delegate.schemeId();
     }
 
     @Override
-    public Bytes activeVerificationKey() {
-        return delegate.activeVerificationKey();
+    public Bytes verificationKey() {
+        return delegate.verificationKey();
     }
 }

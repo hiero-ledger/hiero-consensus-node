@@ -70,12 +70,12 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
-    public long activeSchemeId() {
+    public long schemeId() {
         return component.signingContext().activeSchemeIdOrThrow();
     }
 
     @Override
-    public Bytes activeVerificationKey() {
+    public Bytes verificationKey() {
         return component.signingContext().verificationKeyOrThrow();
     }
 
@@ -92,7 +92,7 @@ public class HintsServiceImpl implements HintsService {
         requireNonNull(adoptedRosterHash);
         if (hintsStore.updateAtHandoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
             final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
-            component.signingContext().setConstructions(activeConstruction);
+            component.signingContext().setConstruction(activeConstruction);
             logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
         }
     }

@@ -1,20 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
+import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.time.ZoneOffset.UTC;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
+import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.swirlds.platform.state.service.WritableRosterStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -94,6 +103,22 @@ public class StakePeriodChanges {
                 logger.error("CATASTROPHIC failure updating end-of-day stakes", e);
                 stack.rollbackFullStack();
             }
+            try {
+                final var rosterStore = new WritableRosterStore(stack.getWritableStates(RosterService.NAME));
+                final var weightFunction = dispatch.readableStoreFactory().getStore(ReadableStakingInfoStore.class).weightFunction();
+                final var reweightedRoster = new Roster(requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()
+                        .map(rosterEntry -> rosterEntry.copyBuilder()
+                                .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
+                                .build())
+                        .toList());
+                if (!hasZeroWeight(reweightedRoster)) {
+                    rosterStore.putCandidateRoster(reweightedRoster);
+                    stack.commitFullStack();
+                }
+            } catch (Exception e) {
+                logger.error("{} setting reweighted candidate roster", ALERT_MESSAGE, e);
+                stack.rollbackFullStack();
+            }
         }
     }
 
@@ -150,5 +175,9 @@ public class StakePeriodChanges {
         final var nowDay = LocalDate.ofInstant(now, UTC);
         final var thenDay = LocalDate.ofInstant(then, UTC);
         return nowDay.isAfter(thenDay);
+    }
+
+    private static boolean hasZeroWeight(@NonNull final Roster roster) {
+        return roster.rosterEntries().stream().mapToLong(RosterEntry::weight).sum() == 0L;
     }
 }
