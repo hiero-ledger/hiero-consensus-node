@@ -41,7 +41,7 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.LOCAL_NODE)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -60,10 +60,10 @@ public class BlockNodeSimulatorSuite {
             networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            blockNodeIds = {0},
-                            blockNodePriorities = {0})
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
             })
     @Order(0)
     final Stream<DynamicTest> node0StreamingBufferFull() {

@@ -226,11 +226,11 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection" level="debug" additivity="false">
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection" level="info" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" level="debug" additivity="false">
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" level="info" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>

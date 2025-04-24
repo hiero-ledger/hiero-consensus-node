@@ -2,14 +2,18 @@
 package com.hedera.services.bdd.junit;
 
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
+import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.SHARED_NETWORK_NAME;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.HapiBlockNode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
@@ -20,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -91,6 +96,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
+                checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
                 SHARED_NETWORK.set(network);
             }
@@ -249,6 +255,31 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     "HapiBlockNode not found for identifier or its descendants: {}, returning false",
                     identifier.getUniqueId());
             return false; // Not found in this branch
+        }
+    }
+
+    private static void checkPrOverridesForBlockNodeStreaming(HederaNetwork network) {
+        if (network instanceof SubProcessNetwork) {
+            Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
+            if (prCheckOverrides.containsKey("blockStream.writerMode")
+                    && prCheckOverrides.get("blockStream.writerMode").equals("FILE_AND_GRPC")) {
+                log.info(
+                        "PR Check Override: blockStream.writerMode=FILE_AND_GRPC is set, configuring a Block Node network");
+                BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+                network.nodes().forEach(node -> {
+                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), BlockNodeMode.SIMULATOR);
+                    blockNodeNetwork
+                            .getBlockNodeIdsBySubProcessNodeId()
+                            .put(node.getNodeId(), new long[] {node.getNodeId()});
+                    blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
+                });
+                blockNodeNetwork.start();
+                SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
+                SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
+                subProcessNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(blockNodeNetwork::configureBlockNodeConnectionInformation);
+            }
         }
     }
 }

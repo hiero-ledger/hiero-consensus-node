@@ -29,6 +29,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -65,6 +66,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     private static final Logger logger = LogManager.getLogger(NetworkTargetingExtension.class);
 
     public static final AtomicReference<HederaNetwork> SHARED_NETWORK = new AtomicReference<>();
+    public static final AtomicReference<BlockNodeNetwork> SHARED_BLOCK_NODE_NETWORK = new AtomicReference<>();
     public static final AtomicReference<RepeatableKeyGenerator> REPEATABLE_KEY_GENERATOR = new AtomicReference<>();
 
     @Override
@@ -110,28 +112,36 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 final SubProcessNetwork targetNetwork =
                         (SubProcessNetwork) sharedSubProcessNetwork(method.getName(), annotation.networkSize());
 
+                final BlockNodeNetwork targetBlockNodeNetwork = new BlockNodeNetwork();
+                targetNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(targetBlockNodeNetwork::configureBlockNodeConnectionInformation);
                 // Configure block node mode based on annotation
                 for (BlockNodeConfig blockNodeConfig : annotation.blockNodeConfigs()) {
-                    targetNetwork.getBlockNodeModeById().put(blockNodeConfig.nodeId(), blockNodeConfig.mode());
+                    targetBlockNodeNetwork.getBlockNodeModeById().put(blockNodeConfig.nodeId(), blockNodeConfig.mode());
                 }
 
                 for (SubProcessNodeConfig subProcessNodeConfig : annotation.subProcessNodeConfigs()) {
-                    targetNetwork
+                    targetBlockNodeNetwork
                             .getBlockNodeIdsBySubProcessNodeId()
                             .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodeIds());
-                    targetNetwork
+                    targetBlockNodeNetwork
                             .getBlockNodePrioritiesBySubProcessNodeId()
                             .put(subProcessNodeConfig.nodeId(), subProcessNodeConfig.blockNodePriorities());
                 }
 
+                targetBlockNodeNetwork.start();
+                SHARED_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 targetNetwork.start();
                 SHARED_NETWORK.set(targetNetwork);
 
                 // Set both the thread-local and the static shared network reference
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else {
                 ensureEmbeddedNetwork(extensionContext);
                 HapiSpec.TARGET_NETWORK.set(SHARED_NETWORK.get());
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(SHARED_BLOCK_NODE_NETWORK.get());
                 // If there are properties to preserve or system files to override and restore, bind that info to the
                 // thread before executing the test factory
                 if (isAnnotated(method, LeakyHapiTest.class)) {
@@ -166,17 +176,18 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     } catch (Throwable e) {
                         throw new RuntimeException(e);
                     }
-                    // Log success or handle failure?
-                    // For now, assume if exec doesn't throw, it's okay.
                 } catch (Exception e) {
                     System.err.println("Error during post-test stream validation: " + e.getMessage());
                 } finally {
                     // Ensure network termination even if validation fails
                     SHARED_NETWORK.get().terminate();
+                    SHARED_BLOCK_NODE_NETWORK.get().terminate();
                     // Clear the static shared network reference as the per-method network is gone
                     SHARED_NETWORK.set(null);
+                    SHARED_BLOCK_NODE_NETWORK.set(null);
                     // Default cleanup if no per-method network was found
                     HapiSpec.TARGET_NETWORK.remove();
+                    HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
                     HapiSpec.FEES_OVERRIDE.remove();
                     HapiSpec.THROTTLES_OVERRIDE.remove();
                     HapiSpec.PROPERTIES_TO_PRESERVE.remove();
@@ -184,6 +195,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
             } else {
                 // Default cleanup if no per-method network was found
                 HapiSpec.TARGET_NETWORK.remove();
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
                 HapiSpec.FEES_OVERRIDE.remove();
                 HapiSpec.THROTTLES_OVERRIDE.remove();
                 HapiSpec.PROPERTIES_TO_PRESERVE.remove();

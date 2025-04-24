@@ -149,7 +149,8 @@ public class BlockNodeConnectionManager {
 
         // Schedule the first attempt using the connectionExecutor
         try {
-            connectionExecutor.schedule(new BlockNodeConnectionTask(connection, initialDelay), delayMillis, TimeUnit.MILLISECONDS);
+            connectionExecutor.schedule(
+                    new BlockNodeConnectionTask(connection, initialDelay), delayMillis, TimeUnit.MILLISECONDS);
             logger.debug(
                     "[{}] Successfully scheduled connection task for {}.",
                     Thread.currentThread().getName(),

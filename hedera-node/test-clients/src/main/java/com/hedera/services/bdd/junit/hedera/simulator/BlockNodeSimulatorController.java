@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.simulator;
 
 import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +27,7 @@ public class BlockNodeSimulatorController {
      *
      * @param network the SubProcessNetwork containing simulated block nodes
      */
-    public BlockNodeSimulatorController(SubProcessNetwork network) {
+    public BlockNodeSimulatorController(BlockNodeNetwork network) {
         simulatedBlockNodes = network.getSimulatedBlockNodeById();
         if (simulatedBlockNodes.isEmpty()) {
             log.warn("No simulated block nodes found in the network. Make sure BlockNodeMode.SIMULATOR is set.");
