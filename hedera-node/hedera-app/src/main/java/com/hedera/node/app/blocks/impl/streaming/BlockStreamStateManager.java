@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,6 +47,7 @@ public class BlockStreamStateManager {
      * Flag to indicate if the buffer contains blocks that have expired but are still unacknowledged.
      */
     private final AtomicBoolean isBufferSaturated = new AtomicBoolean(false);
+    private final AtomicLong highestAckedBlockNumber = new AtomicLong(Long.MIN_VALUE);
 
     private long blockNumber = 0;
     private final ConfigProvider configProvider;
@@ -140,11 +142,13 @@ public class BlockStreamStateManager {
         final Duration ttl = blockBufferTtl();
         final Instant cutoffInstant = Instant.now().minus(ttl);
         final Iterator<BlockStateHolder> it = blockBuffer.iterator();
+        final long highestBlockAcked = highestAckedBlockNumber.get();
 
         while (it.hasNext()) {
             final BlockStateHolder holder = it.next();
             if (holder.createdTimestamp.isBefore(cutoffInstant)) {
-                if (holder.isAcked.get()) {
+                if (holder.block.blockNumber() <= highestBlockAcked) {
+                    // block has been acknowledged so we can remove it from the buffer
                     blockStatesById.remove(holder.block.blockNumber());
                     it.remove();
                 } else {
@@ -283,12 +287,7 @@ public class BlockStreamStateManager {
      * @throws IllegalArgumentException if the specified block is not found
      */
     public boolean isAcked(final long blockNumber) {
-        final BlockStateHolder holder = blockStatesById.get(blockNumber);
-        if (holder == null) {
-            throw new IllegalArgumentException("Block " + blockNumber + " not found");
-        }
-
-        return holder.isAcked.get();
+        return highestAckedBlockNumber.get() >= blockNumber;
     }
 
     /**
@@ -316,14 +315,8 @@ public class BlockStreamStateManager {
      *
      * @param blockNumber the block number to mark acknowledged up to and including
      */
-    public void setAckWatermark(final long blockNumber) {
-        for (final BlockStateHolder holder : blockBuffer) {
-            if (holder.block.blockNumber() > blockNumber) {
-                break;
-            }
-
-            holder.isAcked.set(true);
-        }
+    public void setLatestAcknowledgedBlock(final long blockNumber) {
+        highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
     }
 
     /**
@@ -335,11 +328,10 @@ public class BlockStreamStateManager {
         return blockNumber;
     }
 
-    private record BlockStateHolder(
-            @NonNull Instant createdTimestamp, @NonNull BlockState block, @NonNull AtomicBoolean isAcked) {
+    private record BlockStateHolder(@NonNull Instant createdTimestamp, @NonNull BlockState block) {
 
         public BlockStateHolder(@NonNull final BlockState block) {
-            this(Instant.now(), block, new AtomicBoolean(false));
+            this(Instant.now(), block);
         }
     }
 }

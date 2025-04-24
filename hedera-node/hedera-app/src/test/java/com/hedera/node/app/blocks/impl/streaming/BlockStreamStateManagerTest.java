@@ -90,7 +90,7 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
 
         // when
-        blockStreamStateManager.setAckWatermark(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
 
         // then
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
@@ -337,7 +337,7 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER2);
 
         // when
-        blockStreamStateManager.setAckWatermark(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
 
         // then
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
@@ -616,7 +616,7 @@ class BlockStreamStateManagerTest {
         assertThat(buffer).hasSize(3);
 
         // ack up to block 3
-        blockStreamStateManager.setAckWatermark(3L);
+        blockStreamStateManager.setLatestAcknowledgedBlock(3L);
 
         // now blocks 1-3 are acked, future attempts to open another block should be successful and return `true`
         // since there are no old blocks waiting for acks
@@ -637,6 +637,59 @@ class BlockStreamStateManagerTest {
         assertThat(blockStreamStateManager.getBlockState(4L)).isNotNull();
         assertThat(blockStreamStateManager.isAcked(3L)).isTrue();
         assertThat(blockStreamStateManager.isAcked(4L)).isFalse();
+    }
+
+    @Test
+    void testFutureBlockAcked() throws InterruptedException {
+        /*
+         * There is a scenario where a block node (BN) may have a later block than what the active consensus node (CN)
+         * has. For example, if a CN goes down then then another CN node may send blocks to the BN. When the original
+         * CN reconnects to the BN, the BN may indicate that is has later blocks from another CN.
+         */
+
+        final Duration blockTtl = Duration.ofSeconds(1);
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.blockItemBatchSize", 3)
+                .withValue("blockStream.blockBufferTtl", blockTtl)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(1L);
+
+        // Block 1 has been added. Now lets ack up to block 5
+        blockStreamStateManager.setLatestAcknowledgedBlock(5L);
+
+        // Since we've acked up to block 5, the block we opened _and_ any blocks we've yet to process up to 5 should
+        // be considered acked
+        assertThat(blockStreamStateManager.isAcked(1L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(2L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(3L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(4L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(5L)).isTrue();
+        assertThat(blockStreamStateManager.isAcked(6L)).isFalse(); // only blocks up to 5 have been acked
+
+        // Since we've acked up to block 5, that also means any blocks up to 5 will also be pruned as soon as they expire
+        // Add some more blocks, then check after pruning
+        blockStreamStateManager.openBlock(2L);
+        blockStreamStateManager.openBlock(3L);
+        blockStreamStateManager.openBlock(4L);
+        blockStreamStateManager.openBlock(5L);
+        blockStreamStateManager.openBlock(6L);
+
+        // wait for the TTL period, with a little padding
+        Thread.sleep(blockTtl.plusMillis(250));
+
+        // Add another block to trigger the prune, then verify the state... there should only be blocks 6 and 7 buffered
+        blockStreamStateManager.openBlock(7L);
+
+        final BlockingQueue<?> buffer = (BlockingQueue<?>) blockBufferHandle.get(blockStreamStateManager);
+        assertThat(buffer).hasSize(2);
+        assertThat(blockStreamStateManager.getBlockState(6L)).isNotNull();
+        assertThat(blockStreamStateManager.getBlockState(7L)).isNotNull();
     }
 
     private static BlockItem newBlockHeaderItem() {
