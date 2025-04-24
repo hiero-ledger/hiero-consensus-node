@@ -41,12 +41,20 @@ public class BlockStreamStateManager {
      * buffer contains unacknowledged old blocks.
      */
     private final BlockingQueue<BlockStateHolder> blockBuffer = new LinkedBlockingQueue<>();
-
+    /**
+     * Map for quickly looking up blocks by their ID/number. This will get pruned along with the buffer periodically.
+     */
     private final ConcurrentMap<Long, BlockStateHolder> blockStatesById = new ConcurrentHashMap<>();
     /**
      * Flag to indicate if the buffer contains blocks that have expired but are still unacknowledged.
      */
     private final AtomicBoolean isBufferSaturated = new AtomicBoolean(false);
+    /**
+     * This tracks the highest block number that has been acknowledged by the connected block node. This is kept
+     * separately instead of individual acknowledgement tracking on a per-block basis because it is possible that after
+     * a block node reconnects, it (being the block node) may have processed blocks from another consensus node that are
+     * newer than the blocks processed by this consensus node.
+     */
     private final AtomicLong highestAckedBlockNumber = new AtomicLong(Long.MIN_VALUE);
 
     private long blockNumber = 0;
@@ -130,7 +138,7 @@ public class BlockStreamStateManager {
         blockStreamMetrics.setProducingBlockNumber(blockNumber);
         blockNodeConnectionManager.openBlock(blockNumber);
 
-        pruneBuffer();
+        pruneBuffer(); // TODO: move this to an async thread when the mechanism to apply backpressure is determined
     }
 
     /**
@@ -148,7 +156,7 @@ public class BlockStreamStateManager {
             final BlockStateHolder holder = it.next();
             if (holder.createdTimestamp.isBefore(cutoffInstant)) {
                 if (holder.block.blockNumber() <= highestBlockAcked) {
-                    // block has been acknowledged so we can remove it from the buffer
+                    // this block is younger than the highest block acknowledged so it can be pruned
                     blockStatesById.remove(holder.block.blockNumber());
                     it.remove();
                 } else {
@@ -328,6 +336,13 @@ public class BlockStreamStateManager {
         return blockNumber;
     }
 
+    /**
+     * Simple record holder containing a block and the timestamp in which the block was created - or "opened" in this
+     * case.
+     *
+     * @param createdTimestamp the timestamp when the associated block was created/opened
+     * @param block the block
+     */
     private record BlockStateHolder(@NonNull Instant createdTimestamp, @NonNull BlockState block) {
 
         public BlockStateHolder(@NonNull final BlockState block) {
