@@ -672,7 +672,8 @@ class BlockStreamStateManagerTest {
         assertThat(blockStreamStateManager.isAcked(5L)).isTrue();
         assertThat(blockStreamStateManager.isAcked(6L)).isFalse(); // only blocks up to 5 have been acked
 
-        // Since we've acked up to block 5, that also means any blocks up to 5 will also be pruned as soon as they expire
+        // Since we've acked up to block 5, that also means any blocks up to 5 will also be pruned as soon as they
+        // expire
         // Add some more blocks, then check after pruning
         blockStreamStateManager.openBlock(2L);
         blockStreamStateManager.openBlock(3L);

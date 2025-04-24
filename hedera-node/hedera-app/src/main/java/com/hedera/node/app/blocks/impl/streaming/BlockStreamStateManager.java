@@ -71,8 +71,8 @@ public class BlockStreamStateManager {
      * @param configProvider the configuration provider
      * @param blockStreamMetrics metrics factory for block stream
      */
-    public BlockStreamStateManager(@NonNull final ConfigProvider configProvider,
-            @NonNull final BlockStreamMetrics blockStreamMetrics) {
+    public BlockStreamStateManager(
+            @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
     }
