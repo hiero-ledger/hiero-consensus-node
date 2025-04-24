@@ -60,7 +60,7 @@ public interface HashgraphPictureOptions {
      */
     boolean writeBranches();
 
-   /**
+    /**
      * @return should the DeGen be written for every event
      */
     boolean writeDeGen();
