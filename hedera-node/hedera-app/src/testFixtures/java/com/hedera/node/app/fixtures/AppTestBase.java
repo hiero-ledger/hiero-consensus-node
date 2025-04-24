@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures;
 
-import static com.swirlds.platform.roster.RosterRetriever.buildRoster;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;

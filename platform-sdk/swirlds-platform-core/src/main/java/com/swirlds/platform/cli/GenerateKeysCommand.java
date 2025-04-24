@@ -8,7 +8,6 @@ import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
-import com.swirlds.platform.roster.RosterUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,6 +16,7 @@ import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 import picocli.CommandLine;
 import picocli.CommandLine.Parameters;
 

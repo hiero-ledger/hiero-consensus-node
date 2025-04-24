@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.service;
+package org.hiero.consensus.roster;
 
-import static com.swirlds.platform.state.service.WritableRosterStore.MAXIMUM_ROSTER_HISTORY_SIZE;
+import static org.hiero.consensus.roster.WritableRosterStore.MAXIMUM_ROSTER_HISTORY_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -19,8 +19,7 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.roster.InvalidRosterException;
-import com.swirlds.platform.roster.RosterUtils;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
 import com.swirlds.state.spi.WritableKVState;

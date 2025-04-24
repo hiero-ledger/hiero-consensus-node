@@ -6,10 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.config.data.VersionConfig;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -24,6 +21,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Initial {@link com.hedera.node.app.roster.RosterService} schema that registers two states,

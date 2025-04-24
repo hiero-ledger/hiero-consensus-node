@@ -26,7 +26,6 @@ import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractB
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKey;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
@@ -46,6 +45,7 @@ import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It
