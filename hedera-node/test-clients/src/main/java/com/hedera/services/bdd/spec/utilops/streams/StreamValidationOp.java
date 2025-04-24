@@ -219,10 +219,10 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         spec.getNetworkNodes().forEach(node -> {
             final var nodeId = node.getNodeId();
             final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
-            final var simulatedBlockNode = spec.getSimulatedBlockNodeById(nodeId);
 
             try {
                 final var highestMarkerFileNumber = BlockStreamAccess.highestMarkerFileNumber(path);
+                final var simulatedBlockNode = spec.getSimulatedBlockNodeById(nodeId);
                 final var lastVerifiedBlock = simulatedBlockNode.getLastVerifiedBlockNumber();
 
                 if (!Objects.equals(highestMarkerFileNumber, lastVerifiedBlock)) {

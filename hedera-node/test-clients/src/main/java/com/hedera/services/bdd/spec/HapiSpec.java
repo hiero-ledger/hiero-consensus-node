@@ -595,8 +595,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     public int getBlockNodePortById(final long nodeId) {
-        BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
-        BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
         if (mode == null) {
             throw new IllegalStateException("Node " + nodeId + " is not a block node");
         } else if (mode == BlockNodeMode.REAL) {
@@ -611,12 +611,16 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     public SimulatedBlockNodeServer getSimulatedBlockNodeById(final long nodeId) {
-        BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
-        BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
-        if (mode == BlockNodeMode.SIMULATOR) {
-            return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId);
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork != null) {
+            final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+            if (mode == BlockNodeMode.SIMULATOR) {
+                return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId);
+            } else {
+                throw new IllegalStateException("Node " + nodeId + " is not a block node");
+            }
         } else {
-            throw new IllegalStateException("Node " + nodeId + " is not a block node");
+            throw new IllegalStateException("No target block node available");
         }
     }
 
