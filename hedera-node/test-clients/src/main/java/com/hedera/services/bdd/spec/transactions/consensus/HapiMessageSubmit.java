@@ -190,13 +190,14 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
                 .build();
     }
 
-    private long lookupCustomFees(final HapiSpec spec) throws Throwable {
-        if (spec.registry().getTopicID(topic.get()) != null) {
-            final var subOp = getTopicInfo(topic.get()).hasCostAnswerPrecheckFrom(ResponseCodeEnum.OK);
+    private long lookupCustomFees(final HapiSpec spec) {
+        final var topicId = resolveTopicId(spec);
+        if (topicId != null && topicId.getTopicNum() != 0 && spec.registry().hasTopicID(String.valueOf(topicId))) {
+            final var subOp = getTopicInfo(String.valueOf(topicId)).hasCostAnswerPrecheckFrom(ResponseCodeEnum.OK);
             Optional<Throwable> error = subOp.execFor(spec);
             if (error.isPresent()) {
                 if (!loggingOff) {
-                    log.info("Error getting custom fees for topic {}: {}", topic.get(), error.get());
+                    log.info("Error getting custom fees for topic {}: {}", topicId, error.get());
                     return 0;
                 }
             }

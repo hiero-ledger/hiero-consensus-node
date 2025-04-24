@@ -560,6 +560,10 @@ public class HapiSpecRegistry {
         return get(name, TopicID.class);
     }
 
+    public boolean hasTopicID(String name) {
+        return registry.containsKey(full(name, TopicID.class));
+    }
+
     public TokenID getTokenID(String name) {
         return get(name, TokenID.class);
     }
