@@ -1462,7 +1462,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
 
             return hapiTest(
                     cryptoCreate(collector).balance(0L),
-                    cryptoCreate("submitter").balance(ONE_HBAR),
+                    cryptoCreate("submitter").balance(10 * ONE_HBAR),
                     tokenAssociate("submitter", BASE_TOKEN),
                     tokenAssociate(collector, BASE_TOKEN),
                     createTopic(TOPIC).withConsensusCustomFee(tokenFee).withConsensusCustomFee(hbarFee),

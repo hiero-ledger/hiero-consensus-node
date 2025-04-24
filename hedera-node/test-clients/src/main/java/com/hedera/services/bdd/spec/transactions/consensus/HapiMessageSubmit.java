@@ -24,6 +24,7 @@ import com.hederahashgraph.api.proto.java.FixedCustomFee;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.TopicID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
@@ -184,7 +185,9 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
         final var accumulator = new UsageAccumulator();
         consensusOpsUsage.submitMessageUsage(suFrom(svo), submitMeta, baseMeta, accumulator);
 
-        return AdapterUtils.feeDataFrom(accumulator);
+        return AdapterUtils.feeDataFrom(accumulator).toBuilder()
+                .setSubType(numCustomFees > 0 ? SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES : SubType.DEFAULT)
+                .build();
     }
 
     private long lookupCustomFees(final HapiSpec spec) throws Throwable {
@@ -194,8 +197,8 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
             if (error.isPresent()) {
                 if (!loggingOff) {
                     log.info("Error getting custom fees for topic {}: {}", topic.get(), error.get());
+                    return 0;
                 }
-                throw error.get();
             }
             return subOp.getResponse().getConsensusGetTopicInfo().getTopicInfo().getCustomFeesCount();
         }
