@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,14 +31,12 @@ class HederaOpsDurationTest {
     }
 
     @Test
-    void returnsEmptyMapOnException() throws IOException {
+    void throwsOnException() throws IOException {
         // Mock a supplier that throws an exception when get() is called
         Supplier<InputStream> streamSupplier = mock(Supplier.class);
         when(streamSupplier.get()).thenThrow(new RuntimeException("Test exception"));
         HederaOpsDuration schedule = new HederaOpsDuration(streamSupplier, new ObjectMapper());
 
-        Map<Integer, Long> result = schedule.getOpsDuration();
-
-        assertTrue(result.isEmpty());
+        assertThrows(IllegalStateException.class, () -> schedule.getOpsDuration());
     }
 }
