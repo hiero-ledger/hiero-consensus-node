@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -379,7 +380,9 @@ public class TransactionChecker {
 
         if (jumboTxnEnabled
                 && txInfo.transaction().protobufSize() > hederaConfig.transactionMaxBytes()
-                && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))) {
+                && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
+                // CRS_PUBLICATION is a special case. It's not a jumbo transaction, but is bigger than 6kb.
+                && !txInfo.functionality().equals(CRS_PUBLICATION)) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
     }
