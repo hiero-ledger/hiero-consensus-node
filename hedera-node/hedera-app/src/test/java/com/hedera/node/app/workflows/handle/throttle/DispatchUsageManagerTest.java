@@ -294,7 +294,6 @@ class DispatchUsageManagerTest {
         given(dispatch.txnInfo()).willReturn(CONTRACT_CALL_TXN_INFO);
         given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.stack()).willReturn(stack);
-        given(dispatch.config()).willReturn(DEFAULT_CONFIG);
 
         subject.finalizeAndSaveUsage(dispatch);
 
