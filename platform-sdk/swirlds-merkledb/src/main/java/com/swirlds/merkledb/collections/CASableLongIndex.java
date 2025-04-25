@@ -48,7 +48,7 @@ public interface CASableLongIndex {
      *
      * @param <T> Type of throwable allowed to throw by the action
      */
-    public interface LongAction<T extends Throwable> {
+    interface LongAction<T extends Throwable> {
         void handle(long index, long value) throws InterruptedException, T;
     }
 }

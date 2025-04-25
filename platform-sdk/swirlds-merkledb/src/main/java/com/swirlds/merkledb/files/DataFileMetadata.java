@@ -2,14 +2,7 @@
 package com.swirlds.merkledb.files;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_COMPACTION_LEVEL;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_CREATION_NANOS;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_CREATION_SECONDS;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_INDEX;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_ITEMS_COUNT;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_ITEM_VERSION;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_METADATA;
+import static com.swirlds.merkledb.files.DataFileCommon.*;
 
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
@@ -23,7 +16,10 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * DataFile's metadata that is stored in the data file's footer
+ * Data file's metadata that is stored in the data file's header.
+ *
+ * @see DataFileWriter
+ * @see DataFileReader
  */
 public final class DataFileMetadata {
 
@@ -37,6 +33,8 @@ public final class DataFileMetadata {
 
     /** The creation date of this file */
     private final Instant creationDate;
+
+    private final int fieldsSizeInBytes;
 
     /**
      * The number of data items the file contains. When metadata is loaded from a file, the number
@@ -54,7 +52,7 @@ public final class DataFileMetadata {
     private long dataItemCountHeaderOffset = 0;
 
     /**
-     * Create a new DataFileMetadata with complete set of data
+     * Create a new metadata with complete set of data
      *
      * @param itemsCount The number of data items the file contains
      * @param index The file index, in a data file collection
@@ -68,15 +66,18 @@ public final class DataFileMetadata {
         this.creationDate = creationDate;
         assert compactionLevel >= 0 && compactionLevel < MAX_COMPACTION_LEVEL;
         this.compactionLevel = (byte) compactionLevel;
+
+        // since metadata is immutable except items count that is fixed 64bit long, we can calculate all fields
+        fieldsSizeInBytes = calculateFieldsSizeInBytes();
     }
 
     /**
-     * Create a DataFileMetadata loading it from a existing file
+     * Load new metadata from the file header.
      *
      * @param file The file to read metadata from
      * @throws IOException If there was a problem reading metadata footer from the file
      */
-    public DataFileMetadata(Path file) throws IOException {
+    public static DataFileMetadata readFromFile(Path file) throws IOException {
         // Defaults
         int index = 0;
         long creationSeconds = 0;
@@ -132,18 +133,15 @@ public final class DataFileMetadata {
             }
         }
 
-        // Initialize this object
-        this.index = index;
-        this.creationDate = Instant.ofEpochSecond(creationSeconds, creationNanos);
-        this.itemsCount = itemsCount;
-        this.compactionLevel = compactionLevel;
+        return new DataFileMetadata(
+                itemsCount, index, Instant.ofEpochSecond(creationSeconds, creationNanos), compactionLevel);
     }
 
-    void writeTo(final BufferedData out) {
-        ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_METADATA, fieldsSizeInBytes(), this::writeFields);
+    int getFieldsSizeInBytes() {
+        return fieldsSizeInBytes;
     }
 
-    private void writeFields(final WritableSequentialData out) {
+    void writeFields(final WritableSequentialData out) {
         if (getIndex() != 0) {
             ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_INDEX);
             out.writeVarInt(getIndex(), false);
@@ -171,8 +169,7 @@ public final class DataFileMetadata {
     }
 
     /**
-     * Updates number of data items in the file. This method must be called after metadata is
-     * written to a file using {@link #writeTo(BufferedData)}.
+     * Updates number of data items in the file.
      *
      * <p>This method is called by {@link DataFileWriter} right before the file is finished writing.
      */
@@ -198,10 +195,10 @@ public final class DataFileMetadata {
     // beginning of the file before reading data items, assuming file metadata is always written
     // first, then data items
     int metadataSizeInBytes() {
-        return ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_METADATA, fieldsSizeInBytes());
+        return ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_METADATA, fieldsSizeInBytes);
     }
 
-    private int fieldsSizeInBytes() {
+    private int calculateFieldsSizeInBytes() {
         int size = 0;
         if (index != 0) {
             size += ProtoWriterTools.sizeOfTag(FIELD_DATAFILEMETADATA_INDEX, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
@@ -214,7 +211,7 @@ public final class DataFileMetadata {
                 FIELD_DATAFILEMETADATA_CREATION_NANOS, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
         size += ProtoWriterTools.sizeOfVarInt64(creationDate.getNano());
         size += ProtoWriterTools.sizeOfTag(FIELD_DATAFILEMETADATA_ITEMS_COUNT, ProtoConstants.WIRE_TYPE_FIXED_64_BIT);
-        size += Long.BYTES;
+        size += Long.BYTES; // reserved for data items count (fixed 8 bytes long)
         if (compactionLevel != 0) {
             size += ProtoWriterTools.sizeOfTag(
                     FIELD_DATAFILEMETADATA_COMPACTION_LEVEL, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);

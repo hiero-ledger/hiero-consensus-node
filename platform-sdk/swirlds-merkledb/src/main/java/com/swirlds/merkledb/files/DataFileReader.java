@@ -111,7 +111,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @param path the path to the data file
      */
     public DataFileReader(final MerkleDbConfig dbConfig, final Path path) throws IOException {
-        this(dbConfig, path, new DataFileMetadata(path));
+        this(dbConfig, path, DataFileMetadata.readFromFile(path));
     }
 
     /**
@@ -151,7 +151,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * is created for a new file, which is still being written in a different thread, it's marked as
      * completed right after the file is fully written and the writer is closed.
      */
-    public void setFileCompleted() {
+    void setFileCompleted() {
         try {
             fileSizeBytes.set(fileChannels.get(0).size());
         } catch (final IOException e) {

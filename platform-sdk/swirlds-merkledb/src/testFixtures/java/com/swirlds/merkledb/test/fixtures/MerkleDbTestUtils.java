@@ -24,10 +24,7 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintStream;
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
@@ -38,13 +35,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.Random;
-import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Stream;
 import javax.management.MBeanServer;
 import org.hiero.base.crypto.DigestType;
@@ -218,89 +209,6 @@ public class MerkleDbTestUtils {
             System.arraycopy(hardCoded, 0, digest, i * 6 + 4, 4);
         }
         return new Hash(digest, DigestType.SHA_384);
-    }
-
-    public static void hexDump(final PrintStream out, final Path file) throws IOException {
-        final InputStream is = new FileInputStream(file.toFile());
-        int i = 0;
-
-        while (is.available() > 0) {
-            final StringBuilder sb1 = new StringBuilder();
-            final StringBuilder sb2 = new StringBuilder("   ");
-            out.printf("%04X  ", i * 16);
-            for (int j = 0; j < 16; j++) {
-                if (is.available() > 0) {
-                    final int value = is.read();
-                    sb1.append(String.format("%02X ", value));
-                    if (!Character.isISOControl(value)) {
-                        sb2.append((char) value);
-                    } else {
-                        sb2.append(".");
-                    }
-                } else {
-                    for (; j < 16; j++) {
-                        sb1.append("   ");
-                    }
-                }
-            }
-            out.print(sb1);
-            out.println(sb2);
-            i++;
-        }
-        is.close();
-    }
-
-    /** Code from method java.util.Collections.shuffle(); */
-    public static int[] shuffle(Random random, final int[] array) {
-        if (random == null) {
-            random = new Random();
-        }
-        final int count = array.length;
-        for (int i = count; i > 1; i--) {
-            swap(array, i - 1, random.nextInt(i));
-        }
-        return array;
-    }
-
-    private static void swap(final int[] array, final int i, final int j) {
-        final int temp = array[i];
-        array[i] = array[j];
-        array[j] = temp;
-    }
-
-    public static String randomString(final int length, final Random random) {
-        final int leftLimit = 48; // numeral '0'
-        final int rightLimit = 122; // letter 'z'
-        return random.ints(leftLimit, rightLimit + 1)
-                .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
-                .limit(length)
-                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString();
-    }
-
-    public static byte[] randomUtf8Bytes(final int n) {
-        final byte[] data = new byte[n];
-        int i = 0;
-        while (i < n) {
-            final byte[] rnd = UUID.randomUUID().toString().getBytes();
-            System.arraycopy(rnd, 0, data, i, Math.min(rnd.length, n - 1 - i));
-            i += rnd.length;
-        }
-        return data;
-    }
-
-    /** Do a standard "ls -lh" on a directory or file and print results to System.out. */
-    public static void ls(final Path dir) {
-        System.out.println("=== " + dir + " ======================================================");
-        try {
-            final ProcessBuilder pb =
-                    new ProcessBuilder("ls", "-Rlh", dir.toAbsolutePath().toString());
-            pb.inheritIO();
-            pb.start().waitFor();
-        } catch (final IOException | InterruptedException e) {
-            e.printStackTrace();
-        }
-        System.out.println("===================================================================");
     }
 
     public static Metrics createMetrics() {

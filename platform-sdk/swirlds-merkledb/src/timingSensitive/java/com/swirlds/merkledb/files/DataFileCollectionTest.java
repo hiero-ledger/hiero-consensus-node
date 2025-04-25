@@ -152,7 +152,6 @@ class DataFileCollectionTest {
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
             final DataFileReader newFile = fileCollection.endWriting(0, count + 100);
-            newFile.setFileCompleted();
             assertEquals(new KeyRange(0, count + 100), fileCollection.getValidKeyRange(), "Range should be this");
             assertEquals(Files.size(newFile.getPath()), newFile.getSize());
             count += 100;
@@ -475,7 +474,7 @@ class DataFileCollectionTest {
             // store in file
             storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
         }
-        fileCollection.endWriting(0, 1000).setFileCompleted();
+        fileCollection.endWriting(0, 1000);
         // check we now have 2 files
         try (Stream<Path> list = Files.list(tempFileDir.resolve(testType.name()))) {
             assertEquals(
@@ -698,7 +697,7 @@ class DataFileCollectionTest {
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
-            fileCollection.endWriting(0, count + 100).setFileCompleted();
+            fileCollection.endWriting(0, count + 100);
             count += 100;
         }
     }

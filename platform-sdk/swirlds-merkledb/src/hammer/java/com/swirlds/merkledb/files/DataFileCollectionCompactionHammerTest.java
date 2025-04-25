@@ -83,7 +83,7 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L).setFileCompleted();
+                coll.endWriting(index.size() * 2L - 1, index.size() * 2L);
             }
 
             final long start = System.currentTimeMillis();
@@ -150,7 +150,7 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L).setFileCompleted();
+                coll.endWriting(index.size() * 2L - 1, index.size() * 2L);
             }
             return null;
         });

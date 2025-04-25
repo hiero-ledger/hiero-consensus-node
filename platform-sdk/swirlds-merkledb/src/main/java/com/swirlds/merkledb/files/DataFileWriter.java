@@ -1,66 +1,75 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
-import static com.swirlds.merkledb.files.DataFileCommon.PAGE_SIZE;
-import static com.swirlds.merkledb.files.DataFileCommon.createDataFilePath;
+import static com.swirlds.merkledb.files.DataFileCommon.*;
 
+import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.utilities.MemoryUtils;
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.BufferOverflowException;
 import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.function.Consumer;
 
 /**
- * Writer for creating a data file. A data file contains a number of data items. Each data item can
- * be variable or fixed size and is considered as a black box. All access to contents of the data
- * item is done via the BaseSerializer.
+ * Class for creating and sequentially writing to the file.
+ * A data file contains a header containing {@link DataFileMetadata} followed by data items.
+ * Each data item can be variable or fixed size and is considered as a black box.
+ *
+ * <p>{@link #finishWriting()} must be called after done wiring data using {@link #storeDataItem(BufferedData)} any number of times.
+ * This ensures that data item count long will be updated in metadata of file header and the file is closed.
+ * Implementation doesn't control the file size.
+ *
+ * <p>Internally, the data items are written to a memory mapped file using {@link MappedByteBuffer} of fixed size, that could be provided in constructor.
+ * This buffer is moved to the current file position when needed.
  *
  * <p><b>This is designed to be used from a single thread.</b>
  *
- * <p>At the end of the file it is padded till a 4096 byte page boundary then a footer page is
- * written by DataFileMetadata.
- *
- * <p>Protobuf schema: see {@link DataFileReader} for details.
+ * <p>{@link DataFileReader} or {@link DataFileIterator} can be used to read file back and access data items.
  */
-public final class DataFileWriter {
+public final class DataFileWriter implements OffHeapUser {
 
-    /** Mapped buffer size */
-    private static final int MMAP_BUF_SIZE = PAGE_SIZE * 1024 * 64;
-
-    /**
-     * The current mapped byte buffer used for writing. When overflowed, it is released, and another
-     * buffer is mapped from the file channel.
-     */
-    private MappedByteBuffer writingMmap;
-    /**
-     * Offset, in bytes, of the current mapped byte buffer in the file channel. After the file is
-     * completely written and closed, this field value is equal to the file size.
-     */
-    private long mmapPositionInFile = 0;
-    /* */
-    private BufferedData writingPbjData;
-
-    private MappedByteBuffer writingHeaderMmap;
-    private BufferedData writingHeaderPbjData;
+    private static final int HEADER_BUFFER_SIZE = 1024;
 
     /** The path to the data file we are writing */
     private final Path path;
+
+    private final RandomAccessFile file;
+
     /** File metadata */
     private final DataFileMetadata metadata;
+
+    private final MovingBuffer headerBuffer;
+    private final MovingBuffer dataBuffer;
+
+    private boolean closed = false;
+
     /**
-     * Count of the number of data items we have written so far. Ready to be stored in footer
-     * metadata
+     * Count of the number of data items we have written so far.
+     * Used to update the metadata at in file header
      */
     private long dataItemCount = 0;
+
+    /**
+        * Create a new data file with moving mapped byte buffer of 256Mb size.
+     */
+    public DataFileWriter(
+            final String filePrefix,
+            final Path dataFileDir,
+            final int index,
+            final Instant creationTime,
+            final int compactionLevel)
+            throws IOException {
+        //TODO maybe we can use 128Mb buffer size (see DataFileWriterBenchmark)
+        this(filePrefix, dataFileDir, index, creationTime, compactionLevel, PAGE_SIZE * 1024 * 64);
+    }
 
     /**
      * Create a new data file in the given directory, in append mode. Puts the object into "writing"
@@ -71,54 +80,30 @@ public final class DataFileWriter {
      * @param dataFileDir the path to directory to create the data file in
      * @param index the index number for this file
      * @param creationTime the time stamp for the creation time for this file
+     * @param compactionLevel the compaction level for this file
+     * @param dataBufferSize the size of the memory mapped data buffer to use for writing data items
      */
     public DataFileWriter(
             final String filePrefix,
             final Path dataFileDir,
             final int index,
             final Instant creationTime,
-            final int compactionLevel)
+            final int compactionLevel,
+            final int dataBufferSize)
             throws IOException {
-        this.path = createDataFilePath(filePrefix, dataFileDir, index, creationTime, DataFileCommon.FILE_EXTENSION);
+        path = createDataFilePath(filePrefix, dataFileDir, index, creationTime, DataFileCommon.FILE_EXTENSION);
+        file = new RandomAccessFile(path.toFile(), "rw");
+
         metadata = new DataFileMetadata(
                 0, // data item count will be updated later in finishWriting()
                 index,
                 creationTime,
                 compactionLevel);
-        Files.createFile(path);
-        writeHeader();
-    }
 
-    /**
-     * Maps the writing byte buffer to the given position in the file. Byte buffer size is always
-     * {@link #MMAP_BUF_SIZE}. Previous mapped byte buffer, if not null, is released.
-     *
-     * @param newMmapPos new mapped byte buffer position in the file, in bytes
-     * @throws IOException if I/O error(s) occurred
-     */
-    private void moveWritingBuffer(final long newMmapPos) throws IOException {
-        try (final FileChannel channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
-            final MappedByteBuffer newMmap = channel.map(MapMode.READ_WRITE, newMmapPos, MMAP_BUF_SIZE);
-            if (newMmap == null) {
-                throw new IOException("Failed to map file channel to memory");
-            }
-            if (writingMmap != null) {
-                MemoryUtils.closeMmapBuffer(writingMmap);
-            }
-            mmapPositionInFile = newMmapPos;
-            writingMmap = newMmap;
-            writingPbjData = BufferedData.wrap(writingMmap);
-        }
-    }
+        headerBuffer = new MovingBuffer(0, HEADER_BUFFER_SIZE);
+        headerBuffer.write(FIELD_DATAFILE_METADATA, metadata.getFieldsSizeInBytes(), metadata::writeFields);
 
-    private void writeHeader() throws IOException {
-        try (final FileChannel channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
-            writingHeaderMmap = channel.map(MapMode.READ_WRITE, 0, 1024);
-            writingHeaderPbjData = BufferedData.wrap(writingHeaderMmap);
-            metadata.writeTo(writingHeaderPbjData);
-        }
-        // prepare to write data items
-        moveWritingBuffer(writingHeaderPbjData.position());
+        dataBuffer = new MovingBuffer(headerBuffer.getCurrentFilePosition(), dataBufferSize);
     }
 
     /**
@@ -146,32 +131,8 @@ public final class DataFileWriter {
      * @return the data location of written data in bytes
      * @throws IOException if there was a problem appending data to file
      */
-    public synchronized long storeDataItem(final BufferedData dataItem) throws IOException {
-        // find offset for the start of this new data item, we assume we always write data in a
-        // whole number of blocks
-        long currentWritingMmapPos = writingPbjData.position();
-        final long byteOffset = mmapPositionInFile + currentWritingMmapPos;
-        // write serialized data
-        final int size = Math.toIntExact(dataItem.remaining());
-        final int sizeToWrite = ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, size);
-        if (writingPbjData.remaining() < sizeToWrite) {
-            moveWritingBuffer(byteOffset);
-            currentWritingMmapPos = 0;
-        }
-        try {
-            ProtoWriterTools.writeDelimited(writingPbjData, FIELD_DATAFILE_ITEMS, size, o -> o.writeBytes(dataItem));
-            if (writingPbjData.position() != currentWritingMmapPos + sizeToWrite) {
-                throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
-                        + (writingPbjData.position() - currentWritingMmapPos));
-            }
-        } catch (final BufferOverflowException e) {
-            // Buffer overflow here means the mapped buffer is smaller than even a single data item
-            throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
-        }
-        // increment data item counter
-        dataItemCount++;
-        // return the offset where we wrote the data
-        return DataFileCommon.dataLocation(metadata.getIndex(), byteOffset);
+    public long storeDataItem(final BufferedData dataItem) throws IOException {
+        return storeDataItem(o -> o.writeBytes(dataItem), Math.toIntExact(dataItem.remaining()));
     }
 
     /**
@@ -184,24 +145,14 @@ public final class DataFileWriter {
      */
     public synchronized long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize)
             throws IOException {
-        // find offset for the start of this new data item, we assume we always write data in a
-        // whole number of blocks
-        final long currentWritingMmapPos = writingPbjData.position();
-        final long byteOffset = mmapPositionInFile + currentWritingMmapPos;
-        // write serialized data
-        if (writingPbjData.remaining() < ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, dataItemSize)) {
-            moveWritingBuffer(byteOffset);
+        if (closed) {
+            throw new IOException("Data file is closed");
         }
-        try {
-            ProtoWriterTools.writeDelimited(writingPbjData, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
-        } catch (final BufferOverflowException e) {
-            // Buffer overflow here means the mapped buffer is smaller than even a single data item
-            throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
-        }
+        final long fileOffset = dataBuffer.write(FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
         // increment data item counter
         dataItemCount++;
         // return the offset where we wrote the data
-        return DataFileCommon.dataLocation(metadata.getIndex(), byteOffset);
+        return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
     }
 
     /**
@@ -211,20 +162,127 @@ public final class DataFileWriter {
      * @throws IOException if there was a problem sealing file or opening again as read only
      */
     public synchronized void finishWriting() throws IOException {
-        // total file size is where the current writing pos is
-        final long totalFileSize = mmapPositionInFile + writingPbjData.position();
-        // update data item count in the metadata and in the file
-        // not that updateDataItemCount() messes up with writing buffer state (position), but
-        // the buffer will be closed below anyway
-        metadata.updateDataItemCount(writingHeaderPbjData, dataItemCount);
-        // release all the resources
-        MemoryUtils.closeMmapBuffer(writingHeaderMmap);
-        MemoryUtils.closeMmapBuffer(writingMmap);
+        if (closed) {
+            throw new IllegalStateException("Data file is already closed");
+        }
 
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
-            channel.truncate(totalFileSize);
-            // after finishWriting(), mmapPositionInFile should be equal to the file size
-            mmapPositionInFile = totalFileSize;
+        // total file size is where the current writing pos is
+        final long totalFileSize = dataBuffer.getCurrentFilePosition();
+        // update data item count in the metadata and in the file
+        // note that updateDataItemCount() messes up with writing buffer state (position), but the buffer will be closed
+        // below anyway
+        metadata.updateDataItemCount(headerBuffer.bufferedData, dataItemCount);
+        // release all the resources
+        headerBuffer.close();
+        dataBuffer.close();
+
+        file.setLength(totalFileSize);
+        file.close();
+        closed = true;
+    }
+
+    @Override
+    public long getOffHeapConsumption() {
+        if (closed) {
+            return 0;
+        }
+        // Return the size of the data buffer even if not fully used but claimed to be used.
+        // Buffer is released and not used after completing writing into the file, but we probably want to track
+        // possible memory usage
+        // for each data file writer instance created.
+        // During writing (and it is fast because sequential), we might not see benefit of reporting actual busser space
+        // taken.
+        return dataBuffer.bufferSize;
+    }
+
+    /**
+     * Helper class to encapsulate logic of writing data into the file using memory mapped buffers and moving buffer when needed.
+     */
+    private class MovingBuffer implements Closeable {
+
+        private final long bufferSize;
+        private long fileStartOffset = 0;
+        private MappedByteBuffer bufferFileMapping;
+        private BufferedData bufferedData;
+
+        public MovingBuffer(long fileStartOffset, long bufferSize) throws IOException {
+            this.bufferSize = bufferSize;
+            move(fileStartOffset);
+        }
+
+        /**
+         * Maps the writing byte buffer to the given position in the file.
+         * Previous mapped byte buffer, if not null, is released.
+         *
+         * @param fileStartOffset new mapped byte buffer position in the file, in bytes
+         * @throws IOException if I/O error(s) occurred
+         */
+        private void move(long fileStartOffset) throws IOException {
+            this.fileStartOffset = fileStartOffset;
+
+            // ensure we have disk space buffer can use
+            file.setLength(fileStartOffset + bufferSize);
+
+            final MappedByteBuffer newMapping = file.getChannel().map(MapMode.READ_WRITE, fileStartOffset, bufferSize);
+            if (newMapping == null) {
+                throw new IOException("Failed to map file channel to memory");
+            }
+
+            close();
+
+            bufferFileMapping = newMapping;
+            bufferedData = BufferedData.wrap(bufferFileMapping);
+        }
+
+        long getCurrentFilePosition() {
+            return fileStartOffset + bufferedData.position();
+        }
+
+        /**
+         * @param field field describing writing data
+         * @param expectedSize expected data size that will be checked against the actual size after writing
+         * @param writer writer of the data
+         * @return the file offset where the data was written (start position of the data item)
+         * @throws IOException
+         */
+        long write(FieldDefinition field, int expectedSize, Consumer<BufferedData> writer) throws IOException {
+            long curPos = bufferedData.position();
+            final long fileOffset = getCurrentFilePosition();
+            final int sizeToWrite = ProtoWriterTools.sizeOfDelimited(field, expectedSize);
+
+            if (sizeToWrite > bufferSize) {
+                throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE + " dataSize=" + sizeToWrite
+                        + ", bufferSize=" + bufferSize);
+            }
+
+            // if there is not enough space in the current mapped buffer, we need to move it to start at current file
+            // offset
+            if (bufferedData.remaining() < sizeToWrite) {
+                move(fileOffset);
+                curPos = 0;
+            }
+
+            try {
+                ProtoWriterTools.writeDelimited(bufferedData, field, expectedSize, writer);
+                if (bufferedData.position() != curPos + sizeToWrite) {
+                    throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite
+                            + " written=" + (bufferedData.position() - curPos));
+                }
+            } catch (final BufferOverflowException e) {
+                // Buffer overflow here means the mapped buffer is smaller than even a single data item
+                throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
+            }
+            return fileOffset;
+        }
+
+        @Override
+        public void close() {
+            if (bufferFileMapping != null) {
+                // TODO should we flush changes to the disk here for durability that takes little additional time
+                // or we rely on async flush in the OS?
+                // bufferFileMapping.force();
+                MemoryUtils.closeMmapBuffer(bufferFileMapping);
+            }
         }
     }
 }

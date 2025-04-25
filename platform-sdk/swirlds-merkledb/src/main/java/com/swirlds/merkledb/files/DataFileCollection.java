@@ -5,10 +5,7 @@ import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
-import static com.swirlds.merkledb.files.DataFileCommon.FILE_EXTENSION;
-import static com.swirlds.merkledb.files.DataFileCommon.byteOffsetFromDataLocation;
-import static com.swirlds.merkledb.files.DataFileCommon.fileIndexFromDataLocation;
-import static com.swirlds.merkledb.files.DataFileCommon.isFullyWrittenDataFile;
+import static com.swirlds.merkledb.files.DataFileCommon.*;
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
 import static java.util.Collections.singletonList;
 
@@ -19,6 +16,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.merkledb.FileStatisticAware;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.Snapshotable;
 import com.swirlds.merkledb.collections.CASableLongIndex;
@@ -33,13 +31,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.LongSummaryStatistics;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,7 +58,7 @@ import org.apache.logging.log4j.Logger;
  * deleted keys.
  */
 @SuppressWarnings({"unused", "unchecked"})
-public class DataFileCollection implements Snapshotable {
+public class DataFileCollection implements FileStatisticAware, Snapshotable {
 
     private static final Logger logger = LogManager.getLogger(DataFileCollection.class);
 
@@ -177,7 +169,7 @@ public class DataFileCollection implements Snapshotable {
                 storeName,
                 null,
                 loadedDataCallback,
-                l -> new ImmutableIndexedObjectListUsingArray<DataFileReader>(DataFileReader[]::new, l));
+                l -> new ImmutableIndexedObjectListUsingArray<>(DataFileReader[]::new, l));
     }
 
     /**
@@ -209,7 +201,7 @@ public class DataFileCollection implements Snapshotable {
                 storeName,
                 legacyStoreName,
                 loadedDataCallback,
-                l -> new ImmutableIndexedObjectListUsingArray<DataFileReader>(DataFileReader[]::new, l));
+                l -> new ImmutableIndexedObjectListUsingArray<>(DataFileReader[]::new, l));
     }
 
     /**
@@ -292,24 +284,9 @@ public class DataFileCollection implements Snapshotable {
         if (activeIndexedFiles == null) {
             return Collections.emptyList();
         }
-        Stream<DataFileReader> filesStream = activeIndexedFiles.stream();
-        filesStream = filesStream.filter(DataFileReader::isFileCompleted);
-        return filesStream.toList();
-    }
-
-    /**
-     * Get statistics for sizes of all files
-     *
-     * @return statistics for sizes of all fully written files, in bytes
-     */
-    public LongSummaryStatistics getAllCompletedFilesSizeStatistics() {
-        final ImmutableIndexedObjectList<DataFileReader> activeIndexedFiles = dataFiles.get();
-        return activeIndexedFiles == null
-                ? new LongSummaryStatistics()
-                : activeIndexedFiles.stream()
-                        .filter(DataFileReader::isFileCompleted)
-                        .mapToLong(DataFileReader::getSize)
-                        .summaryStatistics();
+        return activeIndexedFiles.stream()
+                .filter(DataFileReader::isFileCompleted)
+                .toList();
     }
 
     /** Close all the data files */
@@ -360,7 +337,6 @@ public class DataFileCollection implements Snapshotable {
         if (currentDataFileForWriting == null) {
             throw new IOException("Tried to put data " + dataItem + " when we never started writing.");
         }
-        /* FUTURE WORK - https://github.com/swirlds/swirlds-platform/issues/3926 */
         return currentDataFileForWriting.storeDataItem(dataItem);
     }
 
@@ -378,7 +354,6 @@ public class DataFileCollection implements Snapshotable {
         if (currentDataFileForWriting == null) {
             throw new IOException("Tried to put data " + dataItemWriter + " when we never started writing.");
         }
-        /* FUTURE WORK - https://github.com/swirlds/swirlds-platform/issues/3926 */
         return currentDataFileForWriting.storeDataItem(dataItemWriter, dataItemSize);
     }
 
@@ -391,6 +366,7 @@ public class DataFileCollection implements Snapshotable {
      *     cleaning out old data
      * @param maximumValidKey The maximum valid data key at this point in time, can be used for
      *     cleaning out old data
+     * @return Data file reader for the file written
      * @throws IOException If there was a problem closing the data file
      */
     public DataFileReader endWriting(final long minimumValidKey, final long maximumValidKey) throws IOException {
@@ -406,6 +382,7 @@ public class DataFileCollection implements Snapshotable {
             final DataFileMetadata metadata = dataReader.getMetadata();
             setOfNewFileIndexes.remove(metadata.getIndex());
         }
+        dataReader.setFileCompleted();
         return dataReader;
     }
 
@@ -573,6 +550,18 @@ public class DataFileCollection implements Snapshotable {
         } else {
             throw new IllegalStateException("getSetOfNewFileIndexes can only be called if trace logging is enabled");
         }
+    }
+
+    @Override
+    public LongSummaryStatistics getFilesSizeStatistics() {
+        // statistics for sizes of all fully written files, in bytes
+        final ImmutableIndexedObjectList<DataFileReader> activeIndexedFiles = dataFiles.get();
+        return activeIndexedFiles == null
+                ? new LongSummaryStatistics()
+                : activeIndexedFiles.stream()
+                        .filter(DataFileReader::isFileCompleted)
+                        .mapToLong(DataFileReader::getSize)
+                        .summaryStatistics();
     }
 
     // =================================================================================================================
@@ -798,10 +787,9 @@ public class DataFileCollection implements Snapshotable {
     }
 
     private int getMaxFileReaderIndex(final DataFileReader[] dataFileReaders) {
-        int maxIndex = -1;
-        for (final DataFileReader reader : dataFileReaders) {
-            maxIndex = Math.max(maxIndex, reader.getIndex());
-        }
-        return maxIndex;
+        return Stream.of(dataFileReaders)
+                .mapToInt(DataFileReader::getIndex)
+                .max()
+                .orElse(-1);
     }
 }

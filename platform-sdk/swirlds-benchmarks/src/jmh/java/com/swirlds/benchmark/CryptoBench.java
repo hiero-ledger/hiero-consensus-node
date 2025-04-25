@@ -34,7 +34,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Thread)
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
-public abstract class CryptoBench extends VirtualMapBench {
+public class CryptoBench extends VirtualMapBench {
 
     private static final Logger logger = LogManager.getLogger(CryptoBench.class);
 

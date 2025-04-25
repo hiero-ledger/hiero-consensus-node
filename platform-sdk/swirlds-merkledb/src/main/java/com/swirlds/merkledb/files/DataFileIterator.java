@@ -18,13 +18,13 @@ import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 
 /**
- * Iterator class for iterating over data items in a DataFile. It is designed to be used in a while(iter.next()){...}
- * loop and you can then read the data items info for current item with getDataItemsKey, getDataItemsDataLocation and
- * getDataItemData.
+ * Iterator class for iterating over data items in a data file created by {@link  DataFileWriter}.
+ * It is designed to be used in a <code>while(iter.next()){...}</code>
+ * loop, where you can then read the data items info for current item with {@link #getDataItemData()} and {@link #getDataItemDataLocation()}.
  *
  * <p>It is designed to be used from a single thread.
  *
- * @see DataFileReader for definition of file structure
+ * @see DataFileReader
  */
 public final class DataFileIterator implements AutoCloseable {
 
@@ -111,6 +111,8 @@ public final class DataFileIterator implements AutoCloseable {
 
         // Have we reached the end?
         if (currentDataItem >= metadata.getDataItemCount() - 1) {
+            // TODO what if file is corrupted and data items from metadata is not matching content?
+            // should we check if stream has some data left that we should skip or log warn or throw an error?
             dataItemBuffer = null;
             return false;
         }

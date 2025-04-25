@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.base.units.UnitConstants.GIBIBYTES_TO_BYTES;
-import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
-import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
+import static com.swirlds.base.units.UnitConstants.*;
 import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
@@ -21,13 +19,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -273,12 +265,8 @@ public final class DataFileCommon {
      * @param fileReaders collection of paths to files
      * @return total number of bytes take for all the files in fileReaders
      */
-    public static long getSizeOfFiles(final Iterable<? extends DataFileReader> fileReaders) {
-        long totalSize = 0;
-        for (final DataFileReader dataFileReader : fileReaders) {
-            totalSize += dataFileReader.getSize();
-        }
-        return totalSize;
+    public static long getSizeOfFiles(final Collection<? extends DataFileReader> fileReaders) {
+        return fileReaders.stream().mapToLong(DataFileReader::getSize).sum();
     }
 
     /**

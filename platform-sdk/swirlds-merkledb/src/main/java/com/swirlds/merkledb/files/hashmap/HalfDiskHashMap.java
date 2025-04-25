@@ -427,7 +427,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * {@inheritDoc}
      */
     public LongSummaryStatistics getFilesSizeStatistics() {
-        return fileCollection.getAllCompletedFilesSizeStatistics();
+        return fileCollection.getFilesSizeStatistics();
     }
 
     /**
@@ -591,8 +591,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 }
                 // close files session
                 dataFileReader = fileCollection.endWriting(0, numOfBuckets);
-                // we have updated all indexes so the data file can now be included in merges
-                dataFileReader.setFileCompleted();
             } else {
                 dataFileReader = null;
             }
