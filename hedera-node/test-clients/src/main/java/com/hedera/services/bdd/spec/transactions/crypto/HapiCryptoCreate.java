@@ -2,10 +2,12 @@
 package com.hedera.services.bdd.spec.transactions.crypto;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asRealm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asShard;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
@@ -19,7 +21,6 @@ import com.hedera.node.app.hapi.fees.usage.crypto.CryptoCreateMeta;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.infrastructure.meta.InitialAccountIdentifiers;
@@ -66,7 +67,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
     private Optional<Long> receiveThresh = Optional.empty();
     private Optional<Long> initialBalance = Optional.empty();
     private Optional<Long> autoRenewDurationSecs = Optional.empty();
-    private Optional<AccountID> proxy = Optional.empty();
+    private Optional<String> proxy = Optional.empty();
     private Optional<Boolean> receiverSigRequired = Optional.empty();
     private Optional<String> keyName = Optional.empty();
     private Optional<String> entityMemo = Optional.empty();
@@ -200,18 +201,23 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
         return this;
     }
 
-    public HapiCryptoCreate proxy(final String idLit) {
-        proxy = Optional.of(HapiPropertySource.asAccount(idLit));
+    public HapiCryptoCreate proxy(final String acctNum) {
+        proxy = Optional.of(acctNum);
         return this;
     }
 
-    public HapiCryptoCreate stakedAccountId(final String idLit) {
-        stakedAccountId = Optional.of(idLit);
+    public HapiCryptoCreate stakedAccountId(final String acctNum) {
+        stakedAccountId = Optional.of(acctNum);
         return this;
     }
 
-    public HapiCryptoCreate stakedNodeId(final long idLit) {
-        stakedNodeId = Optional.of(idLit);
+    public HapiCryptoCreate stakedAccountId(final long acctNum) {
+        stakedAccountId = Optional.of(Long.toString(acctNum));
+        return this;
+    }
+
+    public HapiCryptoCreate stakedNodeId(final long acctNum) {
+        stakedNodeId = Optional.of(acctNum);
         return this;
     }
 
@@ -292,7 +298,10 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                                 b.setUnknownFields(nonEmptyUnknownFields());
                             }
 
-                            proxy.ifPresent(b::setProxyAccountID);
+                            final var effectiveShard = shardId.orElseGet(() -> asShard(spec.shard()));
+                            final var effectiveRealm = realmId.orElseGet(() -> asRealm(spec.realm()));
+                            proxy.ifPresent(p -> b.setStakedAccountId(asAccount(
+                                    effectiveShard.getShardNum(), effectiveRealm.getRealmNum(), Long.parseLong(p))));
                             entityMemo.ifPresent(b::setMemo);
                             sendThresh.ifPresent(b::setSendRecordThreshold);
                             receiveThresh.ifPresent(b::setReceiveRecordThreshold);
@@ -304,7 +313,10 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                             shardId.ifPresent(b::setShardID);
                             realmId.ifPresent(b::setRealmID);
                             if (stakedAccountId.isPresent()) {
-                                b.setStakedAccountId(asId(stakedAccountId.get(), spec));
+                                b.setStakedAccountId(asAccount(
+                                        effectiveShard.getShardNum(),
+                                        effectiveRealm.getRealmNum(),
+                                        Long.parseLong(stakedAccountId.get())));
                             } else if (stakedNodeId.isPresent()) {
                                 b.setStakedNodeId(stakedNodeId.get());
                             }

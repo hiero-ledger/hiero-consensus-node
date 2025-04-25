@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.roster;
+package org.hiero.consensus.roster;
 
-import static com.swirlds.platform.state.service.WritableRosterStore.ROSTER_KEY;
-import static com.swirlds.platform.state.service.WritableRosterStore.ROSTER_STATES_KEY;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.WritableRosterStore.ROSTER_KEY;
+import static org.hiero.consensus.roster.WritableRosterStore.ROSTER_STATES_KEY;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;

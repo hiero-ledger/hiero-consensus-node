@@ -122,7 +122,12 @@ val prCheckNetSizeOverrides =
     )
 
 tasks {
-    prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
+    prCheckTags.forEach { (taskName, _) ->
+        register(taskName) {
+            getByName(taskName).group = "hapi-test"
+            dependsOn("testSubprocess")
+        }
+    }
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
 }
 

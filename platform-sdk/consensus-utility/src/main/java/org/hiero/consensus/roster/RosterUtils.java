@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.roster;
+package org.hiero.consensus.roster;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -8,10 +8,6 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.RosterStateId;
-import com.swirlds.platform.state.service.ReadableRosterStore;
-import com.swirlds.platform.state.service.WritableRosterStore;
-import com.swirlds.platform.util.PbjRecordHasher;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -32,6 +28,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.internal.PbjRecordHasher;
 
 /**
  * A utility class to help use Rooster and RosterEntry instances.

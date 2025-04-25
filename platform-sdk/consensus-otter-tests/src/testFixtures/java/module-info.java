@@ -20,6 +20,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.state.api;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires org.assertj.core;
     requires static com.github.spotbugs.annotations;
