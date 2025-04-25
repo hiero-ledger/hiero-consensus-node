@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.services.bdd.suites.staking;
+
+import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
+
+@Tag(CRYPTO)
+@Order(Integer.MIN_VALUE)
+public class CreateStakersTest {
+    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
+    static SpecAccount NODE0_STAKER;
+
+    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 1)
+    static SpecAccount NODE1_STAKER;
+
+    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 2)
+    static SpecAccount NODE2_STAKER;
+
+    @Account(tinybarBalance = ONE_MILLION_HBARS, stakedNodeId = 3)
+    static SpecAccount NODE3_STAKER;
+
+    @HapiTest
+    final Stream<DynamicTest> createStakers() {
+        return hapiTest(
+                ensureStakingActivated(), touchBalanceOf(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER));
+    }
+}

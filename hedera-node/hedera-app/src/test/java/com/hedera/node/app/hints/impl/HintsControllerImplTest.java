@@ -100,6 +100,9 @@ class HintsControllerImplTest {
     @Mock
     private WritableHintsStore store;
 
+    @Mock
+    private OnHintsFinished onHintsFinished;
+
     private final Deque<Runnable> scheduledTasks = new ArrayDeque<>();
 
     private HintsControllerImpl subject;
@@ -550,7 +553,8 @@ class HintsControllerImplTest {
                 submissions,
                 context,
                 HederaTestConfigBuilder::createConfig,
-                store);
+                store,
+                onHintsFinished);
     }
 
     private void runScheduledTasks() {

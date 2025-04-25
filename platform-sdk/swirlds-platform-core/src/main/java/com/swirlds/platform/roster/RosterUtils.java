@@ -82,6 +82,19 @@ public final class RosterUtils {
     }
 
     /**
+     * Check if the given rosters change at most the weights of the nodes.
+     * @param from the previous roster
+     * @param to the new roster
+     * @return true if the rosters are weight rotations, false otherwise
+     */
+    public static boolean isWeightRotation(@NonNull final Roster from, @NonNull final Roster to) {
+        final var fromNodes =
+                from.rosterEntries().stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
+        final var toNodes = to.rosterEntries().stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
+        return fromNodes.equals(toNodes);
+    }
+
+    /**
      * Fetch a hostname (or a string with an IPv4 address) of a ServiceEndpoint
      * at a given index in a given RosterEntry.
      *

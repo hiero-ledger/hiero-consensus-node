@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Read-only implementation for accessing rosters states.
@@ -35,6 +39,24 @@ public interface ReadableRosterStore {
      */
     @Nullable
     Roster getActiveRoster();
+
+    /**
+     * Returns if there is a pending candidate roster that changes at most the weights from the active roster.
+     */
+    default boolean candidateIsWeightRotation() {
+        final var candidateRoster = getCandidateRoster();
+        if (candidateRoster == null) {
+            return false;
+        } else {
+            final var activeNodes = requireNonNull(getActiveRoster()).rosterEntries().stream()
+                    .map(RosterEntry::nodeId)
+                    .collect(Collectors.toSet());
+            final var candidateNodes = candidateRoster.rosterEntries().stream()
+                    .map(RosterEntry::nodeId)
+                    .collect(Collectors.toSet());
+            return activeNodes.equals(candidateNodes);
+        }
+    }
 
     /**
      * Get the roster based on roster hash

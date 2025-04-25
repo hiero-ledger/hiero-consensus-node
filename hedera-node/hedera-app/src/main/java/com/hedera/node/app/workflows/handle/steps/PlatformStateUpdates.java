@@ -30,7 +30,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;

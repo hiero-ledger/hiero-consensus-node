@@ -68,6 +68,7 @@ public class HintsControllerImpl implements HintsController {
     private final Map<Long, PreprocessingVote> votes = new ConcurrentHashMap<>();
     private final NavigableMap<Instant, CompletableFuture<Validation>> validationFutures = new TreeMap<>();
     private final Supplier<Configuration> configurationSupplier;
+    private final OnHintsFinished onHintsFinished;
     /**
      * The future that resolves to the final updated CRS for the network.
      * This will be null until the first node has contributed to the CRS update.
@@ -120,7 +121,8 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
             @NonNull final Supplier<Configuration> configuration,
-            @NonNull final WritableHintsStore hintsStore) {
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final OnHintsFinished onHintsFinished) {
         this.selfId = selfId;
         this.blsPrivateKey = requireNonNull(blsPrivateKey);
         this.weights = requireNonNull(weights);
@@ -130,6 +132,7 @@ public class HintsControllerImpl implements HintsController {
         this.submissions = requireNonNull(submissions);
         this.library = requireNonNull(library);
         this.construction = requireNonNull(construction);
+        this.onHintsFinished = requireNonNull(onHintsFinished);
         this.votes.putAll(votes);
         this.configurationSupplier = requireNonNull(configuration);
 
@@ -441,10 +444,7 @@ public class HintsControllerImpl implements HintsController {
             maybeWinningOutputs.ifPresent(keys -> {
                 construction = hintsStore.setHintsScheme(construction.constructionId(), keys, nodePartyIds);
                 log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
-                // If this just completed the active construction, update the signing context
-                if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstruction(construction);
-                }
+                onHintsFinished.accept(hintsStore, construction, context);
             });
             return true;
         }
