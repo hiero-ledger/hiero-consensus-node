@@ -10,9 +10,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -70,6 +67,9 @@ import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This class is responsible for loading the key stores for all nodes in the address book.
@@ -966,10 +966,11 @@ public class EnhancedKeyStoreLoader {
             return switch (entry) {
                 case SubjectPublicKeyInfo spki -> converter.getPublicKey(spki);
                 case PEMKeyPair kp -> converter.getPublicKey(kp.getPublicKeyInfo());
-                case PEMEncryptedKeyPair ekp -> converter.getPublicKey(
-                        ekp.decryptKeyPair(decrypter).getPublicKeyInfo());
-                default -> throw new KeyLoadingException("Unsupported entry type [ entryType = %s ]"
-                        .formatted(entry.getClass().getName()));
+                case PEMEncryptedKeyPair ekp ->
+                    converter.getPublicKey(ekp.decryptKeyPair(decrypter).getPublicKeyInfo());
+                default ->
+                    throw new KeyLoadingException("Unsupported entry type [ entryType = %s ]"
+                            .formatted(entry.getClass().getName()));
             };
         } catch (IOException e) {
             throw new KeyLoadingException(
@@ -1001,13 +1002,14 @@ public class EnhancedKeyStoreLoader {
 
             return switch (entry) {
                 case PrivateKeyInfo pki -> converter.getPrivateKey(pki);
-                case PKCS8EncryptedPrivateKeyInfo epki -> converter.getPrivateKey(
-                        epki.decryptPrivateKeyInfo(inputDecrypter));
+                case PKCS8EncryptedPrivateKeyInfo epki ->
+                    converter.getPrivateKey(epki.decryptPrivateKeyInfo(inputDecrypter));
                 case PEMKeyPair kp -> converter.getPrivateKey(kp.getPrivateKeyInfo());
-                case PEMEncryptedKeyPair ekp -> converter.getPrivateKey(
-                        ekp.decryptKeyPair(decrypter).getPrivateKeyInfo());
-                default -> throw new KeyLoadingException("Unsupported entry type [ entryType = %s ]"
-                        .formatted(entry.getClass().getName()));
+                case PEMEncryptedKeyPair ekp ->
+                    converter.getPrivateKey(ekp.decryptKeyPair(decrypter).getPrivateKeyInfo());
+                default ->
+                    throw new KeyLoadingException("Unsupported entry type [ entryType = %s ]"
+                            .formatted(entry.getClass().getName()));
             };
         } catch (IOException | PKCSException e) {
             throw new KeyLoadingException(

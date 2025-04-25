@@ -513,7 +513,10 @@ public class LeakyCryptoTestsSuite {
                         .via(AUTO_ACCOUNT),
                 getTxnRecord(AUTO_ACCOUNT).andAllChildRecords(),
                 uploadInitCode(FACTORY_MIRROR_CONTRACT),
-                contractCreate(FACTORY_MIRROR_CONTRACT).via(CREATE_TX).balance(20),
+                contractCreate(FACTORY_MIRROR_CONTRACT)
+                        .via(CREATE_TX)
+                        .balance(20)
+                        .gas(6_000_000),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         TxnVerbs.ethereumCryptoTransferToAlias(
@@ -524,13 +527,14 @@ public class LeakyCryptoTestsSuite {
                                 .nonce(0L)
                                 .maxFeePerGas(0L)
                                 .maxGasAllowance(FIVE_HBARS)
-                                .gasLimit(2_000_000L)
+                                .gasLimit(4_000_000L)
                                 .via(lazyCreateTxn)
                                 .hasKnownStatus(SUCCESS),
                         getTxnRecord(lazyCreateTxn).logged())),
                 withOpContext((spec, opLog) -> {
                     final var contractCallTxn = contractCall(FACTORY_MIRROR_CONTRACT, "createChild", BigInteger.TEN)
-                            .via("callTX");
+                            .via("callTX")
+                            .gas(6_000_000L);
 
                     final var expectedContractCallRecord = getTxnRecord("callTX")
                             .hasPriority(recordWith()

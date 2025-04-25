@@ -27,6 +27,7 @@ module com.hedera.node.app {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive dagger;
     requires transitive io.grpc.stub;
     requires transitive io.grpc;

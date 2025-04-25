@@ -308,8 +308,8 @@ public class TxnUtils {
         final var effS = s.startsWith("0x") ? s.substring(2) : s;
         if (effS.length() == HapiContractCall.HEXED_EVM_ADDRESS_LEN) {
             return ContractID.newBuilder()
-                    .setShardNum(shard)
-                    .setRealmNum(realm)
+                    .setShardNum(lookupSpec.shard())
+                    .setRealmNum(lookupSpec.realm())
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effS)))
                     .build();
         }

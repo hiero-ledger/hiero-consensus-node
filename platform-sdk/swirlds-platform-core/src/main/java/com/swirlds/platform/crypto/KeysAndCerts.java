@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.Key;
 import java.security.KeyPair;
@@ -15,8 +14,9 @@ import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import org.hiero.base.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * An instantiation of this class holds all the keys and CSPRNG state for one Platform object. No other class should
@@ -135,8 +135,8 @@ public record KeysAndCerts(KeyPair sigKeyPair, KeyPair agrKeyPair, X509Certifica
         sigKeyGen = KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
         agrKeyGen = KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
 
-        sigDetRandom = CryptoUtils.getDetRandom(); // deterministic, not shared
-        agrDetRandom = CryptoUtils.getDetRandom(); // deterministic, not shared
+        sigDetRandom = DetRandomProvider.getDetRandom(); // deterministic, not shared
+        agrDetRandom = DetRandomProvider.getDetRandom(); // deterministic, not shared
 
         sigDetRandom.setSeed(masterKey);
         sigDetRandom.setSeed(swirldId);

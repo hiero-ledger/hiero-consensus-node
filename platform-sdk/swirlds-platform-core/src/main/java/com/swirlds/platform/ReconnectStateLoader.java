@@ -12,7 +12,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
-import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
@@ -31,6 +30,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.roster.RosterRetriever;
 
 // FUTURE WORK: this data should be traveling out over the wiring framework.
 
@@ -112,7 +112,8 @@ public class ReconnectStateLoader {
             }
 
             // Before attempting to load the state, verify that the platform roster matches the state roster.
-            final Roster stateRoster = RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade);
+            final long round = platformStateFacade.roundOf(state);
+            final Roster stateRoster = RosterRetriever.retrieveActive(state, round);
             if (!roster.equals(stateRoster)) {
                 throw new IllegalStateException("Current roster and state-based roster do not contain the same nodes "
                         + " (currentRoster=" + Roster.JSON.toJSON(roster) + ") (stateRoster="

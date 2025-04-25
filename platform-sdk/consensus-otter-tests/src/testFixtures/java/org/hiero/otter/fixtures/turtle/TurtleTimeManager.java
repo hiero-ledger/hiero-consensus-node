@@ -4,11 +4,15 @@ package org.hiero.otter.fixtures.turtle;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
 
 /**
@@ -18,6 +22,8 @@ import org.hiero.otter.fixtures.TimeManager;
  * in the turtle network. Time is simulated in the turtle framework.
  */
 public class TurtleTimeManager implements TimeManager {
+
+    private static final Logger log = LogManager.getLogger(TurtleTimeManager.class);
 
     private final FakeTime time;
     private final Duration granularity;
@@ -35,10 +41,21 @@ public class TurtleTimeManager implements TimeManager {
     }
 
     /**
+     * Returns the time source for this simulation.
+     *
+     * @return the time source
+     */
+    public Time time() {
+        return time;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     public void waitFor(@NonNull final Duration waitTime) {
+        log.info("Waiting for {}...", waitTime);
+
         final Instant simulatedStart = time.now();
         final Instant simulatedEnd = simulatedStart.plus(waitTime);
 
@@ -49,6 +66,23 @@ public class TurtleTimeManager implements TimeManager {
                 receiver.tick(now);
             }
         }
+    }
+
+    public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
+        log.debug("Waiting up to {} for condition to become true...", waitTime);
+
+        final Instant simulatedStart = time.now();
+        final Instant simulatedEnd = simulatedStart.plus(waitTime);
+
+        while (!condition.getAsBoolean() && time.now().isBefore(simulatedEnd)) {
+            time.tick(granularity);
+            final Instant now = time.now();
+            for (final TimeTickReceiver receiver : timeTickReceivers) {
+                receiver.tick(now);
+            }
+        }
+
+        return condition.getAsBoolean();
     }
 
     /**

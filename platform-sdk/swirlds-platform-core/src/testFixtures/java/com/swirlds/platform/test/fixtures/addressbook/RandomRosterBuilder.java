@@ -8,7 +8,6 @@ import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.crypto.PublicStores;
-import com.swirlds.platform.crypto.SerializableX509Certificate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +16,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * A utility for generating a random roster.

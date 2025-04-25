@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("hip632ViewFunctions")
 @HapiTestLifecycle
 class AliasTest {
-    @Contract(contract = "HRC632Contract", creationGas = 1_000_000L)
+    @Contract(contract = "HRC632Contract", creationGas = 2_000_000L)
     static SpecContract hrc632Contract;
 
     @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS)

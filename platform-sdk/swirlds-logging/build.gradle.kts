@@ -28,6 +28,8 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("jakarta.inject")
+
+    opensTo("com.swirlds.base.test.fixtures") // injection via reflection
 }
 
 timingSensitiveModuleInfo {
@@ -38,6 +40,8 @@ timingSensitiveModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     runtimeOnly("com.swirlds.common.test.fixtures")
+
+    opensTo("com.swirlds.base.test.fixtures") // injection via reflection
 }
 
 jmhModuleInfo {
