@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -75,6 +76,9 @@ public class TransactionChecker {
     private static final int USER_TRANSACTION_NONCE = 0;
     private static final List<HederaFunctionality> FUNCTIONALITIES_WITH_MAX_CUSTOM_FEES =
             List.of(CONSENSUS_SUBMIT_MESSAGE);
+    // These are inner transactions that are not jumbo but sometimes are bigger than 6kb.
+    private static final List<HederaFunctionality> NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB =
+            List.of(CRS_PUBLICATION, HISTORY_PROOF_VOTE);
 
     // Metric config for keeping track of the number of deprecated transactions received
     private static final String COUNTER_DEPRECATED_TXNS_NAME = "DeprTxnsRcv";
@@ -381,8 +385,7 @@ public class TransactionChecker {
         if (jumboTxnEnabled
                 && txInfo.transaction().protobufSize() > hederaConfig.transactionMaxBytes()
                 && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
-                // CRS_PUBLICATION is a special case. It's not a jumbo transaction, but is bigger than 6kb.
-                && !txInfo.functionality().equals(CRS_PUBLICATION)) {
+                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality())) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
     }
