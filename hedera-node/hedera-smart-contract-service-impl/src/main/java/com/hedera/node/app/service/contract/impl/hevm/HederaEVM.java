@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.DEFAULT_OPS_DURATION;
 
 import java.util.Map;
 import java.util.Optional;
@@ -197,7 +198,7 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                incrementOpsDuration(frame, hederaGasSchedule.getOrDefault(opcode, 0L));
+                incrementOpsDuration(frame, hederaGasSchedule.getOrDefault(opcode, DEFAULT_OPS_DURATION));
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {

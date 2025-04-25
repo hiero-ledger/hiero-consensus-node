@@ -16,6 +16,8 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.recordBuilderFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.DEFAULT_PRECOMPILE_DURATION;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.DEFAULT_SYSTEM_CONTRACT_DURATION;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -28,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,6 +66,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
     private final Map<Address, HederaSystemContract> systemContracts;
+    private final HederaOpsDuration hederaOpsDuration;
 
     private enum ForLazyCreation {
         YES,
@@ -82,12 +86,14 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             @NonNull final FeatureFlags featureFlags,
             @NonNull final PrecompileContractRegistry precompiles,
             @NonNull final AddressChecks addressChecks,
-            @NonNull final Map<Address, HederaSystemContract> systemContracts) {
+            @NonNull final Map<Address, HederaSystemContract> systemContracts,
+            @NonNull final HederaOpsDuration hederaOpsDuration) {
         super(evm, precompiles);
         this.featureFlags = Objects.requireNonNull(featureFlags);
         this.precompiles = Objects.requireNonNull(precompiles);
         this.addressChecks = Objects.requireNonNull(addressChecks);
         this.systemContracts = Objects.requireNonNull(systemContracts);
+        this.hederaOpsDuration = Objects.requireNonNull(hederaOpsDuration);
     }
 
     /**
@@ -215,7 +221,10 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             frame.decrementRemainingGas(gasRequirement);
-            incrementOpsDuration(frame, gasRequirement);
+            final var precompileDuration = hederaOpsDuration
+                    .getPrecompileDuration()
+                    .getOrDefault(frame.getContractAddress().getInt(0), DEFAULT_PRECOMPILE_DURATION);
+            incrementOpsDuration(frame, precompileDuration);
             result = precompile.computePrecompile(frame.getInputData(), frame);
             if (result.isRefundGas()) {
                 frame.incrementRemainingGas(gasRequirement);
@@ -255,7 +264,10 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         } else {
             if (!fullResult.isRefundGas()) {
                 frame.decrementRemainingGas(gasRequirement);
-                incrementOpsDuration(frame, gasRequirement);
+                final var systemContractDuration = hederaOpsDuration
+                        .getSystemContractDuration()
+                        .getOrDefault(frame.getInputData().getLong(0), DEFAULT_SYSTEM_CONTRACT_DURATION);
+                incrementOpsDuration(frame, systemContractDuration);
             }
             result = fullResult.result();
         }

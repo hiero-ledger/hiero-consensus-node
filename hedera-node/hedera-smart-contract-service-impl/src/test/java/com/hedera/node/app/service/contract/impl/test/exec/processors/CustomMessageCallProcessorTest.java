@@ -28,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -106,6 +107,9 @@ class CustomMessageCallProcessorTest {
     @Mock
     private HederaOpsDurationCounter gasCounter;
 
+    @Mock
+    private HederaOpsDuration hederaOpsDuration;
+
     private CustomMessageCallProcessor subject;
 
     @BeforeEach
@@ -115,7 +119,8 @@ class CustomMessageCallProcessorTest {
                 featureFlags,
                 registry,
                 addressChecks,
-                Map.of(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, prngPrecompile));
+                Map.of(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, prngPrecompile),
+                hederaOpsDuration);
     }
 
     @Test
@@ -246,6 +251,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
         given(stack.getLast()).willReturn(frame);
+        given(frame.getContractAddress()).willReturn(Address.ALTBN128_ADD);
 
         subject.start(frame, operationTracer);
 

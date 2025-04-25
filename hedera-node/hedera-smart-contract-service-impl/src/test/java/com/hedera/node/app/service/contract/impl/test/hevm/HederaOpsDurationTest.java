@@ -3,40 +3,36 @@ package com.hedera.node.app.service.contract.impl.test.hevm;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 class HederaOpsDurationTest {
     @Test
-    void loadsGasScheduleSuccessfully() {
-        // Prepare a JSON content representing a valid map
-        String jsonContent = "{\"100\":10000,\"101\":10100}";
-        Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(jsonContent.getBytes());
-        HederaOpsDuration schedule = new HederaOpsDuration(streamSupplier, new ObjectMapper());
+    void testAllDurationsAreLoaded() {
+        String json = "{\"opsDuration\":{\"1\":100},"
+                + "\"precompileDuration\":{\"2\":200},"
+                + "\"systemContractDuration\":{\"3\":300}}";
+        Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(json.getBytes());
+        HederaOpsDuration opsDuration = new HederaOpsDuration(streamSupplier, new ObjectMapper());
 
-        Map<Integer, Long> result = schedule.getOpsDuration();
+        opsDuration.loadOpsDuration();
 
-        assertEquals(2, result.size());
-        assertEquals(10000L, result.get(100));
-        assertEquals(10100L, result.get(101));
+        assertEquals(100, opsDuration.getOpsDuration().get(1));
+        assertEquals(200, opsDuration.getPrecompileDuration().get(2));
+        assertEquals(300, opsDuration.getSystemContractDuration().get(3L));
     }
 
     @Test
-    void throwsOnException() throws IOException {
-        // Mock a supplier that throws an exception when get() is called
-        Supplier<InputStream> streamSupplier = mock(Supplier.class);
-        when(streamSupplier.get()).thenThrow(new RuntimeException("Test exception"));
-        HederaOpsDuration schedule = new HederaOpsDuration(streamSupplier, new ObjectMapper());
+    void testLoadOpsDurationThrowsOnBrokenJson() {
+        String invalidJson = "{\"opsDuration\":";
+        Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(invalidJson.getBytes());
+        HederaOpsDuration opsDuration = new HederaOpsDuration(streamSupplier, new ObjectMapper());
 
-        assertThrows(IllegalStateException.class, () -> schedule.getOpsDuration());
+        assertThrows(IllegalStateException.class, opsDuration::loadOpsDuration);
     }
 }
