@@ -58,7 +58,7 @@ public final class DataFileWriter implements OffHeapUser {
     private long dataItemCount = 0;
 
     /**
-        * Create a new data file with moving mapped byte buffer of 256Mb size.
+     * Create a new data file with moving mapped byte buffer of 256Mb size.
      */
     public DataFileWriter(
             final String filePrefix,
@@ -67,7 +67,7 @@ public final class DataFileWriter implements OffHeapUser {
             final Instant creationTime,
             final int compactionLevel)
             throws IOException {
-        //TODO maybe we can use 128Mb buffer size (see DataFileWriterBenchmark)
+        // TODO maybe we can use 128Mb buffer size (see DataFileWriterBenchmark)
         this(filePrefix, dataFileDir, index, creationTime, compactionLevel, PAGE_SIZE * 1024 * 64);
     }
 
