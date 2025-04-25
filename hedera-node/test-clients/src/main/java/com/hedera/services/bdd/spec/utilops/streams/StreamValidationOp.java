@@ -217,15 +217,15 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static void validateProofs(@NonNull final HapiSpec spec) {
         log.info("Beginning block proof validation for each node in the network");
         spec.getNetworkNodes().forEach(node -> {
-            final var nodeId = node.getNodeId();
-            final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
-
             try {
-                final var highestMarkerFileNumber = BlockStreamAccess.highestMarkerFileNumber(path);
-                final var simulatedBlockNode = spec.getSimulatedBlockNodeById(nodeId);
-                final var lastVerifiedBlock = simulatedBlockNode.getLastVerifiedBlockNumber();
+                final var nodeId = node.getNodeId();
+                final var lastVerifiedBlock =
+                        spec.getSimulatedBlockNodeById(nodeId).getLastVerifiedBlockNumber();
 
-                if (!Objects.equals(highestMarkerFileNumber, lastVerifiedBlock)) {
+                final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
+                final var highestMarkerFileNumber = BlockStreamAccess.highestMarkerFileNumber(path);
+
+                if (!Objects.equals(lastVerifiedBlock, highestMarkerFileNumber)) {
                     Assertions.fail(String.format(
                             "Last marker file {%d} for node %d differs than the last verified block {%d} by the respective block node simulator",
                             highestMarkerFileNumber, nodeId, lastVerifiedBlock));
