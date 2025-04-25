@@ -266,7 +266,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                 frame.decrementRemainingGas(gasRequirement);
                 final var systemContractDuration = hederaOpsDuration
                         .getSystemContractDuration()
-                        .getOrDefault(frame.getInputData().getLong(0), DEFAULT_SYSTEM_CONTRACT_DURATION);
+                        .getOrDefault(frame.getInputData().getInt(0), DEFAULT_SYSTEM_CONTRACT_DURATION);
                 incrementOpsDuration(frame, systemContractDuration);
             }
             result = fullResult.result();

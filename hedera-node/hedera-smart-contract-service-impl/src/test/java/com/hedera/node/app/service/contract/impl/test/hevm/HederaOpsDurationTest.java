@@ -24,7 +24,7 @@ class HederaOpsDurationTest {
 
         assertEquals(100, opsDuration.getOpsDuration().get(1));
         assertEquals(200, opsDuration.getPrecompileDuration().get(2));
-        assertEquals(300, opsDuration.getSystemContractDuration().get(3L));
+        assertEquals(300, opsDuration.getSystemContractDuration().get(3));
     }
 
     @Test
