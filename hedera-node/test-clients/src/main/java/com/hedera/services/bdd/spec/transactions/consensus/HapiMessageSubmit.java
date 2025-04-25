@@ -190,7 +190,7 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
     }
 
     private long lookupCustomFees(final HapiSpec spec) {
-        final var topicId = topicFn.isPresent() ? topicFn.get().apply(spec) : topic.get();
+        final var topicId = topicFn.isPresent() ? topicFn.get().apply(spec) : (topic.orElse(null));
         if (topicId != null) {
             final var subOp = getTopicInfo(topicId.toString()).hasCostAnswerPrecheckFrom(ResponseCodeEnum.OK);
             Optional<Throwable> error = subOp.execFor(spec);
