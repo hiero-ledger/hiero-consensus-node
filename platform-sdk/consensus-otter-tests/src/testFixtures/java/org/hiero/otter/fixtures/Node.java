@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
  * Interface representing a node in the network.
@@ -55,4 +56,12 @@ public interface Node {
      */
     @NonNull
     NodeConfiguration getConfiguration();
+
+    /**
+     * Gets the consensus rounds of the node.
+     *
+     * @return the consensus rounds of the node
+     */
+    @NonNull
+    SingleNodeConsensusResult getConsensusResult();
 }

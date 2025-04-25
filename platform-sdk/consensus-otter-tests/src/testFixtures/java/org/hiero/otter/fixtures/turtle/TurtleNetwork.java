@@ -30,6 +30,10 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.NodeFilter;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
+import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
 
 /**
@@ -194,6 +198,15 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
             fail("Timeout while waiting for nodes to become active.");
         }
+    }
+
+    @NonNull
+    @Override
+    public MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters) {
+        final NodeFilter combined = NodeFilter.andAll(filters);
+        final List<SingleNodeConsensusResult> results =
+                nodes.stream().filter(combined).map(Node::getConsensusResult).toList();
+        return new MultipleNodeConsensusResultsImpl(results);
     }
 
     /**
