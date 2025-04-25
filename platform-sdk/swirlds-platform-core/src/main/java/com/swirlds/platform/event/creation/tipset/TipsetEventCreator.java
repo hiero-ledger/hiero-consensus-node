@@ -13,7 +13,6 @@ import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.event.hashing.UnsignedEventHasher;
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -38,6 +37,7 @@ import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Responsible for creating new events using the tipset algorithm.

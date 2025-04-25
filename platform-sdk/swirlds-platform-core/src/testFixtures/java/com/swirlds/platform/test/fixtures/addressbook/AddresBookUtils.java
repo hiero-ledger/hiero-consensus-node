@@ -3,13 +3,13 @@ package com.swirlds.platform.test.fixtures.addressbook;
 
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.platform.crypto.SerializableX509Certificate;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * Utilities for constructing AddressBook needed for tests

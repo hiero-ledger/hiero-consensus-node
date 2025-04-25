@@ -23,12 +23,12 @@ import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
+import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.consensus.InitJudges;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.util.MarkerFileWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -53,6 +53,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
@@ -357,6 +358,10 @@ public class ConsensusImpl implements Consensus {
                 // - its metadata will be unchanged
                 // - it will not vote
                 // - it will never decide a round
+
+                // The only exception to this the DeGen value. This needs to be recalculated on every round, and all
+                // descendants of decided judges will base their DeGen on them.
+                DeGen.calculateDeGen(insertedEvent);
                 continue;
             }
 
@@ -383,6 +388,9 @@ public class ConsensusImpl implements Consensus {
 
     @Nullable
     private ConsensusRound calculateAndVote(final EventImpl event) {
+        // before we calculate the round of an event, we need to calculate its DeGen value, since it might be needed
+        // to determine an event's round
+        DeGen.calculateDeGen(event);
         // find the roundCreated, and store it using event.setRoundCreated()
         round(event);
         consensusMetrics.addedEvent(event);
@@ -993,8 +1001,10 @@ public class ConsensusImpl implements Consensus {
             } else {
                 final EventImpl lsop = lastSee(op, mm);
                 final EventImpl lssp = lastSee(sp, mm);
-                final long lsopGen = lsop == null ? 0 : lsop.getGeneration();
-                final long lsspGen = lssp == null ? 0 : lssp.getGeneration();
+                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this will be for events
+                // that will not affect consensus, so it makes no difference
+                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
+                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
                 if ((round(lsop) > round(lssp)) || ((lsopGen > lsspGen) && (firstSee(op, mm) == firstSee(sp, mm)))) {
                     x.setLastSee(mm, lsop);
                 } else {

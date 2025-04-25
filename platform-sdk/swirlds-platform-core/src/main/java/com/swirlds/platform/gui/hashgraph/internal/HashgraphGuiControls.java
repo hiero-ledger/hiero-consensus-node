@@ -51,6 +51,8 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     private final Checkbox labelBirthroundCheckbox;
     /** the branch number for the event */
     private final Checkbox labelBranchNumberCheckbox;
+    /** the DeGen value for the event */
+    private final Checkbox labelDeGenCheckbox;
     /** check to display the latest events available */
     private final Checkbox displayLatestEvents;
 
@@ -74,6 +76,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
         labelGenerationCheckbox = new Checkbox("Labels: Generation");
         labelBirthroundCheckbox = new Checkbox("Labels: Birth round");
         labelBranchNumberCheckbox = new Checkbox("Labels: Branch number");
+        labelDeGenCheckbox = new Checkbox("Labels: DeGen");
         displayLatestEvents = new Checkbox("Display latest events");
         displayLatestEvents.setState(true);
 
@@ -113,6 +116,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelGenerationCheckbox,
             labelBirthroundCheckbox,
             labelBranchNumberCheckbox,
+            labelDeGenCheckbox,
             displayLatestEvents
         };
     }
@@ -259,6 +263,11 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
     @Override
     public boolean writeBirthRound() {
         return labelBirthroundCheckbox.getState();
+    }
+
+    @Override
+    public boolean writeDeGen() {
+        return labelDeGenCheckbox.getState();
     }
 
     @Override

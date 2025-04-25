@@ -5,16 +5,19 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
+import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gui.BranchedEventMetadata;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -29,6 +32,7 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;
@@ -37,6 +41,7 @@ public class TestGuiSource {
     private final GuiEventStorage eventStorage;
     private final AncientMode ancientMode;
     private final Map<GossipEvent, BranchedEventMetadata> eventsToBranchMetadata = new HashMap<>();
+    private final OrphanBuffer orphanBuffer;
 
     /**
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
@@ -56,6 +61,7 @@ public class TestGuiSource {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
+        this.orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
     }
 
     public void runGui() {
@@ -63,8 +69,11 @@ public class TestGuiSource {
     }
 
     public void generateEvents(final int numEvents) {
-        final List<PlatformEvent> events = eventProvider.provideEvents(numEvents);
-
+        final List<PlatformEvent> rawEvents = eventProvider.provideEvents(numEvents);
+        final List<PlatformEvent> events = rawEvents.stream()
+                .map(orphanBuffer::handleEvent)
+                .flatMap(Collection::stream)
+                .toList();
         final Map<PlatformEvent, Integer> eventToBranchIndex = getEventToBranchIndex();
         for (final PlatformEvent event : events) {
             if (!eventToBranchIndex.isEmpty() && eventToBranchIndex.containsKey(event)) {
@@ -96,8 +105,13 @@ public class TestGuiSource {
                 Integer.valueOf(Integer.MAX_VALUE),
                 Integer.valueOf(numEventsStep)));
         nextEvent.addActionListener(e -> {
-            final List<PlatformEvent> events = eventProvider.provideEvents(
+            final List<PlatformEvent> rawEvents = eventProvider.provideEvents(
                     numEvents.getValue() instanceof final Integer value ? value : defaultNumEvents);
+
+            final List<PlatformEvent> events = rawEvents.stream()
+                    .map(orphanBuffer::handleEvent)
+                    .flatMap(Collection::stream)
+                    .toList();
 
             final Map<PlatformEvent, Integer> eventToBranchIndex = getEventToBranchIndex();
             for (final PlatformEvent event : events) {

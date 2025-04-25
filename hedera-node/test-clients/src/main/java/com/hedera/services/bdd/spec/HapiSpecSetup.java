@@ -324,6 +324,9 @@ public class HapiSpecSetup {
         return props.get("default.payer.name");
     }
 
+    // (FUTURE) Don't distinguish between default and custom shard/realm in the public contract. Encapsulate each as an
+    // implementation detail instead
+    @Deprecated
     public RealmID defaultRealm() {
         return props.getRealm("default.realm");
     }
@@ -351,6 +354,9 @@ public class HapiSpecSetup {
         return props.getBoolean("default.receiverSigRequired");
     }
 
+    // (FUTURE) Don't distinguish between default and custom shard/realm in the public contract. Encapsulate as an
+    // implementation detail instead
+    @Deprecated
     public ShardID defaultShard() {
         return props.getShard("default.shard");
     }
@@ -534,16 +540,24 @@ public class HapiSpecSetup {
         return props.getLong("status.wait.timeout.ms");
     }
 
+    public long shard() {
+        return props.getShard();
+    }
+
+    public long realm() {
+        return props.getRealm();
+    }
+
     public AccountID nodeRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "801");
+        return asAccount(shard(), realm(), 801L);
     }
 
     public AccountID stakingRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "800");
+        return asAccount(shard(), realm(), 800);
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "802");
+        return asAccount(shard(), realm(), 802);
     }
 
     public String nodeRewardAccountName() {
