@@ -96,8 +96,12 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 contractCreate(CONTRACT_CALLDATA_SIZE));
 
         testLifecycle.overrideInClass(Map.of(
-                "jumboTransactions.maxBytesPerSec", "99999999999", // to avoid throttling
-                "hedera.transaction.maxMemoUtf8Bytes", "10000" // to avoid memo size limit
+                "jumboTransactions.maxBytesPerSec",
+                "99999999999", // to avoid throttling
+                "contracts.throttle.throttleByGas",
+                "false", // to avoid gas throttling
+                "hedera.transaction.maxMemoUtf8Bytes",
+                "10000" // to avoid memo size limit
                 ));
     }
 
