@@ -175,8 +175,7 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
                         ConsensusSubmitMessage, (_txn, _svo) -> usageEstimate(_txn, _svo, spec), txn, numPayerKeys);
     }
 
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo, final HapiSpec spec)
-            throws Throwable {
+    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo, final HapiSpec spec) {
         final var op = txn.getConsensusSubmitMessage();
         final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
         final long numCustomFees = lookupCustomFees(spec);
@@ -191,9 +190,9 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
     }
 
     private long lookupCustomFees(final HapiSpec spec) {
-        final var topicId = resolveTopicId(spec);
-        if (topicId != null && topicId.getTopicNum() != 0 && spec.registry().hasTopicID(String.valueOf(topicId))) {
-            final var subOp = getTopicInfo(String.valueOf(topicId)).hasCostAnswerPrecheckFrom(ResponseCodeEnum.OK);
+        final var topicId = topicFn.isPresent() ? topicFn.get().apply(spec) : topic.get();
+        if (topicId != null) {
+            final var subOp = getTopicInfo(topicId.toString()).hasCostAnswerPrecheckFrom(ResponseCodeEnum.OK);
             Optional<Throwable> error = subOp.execFor(spec);
             if (error.isPresent()) {
                 if (!loggingOff) {
