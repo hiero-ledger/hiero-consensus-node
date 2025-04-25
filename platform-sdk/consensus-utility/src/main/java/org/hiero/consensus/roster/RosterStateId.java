@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common;
+package org.hiero.consensus.roster;
 
 /**
  * A class with constants identifying Roster entities in state.

@@ -3,6 +3,8 @@ package com.hedera.services.bdd.junit;
 
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
@@ -61,16 +63,16 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             embedding = embeddingMode();
             final HederaNetwork network =
                     switch (embedding) {
-                            // Embedding is not applicable for a subprocess network
+                        // Embedding is not applicable for a subprocess network
                         case NA -> {
                             final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
                                     .map(Boolean::parseBoolean)
                                     .orElse(false);
                             yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork();
                         }
-                            // For the default Test task, we need to run some tests in concurrent embedded mode and
-                            // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
-                            // annotation; this PER_CLASS value supports that requirement
+                        // For the default Test task, we need to run some tests in concurrent embedded mode and
+                        // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
+                        // annotation; this PER_CLASS value supports that requirement
                         case PER_CLASS -> null;
                         case CONCURRENT -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.CONCURRENT);
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
@@ -119,11 +121,20 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             final int networkSize = Optional.ofNullable(System.getProperty("hapi.spec.network.size"))
                     .map(Integer::parseInt)
                     .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
+
+            final long shard = Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
+                    .map(Long::parseLong)
+                    .orElse((long) SHARD);
+            final long realm = Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
+                    .map(Long::parseLong)
+                    .orElse(REALM);
+
             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
             if (!initialPortProperty.isBlank()) {
                 final var initialPort = Integer.parseInt(initialPortProperty);
                 SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
             }
+
             final var prepareUpgradeOffsetsProperty = System.getProperty("hapi.spec.prepareUpgradeOffsets");
             if (prepareUpgradeOffsetsProperty != null) {
                 final List<Duration> offsets = Arrays.stream(prepareUpgradeOffsetsProperty.split(","))
@@ -135,7 +146,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     HapiSpec.doDelayedPrepareUpgrades(offsets);
                 }
             }
-            SubProcessNetwork subProcessNetwork = (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize);
+            SubProcessNetwork subProcessNetwork =
+                    (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize, shard, realm);
 
             // Check for the blocknode mode system property
             String blockNodeModeProperty = System.getProperty("hapi.spec.blocknode.mode");

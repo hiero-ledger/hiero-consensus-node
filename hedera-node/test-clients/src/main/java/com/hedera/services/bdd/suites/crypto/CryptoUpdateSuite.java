@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -36,7 +35,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -130,9 +129,9 @@ public class CryptoUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(
-                cryptoCreate("user").stakedAccountId(asEntityString(20)).declinedReward(true),
+                cryptoCreate("user").stakedAccountId("20").declinedReward(true),
                 submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoUpdate("user")
-                        .newStakedAccountId(asEntityString(21))));
+                        .newStakedAccountId("21")));
     }
 
     private static final UnaryOperator<String> ROTATION_TXN = account -> account + "KeyRotation";
@@ -158,7 +157,7 @@ public class CryptoUpdateSuite {
                 .toArray(String[]::new);
         return hapiTest(flatten(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         visibleNonSyntheticItems(keyRotationsValidator(accountsToHaveKeysRotated), allTxnIds),
                         Duration.ofSeconds(15)),
                 // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
@@ -236,13 +235,10 @@ public class CryptoUpdateSuite {
     final Stream<DynamicTest> updateStakingFieldsWorks() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate("user")
-                        .key(ADMIN_KEY)
-                        .stakedAccountId(asEntityString(20))
-                        .declinedReward(true),
+                cryptoCreate("user").key(ADMIN_KEY).stakedAccountId("20").declinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountId(asEntityString(20))
+                                .stakedAccountId("20")
                                 .noStakingNodeId()
                                 .isDeclinedReward(true)),
                 cryptoUpdate("user").newStakedNodeId(0L).newDeclinedReward(false),
@@ -252,13 +248,10 @@ public class CryptoUpdateSuite {
                 cryptoUpdate("user").newStakedNodeId(-25L).hasKnownStatus(INVALID_STAKING_ID),
                 getAccountInfo("user")
                         .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(false)),
-                cryptoUpdate("user")
-                        .key(ADMIN_KEY)
-                        .newStakedAccountId(asEntityString(20))
-                        .newDeclinedReward(true),
+                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("20").newDeclinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountId(asEntityString(20))
+                                .stakedAccountId("20")
                                 .noStakingNodeId()
                                 .isDeclinedReward(true))
                         .logged(),
@@ -373,7 +366,7 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> sysAccountKeyUpdateBySpecialWontNeedNewKeyTxnSign() {
-        String sysAccount = asEntityString(99);
+        String sysAccount = "99";
         String randomAccount = "randomAccount";
         String firstKey = "firstKey";
         String secondKey = "secondKey";

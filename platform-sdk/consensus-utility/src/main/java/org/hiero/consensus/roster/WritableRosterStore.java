@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state.service;
+package org.hiero.consensus.roster;
 
 import static java.util.Objects.requireNonNull;
 
@@ -10,8 +10,6 @@ import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.roster.RosterValidator;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -90,7 +88,7 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     /**
      * Sets the Active roster.
      * This will be called to store a new Active Roster in the state.
-     * The roster must be valid according to rules codified in {@link com.swirlds.platform.roster.RosterValidator}.
+     * The roster must be valid according to rules codified in {@link RosterValidator}.
      *
      * @param roster an active roster to set
      * @param round  the round number in which the roster became active.

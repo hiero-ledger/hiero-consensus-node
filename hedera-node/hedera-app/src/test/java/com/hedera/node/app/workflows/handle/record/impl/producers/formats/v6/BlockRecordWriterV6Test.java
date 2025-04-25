@@ -360,7 +360,11 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             // Check that the sidecar file exists (if the block records produced any sidecars)
             final var sidecarPath = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.rcd.gz");
+            final var sidecarMarker = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.mf");
             assertThat(Files.exists(sidecarPath)).isEqualTo(hasSidecars);
+            assertThat(Files.exists(sidecarMarker)).isEqualTo(hasSidecars);
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isEqualTo(hasSidecars);
         }
 
         @Test
@@ -413,6 +417,8 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             assertThat(logCaptor.warnLogs()).hasSizeGreaterThan(0);
             assertThat(logCaptor.warnLogs()).allMatch(msg -> msg.contains("sidecar"));
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isFalse();
         }
     }
 
@@ -463,6 +469,17 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             assertThat(logCaptor.warnLogs())
                     .matches(logs -> logs.getFirst().contains("Error closing sidecar file")
                             && logs.getLast().contains("Error closing record file"));
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isFalse();
+        }
+    }
+
+    private boolean anyMarkerFilesExist(Path dir) {
+        if (!dir.getFileSystem().isOpen() || Files.notExists(dir)) return false;
+        try (Stream<Path> paths = Files.walk(dir, 2)) {
+            return paths.anyMatch(p -> p.toString().endsWith(".mf"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

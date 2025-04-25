@@ -3,9 +3,9 @@ package com.swirlds.platform.state.address;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.roster.RosterRetriever.retrieveActive;
-import static com.swirlds.platform.roster.RosterUtils.buildAddressBook;
 import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
+import static org.hiero.consensus.roster.RosterRetriever.retrieveActive;
+import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.AddressBookConfig;

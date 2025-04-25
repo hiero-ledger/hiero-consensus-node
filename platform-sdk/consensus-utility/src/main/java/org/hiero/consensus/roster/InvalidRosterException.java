@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.roster;
+package org.hiero.consensus.roster;
 
 /**
  * An exception thrown by the RosterValidator when a given Roster is invalid.

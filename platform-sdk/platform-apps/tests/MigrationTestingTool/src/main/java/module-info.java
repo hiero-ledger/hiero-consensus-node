@@ -18,6 +18,7 @@ module com.swirlds.demo.migration {
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires java.logging;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;

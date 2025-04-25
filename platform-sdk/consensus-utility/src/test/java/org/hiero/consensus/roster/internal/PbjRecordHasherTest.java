@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.util;
+package org.hiero.consensus.roster.internal;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
