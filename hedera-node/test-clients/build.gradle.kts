@@ -233,17 +233,11 @@ tasks.register<Test>("testSubprocess") {
             .findFirst()
             .orElse("")
     systemProperty("hapi.spec.initial.port", initialPort)
-    val defaultShard = 11
-    val defaultRealm = 12
-    systemProperty("hapi.spec.default.shard", defaultShard)
-    systemProperty("hapi.spec.default.realm", defaultRealm)
 
     // Gather overrides into a single comma‐separated list
     val testOverrides =
         gradle.startParameter.taskNames
             .mapNotNull { prCheckPropOverrides[it] }
-            .plus("hedera.shard=$defaultShard")
-            .plus("hedera.realm=$defaultRealm")
             .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
