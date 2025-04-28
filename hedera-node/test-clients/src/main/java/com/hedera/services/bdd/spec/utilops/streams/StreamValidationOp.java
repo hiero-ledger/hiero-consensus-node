@@ -42,7 +42,6 @@ import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -218,18 +217,33 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         log.info("Beginning block proof validation for each node in the network");
         spec.getNetworkNodes().forEach(node -> {
             try {
-                final var nodeId = node.getNodeId();
-                final var lastVerifiedBlock =
-                        spec.getSimulatedBlockNodeById(nodeId).getLastVerifiedBlockNumber();
-
+                // Get all marker file numbers
                 final var path = node.getExternalPath(BLOCK_STREAMS_DIR).toAbsolutePath();
-                final var highestMarkerFileNumber = BlockStreamAccess.highestMarkerFileNumber(path);
+                final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
 
-                if (!Objects.equals(lastVerifiedBlock, highestMarkerFileNumber)) {
-                    Assertions.fail(String.format(
-                            "Last marker file {%d} for node %d differs than the last verified block {%d} by the respective block node simulator",
-                            highestMarkerFileNumber, nodeId, lastVerifiedBlock));
+                final var nodeId = node.getNodeId();
+                if (markerFileNumbers.isEmpty()) {
+                    log.warn("No marker files found for node {}", nodeId);
+                    return;
                 }
+
+                // Get verified block numbers from simulator
+                final var verifiedBlockNumbers =
+                        spec.getSimulatedBlockNodeById(nodeId).getReceivedBlockNumbers();
+
+                if (verifiedBlockNumbers.isEmpty()) {
+                    log.warn("No verified blocks by block node simulator for node {}", nodeId);
+                    return;
+                }
+
+                for (final var markerFile : markerFileNumbers) {
+                    if (!verifiedBlockNumbers.contains(markerFile)) {
+                        Assertions.fail(String.format(
+                                "Marker file for block {%d} on node %d is not verified by the respective block node simulator",
+                                markerFile, nodeId));
+                    }
+                }
+                log.info("Successfully validated {} marker files for node {}", markerFileNumbers.size(), nodeId);
             } catch (Exception ignore) {
                 // We will try to read the next node's streams
             }

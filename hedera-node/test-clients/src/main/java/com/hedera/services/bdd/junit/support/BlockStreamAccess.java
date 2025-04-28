@@ -25,10 +25,13 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
@@ -64,14 +67,15 @@ public enum BlockStreamAccess {
      * and returns the latest marker file with the highest block number.
      *
      * @param path the path to read blocks from
-     * @return the list of blocks
+     * @return the ascending set of block marker file numbers
      * @throws UncheckedIOException if an I/O error occurs
      */
-    public static Long highestMarkerFileNumber(@NonNull final Path path) {
+    public static Set<Long> getAllMarkerFileNumbers(@NonNull final Path path) {
         try (final var stream = Files.walk(path)) {
             return stream.map(BlockStreamAccess::extractMarkerFileNumber)
-                    .max(comparing(Long::valueOf))
-                    .orElseThrow();
+                    .filter(num -> num != -1)
+                    .sorted()
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
         } catch (IOException e) {
             log.error("Failed to read blocks from path {}", path, e);
             throw new UncheckedIOException(e);
