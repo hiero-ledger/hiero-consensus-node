@@ -57,7 +57,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -300,7 +299,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
 
         StakingValidator.validateStakedIdForUpdate(
-                context.configuration().getConfigData(StakingConfig.class).isEnabled(),
                 op.hasDeclineReward(),
                 op.stakedId().kind().name(),
                 op.stakedAccountId(),

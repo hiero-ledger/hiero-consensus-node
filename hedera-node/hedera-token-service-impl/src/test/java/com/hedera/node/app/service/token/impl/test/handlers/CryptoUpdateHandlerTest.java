@@ -15,7 +15,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.STAKING_NOT_ENABLED;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -340,37 +339,6 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_STAKING_ID));
         assertEquals(-1, writableStore.get(updateAccountId).stakedNodeId());
-    }
-
-    @Test
-    void rejectsStakedIdIfStakingDisabled() {
-        final var txn = new CryptoUpdateBuilder().withStakedAccountId(3).build();
-        givenTxnWith(txn);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("staking.isEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(STAKING_NOT_ENABLED));
-        assertNull(writableStore.get(updateAccountId).stakedNodeId());
-    }
-
-    @Test
-    void rejectsDeclineRewardUpdateIfStakingDisabled() {
-        final var txn = new CryptoUpdateBuilder().withDeclineReward(false).build();
-        givenTxnWith(txn);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("staking.isEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(config);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(STAKING_NOT_ENABLED));
-        assertNull(writableStore.get(updateAccountId).stakedNodeId());
     }
 
     @Test
