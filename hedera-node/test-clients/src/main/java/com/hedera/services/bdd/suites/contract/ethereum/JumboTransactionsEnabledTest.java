@@ -166,7 +166,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
             return positiveBoundariesTestCases.flatMap(test -> {
                 var payload = new byte[test.txnSize];
                 return hapiTest(
-                        prepareFakeUpgrade(),
                         logIt("Valid Jumbo Txn | Size: " + (test.txnSize / 1024) + "KB | Type: " + test.type
                                 + " | GasLimit: " + test.gasLimit + " | ExpectedGas: " + test.expectedGas),
                         newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
