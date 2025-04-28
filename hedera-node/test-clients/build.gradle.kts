@@ -99,8 +99,12 @@ val prCheckStartPorts =
         "hapiTestIss" to "26400",
         "hapiTestMisc" to "26800",
     )
+val defaultShard = 11
+val defaultRealm = 12
 val prCheckPropOverrides =
     mapOf(
+        "hapiTestNDReconnect" to
+            "hapi.spec.default.shard=$defaultShard,hapi.spec.default.realm=$defaultRealm,hedera.shard=$defaultShard,hedera.realm=$defaultRealm",
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
@@ -229,11 +233,17 @@ tasks.register<Test>("testSubprocess") {
             .findFirst()
             .orElse("")
     systemProperty("hapi.spec.initial.port", initialPort)
+    val defaultShard = 11
+    val defaultRealm = 12
+    systemProperty("hapi.spec.default.shard", defaultShard)
+    systemProperty("hapi.spec.default.realm", defaultRealm)
 
     // Gather overrides into a single comma‐separated list
     val testOverrides =
         gradle.startParameter.taskNames
             .mapNotNull { prCheckPropOverrides[it] }
+            .plus("hedera.shard=$defaultShard")
+            .plus("hedera.realm=$defaultRealm")
             .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
