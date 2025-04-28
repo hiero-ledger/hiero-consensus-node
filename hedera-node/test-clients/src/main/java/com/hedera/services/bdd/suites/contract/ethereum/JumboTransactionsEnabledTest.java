@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
-import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
+import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -40,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.queries.meta.AccountCreationDetails;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
@@ -57,13 +55,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Tag(UPGRADE)
-@Order(Integer.MAX_VALUE - 2)
+@Tag(SMART_CONTRACT)
 @HapiTestLifecycle
-@OrderedInIsolation
 public class JumboTransactionsEnabledTest implements LifecycleTest {
 
     private static final String CONTRACT_CALLDATA_SIZE = "CalldataSize";
@@ -99,44 +94,18 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
                 uploadInitCode(CONTRACT_CALLDATA_SIZE),
                 contractCreate(CONTRACT_CALLDATA_SIZE));
+
+        testLifecycle.overrideInClass(Map.of(
+                "jumboTransactions.maxBytesPerSec",
+                "99999999999", // to avoid throttling
+                "contracts.throttle.throttleByGas",
+                "false", // to avoid gas throttling
+                "hedera.transaction.maxMemoUtf8Bytes",
+                "10000" // to avoid memo size limit
+                ));
     }
 
     @HapiTest
-    @Order(1)
-    @DisplayName("Jumbo transaction should fail if feature flag is disabled")
-    public Stream<DynamicTest> jumboTransactionDisabled() {
-
-        final var jumboPayload = new byte[10 * 1024];
-        return hapiTest(
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
-                        .payingWith(RELAYER)
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .markAsJumboTxn()
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .gasLimit(1_000_000L)
-                        // gRPC request terminated immediately
-                        .orUnavailableStatus());
-    }
-
-    @HapiTest
-    @Order(2)
-    @DisplayName("Update the config before running Jumbo txns")
-    public Stream<DynamicTest> updateTheConfig() {
-        return hapiTest(
-                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
-                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(
-                        Map.of(
-                                "jumboTransactions.isEnabled", "true",
-                                "hedera.transaction.maxMemoUtf8Bytes", "10000"),
-                        noOp()));
-    }
-
-    @HapiTest
-    @Order(3)
     @DisplayName("Jumbo transaction should pass")
     public Stream<DynamicTest> jumboTransactionShouldPass() {
         final var jumboPayload = new byte[10 * 1024];
@@ -177,7 +146,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @Nested
-    @OrderedInIsolation
     @DisplayName("Jumbo Ethereum Transactions Positive Tests")
     class JumboEthereumTransactionsPositiveTests {
 
@@ -193,7 +161,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                         MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 7_200_000));
 
         @HapiTest
-        @Order(5)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
         public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
             return positiveBoundariesTestCases.flatMap(test -> {
@@ -215,7 +182,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
-        @Order(6)
         @DisplayName("Jumbo Ethereum txn works when alias account is updated to threshold key")
         // JUMBO_P_13
         public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
@@ -268,7 +234,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
-        @Order(7)
         @DisplayName("Jumbo transaction with multiple signatures should pass")
         // JUMBO_P_13
         public Stream<DynamicTest> jumboTransactionWithMultipleSignaturesShouldPass() {
@@ -298,7 +263,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     }
 
     @Nested
-    @OrderedInIsolation
     @DisplayName("Jumbo Ethereum Transactions Negative Tests")
     class JumboEthereumTransactionsNegativeTests {
 
@@ -319,7 +283,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
-        @Order(8)
         @DisplayName("Jumbo transaction send to the wrong gRPC endpoint")
         // JUMBO_N_03, JUMBO_N_04, JUMBO_N_05, JUMBO_N_06
         public Stream<DynamicTest> sendToTheWrongGRPCEndpoint() {
@@ -368,7 +331,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail for above max size data with TRANSACTION_OVERSIZE")
-        @Order(9)
         // JUMBO_N_01
         public Stream<DynamicTest> jumboTxnWithAboveMaxDataShouldFail() {
             return aboveMaxCases.flatMap(test -> {
@@ -391,7 +353,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail for oversized data with grpc unavailable status")
-        @Order(10)
         // JUMBO_N_02
         public Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
             return oversizedCases.flatMap(test -> hapiTest(
@@ -404,7 +365,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
-        @Order(11)
         @DisplayName("Allows Ethereum jumbo contract create jumbo above max transaction size of 6kb")
         public Stream<DynamicTest> ethereumContractCreateJumboTxnMoreThen6Kb() {
             final var contract = "TokenCreateContract";
@@ -427,7 +387,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail with corrupted payload")
-        @Order(12)
         // JUMBO_N_17
         public Stream<DynamicTest> jumboTxnWithCorruptedPayloadShouldFail() {
             var corruptedTypes = Stream.of(
@@ -448,7 +407,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
-        @Order(13)
         @DisplayName("Non-jumbo transaction bigger then 6kb should fail")
         // JUMBO_N_07
         public Stream<DynamicTest> nonJumboTransactionBiggerThen6kb() {
@@ -461,7 +419,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
-        @Order(14)
         @DisplayName("Three jumbo transactions one after the other")
         // JUMBO_N_08
         public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
@@ -489,7 +446,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail with wrong signature")
-        @Order(15)
         // JUMBO_N_16
         public Stream<DynamicTest> jumboTxnWithWrongSignatureShouldFail() {
             var payload = new byte[10 * 1024];
@@ -506,7 +462,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
-        @Order(16)
         @DisplayName("Mix of jumbo and non-jumbo transactions")
         public Stream<DynamicTest> mixOfJumboAndNonJumboTransactions() {
             final var payload = new byte[50 * 1024];
@@ -525,7 +480,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @HapiTest
         @DisplayName("Jumbo Ethereum transactions should fail due to insufficient payer balance")
-        @Order(17)
         // JUMBO_N_14
         public Stream<DynamicTest> jumboTxnWithInsufficientPayerBalanceShouldFail() {
             return insufficientFeeCases.flatMap(txnSize -> hapiTest(
