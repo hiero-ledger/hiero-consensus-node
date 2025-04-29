@@ -139,8 +139,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     HapiSpec.doDelayedPrepareUpgrades(offsets);
                 }
             }
-            SubProcessNetwork subProcessNetwork =
-                    (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize, getConfigShard(), getConfigRealm());
+            SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
+                    SubProcessNetwork.newSharedNetwork(networkSize, getConfigShard(), getConfigRealm());
 
             // Check for the blocknode mode system property
             String blockNodeModeProperty = System.getProperty("hapi.spec.blocknode.mode");
