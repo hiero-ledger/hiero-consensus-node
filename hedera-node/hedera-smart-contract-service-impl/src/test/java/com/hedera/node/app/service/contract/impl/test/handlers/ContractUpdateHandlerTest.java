@@ -503,7 +503,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .transactionID(transactionID)
                 .build();
         when(context.body()).thenReturn(txn);
-        when(context.configuration()).thenReturn(configuration);
         when(contract.copyBuilder()).thenReturn(mock(Builder.class));
         when(context.savepointStack()).thenReturn(stack);
         when(stack.getBaseBuilder(ContractUpdateStreamBuilder.class)).thenReturn(recordBuilder);
@@ -732,7 +731,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .transactionID(transactionID)
                 .build();
         when(context.body()).thenReturn(txn);
-        when(context.configuration()).thenReturn(configuration);
         when(contract.copyBuilder()).thenReturn(mock(Builder.class));
         when(context.savepointStack()).thenReturn(stack);
         when(stack.getBaseBuilder(ContractUpdateStreamBuilder.class)).thenReturn(recordBuilder);
