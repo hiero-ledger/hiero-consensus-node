@@ -282,13 +282,13 @@ public class TxnUtils {
     }
 
     public static TokenID asTokenId(final String s, final HapiSpec lookupSpec) {
-            if (isIdLiteral(s)) {
-                return asToken(s);
-            }
-            if (isNumericLiteral(s)) {
-                return asToken(String.valueOf(lookupSpec.shard()), String.valueOf(lookupSpec.realm()), s);
-            }
-            return lookupSpec.registry().getTokenID(s);
+        if (isIdLiteral(s)) {
+            return asToken(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asToken(String.valueOf(lookupSpec.shard()), String.valueOf(lookupSpec.realm()), s);
+        }
+        return lookupSpec.registry().getTokenID(s);
     }
 
     public static ScheduleID asScheduleId(final String s, final HapiSpec lookupSpec) {
