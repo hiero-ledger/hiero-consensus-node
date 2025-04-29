@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.network;
 
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.UncheckedSubmit;
 
 import com.google.common.base.MoreObjects;
@@ -38,6 +39,9 @@ public class HapiUncheckedSubmit<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiU
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
+        if (subOp.getNodeNum().isPresent()) {
+            subOp.setNodeId(asId(subOp.getNodeNum().get(), spec));
+        }
         final var subOpBytes = subOp.serializeSignedTxnFor(spec);
         if (verboseLoggingOn) {
             log.info("Submitting unchecked: {}", CommonUtils.extractTransactionBody(Transaction.parseFrom(subOpBytes)));

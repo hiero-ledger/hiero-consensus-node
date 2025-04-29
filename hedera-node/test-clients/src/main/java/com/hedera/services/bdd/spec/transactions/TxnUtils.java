@@ -242,7 +242,13 @@ public class TxnUtils {
     }
 
     public static AccountID asId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asAccount(s) : lookupSpec.registry().getAccountID(s);
+        if (isIdLiteral(s)) {
+            return asAccount(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getAccountID(s);
     }
 
     public static AccountID asIdForKeyLookUp(final String s, final HapiSpec lookupSpec) {
@@ -285,7 +291,13 @@ public class TxnUtils {
     }
 
     public static FileID asFileId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asFile(s) : lookupSpec.registry().getFileId(s);
+        if (isIdLiteral(s)) {
+            return asFile(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asFile(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getFileId(s);
     }
 
     public static EntityNumber asNodeId(final String s, final HapiSpec lookupSpec) {

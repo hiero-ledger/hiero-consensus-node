@@ -263,7 +263,7 @@ public class ConcurrentIntegrationTests {
                 // Add a node to the candidate roster
                 nodeCreate("node4")
                         .adminKey(DEFAULT_PAYER)
-                        .accountId(classicFeeCollectorIdFor(4))
+                        .accountNum(classicFeeCollectorIdFor(4))
                         .description(CLASSIC_NODE_NAMES[4])
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 mutateNode("4", node -> node.weight(123)),

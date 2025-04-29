@@ -24,8 +24,8 @@ import java.util.stream.IntStream;
 public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork {
     private static final String REMOTE_NETWORK_NAME = "JRS_SCOPE";
 
-    private long shard;
-    private long realm;
+    private final long shard;
+    private final long realm;
 
     private RemoteNetwork(
             @NonNull final String networkName,

@@ -342,8 +342,8 @@ public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
                 creation.model()
                         .copyBuilder()
                         .accountId(AccountID.newBuilder()
-                                .shardNum(Long.parseLong(SHARD))
-                                .realmNum(Long.parseLong(REALM))
+                                .shardNum(spec.shard())
+                                .realmNum(spec.realm())
                                 .accountNum(creation.op().numOfCreatedAccount())
                                 .build())
                         .key(toPbj(creation.op().getKey()))
@@ -361,8 +361,8 @@ public class SpecAccount extends AbstractSpecEntity<HapiCryptoCreate, Account>
                     .saveAccountId(
                             name,
                             com.hederahashgraph.api.proto.java.AccountID.newBuilder()
-                                    .setShardNum(Long.parseLong(SHARD))
-                                    .setRealmNum(Long.parseLong(REALM))
+                                    .setShardNum(model.accountIdOrThrow().shardNum())
+                                    .setRealmNum(model.accountIdOrThrow().realmNum())
                                     .setAccountNum(model.accountIdOrThrow().accountNumOrThrow())
                                     .build());
             if (model.receiverSigRequired()) {
