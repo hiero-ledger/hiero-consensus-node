@@ -19,6 +19,8 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_M
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.stateNameOf;
 import static com.hedera.services.bdd.junit.support.validators.block.ChildHashUtils.hashesByName;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.getConfigRealm;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
@@ -165,7 +167,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                 16,
                 HintsEnabled.YES,
                 HistoryEnabled.NO,
-                hintsThresholdDenominator);
+                hintsThresholdDenominator,
+                getConfigShard(),
+                getConfigRealm());
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
         validator.validateBlocks(blocks);
@@ -222,7 +226,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                     isHistoryEnabled ? HistoryEnabled.YES : HistoryEnabled.NO,
                     Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
                             .map(Long::parseLong)
-                            .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR));
+                            .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
+                    spec.shard(),
+                    spec.realm());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -236,7 +242,9 @@ public class StateChangesValidator implements BlockStreamValidator {
             final int crsSize,
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
-            final long hintsThresholdDenominator) {
+            final long hintsThresholdDenominator,
+            final long shard,
+            final long realm) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
         this.hintsThresholdDenominator = hintsThresholdDenominator;
@@ -250,6 +258,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));
         System.setProperty("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES));
         System.setProperty("tss.initialCrsParties", "" + crsSize);
+        System.setProperty("hedera.shard", String.valueOf(shard));
+        System.setProperty("hedera.realm", String.valueOf(realm));
+
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
@@ -456,10 +467,10 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var itemSerialized = BlockItem.PROTOBUF.toBytes(item);
         final var digest = sha384DigestOrThrow();
         switch (item.item().kind()) {
-            case EVENT_HEADER, EVENT_TRANSACTION, ROUND_HEADER -> inputTreeHasher.addLeaf(
-                    ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, STATE_CHANGES, BLOCK_HEADER -> outputTreeHasher.addLeaf(
-                    ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+            case EVENT_HEADER, EVENT_TRANSACTION, ROUND_HEADER ->
+                inputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, STATE_CHANGES, BLOCK_HEADER ->
+                outputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
             default -> {
                 // Other items are not part of the input/output trees
             }
