@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
@@ -56,6 +57,14 @@ public interface Node {
      */
     @NonNull
     NodeConfiguration getConfiguration();
+
+    /**
+     * Gets the self id of the node. This value can be used to identify a node.
+     *
+     * @return the self id
+     */
+    @NonNull
+    NodeId getSelfId();
 
     /**
      * Gets the consensus rounds of the node.
