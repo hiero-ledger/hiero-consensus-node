@@ -395,7 +395,7 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
 
     @Test
     void handleHasNftTransfersButNftsNotEnabled() {
-        config = defaultConfig().withValue("tokens.nfts.areEnabled", false).getOrCreateConfig();
+        config = defaultConfig().getOrCreateConfig();
         final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
                 .token(TOKEN_2468)
                 .nftTransfers(SERIAL_1_FROM_3333_TO_4444)
@@ -683,7 +683,6 @@ class CryptoTransferHandlerTest extends CryptoTransferHandlerTestBase {
         return HederaTestConfigBuilder.create()
                 .withValue("ledger.transfers.maxLen", 10)
                 .withValue("ledger.tokenTransfers.maxLen", 10)
-                .withValue("tokens.nfts.areEnabled", true)
                 .withValue("ledger.nftTransfers.maxLen", 10);
     }
 }
