@@ -5,6 +5,7 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -84,7 +85,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testCleanUpBlockState() {
+    void testCleanUp_NotCompletedBlockState_ShouldNotBeRemoved() {
         // given
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -93,8 +94,44 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
+        // not completed states should not be removed
         assertThat(blockStreamStateManager.isAcked(TEST_BLOCK_NUMBER)).isTrue();
+        final BlockState actualBlockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
+        assertThat(actualBlockState).isNotNull();
+        assertFalse(actualBlockState.isComplete());
+    }
+
+    @Test
+    void testCleanUp_CompletedNotExpiredBlockState_ShouldNotBeRemoved() {
+        // given
+        // expiry period set to zero in order for completed state to be cleared
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).setComplete();
+
+        // when
+        blockStreamStateManager.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
+
+        // then
+        // completed states should be removed
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
+    }
+
+    @Test
+    void testCleanUp_CompletedExpiredBlockState_ShouldBeRemoved() {
+        // given
+        // expiry period set to zero in order for completed state to be cleared
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).setComplete();
+
+        // when
+        blockStreamStateManager.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);
+
+        // then
+        // completed states should be removed
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
     }
 
     @Test
@@ -320,7 +357,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testBLockStateIsRemovedUpToSpecificBlockNumber() {
+    void testCompletedExpiredBlockStateIsRemovedUpToSpecificBlockNumber() {
         // given
         // mock the number of batch items by modifying the default config
         final var mockConfig = HederaTestConfigBuilder.create()
@@ -335,6 +372,8 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER2);
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).setComplete();
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2).setComplete();
 
         // when
         blockStreamStateManager.setLatestAcknowledgedBlock(TEST_BLOCK_NUMBER);

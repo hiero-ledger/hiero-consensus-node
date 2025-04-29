@@ -18,12 +18,12 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
+import java.time.Duration;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
 
@@ -47,7 +47,8 @@ public interface BlockStreamModule {
     @Singleton
     static BlockStreamStateManager provideBlockStreamStateManager(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        return new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        final Duration expiryPeriod = Duration.ofMinutes(5L);
+        return new BlockStreamStateManager(configProvider, blockStreamMetrics, expiryPeriod);
     }
 
     @Provides
@@ -65,8 +66,8 @@ public interface BlockStreamModule {
     @Provides
     @Singleton
     static BlockStreamMetrics provideBlockStreamMetrics(
-            @NonNull final NetworkInfo networkInfo, @NonNull final Metrics metrics) {
-        return new BlockStreamMetrics(metrics, networkInfo);
+            @NonNull final NodeInfo selfNodeInfo, @NonNull final Metrics metrics) {
+        return new BlockStreamMetrics(metrics, selfNodeInfo);
     }
 
     @Provides

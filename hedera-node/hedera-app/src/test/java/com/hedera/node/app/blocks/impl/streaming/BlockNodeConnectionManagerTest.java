@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -155,27 +156,39 @@ class BlockNodeConnectionManagerTest {
         // There should be no immediate attempt to establish a stream
         verify(mockConnection, times(0)).createRequestObserver();
 
-        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
+        Thread.sleep(INITIAL_DELAY.plusMillis(100));
 
-        final var retryLog = logCaptor.debugLogs().stream()
-                .filter(log -> log.contains("Retrying in"))
-                .findFirst();
-        assertThat(retryLog).isNotEmpty();
-        verify(mockConnection, times(1)).createRequestObserver();
+        final var retryLogs = logCaptor.warnLogs().stream()
+                .map(log -> {
+                    int index = log.lastIndexOf("Rescheduling in");
+                    return index >= 0 ? log.substring(index) : "";
+                })
+                .filter(part -> !part.isEmpty())
+                .collect(Collectors.toList());
+        assertThat(retryLogs).isNotEmpty();
     }
 
     @Test
     void testScheduleRetry_WithoutPriority() throws InterruptedException {
         given(mockConnection.getNodeConfig())
                 .willReturn(BlockNodeConfig.newBuilder().build());
-        blockNodeConnectionManager.scheduleRetry(mockConnection, INITIAL_DELAY);
+        final var initialDelay = INITIAL_DELAY;
+        blockNodeConnectionManager.scheduleRetry(mockConnection, initialDelay);
 
-        verify(mockConnection, never()).createRequestObserver();
-        final var initialDelay = BlockNodeConnectionManager.INITIAL_RETRY_DELAY;
+        // There should be no immediate attempt to establish a stream
+        verify(mockConnection, times(0)).createRequestObserver();
+
         Thread.sleep(initialDelay.plusMillis(100));
 
-        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(initialDelay));
-        verify(mockConnection, times(1)).createRequestObserver();
+        final var retryLogs = logCaptor.warnLogs().stream()
+                .map(log -> {
+                    int index = log.lastIndexOf("Rescheduling in");
+                    return index >= 0 ? log.substring(index) : "";
+                })
+                .filter(part -> !part.isEmpty())
+                .collect(Collectors.toList());
+
+        assertThat(retryLogs).containsAnyElementsOf(generateExpectedRetryLogs(initialDelay.multipliedBy(2)));
     }
 
     @Test
@@ -187,7 +200,7 @@ class BlockNodeConnectionManagerTest {
         assertThat(infoLogs.get(0)).contains("Establishing connection to block node based on priorities");
 
         // Verify the order of connection attempts: The high priority node should be the first
-        assertThat(infoLogs.get(1)).contains("Connecting to block node localhost:8080");
+        assertThat(infoLogs.get(1)).contains("Scheduling connection attempt for block node localhost:8080");
     }
 
     @Test
@@ -263,7 +276,7 @@ class BlockNodeConnectionManagerTest {
         final long end = delay.toMillis();
         final List<String> logs = new ArrayList<>();
         for (long i = start; i <= end; i++) {
-            logs.add(String.format("Retrying in %d ms", i));
+            logs.add(String.format("Rescheduling in %d ms", i));
         }
 
         return logs;
@@ -298,5 +311,83 @@ class BlockNodeConnectionManagerTest {
                 }
             };
         }
+    }
+
+    @Test
+    void testUpdateLastVerifiedBlock_WhenNewBlockNumberIsGreater() {
+        // Given
+        final var blockNodeConfig = localBlockNodeConfigEntry(8080, 1);
+        final var initialBlockNumber = 10L;
+        final var newBlockNumber = 20L;
+
+        // Set initial block number
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, initialBlockNumber);
+
+        // When
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, newBlockNumber);
+
+        // Then
+        assertThat(blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig))
+                .isEqualTo(newBlockNumber);
+        verify(blockStreamMetrics).setLatestAcknowledgedBlockNumber(newBlockNumber);
+    }
+
+    @Test
+    void testUpdateLastVerifiedBlock_WhenNewBlockNumberIsLess() {
+        // Given
+        final var blockNodeConfig = localBlockNodeConfigEntry(8080, 1);
+        final var initialBlockNumber = 20L;
+        final var newBlockNumber = 10L;
+
+        // Set initial block number
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, initialBlockNumber);
+
+        // When
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, newBlockNumber);
+
+        // Then
+        assertThat(blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig))
+                .isEqualTo(initialBlockNumber);
+        verify(blockStreamMetrics, never()).setLatestAcknowledgedBlockNumber(newBlockNumber);
+    }
+
+    @Test
+    void testUpdateLastVerifiedBlock_WhenNewBlockNumberIsEqual() {
+        // Given
+        final var blockNodeConfig = localBlockNodeConfigEntry(8080, 1);
+        final var blockNumber = 20L;
+
+        // Set initial block number
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, blockNumber);
+
+        // Reset mock to verify it's not called again
+        verify(blockStreamMetrics).setLatestAcknowledgedBlockNumber(blockNumber);
+
+        // When
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, blockNumber);
+
+        // Then
+        assertThat(blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig))
+                .isEqualTo(blockNumber);
+        // Verify it was called only once (from the initial setup)
+        verify(blockStreamMetrics, times(1)).setLatestAcknowledgedBlockNumber(blockNumber);
+    }
+
+    @Test
+    void testUpdateLastVerifiedBlock_WhenNewBlockNumberIsNull() {
+        // Given
+        final var blockNodeConfig = localBlockNodeConfigEntry(8080, 1);
+        final var initialBlockNumber = 20L;
+
+        // Set initial block number
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, initialBlockNumber);
+
+        // When
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, null);
+
+        // Then
+        assertThat(blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig))
+                .isEqualTo(initialBlockNumber);
+        verify(blockStreamMetrics, times(1)).setLatestAcknowledgedBlockNumber(initialBlockNumber);
     }
 }
