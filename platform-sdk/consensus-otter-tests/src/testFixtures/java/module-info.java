@@ -21,6 +21,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.metrics.api;
     requires com.swirlds.state.api;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.utility;
     requires org.assertj.core;
     requires static com.github.spotbugs.annotations;
 
