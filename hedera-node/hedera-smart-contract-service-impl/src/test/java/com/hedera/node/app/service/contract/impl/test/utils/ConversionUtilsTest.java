@@ -68,6 +68,8 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -336,23 +338,16 @@ class ConversionUtilsTest {
         assertEquals(7, tokenId.tokenNum());
     }
 
-    @Test
-    void asTokenIdWithNegativeTokenNumer() {
-        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x000000050000000000000006ffFFFFfFFffFFFff");
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "0xFFFFffff00000000000000060000000000000007",
+                "0x00000005FfffffFFfffFfFFF0000000000000007",
+                "0x000000050000000000000006ffFFFFfFFffFFFff"
+            })
+    void asTokenIdWithNegativeValues(String hex) {
+        final var address = com.esaulpaugh.headlong.abi.Address.wrap(hex);
         assertThrows(IllegalArgumentException.class, () -> ConversionUtils.asTokenId(address));
-    }
-
-    @Test
-    void asTokenIdWithNegativeRealm() {
-        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x00000005FfffffFFfffFfFFF0000000000000007");
-        assertThrows(IllegalArgumentException.class, () -> ConversionUtils.asTokenId(address));
-    }
-
-    @Test
-    void asTokenIdWithMaxShardIsNonNegative() {
-        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0xFFFFffff00000000000000060000000000000007");
-        var tokenId = ConversionUtils.asTokenId(address);
-        assertEquals(4294967295L, tokenId.shardNum());
     }
 
     private byte[] bloomFor() {

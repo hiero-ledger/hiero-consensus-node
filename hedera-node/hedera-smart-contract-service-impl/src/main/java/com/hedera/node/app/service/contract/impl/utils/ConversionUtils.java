@@ -785,7 +785,7 @@ public class ConversionUtils {
      * @param explicit the explicit 20-byte address
      * @return its shard value
      */
-    public static long shardOfLongZero(@NonNull final byte[] explicit) {
+    public static int shardOfLongZero(@NonNull final byte[] explicit) {
         final var shard = longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
         if (shard < 0) {
             throw new IllegalArgumentException("Shard is negative");
@@ -814,8 +814,8 @@ public class ConversionUtils {
                 | (b8 & 0xFFL);
     }
 
-    private static long longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
-        return (b1 & 0xFFL) << 24 | (b2 & 0xFFL) << 16 | (b3 & 0xFFL) << 8 | (b4 & 0xFFL);
+    private static int longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
+        return (b1 & 0xFF) << 24 | (b2 & 0xFF) << 16 | (b3 & 0xFF) << 8 | (b4 & 0xFF);
     }
 
     private static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
