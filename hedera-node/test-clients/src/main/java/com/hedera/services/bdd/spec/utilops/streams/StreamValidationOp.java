@@ -223,8 +223,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
                 final var nodeId = node.getNodeId();
                 if (markerFileNumbers.isEmpty()) {
-                    log.warn("No marker files found for node {}", nodeId);
-                    return;
+                    Assertions.fail(String.format("No marker files found for node %d", nodeId));
                 }
 
                 // Get verified block numbers from simulator
@@ -232,8 +231,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         spec.getSimulatedBlockNodeById(nodeId).getReceivedBlockNumbers();
 
                 if (verifiedBlockNumbers.isEmpty()) {
-                    log.warn("No verified blocks by block node simulator for node {}", nodeId);
-                    return;
+                    Assertions.fail(String.format("No verified blocks by block node simulator for node %d", nodeId));
                 }
 
                 for (final var markerFile : markerFileNumbers) {
