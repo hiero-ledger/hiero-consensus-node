@@ -229,16 +229,11 @@ tasks.register<Test>("testSubprocess") {
             .findFirst()
             .orElse("")
     systemProperty("hapi.spec.initial.port", initialPort)
-    val shard = 11
-    val realm = 12
-    systemProperty("hapi.spec.default.shard", shard)
-    systemProperty("hapi.spec.default.realm", realm)
 
     // Gather overrides into a single comma‐separated list
     val testOverrides =
         gradle.startParameter.taskNames
             .mapNotNull { prCheckPropOverrides[it] }
-            .plus("hedera.shard=$shard,hedera.realm=$realm")
             .joinToString(separator = ",")
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
@@ -461,7 +456,6 @@ tasks.register<Test>("testRepeatable") {
     )
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
-
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
