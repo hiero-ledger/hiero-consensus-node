@@ -747,6 +747,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 Thread.currentThread().getName(),
                 connectionDescriptor,
                 error);
+        blockStreamMetrics.incrementOnErrorCount();
         handleStreamFailure();
     }
 

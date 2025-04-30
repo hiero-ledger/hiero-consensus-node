@@ -5,6 +5,7 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -16,6 +17,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,10 +41,12 @@ class BlockStreamStateManagerTest {
 
     private BlockStreamStateManager blockStreamStateManager;
 
+    private static final Duration EXPIRY_PERIOD = Duration.ofMinutes(5L);
+
     @BeforeEach
     void setUp() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
     }
 
     @Test
@@ -65,7 +69,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testCleanUpBlockState() {
+    void testCleanUp_NotCompletedBlockState_ShouldNotBeRemoved() {
         // given
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -74,6 +78,42 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
 
         // then
+        // not completed states should not be removed
+        final BlockState actualBlockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
+        assertThat(actualBlockState).isNotNull();
+        assertFalse(actualBlockState.isComplete());
+    }
+
+    @Test
+    void testCleanUp_CompletedNotExpiredBlockState_ShouldNotBeRemoved() {
+        // given
+        // expiry period set to zero in order for completed state to be cleared
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).setComplete();
+
+        // when
+        blockStreamStateManager.removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+
+        // then
+        // completed states should be removed
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNotNull();
+    }
+
+    @Test
+    void testCleanUp_CompletedExpiredBlockState_ShouldBeRemoved() {
+        // given
+        // expiry period set to zero in order for completed state to be cleared
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, Duration.ofNanos(0L));
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).setComplete();
+
+        // when
+        blockStreamStateManager.removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+
+        // then
+        // completed states should be removed
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
     }
 
@@ -122,7 +162,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -158,7 +198,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -192,7 +232,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -232,7 +272,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -269,7 +309,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -298,7 +338,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -326,7 +366,7 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    void testBLockStateIsRemovedUpToSpecificBlockNumber() {
+    void testCompletedExpiredBlockStateIsRemovedUpToSpecificBlockNumber() {
         // given
         // mock the number of batch items by modifying the default config
         var mockConfig = HederaTestConfigBuilder.create()
@@ -336,11 +376,13 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, Duration.ofNanos(0L));
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER2);
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).setComplete();
+        blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2).setComplete();
 
         // when
         blockStreamStateManager.removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
@@ -361,7 +403,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -497,7 +539,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
@@ -528,7 +570,7 @@ class BlockStreamStateManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics, EXPIRY_PERIOD);
 
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
         blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);

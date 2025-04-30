@@ -35,18 +35,23 @@ public class BlockStreamStateManager {
 
     private BlockStreamMetrics blockStreamMetrics = null;
 
+    private final Duration expiryPeriod;
+
     /**
      * Creates a new BlockStreamStateManager with the given configuration.
      *
      * @param configProvider the configuration provider
      */
     public BlockStreamStateManager(
-            @NonNull final ConfigProvider configProvider, @NonNull BlockStreamMetrics blockStreamMetrics) {
+            @NonNull final ConfigProvider configProvider,
+            @NonNull BlockStreamMetrics blockStreamMetrics,
+            @NonNull Duration expiryPeriod) {
         this.blockItemBatchSize = configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .blockItemBatchSize();
         this.blockStreamMetrics = blockStreamMetrics;
+        this.expiryPeriod = expiryPeriod;
     }
 
     /**
@@ -143,6 +148,13 @@ public class BlockStreamStateManager {
             createRequestFromCurrentItems(blockState);
             // Mark the block as complete
             blockState.setComplete();
+
+            // TODO: temporarily set here until we have the buffering implemented
+            final Long oldestUnackBlockNum =
+                    blockStates.keySet().stream().min(Long::compareTo).orElse(blockNumber);
+            blockStreamMetrics.setOldestUnacknowledgedBlockTime(
+                    getBlockState(oldestUnackBlockNum).getCompletionTime().toEpochMilli() / 1000L);
+
             // Notify the connection manager
             blockNodeConnectionManager.notifyConnectionsOfNewRequest();
         }
@@ -184,14 +196,14 @@ public class BlockStreamStateManager {
     }
 
     /**
-     * Removes all block states with block numbers less than or equal to the given block number. This operation is
+     * Removes all completed block states older than expiry period with block numbers less than or equal to the given block number. This operation is
      * thread-safe.
      *
      * @param blockNumber the block number
      */
     public void removeBlockStatesUpTo(long blockNumber) {
         // Use keySet().removeIf for atomic removal of multiple entries
-        final Instant fiveMinutesAgo = Instant.now().minus(Duration.ofMinutes(5));
+        final Instant fiveMinutesAgo = Instant.now().minus(expiryPeriod);
         final var removed = blockStates.entrySet().removeIf(entry -> {
             final long key = entry.getKey();
             final BlockState state = entry.getValue();

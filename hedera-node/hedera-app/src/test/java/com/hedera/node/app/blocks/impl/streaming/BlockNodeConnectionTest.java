@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.hapi.block.PublishStreamResponseCode.*;
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -13,12 +14,19 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -32,7 +40,7 @@ class BlockNodeConnectionTest {
     private static final long NEXT_BLOCK_NUMBER = 11L;
     private static final String HOST_ADDRESS = "127.0.0.1";
     private static final int PORT = 50211;
-    private static final String CONNECTION_DESCRIPTOR = HOST_ADDRESS + ":" + PORT + " (priority 1)";
+    private static final String CONNECTION_DESCRIPTOR = HOST_ADDRESS + ":" + PORT;
     private static final int RECONNECT_SECS = 1;
     private static final int MAX_END_OF_STREAM_RESTARTS_VALUE = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES_VALUE = 10;
@@ -79,34 +87,34 @@ class BlockNodeConnectionTest {
 
     private ExecutorService workerExecutorService;
 
-    //    @BeforeEach
-    //    void setUp() {
-    //        when(blockNodeConfig.address()).thenReturn(HOST_ADDRESS);
-    //        when(blockNodeConfig.port()).thenReturn(PORT);
-    //        when(blockNodeConfig.priority()).thenReturn(1);
-    //
-    //        connection = spy(new BlockNodeConnection(
-    //                blockNodeConfig,
-    //                blockNodeConnectionManager,
-    //                blockStreamStateManager,
-    //                grpcServiceClient,
-    //                scheduler,
-    //                blockStreamMetrics));
-    //
-    //        when(grpcServiceClient.bidi(any(), eq(connection))).thenReturn((StreamObserver) requestObserver);
-    //
-    //        workerExecutorService = Executors.newSingleThreadExecutor();
-    //    }
-    //
-    //    @AfterEach
-    //    void tearDown() throws InterruptedException {
-    //        connection.close();
-    //        workerExecutorService.shutdownNow();
-    //        if (!workerExecutorService.awaitTermination(5, TimeUnit.SECONDS)) {
-    //            System.err.println("Test worker executor service did not terminate.");
-    //        }
-    //    }
-    //
+    @BeforeEach
+    void setUp() {
+        when(blockNodeConfig.address()).thenReturn(HOST_ADDRESS);
+        when(blockNodeConfig.port()).thenReturn(PORT);
+        //            when(blockNodeConfig.priority()).thenReturn(1);
+
+        connection = spy(new BlockNodeConnection(
+                blockNodeConfig,
+                blockNodeConnectionManager,
+                blockStreamStateManager,
+                grpcServiceClient,
+                scheduler,
+                blockStreamMetrics));
+
+        //            when(grpcServiceClient.bidi(any(), eq(connection))).thenReturn((StreamObserver) requestObserver);
+
+        workerExecutorService = Executors.newSingleThreadExecutor();
+    }
+
+    @AfterEach
+    void tearDown() throws InterruptedException {
+        connection.close();
+        workerExecutorService.shutdownNow();
+        if (!workerExecutorService.awaitTermination(5, TimeUnit.SECONDS)) {
+            System.err.println("Test worker executor service did not terminate.");
+        }
+    }
+
     //    @Test
     //    @DisplayName("Constructor throws NullPointerException for null arguments")
     //    void constructorNullChecks() {
@@ -969,21 +977,23 @@ class BlockNodeConnectionTest {
     //        verify(blockNodeConnectionManager).handleConnectionError(connection);
     //        assertThat(logCaptor.errorLogs()).anyMatch(log -> log.contains("Received unknown response type"));
     //    }
-    //
-    //    @Test
-    //    @DisplayName("onError logs error and handles failure")
-    //    void onErrorHandlesFailure() {
-    //        Throwable error = new StatusRuntimeException(Status.UNAVAILABLE.withDescription("Network issue"));
-    //
-    //        connection.onError(error);
-    //
-    //        // Verify failure outcome
-    //        assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
-    //        verify(blockNodeConnectionManager).handleConnectionError(connection);
-    //        assertThat(logCaptor.errorLogs())
-    //                .anyMatch(log -> log.contains("Error in block stream for node " + CONNECTION_DESCRIPTOR));
-    //    }
-    //
+
+    @Test
+    @DisplayName("onError logs error and handles failure")
+    void onErrorHandlesFailure() {
+        Throwable error = new StatusRuntimeException(Status.UNAVAILABLE.withDescription("Network issue"));
+
+        connection.onError(error);
+
+        // Verify failure outcome
+        assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
+        verify(blockNodeConnectionManager).handleConnectionError(connection);
+        verify(blockStreamMetrics).incrementOnErrorCount();
+        assertThat(logCaptor.errorLogs())
+                .anyMatch(
+                        log -> log.contains("[Test worker] Error on stream from block node " + CONNECTION_DESCRIPTOR));
+    }
+
     //    @Test
     //    @DisplayName("onCompleted logs completion and handles failure")
     //    void onCompletedHandlesFailure() {

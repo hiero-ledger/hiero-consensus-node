@@ -528,6 +528,7 @@ public class BlockNodeConnectionManager {
         final Long latestBlock = getLastVerifiedBlock(blockNodeConfig);
         if (blockNumber != null && blockNumber > latestBlock) {
             lastVerifiedBlockPerConnection.put(blockNodeConfig, blockNumber);
+            blockStreamMetrics.setLatestAcknowledgedBlockNumber(blockNumber);
         }
     }
 
