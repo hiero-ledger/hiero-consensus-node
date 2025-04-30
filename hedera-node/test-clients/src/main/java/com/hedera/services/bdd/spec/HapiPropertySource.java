@@ -278,11 +278,11 @@ public interface HapiPropertySource {
                 .build();
     }
 
-    static ContractID asContract(String shard, String realm, String num) {
+    static ContractID asContract(Long shard, Long realm, Long num) {
         return ContractID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setContractNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setContractNum(num)
                 .build();
     }
 

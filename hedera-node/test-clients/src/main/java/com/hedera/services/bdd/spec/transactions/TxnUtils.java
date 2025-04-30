@@ -334,7 +334,13 @@ public class TxnUtils {
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effS)))
                     .build();
         }
-        return isIdLiteral(s) ? asContract(s) : lookupSpec.registry().getContractId(s);
+        if (isNumericLiteral(s)) {
+            return asContract(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        if (isIdLiteral(s)) {
+            return asContract(s);
+        }
+        return lookupSpec.registry().getContractId(s);
     }
 
     public static String txnToString(final Transaction txn) {
