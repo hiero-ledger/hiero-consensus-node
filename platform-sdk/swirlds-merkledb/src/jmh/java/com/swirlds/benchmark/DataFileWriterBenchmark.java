@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.common.test.fixtures.DataUtils.randomUtf8Bytes;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -28,8 +29,6 @@ import org.openjdk.jmh.annotations.*;
 @State(Scope.Benchmark)
 public class DataFileWriterBenchmark {
 
-    private static final int MEGABYTE = 1024 * 1024;
-
     @Param({"16", "64", "128", "256"})
     public int bufferSizeMb;
 
@@ -40,7 +39,7 @@ public class DataFileWriterBenchmark {
     public int sampleSize;
 
     // first is test for small data items like hashes
-    @Param({"56-56", "300-1000"})
+    @Param({"56-56", "300-1000", "1024-8192"})
     public String sampleRangeBytes;
 
     // Runtime variables
@@ -55,7 +54,7 @@ public class DataFileWriterBenchmark {
     public void setupGlobal() throws IOException {
         // Initialize random generator
         random = new Random(1234);
-        maxFileSize = maxFileSizeMb * MEGABYTE;
+        maxFileSize = maxFileSizeMb * MEBIBYTES_TO_BYTES;
         benchmarkDir = Files.createTempDirectory("dataFileWriterBenchmark");
 
         // Generate sample data
@@ -83,7 +82,8 @@ public class DataFileWriterBenchmark {
 
     @Setup(Level.Invocation)
     public void setup() throws IOException {
-        dataFileWriter = new DataFileWriter("test", benchmarkDir, 1, Instant.now(), 1, bufferSizeMb * MEGABYTE);
+        dataFileWriter =
+                new DataFileWriter("test", benchmarkDir, 1, Instant.now(), 1, bufferSizeMb * MEBIBYTES_TO_BYTES);
     }
 
     @TearDown(Level.Invocation)

@@ -52,10 +52,21 @@ class DataFileWriterTest {
                 IllegalStateException.class, () -> dataFileWriter.finishWriting(), "Finish writing can be called once");
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 1})
+    public void wrongEstimatedSizeWrite(int diff) {
+        BufferedData data = BufferedData.wrap("test".getBytes());
+
+        assertThrows(
+                IOException.class,
+                () -> dataFileWriter.storeDataItem(o -> o.writeBytes(data), (int) (data.length() + diff)),
+                "Wrong estimated data size");
+    }
+
     @Test
     public void smallBufferBigDataItem() {
         BufferedData data = BufferedData.wrap(randomUtf8Bytes(BUFFER_SIZE - 2));
-        assertThrows(IOException.class, () -> dataFileWriter.storeDataItem(data), "Finish writing can be called once");
+        assertThrows(IOException.class, () -> dataFileWriter.storeDataItem(data), "Buffer is too small to write data");
     }
 
     @Test

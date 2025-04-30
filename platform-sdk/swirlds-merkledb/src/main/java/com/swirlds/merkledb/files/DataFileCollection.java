@@ -289,6 +289,18 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
                 .toList();
     }
 
+    @Override
+    public LongSummaryStatistics getFilesSizeStatistics() {
+        // statistics for sizes of all fully written files, in bytes
+        final ImmutableIndexedObjectList<DataFileReader> activeIndexedFiles = dataFiles.get();
+        return activeIndexedFiles == null
+                ? new LongSummaryStatistics()
+                : activeIndexedFiles.stream()
+                        .filter(DataFileReader::isFileCompleted)
+                        .mapToLong(DataFileReader::getSize)
+                        .summaryStatistics();
+    }
+
     /** Close all the data files */
     public void close() throws IOException {
         // finish writing if we still are
@@ -358,9 +370,9 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
     }
 
     /**
-     * End writing current data file and returns the corresponding reader. The reader isn't marked
-     * as completed (fully written, read only, and ready to compact), as the caller may need some
-     * additional processing, e.g. to update indices, before the file can be compacted.
+     * End writing current data file and returns the corresponding reader. The current reader is marked
+     * as completed (fully written, read only, and ready to compact), so any indexes or other data structures that
+     * are in-sync with the file content should be updated before calling this method.
      *
      * @param minimumValidKey The minimum valid data key at this point in time, can be used for
      *     cleaning out old data
@@ -550,18 +562,6 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         } else {
             throw new IllegalStateException("getSetOfNewFileIndexes can only be called if trace logging is enabled");
         }
-    }
-
-    @Override
-    public LongSummaryStatistics getFilesSizeStatistics() {
-        // statistics for sizes of all fully written files, in bytes
-        final ImmutableIndexedObjectList<DataFileReader> activeIndexedFiles = dataFiles.get();
-        return activeIndexedFiles == null
-                ? new LongSummaryStatistics()
-                : activeIndexedFiles.stream()
-                        .filter(DataFileReader::isFileCompleted)
-                        .mapToLong(DataFileReader::getSize)
-                        .summaryStatistics();
     }
 
     // =================================================================================================================

@@ -27,16 +27,6 @@ public final class DataUtils {
         array[j] = temp;
     }
 
-    public static String randomString(final int length, final Random random) {
-        final int leftLimit = 48; // numeral '0'
-        final int rightLimit = 122; // letter 'z'
-        return random.ints(leftLimit, rightLimit + 1)
-                .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
-                .limit(length)
-                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString();
-    }
-
     public static byte[] randomUtf8Bytes(final int n) {
         final byte[] data = new byte[n];
         int i = 0;

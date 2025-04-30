@@ -137,11 +137,14 @@ public final class DataFileMetadata {
                 itemsCount, index, Instant.ofEpochSecond(creationSeconds, creationNanos), compactionLevel);
     }
 
-    int getFieldsSizeInBytes() {
+    int getSizeInBytes() {
         return fieldsSizeInBytes;
     }
 
-    void writeFields(final WritableSequentialData out) {
+    /**
+     * Write metadata fields to the file.
+     */
+    void writeTo(final WritableSequentialData out) {
         if (getIndex() != 0) {
             ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_INDEX);
             out.writeVarInt(getIndex(), false);

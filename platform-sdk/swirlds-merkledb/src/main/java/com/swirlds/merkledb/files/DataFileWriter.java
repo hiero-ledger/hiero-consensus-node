@@ -11,7 +11,6 @@ import com.swirlds.merkledb.utilities.MemoryUtils;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.BufferOverflowException;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel.MapMode;
 import java.nio.file.Path;
@@ -101,7 +100,7 @@ public final class DataFileWriter implements OffHeapUser {
                 compactionLevel);
 
         headerBuffer = new MovingBuffer(0, HEADER_BUFFER_SIZE);
-        headerBuffer.write(FIELD_DATAFILE_METADATA, metadata.getFieldsSizeInBytes(), metadata::writeFields);
+        headerBuffer.write(FIELD_DATAFILE_METADATA, metadata.getSizeInBytes(), metadata::writeTo);
 
         dataBuffer = new MovingBuffer(headerBuffer.getCurrentFilePosition(), dataBufferSize);
     }
@@ -146,7 +145,7 @@ public final class DataFileWriter implements OffHeapUser {
     public synchronized long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize)
             throws IOException {
         if (closed) {
-            throw new IOException("Data file is closed");
+            throw new IOException("Data file is already closed");
         }
         final long fileOffset = dataBuffer.write(FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
         // increment data item counter
@@ -188,9 +187,8 @@ public final class DataFileWriter implements OffHeapUser {
         }
         // Return the size of the data buffer even if not fully used but claimed to be used.
         // Buffer is released and not used after completing writing into the file, but we probably want to track
-        // possible memory usage
-        // for each data file writer instance created.
-        // During writing (and it is fast because sequential), we might not see benefit of reporting actual busser space
+        // possible memory usage for each data file writer instance created.
+        // During writing (and it is fast because sequential), we might not see benefit of reporting actual buffer space
         // taken.
         return dataBuffer.bufferSize;
     }
@@ -228,7 +226,7 @@ public final class DataFileWriter implements OffHeapUser {
                 throw new IOException("Failed to map file channel to memory");
             }
 
-            close();
+            closeCurrentMappedBuffer();
 
             bufferFileMapping = newMapping;
             bufferedData = BufferedData.wrap(bufferFileMapping);
@@ -245,8 +243,8 @@ public final class DataFileWriter implements OffHeapUser {
          * @return the file offset where the data was written (start position of the data item)
          * @throws IOException
          */
-        long write(FieldDefinition field, int expectedSize, Consumer<BufferedData> writer) throws IOException {
-            long curPos = bufferedData.position();
+        long write(final FieldDefinition field, final int expectedSize, final Consumer<BufferedData> writer)
+                throws IOException {
             final long fileOffset = getCurrentFilePosition();
             final int sizeToWrite = ProtoWriterTools.sizeOfDelimited(field, expectedSize);
 
@@ -255,33 +253,32 @@ public final class DataFileWriter implements OffHeapUser {
                         + ", bufferSize=" + bufferSize);
             }
 
-            // if there is not enough space in the current mapped buffer, we need to move it to start at current file
-            // offset
+            // if there is not enough space in the current mapped buffer,
+            // we need to move it to start at current file offset
             if (bufferedData.remaining() < sizeToWrite) {
                 move(fileOffset);
-                curPos = 0;
             }
 
-            try {
-                ProtoWriterTools.writeDelimited(bufferedData, field, expectedSize, writer);
-                if (bufferedData.position() != curPos + sizeToWrite) {
-                    throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite
-                            + " written=" + (bufferedData.position() - curPos));
-                }
-            } catch (final BufferOverflowException e) {
-                // Buffer overflow here means the mapped buffer is smaller than even a single data item
-                throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
+            ProtoWriterTools.writeDelimited(bufferedData, field, expectedSize, writer);
+
+            if (getCurrentFilePosition() != fileOffset + sizeToWrite) {
+                throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
+                        + (getCurrentFilePosition() - fileOffset));
             }
+
             return fileOffset;
         }
 
         @Override
         public void close() {
+            closeCurrentMappedBuffer();
+        }
+
+        private void closeCurrentMappedBuffer() {
             if (bufferFileMapping != null) {
-                // TODO should we flush changes to the disk here for durability that takes little additional time
-                // or we rely on async flush in the OS?
-                // bufferFileMapping.force();
                 MemoryUtils.closeMmapBuffer(bufferFileMapping);
+                bufferFileMapping = null;
+                bufferedData = null;
             }
         }
     }
