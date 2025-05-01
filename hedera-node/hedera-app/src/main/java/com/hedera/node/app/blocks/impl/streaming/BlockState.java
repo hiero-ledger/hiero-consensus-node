@@ -17,14 +17,14 @@ public class BlockState {
     private final List<BlockItem> items;
     private final List<PublishStreamRequest> requests;
     private final AtomicBoolean isComplete = new AtomicBoolean(false);
-    private Instant completionTime = null;
+    private Instant completionTimestamp = null;
 
     /**
      * Create a new block state for a block number
      *
      * @param blockNumber the block number
      */
-    public BlockState(long blockNumber, @NonNull List<BlockItem> items) {
+    public BlockState(final long blockNumber, @NonNull final List<BlockItem> items) {
         this.blockNumber = blockNumber;
         this.items = items;
         this.requests = new ArrayList<>();
@@ -70,7 +70,7 @@ public class BlockState {
      * Set the block as complete
      */
     public void setComplete() {
-        this.completionTime = Instant.now();
+        this.completionTimestamp = Instant.now();
         this.isComplete.set(true);
     }
 
@@ -79,7 +79,17 @@ public class BlockState {
      *
      * @return the completion time, or null if the block is not complete
      */
-    public Instant getCompletionTime() {
-        return completionTime;
+    public Instant completionTimestamp() {
+        return completionTimestamp;
+    }
+
+    @Override
+    public String toString() {
+        return "BlockState{" + "blockNumber="
+                + blockNumber + ", items="
+                + items + ", requests="
+                + requests + ", isComplete="
+                + isComplete + ", completionTimestamp="
+                + completionTimestamp + '}';
     }
 }

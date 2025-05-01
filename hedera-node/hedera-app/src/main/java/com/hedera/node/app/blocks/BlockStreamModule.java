@@ -23,7 +23,6 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
-import java.time.Duration;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
 
@@ -47,8 +46,7 @@ public interface BlockStreamModule {
     @Singleton
     static BlockStreamStateManager provideBlockStreamStateManager(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        final Duration expiryPeriod = Duration.ofMinutes(5L);
-        return new BlockStreamStateManager(configProvider, blockStreamMetrics, expiryPeriod);
+        return new BlockStreamStateManager(configProvider, blockStreamMetrics);
     }
 
     @Provides

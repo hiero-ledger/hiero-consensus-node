@@ -344,8 +344,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
                 // Update the last verified block by the current connection
                 blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
-                // Acknowledge all blocks up to and including this block number
-                blockStreamStateManager.setLatestAcknowledgedBlock(acknowledgedBlockNumber);
 
                 // Increment the ACK counter metric
                 blockStreamMetrics.incrementBlockAckReceivedCount();

@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -43,6 +44,7 @@ public class BlockStreamMetrics {
     private LongGauge producingBlockNumberGauge;
     private LongGauge oldestUnacknowledgedBlockTimeGauge;
     private LongGauge latestAcknowledgedBlockNumberGauge;
+    private DoubleGauge blockBufferSaturationGauge;
 
     @Inject
     public BlockStreamMetrics(@NonNull final Metrics metrics, @NonNull final NodeInfo selfNodeInfo) {
@@ -110,6 +112,18 @@ public class BlockStreamMetrics {
                 metrics.getOrCreate(new LongGauge.Config(APP_CATEGORY, latestAckBlockNumMetricName)
                         .withDescription("Latest block number acknowledged for node " + localNodeId));
 
+        /*
+        Buffer saturation gauge - higher values mean the buffer is nearing saturation. Values over 100 mean the buffer
+        is saturated and "overflowing" though this should be minimal since backpressure should be applied to prevent
+        more blocks from being created
+         */
+        final String bufferSaturationMetricName = "blockBufferSaturation" + nodeLabel;
+        blockBufferSaturationGauge =
+                metrics.getOrCreate(new DoubleGauge.Config(APP_CATEGORY, bufferSaturationMetricName)
+                        .withDescription("Block buffer saturation; Values closer to 100 mean the buffer is nearing"
+                                + "saturation and backpressure may be applied, and values at or above 100 mean the "
+                                + "buffer is fully saturated and potentially overflowing"));
+
         logger.info("Finished registering BlockStreamMetrics for node {}", localNodeId);
     }
 
@@ -171,7 +185,7 @@ public class BlockStreamMetrics {
      *
      * @param blockNumber The current block number.
      */
-    public void setProducingBlockNumber(long blockNumber) {
+    public void setProducingBlockNumber(final long blockNumber) {
         if (producingBlockNumberGauge != null) {
             producingBlockNumberGauge.set(blockNumber);
         } else {
@@ -185,7 +199,7 @@ public class BlockStreamMetrics {
      *
      * @param timestamp The timestamp in milliseconds since epoch.
      */
-    public void setOldestUnacknowledgedBlockTime(long timestamp) {
+    public void setOldestUnacknowledgedBlockTime(final long timestamp) {
         if (oldestUnacknowledgedBlockTimeGauge != null) {
             oldestUnacknowledgedBlockTimeGauge.set(timestamp);
         } else {
@@ -199,7 +213,7 @@ public class BlockStreamMetrics {
      *
      * @param blockNumber The block number of the latest acknowledgement.
      */
-    public void setLatestAcknowledgedBlockNumber(long blockNumber) {
+    public void setLatestAcknowledgedBlockNumber(final long blockNumber) {
         if (latestAcknowledgedBlockNumberGauge != null) {
             latestAcknowledgedBlockNumberGauge.set(blockNumber);
         } else {
@@ -217,6 +231,16 @@ public class BlockStreamMetrics {
         } else {
             // Should not happen if registration was successful
             logger.warn("onErrorCounter not found.");
+        }
+    }
+
+    /**
+     * Updates the current block buffer saturation percent.
+     * @param saturation the current block buffer saturation percent
+     */
+    public void updateBlockBufferSaturation(final double saturation) {
+        if (blockBufferSaturationGauge != null) {
+            blockBufferSaturationGauge.set(saturation);
         }
     }
 }
