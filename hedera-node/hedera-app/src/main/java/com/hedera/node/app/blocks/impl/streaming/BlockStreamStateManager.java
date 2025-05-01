@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -98,6 +99,9 @@ public class BlockStreamStateManager {
         scheduleNextPruning();
     }
 
+    /**
+     * @return the interval in which the block buffer will be pruned (a duration of 0 means pruning is disabled)
+     */
     private Duration blockBufferPruneInterval() {
         return configProvider
                 .getConfiguration()
@@ -125,6 +129,9 @@ public class BlockStreamStateManager {
                 .blockBufferTtl();
     }
 
+    /**
+     * @return the block period duration (i.e. the amount of time a single block represents)
+     */
     private Duration blockPeriod() {
         return configProvider
                 .getConfiguration()
@@ -274,7 +281,7 @@ public class BlockStreamStateManager {
      * @param blockNumber the block number
      * @return the block state, or null if no block state exists for the given block number
      */
-    public BlockState getBlockState(final long blockNumber) {
+    public @Nullable BlockState getBlockState(final long blockNumber) {
         return blockStatesById.get(blockNumber);
     }
 
@@ -359,7 +366,7 @@ public class BlockStreamStateManager {
      * this, we also inadvertently can know if buffer is "saturated" due to blocks not being acknowledged in a timely
      * manner.
      */
-    private PruneResult pruneBuffer() {
+    private @NonNull PruneResult pruneBuffer() {
         final Duration ttl = blockBufferTtl();
         final Instant cutoffInstant = Instant.now().minus(ttl);
         final Iterator<BlockState> it = blockBuffer.iterator();
@@ -402,11 +409,14 @@ public class BlockStreamStateManager {
         return new PruneResult(idealMaxBufferSize, numChecked, numPendingAck, numPruned);
     }
 
+    /*
+    Simple record that contains information related to the outcome of a block buffer prune operation.
+     */
     private record PruneResult(
-            long idealMaxBufferSize, int numBlockedChecked, int numBlocksPendingAck, int numBlocksPruned) {
+            long idealMaxBufferSize, int numBlocksChecked, int numBlocksPendingAck, int numBlocksPruned) {
 
         /**
-         * Calculate the saturation percent based on the size of the buffer and the number of "bad" blocks found.
+         * Calculate the saturation percent based on the size of the buffer and the number of unacked blocks found.
          * @return the saturation percent
          */
         double calculateSaturationPercent() {
@@ -421,6 +431,11 @@ public class BlockStreamStateManager {
                     .doubleValue();
         }
 
+        /**
+         * Check if the buffer is considered saturated.
+         *
+         * @return true if the block buffer is considered saturated, else false
+         */
         boolean isSaturated() {
             return idealMaxBufferSize != 0 && numBlocksPendingAck >= idealMaxBufferSize;
         }
@@ -430,7 +445,7 @@ public class BlockStreamStateManager {
      * Prunes the block buffer and checks if the buffer is saturated. If the buffer is saturated, then a backpressure
      * mechanism is activated. The backpressure will be enabled until the next time this method is invoked, after which
      * the backpressure mechanism will be disabled if the buffer is no longer saturated, or maintained if the buffer
-     * is still saturated.
+     * continues to be saturated.
      */
     private void checkBuffer() {
         final boolean isSaturatedBeforePrune = isBufferSaturated.get();
@@ -442,7 +457,7 @@ public class BlockStreamStateManager {
         logger.debug(
                 "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%",
                 result.idealMaxBufferSize,
-                result.numBlockedChecked,
+                result.numBlocksChecked,
                 result.numBlocksPruned,
                 result.numBlocksPendingAck,
                 saturationPercent);
@@ -460,7 +475,7 @@ public class BlockStreamStateManager {
                     "Block buffer is saturated; backpressure is being enabled "
                             + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",
                     result.idealMaxBufferSize,
-                    result.numBlockedChecked,
+                    result.numBlocksChecked,
                     result.numBlocksPruned,
                     result.numBlocksPendingAck,
                     saturationPercent);
