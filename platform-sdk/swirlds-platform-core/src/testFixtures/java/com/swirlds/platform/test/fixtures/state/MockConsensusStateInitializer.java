@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
@@ -45,7 +46,6 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.roster.RosterStateId;
 
-
 public class MockConsensusStateInitializer {
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
@@ -77,8 +77,8 @@ public class MockConsensusStateInitializer {
                     new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
             registry.registerConstructable(new ClassConstructorPair(SingletonNode.class, SingletonNode::new));
             registry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
-            registry.registerConstructable(new ClassConstructorPair(
-                    VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
+            registry.registerConstructable(
+                    new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(
                     MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(
