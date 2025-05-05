@@ -14,9 +14,9 @@ import org.hiero.consensus.model.sequence.map.SequenceMap;
 public class NonDeterministicGeneration {
 
     /** The generation value that indicates that the event has not been assigned an nGen value. */
-    public static final int GENERATION_UNDEFINED = 0;
+    public static final long GENERATION_UNDEFINED = 0;
     /** The generation value that indicates that the event is the first generation of events. */
-    public static final int FIRST_GENERATION = 1;
+    public static final long FIRST_GENERATION = 1;
 
     private NonDeterministicGeneration() {}
 

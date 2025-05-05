@@ -66,7 +66,7 @@ public class ConsensusRounds {
         maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
         roundElections.reset();
         updateAncientThreshold();
-        consensusRelevantNGen = EventConstants.GENERATION_UNDEFINED;
+        consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     /**
