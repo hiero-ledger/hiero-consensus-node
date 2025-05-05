@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -128,10 +129,12 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
+        final var stakedAccountId = asEntityString(20);
+        final var newStakedAccountId = asEntityString(21);
         return hapiTest(
-                cryptoCreate("user").stakedAccountId("20").declinedReward(true),
+                cryptoCreate("user").stakedAccountId(stakedAccountId).declinedReward(true),
                 submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoUpdate("user")
-                        .newStakedAccountId("21")));
+                        .newStakedAccountId(newStakedAccountId)));
     }
 
     private static final UnaryOperator<String> ROTATION_TXN = account -> account + "KeyRotation";
@@ -233,12 +236,16 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateStakingFieldsWorks() {
+        final var stakedAccountId = asEntityString(20);
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate("user").key(ADMIN_KEY).stakedAccountId("20").declinedReward(true),
+                cryptoCreate("user")
+                        .key(ADMIN_KEY)
+                        .stakedAccountId(stakedAccountId)
+                        .declinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountId("20")
+                                .stakedAccountIdWithLiteral(stakedAccountId)
                                 .noStakingNodeId()
                                 .isDeclinedReward(true)),
                 cryptoUpdate("user").newStakedNodeId(0L).newDeclinedReward(false),
@@ -248,10 +255,13 @@ public class CryptoUpdateSuite {
                 cryptoUpdate("user").newStakedNodeId(-25L).hasKnownStatus(INVALID_STAKING_ID),
                 getAccountInfo("user")
                         .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(false)),
-                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("20").newDeclinedReward(true),
+                cryptoUpdate("user")
+                        .key(ADMIN_KEY)
+                        .newStakedAccountId(stakedAccountId)
+                        .newDeclinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountId("20")
+                                .stakedAccountIdWithLiteral(stakedAccountId)
                                 .noStakingNodeId()
                                 .isDeclinedReward(true))
                         .logged(),

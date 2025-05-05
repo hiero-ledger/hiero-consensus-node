@@ -17,7 +17,7 @@ import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.state.PlatformStateModifier;
@@ -76,8 +76,8 @@ class StressTestingToolStateTest {
 
         final Randotron randotron = Randotron.create();
 
-        final var keysAndCerts =
-                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+        final var keysAndCerts = KeysAndCertsGenerator.generate(
+                NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final var signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();

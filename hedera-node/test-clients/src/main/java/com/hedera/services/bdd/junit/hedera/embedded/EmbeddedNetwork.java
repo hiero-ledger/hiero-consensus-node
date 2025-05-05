@@ -11,6 +11,8 @@ import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classi
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.configTxtForLocal;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -34,6 +36,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -52,6 +55,8 @@ public class EmbeddedNetwork extends AbstractNetwork {
     private final String configTxt;
     private final EmbeddedMode mode;
     private final EmbeddedNode embeddedNode;
+    private final long shard;
+    private final long realm;
 
     @Nullable
     private EmbeddedHedera embeddedHedera;
@@ -77,8 +82,20 @@ public class EmbeddedNetwork extends AbstractNetwork {
                         .<HederaNode>mapToObj(nodeId -> new EmbeddedNode(
                                 // All non-embedded node working directories are mapped to the embedded node0
                                 classicMetadataFor(
-                                        nodeId, name, FAKE_HOST, 0, 0, 0, 0, 0, workingDirFor(0, workingDir))))
+                                        nodeId,
+                                        name,
+                                        FAKE_HOST,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        workingDirFor(0, workingDir),
+                                        getConfigShard(),
+                                        getConfigRealm())))
                         .toList());
+        this.shard = getConfigShard();
+        this.realm = getConfigRealm();
         this.mode = requireNonNull(mode);
         this.embeddedNode = (EmbeddedNode) nodes().getFirst();
         // Even though we are only embedding node0, we generate an address book
@@ -198,7 +215,30 @@ public class EmbeddedNetwork extends AbstractNetwork {
         // Start the embedded Hedera "network"
         embeddedHedera = switch (mode) {
             case REPEATABLE -> new RepeatableEmbeddedHedera(embeddedNode);
-            case CONCURRENT -> new ConcurrentEmbeddedHedera(embeddedNode);};
+            case CONCURRENT -> new ConcurrentEmbeddedHedera(embeddedNode);
+        };
         start.accept(embeddedHedera);
+    }
+
+    @Override
+    public long shard() {
+        return shard;
+    }
+
+    @Override
+    public long realm() {
+        return realm;
+    }
+
+    private static long getConfigShard() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
+                .map(Long::parseLong)
+                .orElse((long) SHARD);
+    }
+
+    private static long getConfigRealm() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
+                .map(Long::parseLong)
+                .orElse(REALM);
     }
 }

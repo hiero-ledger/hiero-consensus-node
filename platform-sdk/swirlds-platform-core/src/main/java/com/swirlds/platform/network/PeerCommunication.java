@@ -9,7 +9,6 @@ import com.swirlds.common.threading.framework.config.StoppableThreadConfiguratio
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.network.communication.NegotiationProtocols;
 import com.swirlds.platform.network.communication.ProtocolNegotiatorThread;
@@ -33,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static org.apache.logging.log4j.Level.WARN;
+import static org.assertj.core.data.Percentage.withPercentage;
+import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_VERSION;
 
 import java.time.Duration;
@@ -10,7 +13,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.junit.jupiter.api.Disabled;
+import org.hiero.otter.fixtures.Validator.LogFilter;
 
 class BirthRoundMigrationTest {
 
@@ -21,7 +24,6 @@ class BirthRoundMigrationTest {
     private static final String NEW_VERSION = "1.0.1";
 
     @OtterTest
-    @Disabled
     void testBirthRoundMigration(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -41,6 +43,13 @@ class BirthRoundMigrationTest {
         env.generator().stop();
         network.prepareUpgrade(ONE_MINUTE);
 
+        // store the consensus round
+        final long freezeRound =
+                network.getNodes().getFirst().getConsensusResult().lastRoundNum();
+
+        // check that all nodes froze at the same round
+        assertThat(network.getConsensusResult()).hasLastRoundNum(freezeRound);
+
         // update the configuration
         for (final Node node : network.getNodes()) {
             node.getConfiguration()
@@ -56,6 +65,13 @@ class BirthRoundMigrationTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator().assertPlatformStatus().assertLogErrors().assertMetrics();
+        env.validator()
+                .assertPlatformStatus()
+                .assertLogs(LogFilter.maxLogLevel(WARN))
+                .assertMetrics();
+
+        assertThat(network.getConsensusResult())
+                .hasAdvancedSince(freezeRound)
+                .hasEqualRoundsIgnoringLast(withPercentage(5));
     }
 }
