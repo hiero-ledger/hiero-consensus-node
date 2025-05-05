@@ -3,6 +3,7 @@ module org.hiero.consensus.event.creator.impl {
     exports org.hiero.consensus.event.creator.impl.config;
     exports org.hiero.consensus.event.creator.impl.pool;
     exports org.hiero.consensus.event.creator.impl.rules;
+    exports org.hiero.consensus.event.creator.impl.signing;
     exports org.hiero.consensus.event.creator.impl.stale;
     exports org.hiero.consensus.event.creator.impl;
 
