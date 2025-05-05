@@ -200,7 +200,11 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
                     return 0;
                 }
             }
-            return subOp.getResponse().getConsensusGetTopicInfo().getTopicInfo().getCustomFeesCount();
+            final var topicInfo = subOp.getResponse();
+            if (topicInfo == null) {
+                return 0;
+            }
+            return topicInfo.getConsensusGetTopicInfo().getTopicInfo().getCustomFeesCount();
         }
         return 0;
     }
