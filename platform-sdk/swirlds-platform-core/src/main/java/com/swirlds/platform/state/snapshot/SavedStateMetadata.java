@@ -22,8 +22,6 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;
@@ -48,6 +46,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Metadata about a saved state. Fields in this record may be null if they are not present in the metadata file. All

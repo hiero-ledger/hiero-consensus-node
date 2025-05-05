@@ -16,6 +16,7 @@ import java.util.Objects;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
+import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
  * An instance capable of signing data with the platforms private signing key. This class is not thread safe.

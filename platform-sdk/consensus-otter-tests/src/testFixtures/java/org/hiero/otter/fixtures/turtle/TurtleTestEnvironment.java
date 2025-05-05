@@ -27,7 +27,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.Validator;
-import org.hiero.otter.fixtures.internal.logging.InMemoryAppender;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.validator.ValidatorImpl;
 
 /**
