@@ -30,7 +30,6 @@ import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -268,7 +267,7 @@ class OrphanBufferTests {
                             "Invalid nGen value {} assigned to event {}",
                             unorphanedEvent.getNGen(),
                             unorphanedEvent.getHash())
-                    .isGreaterThanOrEqualTo(EventConstants.FIRST_GENERATION);
+                    .isGreaterThanOrEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
         }
     }
 
@@ -380,7 +379,7 @@ class OrphanBufferTests {
                 .isEqualTo(1);
         assertThat(unorphanedEvents.getFirst().getNGen())
                 .withFailMessage("nGen for genesis events should be the first generation possible.")
-                .isEqualTo(EventConstants.FIRST_GENERATION);
+                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
     }
 
     @DisplayName("Verify the assignment of nGen for events with ancient parents")
@@ -437,7 +436,7 @@ class OrphanBufferTests {
         assertThat(unorphanedEvents.getFirst().getNGen())
                 .withFailMessage(
                         "nGen for events with unknown ancient parents should be the first generation possible.")
-                .isEqualTo(EventConstants.FIRST_GENERATION);
+                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION);
     }
 
     @DisplayName("Verify the assignment of nGen for events one ancient and one non-ancient parent")

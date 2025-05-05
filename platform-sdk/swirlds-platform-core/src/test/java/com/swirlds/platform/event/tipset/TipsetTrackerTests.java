@@ -25,6 +25,7 @@ import java.util.Set;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -86,7 +87,7 @@ class TipsetTrackerTests {
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
             } else {
-                nGen = 0;
+                nGen = NonDeterministicGeneration.FIRST_GENERATION;
             }
 
             birthRound += random.nextLong(0, 3) / 2;
@@ -131,8 +132,10 @@ class TipsetTrackerTests {
                 newTipset = tracker.addPeerEvent(event);
             }
             assertThat(newTipset.getTipGenerationForNode(selfId))
-                    .withFailMessage("The generation should always be -1 for the self node")
-                    .isEqualTo(-1);
+                    .withFailMessage(String.format(
+                            "The generation should always be %s for the self node",
+                            NonDeterministicGeneration.GENERATION_UNDEFINED))
+                    .isEqualTo(NonDeterministicGeneration.GENERATION_UNDEFINED);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.
