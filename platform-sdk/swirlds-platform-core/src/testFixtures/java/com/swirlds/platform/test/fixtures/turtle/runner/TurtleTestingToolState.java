@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.runner;
 
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
-
 import com.swirlds.platform.state.*;
+import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -80,8 +79,8 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
     @NonNull
     public static MerkleNodeState getStateRootNode() {
         final MerkleNodeState state = new TurtleTestingToolState();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initRosterState(state);
+        MockConsensusStateInitializer.DEFAULT.initPlatformState(state);
+        MockConsensusStateInitializer.DEFAULT.initRosterState(state);
 
         return state;
     }

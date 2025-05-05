@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer.registerMerkleStateRootClassIds;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
+import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import java.io.IOException;
@@ -85,7 +85,7 @@ class StateRegistryTests {
         // Deserialize a state
         final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot();
         final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(stateToSerialize);
+        MockConsensusStateInitializer.DEFAULT.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);
         platformState.bulkUpdate(v -> {
             v.setCreationSoftwareVersion(version);
