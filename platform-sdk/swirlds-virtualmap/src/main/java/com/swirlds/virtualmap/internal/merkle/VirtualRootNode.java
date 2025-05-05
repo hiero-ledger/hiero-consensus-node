@@ -15,6 +15,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * An empty shell to support migration from the previous versions upon deserialization
  */
 @ConstructableClass(value = CLASS_ID)
+@Deprecated(forRemoval = true)
 public final class VirtualRootNode extends PartialBinaryMerkleInternal implements ExternalSelfSerializable {
 
     /**
