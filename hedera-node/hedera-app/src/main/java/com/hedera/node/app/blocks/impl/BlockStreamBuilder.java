@@ -380,7 +380,7 @@ public class BlockStreamBuilder
     private TransactionGroupRole role = TransactionGroupRole.STANDALONE;
 
     /**
-     * ops duration by the contract transaction as calculated using the Hedera ops duration schedule
+     * the total duration of contract operations as calculated using the Hedera ops duration schedule
      */
     private long opsDuration;
 
