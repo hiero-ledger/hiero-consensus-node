@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static org.apache.logging.log4j.Level.WARN;
 import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_VERSION;
@@ -12,6 +13,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.Validator.LogFilter;
 
 class BirthRoundMigrationTest {
 
@@ -65,7 +67,7 @@ class BirthRoundMigrationTest {
         // Validations
         env.validator()
                 .assertPlatformStatus()
-                //                .assertLogs()
+                .assertLogs(LogFilter.maxLogLevel(WARN))
                 .assertMetrics();
 
         assertThat(network.getConsensusResult())
