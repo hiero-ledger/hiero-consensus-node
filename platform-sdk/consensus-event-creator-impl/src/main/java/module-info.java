@@ -16,6 +16,7 @@ module org.hiero.consensus.event.creator.impl {
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
     requires com.swirlds.logging;
+    requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
