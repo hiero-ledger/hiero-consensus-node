@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
@@ -25,6 +26,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -94,8 +96,12 @@ public class NodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
-        if (op.grpcProxyEndpoint() != null) {
-            addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+        if (op.hasGrpcProxyEndpoint()) {
+            if (nodeConfig.webProxyEndpointsEnabled()) {
+                addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+            } else {
+                throw new HandleException(GRPC_WEB_PROXY_NOT_SUPPORTED);
+            }
         }
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
@@ -104,11 +110,14 @@ public class NodeCreateHandler implements TransactionHandler {
                 .description(op.description())
                 .gossipEndpoint(op.gossipEndpoint())
                 .serviceEndpoint(op.serviceEndpoint())
-                .grpcProxyEndpoint(op.grpcProxyEndpoint())
                 .gossipCaCertificate(op.gossipCaCertificate())
                 .grpcCertificateHash(op.grpcCertificateHash())
                 .declineReward(op.declineReward())
                 .adminKey(op.adminKey());
+        if (nodeConfig.webProxyEndpointsEnabled() && op.hasGrpcProxyEndpoint()) {
+            nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
+        }
+
         // Since nodes won't be removed from state, we can set the nodeId to the next available id
         // in the state based on the size of the state.
         final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();

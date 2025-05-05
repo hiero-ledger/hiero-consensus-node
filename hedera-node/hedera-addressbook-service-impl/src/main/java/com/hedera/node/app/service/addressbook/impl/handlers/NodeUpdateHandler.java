@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICATE_HASH;
@@ -25,6 +26,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -117,10 +119,14 @@ public class NodeUpdateHandler implements TransactionHandler {
             addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
         }
         if (op.hasGrpcProxyEndpoint()) {
-            addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+            if (nodeConfig.webProxyEndpointsEnabled()) {
+                addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+            } else {
+                throw new HandleException(GRPC_WEB_PROXY_NOT_SUPPORTED);
+            }
         }
 
-        final var nodeBuilder = updateNode(op, existingNode);
+        final var nodeBuilder = updateNode(op, existingNode, nodeConfig);
         nodeStore.put(nodeBuilder.build());
     }
 
@@ -137,7 +143,10 @@ public class NodeUpdateHandler implements TransactionHandler {
         return calculator.calculate();
     }
 
-    private Node.Builder updateNode(@NonNull final NodeUpdateTransactionBody op, @NonNull final Node node) {
+    private Node.Builder updateNode(
+            @NonNull final NodeUpdateTransactionBody op,
+            @NonNull final Node node,
+            @NonNull final NodesConfig nodeConfig) {
         requireNonNull(op);
         requireNonNull(node);
 
@@ -166,7 +175,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (op.hasDeclineReward()) {
             nodeBuilder.declineReward(op.declineReward());
         }
-        if (op.hasGrpcProxyEndpoint()) {
+        if (nodeConfig.webProxyEndpointsEnabled() && op.hasGrpcProxyEndpoint()) {
             nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
         }
         return nodeBuilder;
