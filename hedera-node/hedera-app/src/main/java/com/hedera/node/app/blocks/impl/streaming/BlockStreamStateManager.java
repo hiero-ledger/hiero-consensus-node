@@ -77,7 +77,7 @@ public class BlockStreamStateManager {
     private static final AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef =
             new AtomicReference<>();
 
-    private long blockNumber = 0;
+    private long blockNumber = -1;
     private final ConfigProvider configProvider;
 
     // Reference to the connection manager for notifications
@@ -166,6 +166,8 @@ public class BlockStreamStateManager {
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         if (this.blockNumber >= blockNumber) {
+            logger.error("Attempted to open a new block with number {}, but a block with the same or later number "
+                    + "(latest: {}) has already been opened", blockNumber, this.blockNumber);
             throw new IllegalStateException("Attempted to open a new block with number " + blockNumber
                     + ", but a block with the same or later number (latest: " + this.blockNumber
                     + ") has already been opened");
