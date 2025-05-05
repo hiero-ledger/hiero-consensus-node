@@ -166,8 +166,11 @@ public class BlockStreamStateManager {
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         if (this.blockNumber >= blockNumber) {
-            logger.error("Attempted to open a new block with number {}, but a block with the same or later number "
-                    + "(latest: {}) has already been opened", blockNumber, this.blockNumber);
+            logger.error(
+                    "Attempted to open a new block with number {}, but a block with the same or later number "
+                            + "(latest: {}) has already been opened",
+                    blockNumber,
+                    this.blockNumber);
             throw new IllegalStateException("Attempted to open a new block with number " + blockNumber
                     + ", but a block with the same or later number (latest: " + this.blockNumber
                     + ") has already been opened");
