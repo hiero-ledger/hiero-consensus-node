@@ -9,7 +9,6 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETW
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;

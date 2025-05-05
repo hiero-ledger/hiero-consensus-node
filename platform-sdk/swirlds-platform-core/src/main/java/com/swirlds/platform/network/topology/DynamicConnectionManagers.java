@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.ConnectionTracker;
@@ -16,6 +15,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

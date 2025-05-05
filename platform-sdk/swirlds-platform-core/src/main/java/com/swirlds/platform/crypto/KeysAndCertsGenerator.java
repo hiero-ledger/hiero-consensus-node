@@ -15,12 +15,13 @@ import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * An instantiation of this class holds all the keys and CSPRNG state for one Platform object. No other class should
- * store any secret or private key/seed information.
+ * This class is responsible for generating and loading the keys and certificates {@link KeysAndCertsGenerator} used
+ * in the system.
  * <p>
  * The algorithms and key sizes used here are chosen in accordance with the IAD-NSA Commercial National Security
  * Algorithm (CNSA) Suite, and TLS 1.2, as implemented by the SUN and SunEC security providers, using the JCE Unlimited
@@ -41,9 +42,12 @@ import org.hiero.consensus.roster.RosterUtils;
  * depend on a number of factors. The plan is to continue to follow the national standard (currently CNSA Suit),
  * changing the algorithms as the standard changes.
  */
-public record KeysAndCerts(KeyPair sigKeyPair, KeyPair agrKeyPair, X509Certificate sigCert, X509Certificate agrCert) {
+public class KeysAndCertsGenerator {
+
     private static final int SIG_SEED = 2;
     private static final int AGR_SEED = 0;
+
+    private KeysAndCertsGenerator() {}
 
     /**
      * Creates an instance holding all the keys and certificates. It reads its own key pairs from privateKeyStore
