@@ -24,4 +24,8 @@ public interface RecordStreamValidator {
     default void validateRecordsAndSidecars(List<RecordWithSidecars> records) {
         // No-op
     }
+
+    default void validateRecordsAndSidecars(List<RecordWithSidecars> records, long shard, long realm) {
+        // No-op
+    }
 }

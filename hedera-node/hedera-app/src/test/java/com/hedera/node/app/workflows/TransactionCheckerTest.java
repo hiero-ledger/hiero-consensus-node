@@ -391,7 +391,10 @@ final class TransactionCheckerTest extends AppTestBase {
                     .ethereumMaxCallDataSize();
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.serializedTransaction()).thenReturn(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]));
+            when(txInfo.transaction())
+                    .thenReturn(Transaction.newBuilder()
+                            .signedTransactionBytes(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]))
+                            .build());
             when(txInfo.functionality()).thenReturn(HederaFunctionality.ETHEREUM_TRANSACTION);
 
             var transactionBodyMock = mock(TransactionBody.class);
@@ -418,7 +421,10 @@ final class TransactionCheckerTest extends AppTestBase {
             checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.serializedTransaction()).thenReturn(Bytes.wrap(new byte[1024 * 7])); // 7 KB
+            when(txInfo.transaction())
+                    .thenReturn(Transaction.newBuilder()
+                            .signedTransactionBytes(Bytes.wrap(new byte[1024 * 7]))
+                            .build()); // 7 KB
             when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
 
             assertThrows(PreCheckException.class, () -> checker.checkJumboTransactionBody(txInfo));
