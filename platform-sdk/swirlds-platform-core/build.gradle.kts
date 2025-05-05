@@ -25,6 +25,7 @@ jmhModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.hedera.node.hapi")
+    requires("org.hiero.consensus.model.test.fixtures")
     requires("jmh.core")
 }
 
@@ -39,6 +40,7 @@ testModuleInfo {
     requires("com.swirlds.state.impl.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.model.test.fixtures")
     requires("awaitility")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")

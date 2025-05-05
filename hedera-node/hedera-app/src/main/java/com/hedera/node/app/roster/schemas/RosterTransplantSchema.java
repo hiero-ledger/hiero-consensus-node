@@ -9,8 +9,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
@@ -21,6 +19,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * The {@link Schema#restart(MigrationContext)} implementation whereby the {@link RosterService} ensures that any

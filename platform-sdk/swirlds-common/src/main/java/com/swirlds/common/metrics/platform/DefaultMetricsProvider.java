@@ -20,6 +20,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -44,6 +47,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
     private final @NonNull MetricKeyRegistry metricKeyRegistry = new MetricKeyRegistry();
     private final @NonNull DefaultPlatformMetrics globalMetrics;
     private final @NonNull ConcurrentMap<NodeId, DefaultPlatformMetrics> platformMetrics = new ConcurrentHashMap<>();
+    private final @NonNull Map<NodeId, List<Runnable>> unsubscribers = new HashMap<>();
     private final @Nullable PrometheusEndpoint prometheusEndpoint;
     private final @NonNull SnapshotService snapshotService;
     private final @NonNull MetricsConfig metricsConfig;
@@ -96,7 +100,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      */
     @Override
     public @NonNull Metrics createPlatformMetrics(@NonNull final NodeId nodeId) {
-        Objects.requireNonNull(nodeId, "selfId must not be null");
+        Objects.requireNonNull(nodeId, "nodeId must not be null");
 
         final DefaultPlatformMetrics newMetrics =
                 new DefaultPlatformMetrics(nodeId, metricKeyRegistry, executor, factory, metricsConfig);
@@ -105,7 +109,9 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
         if (oldMetrics != null) {
             throw new IllegalStateException(String.format("PlatformMetrics for %s already exists", nodeId));
         }
-        globalMetrics.subscribe(newMetrics::handleGlobalMetrics);
+
+        final Runnable unsubscribeGlobalMetrics = globalMetrics.subscribe(newMetrics::handleGlobalMetrics);
+        unsubscribers.put(nodeId, List.of(unsubscribeGlobalMetrics));
 
         if (lifecyclePhase == LifecyclePhase.STARTED) {
             newMetrics.start();
@@ -119,7 +125,8 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
             // setup LegacyCsvWriter
             if (!metricsConfig.csvFileName().isBlank()) {
                 final LegacyCsvWriter legacyCsvWriter = new LegacyCsvWriter(nodeId, folderPath, configuration);
-                snapshotService.subscribe(legacyCsvWriter::handleSnapshots);
+                final Runnable unsubscribeCsvWriter = snapshotService.subscribe(legacyCsvWriter::handleSnapshots);
+                unsubscribers.put(nodeId, List.of(unsubscribeCsvWriter, unsubscribeGlobalMetrics));
             }
 
             // setup Prometheus Endpoint
@@ -129,6 +136,24 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
         }
 
         return newMetrics;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void removePlatformMetrics(@NonNull final NodeId nodeId) throws InterruptedException {
+        Objects.requireNonNull(nodeId, "nodeId must not be null");
+
+        final DefaultPlatformMetrics metrics = platformMetrics.get(nodeId);
+        if (metrics == null) {
+            throw new IllegalArgumentException(String.format("PlatformMetrics for %s does not exist", nodeId));
+        }
+
+        metrics.shutdown();
+        unsubscribers.remove(nodeId).forEach(Runnable::run);
+        snapshotService.removePlatformMetric(metrics);
+        platformMetrics.remove(nodeId);
     }
 
     @Override

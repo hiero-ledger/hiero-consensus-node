@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-module com.swirlds.virtualmap.test.fixtures {
+open module com.swirlds.virtualmap.test.fixtures {
     exports com.swirlds.virtualmap.test.fixtures;
 
     requires transitive com.hedera.pbj.runtime;

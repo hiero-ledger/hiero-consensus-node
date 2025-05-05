@@ -16,12 +16,15 @@ plugins {
     id("org.hiero.gradle.feature.test")
     id("org.hiero.gradle.report.test-logger")
     id("org.hiero.gradle.feature.test-fixtures")
+    id("org.hiero.gradle.feature.protobuf")
 }
 
 description = "Consensus Otter Test Framework"
 
 testModuleInfo {
     requires("com.swirlds.logging")
+    requires("org.apache.logging.log4j")
     requires("org.hiero.consensus.utility")
     requires("org.hiero.otter.fixtures")
+    requires("org.assertj.core")
 }

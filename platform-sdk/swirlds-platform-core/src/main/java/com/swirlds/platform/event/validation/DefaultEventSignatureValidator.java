@@ -12,7 +12,6 @@ import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -27,6 +26,7 @@ import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Default implementation for verifying event signatures

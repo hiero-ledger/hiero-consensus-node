@@ -6,7 +6,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +17,7 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Stores all hashgraph round information in a single place.

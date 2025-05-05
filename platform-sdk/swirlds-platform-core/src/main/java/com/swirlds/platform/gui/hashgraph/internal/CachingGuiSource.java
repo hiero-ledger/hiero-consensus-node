@@ -5,9 +5,9 @@ import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import java.util.List;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A {@link HashgraphGuiSource} that wraps another source but caches the results until {@link #refresh()} is called

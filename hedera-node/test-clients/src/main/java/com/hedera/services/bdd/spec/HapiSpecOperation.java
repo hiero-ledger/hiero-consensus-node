@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static java.util.Collections.EMPTY_LIST;
@@ -124,6 +125,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected Optional<String> payer = Optional.empty();
     protected Optional<Boolean> genRecord = Optional.empty();
     protected Optional<AccountID> node = Optional.empty();
+    protected Optional<String> nodeNum = Optional.empty();
     protected Optional<Supplier<AccountID>> nodeSupplier = Optional.empty();
     protected OptionalDouble usdFee = OptionalDouble.empty();
     protected Optional<Integer> retryLimits = Optional.empty();
@@ -183,6 +185,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     }
 
     protected void fixNodeFor(final HapiSpec spec) {
+        nodeNum.ifPresent(s -> node = Optional.of(asId(s, spec)));
         if (node.isPresent()) {
             return;
         }
