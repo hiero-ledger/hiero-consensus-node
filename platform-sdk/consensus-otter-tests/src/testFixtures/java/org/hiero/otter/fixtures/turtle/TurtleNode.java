@@ -133,6 +133,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     /**
      * {@inheritDoc}
      */
+    @NonNull
+    @Override
+    public NodeId getSelfId() {
+        return selfId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void failUnexpectedly(@NonNull final Duration timeout) throws InterruptedException {
         try {
