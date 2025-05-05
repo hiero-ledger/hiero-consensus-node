@@ -16,16 +16,16 @@ public class PcesFileWritingStats {
     private final AtomicLong totalExpansions = new AtomicLong();
 
     void updateWriteStats(
-            final long startTartTime,
+            final long startTime,
             final long writeStart,
             final long writeFinish,
+            final long endTime,
             final int size,
-            final boolean bufferExpanded,
-            final long endTime) {
+            final boolean bufferExpanded) {
         averageEventSize.add(size);
-        averageFsWriteDuration.add(endTime - startTartTime);
+        averageFsWriteDuration.add(writeFinish - writeStart);
         if (writeFinish != -1) {
-            averageTotalWriteDuration.add(writeFinish - writeStart);
+            averageTotalWriteDuration.add(endTime - startTime);
         }
         if (bufferExpanded) {
             totalExpansions.incrementAndGet();

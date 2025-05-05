@@ -68,10 +68,10 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        long startTartTime = System.currentTimeMillis();
+        long starTime = System.currentTimeMillis();
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
         boolean bufferExpanded = false;
-        long writeStart = startTartTime;
+        long writeStart = starTime;
         long writeFinish = -1;
         try {
             if (size > buffer.capacity()) {
@@ -86,8 +86,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
             writeFinish = System.currentTimeMillis();
             flipWriteClear();
         } finally {
-            stats.updateWriteStats(
-                    startTartTime, writeStart, writeFinish, size, bufferExpanded, System.currentTimeMillis());
+            stats.updateWriteStats(starTime, writeStart, writeFinish, System.currentTimeMillis(), size, bufferExpanded);
         }
     }
 
@@ -114,11 +113,11 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
-        long startTartTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
         // benchmarks show that this has horrible performance for the channel writer (in mac-os)
         channel.force(false);
 
-        stats.updateSyncStats(startTartTime, System.currentTimeMillis());
+        stats.updateSyncStats(startTime, System.currentTimeMillis());
     }
 
     @Override
