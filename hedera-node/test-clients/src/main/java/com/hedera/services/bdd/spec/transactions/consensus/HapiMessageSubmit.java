@@ -16,7 +16,6 @@ import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusMessageChunkInfo;
 import com.hederahashgraph.api.proto.java.ConsensusSubmitMessageTransactionBody;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -190,18 +189,14 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
 
     private long lookupCustomFees(final HapiSpec spec) {
         final var topicId = topicFn.isPresent() ? topicFn.get().apply(spec) : (topic.orElse(null));
-        if (topicId != null) {
-            if (!spec.registry().hasTopicMeta(topicId.toString())) {
-                if (!loggingOff) {
-                    log.info("Invalid topic {}", topicId);
-                    return 0;
-                }
+        if (topicId == null || !spec.registry().hasTopicMeta(topicId.toString())) {
+            if (!loggingOff) {
+                log.info("Invalid topic {}", topicId);
             }
-            final ConsensusCreateTopicTransactionBody topicCreation =
-                    spec.registry().getTopicMeta(topicId.toString());
-            return topicCreation.getCustomFeesCount();
+            return 0;
         }
-        return 0;
+        final var topicCreation = spec.registry().getTopicMeta(topicId.toString());
+        return topicCreation.getCustomFeesCount();
     }
 
     @Override
