@@ -620,7 +620,7 @@ class OrphanBufferTests {
                 .isEqualTo(1);
         assertThat(node0NonAncientEvent.getNGen())
                 .withFailMessage("Events should have an nGen value 1 higher than all non ancient parents.")
-                .isEqualTo(EventConstants.FIRST_GENERATION + 1);
+                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION + 1);
         unorphanedEvents.clear();
 
         unorphanedEvents.addAll(orphanBuffer.handleEvent(node0NonAncientEvent2));
@@ -630,6 +630,6 @@ class OrphanBufferTests {
                 .isEqualTo(1);
         assertThat(node0NonAncientEvent2.getNGen())
                 .withFailMessage("Events should have an nGen value 1 higher than all non ancient parents.")
-                .isEqualTo(EventConstants.FIRST_GENERATION + 2);
+                .isEqualTo(NonDeterministicGeneration.FIRST_GENERATION + 2);
     }
 }
