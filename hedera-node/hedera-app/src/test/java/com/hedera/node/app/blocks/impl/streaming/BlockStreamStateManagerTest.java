@@ -454,7 +454,8 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
 
         // when and then
-        assertThat(blockStreamStateManager.getBlockNumber()).isZero();
+        // -1 is a sentinel value indicating no block has been opened
+        assertThat(blockStreamStateManager.getBlockNumber()).isEqualTo(-1);
     }
 
     @Test
@@ -479,7 +480,9 @@ class BlockStreamStateManagerTest {
         assertThatThrownBy(() -> blockStreamStateManager.openBlock(-1L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Block number must be non-negative");
-        assertThat(blockStreamStateManager.getBlockNumber()).isZero();
+
+        // -1 is a sentinel value indicating no block has been opened
+        assertThat(blockStreamStateManager.getBlockNumber()).isEqualTo(-1L);
     }
 
     @Test
@@ -914,6 +917,7 @@ class BlockStreamStateManagerTest {
         verify(blockStreamMetrics).setLatestAcknowledgedBlockNumber(100L);
     }
 
+    @Test
     private static BlockItem newBlockHeaderItem() {
         return BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().build())

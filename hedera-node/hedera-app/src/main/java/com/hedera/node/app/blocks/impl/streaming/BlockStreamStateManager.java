@@ -334,7 +334,7 @@ public class BlockStreamStateManager {
     /**
      * Gets the current block number.
      *
-     * @return the current block number
+     * @return the current block number or -1 if no blocks have been opened yet
      */
     public long getBlockNumber() {
         return blockNumber;
