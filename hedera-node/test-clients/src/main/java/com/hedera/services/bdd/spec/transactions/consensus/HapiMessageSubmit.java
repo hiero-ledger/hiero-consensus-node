@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.consensus;
 
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransactionID;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
@@ -17,13 +16,13 @@ import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusMessageChunkInfo;
 import com.hederahashgraph.api.proto.java.ConsensusSubmitMessageTransactionBody;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.FixedCustomFee;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.TopicID;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -192,19 +191,15 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
     private long lookupCustomFees(final HapiSpec spec) {
         final var topicId = topicFn.isPresent() ? topicFn.get().apply(spec) : (topic.orElse(null));
         if (topicId != null) {
-            final var subOp = getTopicInfo(topicId.toString()).hasCostAnswerPrecheckFrom(ResponseCodeEnum.OK);
-            Optional<Throwable> error = subOp.execFor(spec);
-            if (error.isPresent()) {
+            if (!spec.registry().hasTopicMeta(topicId.toString())) {
                 if (!loggingOff) {
-                    log.info("Error getting custom fees for topic {}: {}", topicId, error.get());
+                    log.info("Invalid topic {}", topicId);
                     return 0;
                 }
             }
-            final var topicInfo = subOp.getResponse();
-            if (topicInfo == null) {
-                return 0;
-            }
-            return topicInfo.getConsensusGetTopicInfo().getTopicInfo().getCustomFeesCount();
+            final ConsensusCreateTopicTransactionBody topicCreation =
+                    spec.registry().getTopicMeta(topicId.toString());
+            return topicCreation.getCustomFeesCount();
         }
         return 0;
     }
