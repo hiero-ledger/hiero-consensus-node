@@ -26,7 +26,6 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -119,11 +118,8 @@ public class NodeUpdateHandler implements TransactionHandler {
             addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
         }
         if (op.hasGrpcProxyEndpoint()) {
-            if (nodeConfig.webProxyEndpointsEnabled()) {
-                addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
-            } else {
-                throw new HandleException(GRPC_WEB_PROXY_NOT_SUPPORTED);
-            }
+            validateTrue(nodeConfig.webProxyEndpointsEnabled(), GRPC_WEB_PROXY_NOT_SUPPORTED);
+            addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
         }
 
         final var nodeBuilder = updateNode(op, existingNode, nodeConfig);
@@ -175,7 +171,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (op.hasDeclineReward()) {
             nodeBuilder.declineReward(op.declineReward());
         }
-        if (nodeConfig.webProxyEndpointsEnabled() && op.hasGrpcProxyEndpoint()) {
+        if (op.hasGrpcProxyEndpoint()) {
             nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
         }
         return nodeBuilder;
