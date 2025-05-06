@@ -655,14 +655,14 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 stakeRebalanceOffsets = new DelayQueue<>();
                 requireNonNull(stakeRebalanceOffsets)
                         .add(new DelayedDuration(
-                                Duration.ofSeconds(startupProperties().getLong("stake.periodMins") * 60 / 2)));
+                                Duration.ofSeconds(startupProperties().getLong("staking.periodMins") * 60 / 2)));
             }
             dd = requireNonNull(stakeRebalanceOffsets).poll();
             if (dd != null) {
                 ops.add(rebalanceStakes());
                 requireNonNull(stakeRebalanceOffsets)
                         .add(new DelayedDuration(
-                                Duration.ofSeconds(startupProperties().getLong("stake.periodMins") * 60 / 2)));
+                                Duration.ofSeconds(startupProperties().getLong("staking.periodMins") * 60 / 2)));
             }
         }
         if (!suitePrefix.endsWith(ETH_SUFFIX)) {

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -18,7 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -85,9 +87,12 @@ public final class RosterUtils {
      * @return true if the rosters are weight rotations, false otherwise
      */
     public static boolean isWeightRotation(@NonNull final Roster from, @NonNull final Roster to) {
-        final var fromNodes =
+        requireNonNull(from, "from");
+        requireNonNull(to, "to");
+        final Set<Long> fromNodes =
                 from.rosterEntries().stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
-        final var toNodes = to.rosterEntries().stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
+        final Set<Long> toNodes =
+                to.rosterEntries().stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
         return fromNodes.equals(toNodes);
     }
 
@@ -230,8 +235,7 @@ public final class RosterUtils {
      */
     @NonNull
     public static NodeId getNodeId(@NonNull final Roster roster, final int nodeIndex) {
-        return NodeId.of(
-                Objects.requireNonNull(roster).rosterEntries().get(nodeIndex).nodeId());
+        return NodeId.of(requireNonNull(roster).rosterEntries().get(nodeIndex).nodeId());
     }
 
     /**
@@ -245,7 +249,7 @@ public final class RosterUtils {
      * @return the found roster entry that matches the specified node ID, else null
      */
     public static RosterEntry getRosterEntryOrNull(@NonNull final Roster roster, final long nodeId) {
-        Objects.requireNonNull(roster, "roster");
+        requireNonNull(roster, "roster");
 
         for (final RosterEntry entry : roster.rosterEntries()) {
             if (entry.nodeId() == nodeId) {
@@ -311,7 +315,7 @@ public final class RosterUtils {
         final var roundRosterPairs = rosterStore.getRosterHistory();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
         for (final var pair : roundRosterPairs) {
-            rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
+            rosterMap.put(pair.activeRosterHash(), requireNonNull(rosterStore.get(pair.activeRosterHash())));
         }
         return new RosterHistory(roundRosterPairs, rosterMap);
     }
