@@ -58,6 +58,7 @@ class AppThrottleFactoryTest {
             List.of(
                     new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8)),
                     new ThrottleUsageSnapshot(2L, new Timestamp(345678, 9))),
+            ThrottleUsageSnapshot.DEFAULT,
             ThrottleUsageSnapshot.DEFAULT);
 
     @Mock

@@ -38,7 +38,9 @@ class ThrottleServiceManagerTest {
     private static final Bytes MOCK_ENCODED_THROTTLE_DEFS = Bytes.wrap("NOPE");
     private static final ThrottleDefinitions MOCK_THROTTLE_DEFS = ThrottleDefinitions.DEFAULT;
     private static final ThrottleUsageSnapshots MOCK_THROTTLE_USAGE_SNAPSHOTS = new ThrottleUsageSnapshots(
-            List.of(new ThrottleUsageSnapshot(123L, EPOCH)), new ThrottleUsageSnapshot(456L, EPOCH));
+            List.of(new ThrottleUsageSnapshot(123L, EPOCH)),
+            new ThrottleUsageSnapshot(456L, EPOCH),
+            new ThrottleUsageSnapshot(789L, EPOCH));
     private static final CongestionLevelStarts MOCK_CONGESTION_LEVEL_STARTS =
             new CongestionLevelStarts(List.of(new Timestamp(1L, 2), EPOCH), List.of(new Timestamp(3L, 4), EPOCH));
     private static final ThrottleUsageSnapshot MOCK_USAGE_SNAPSHOT =
@@ -145,7 +147,8 @@ class ThrottleServiceManagerTest {
         subject.saveThrottleSnapshotsAndCongestionLevelStartsTo(state);
 
         verify(writableThrottleSnapshots)
-                .put(new ThrottleUsageSnapshots(List.of(MOCK_USAGE_SNAPSHOT), MOCK_USAGE_SNAPSHOT));
+                .put(new ThrottleUsageSnapshots(
+                        List.of(MOCK_USAGE_SNAPSHOT), MOCK_USAGE_SNAPSHOT, MOCK_USAGE_SNAPSHOT));
         verify(writableLevelStarts).put(MOCK_CONGESTION_LEVEL_STARTS);
     }
 
