@@ -153,7 +153,7 @@ class DataFileCollectionCompactionTest {
 
         assertEquals(1, coll.getAllCompletedFiles().size(), "Too many files left over");
 
-        final var dataFileReader = coll.getAllCompletedFiles().get(0);
+        final var dataFileReader = coll.getAllCompletedFiles().getFirst();
         final var itr = dataFileReader.createIterator();
         prevKey = -1;
         while (itr.next()) {
@@ -565,7 +565,6 @@ class DataFileCollectionCompactionTest {
         f.get();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("Restore with inconsistent index")
     void testInconsistentIndex() throws Exception {

@@ -709,7 +709,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 if (bucketIndex != bucket.getBucketIndex()) {
                     logger.error(
                             MERKLE_DB.getMarker(),
-                            "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
+                            "Bucket index integrity check {} != {}",
+                            bucketIndex,
+                            bucket.getBucketIndex());
                     /*
                        This is a workaround for the issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
                        which caused possible corruption in snapshots.
@@ -730,7 +732,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to read / update bucket " + bucketIndex, t);
+            logger.error(MERKLE_DB.getMarker(), "Failed to read / update bucket {}", bucketIndex, t);
             exceptionOccurred.set(t);
             // Make sure the writing thread is resumed
             notifyTaskRef.get().completeExceptionally(t);
@@ -793,7 +795,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket " + bucket.getBucketIndex(), t);
+            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket {}", bucket.getBucketIndex(), t);
             exceptionOccurred.set(t);
             // Make sure the writing thread is resumed
             notifyTaskRef.get().completeExceptionally(t);
@@ -891,11 +893,5 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private int computeBucketIndex(final int keyHash) {
         return (numOfBuckets - 1) & keyHash;
-    }
-
-    private record ReadBucketResult(Bucket bucket, Throwable error) {
-        public ReadBucketResult {
-            assert (bucket != null) ^ (error != null);
-        }
     }
 }

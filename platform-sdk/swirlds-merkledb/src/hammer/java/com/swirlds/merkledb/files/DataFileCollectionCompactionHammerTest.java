@@ -48,7 +48,6 @@ class DataFileCollectionCompactionHammerTest {
         Configurator.reconfigure();
     }
 
-    @SuppressWarnings("unchecked")
     @ParameterizedTest
     @MethodSource("provideForBenchmark")
     @Tags({@Tag("Speed")})
@@ -115,7 +114,6 @@ class DataFileCollectionCompactionHammerTest {
                 Arguments.of(1000, 1_000_000));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     void hammer() throws IOException, InterruptedException, ExecutionException {
         final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
