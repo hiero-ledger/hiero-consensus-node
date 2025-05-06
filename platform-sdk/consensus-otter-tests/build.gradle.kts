@@ -21,12 +21,6 @@ plugins {
 
 description = "Consensus Otter Test Framework"
 
-// Remove the following line to enable all 'javac' lint checks that we have turned on by default
-// and then fix the reported issues.
-tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add("-Xlint:-exports")
-}
-
 testModuleInfo {
     requires("com.swirlds.logging")
     requires("org.apache.logging.log4j")
