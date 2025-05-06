@@ -19,7 +19,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.internal.MerkleCryptoEngine;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
@@ -357,7 +357,7 @@ class PlatformTestingToolStateTest {
 
     private void givenPlatform(final Platform platform, final PlatformContext platformContext, final NodeId nodeId) {
         final Future<Hash> futureHash = mock(Future.class);
-        final MerkleCryptoEngine cryptography = mock(MerkleCryptoEngine.class);
+        final MerkleCryptography cryptography = mock(MerkleCryptography.class);
         when(cryptography.digestTreeAsync(any())).thenReturn(futureHash);
         final NotificationEngine notificationEngine = mock(NotificationEngine.class);
 

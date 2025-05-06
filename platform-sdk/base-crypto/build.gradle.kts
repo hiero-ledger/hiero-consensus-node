@@ -9,9 +9,11 @@ plugins {
 description = "Base Crypto"
 
 testModuleInfo {
+    requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto")
+    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }

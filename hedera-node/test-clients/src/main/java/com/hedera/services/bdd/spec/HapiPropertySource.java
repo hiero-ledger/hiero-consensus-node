@@ -571,7 +571,15 @@ public interface HapiPropertySource {
     }
 
     static String asEntityString(final long num) {
-        return String.format(ENTITY_STRING, shard, realm, num);
+        return asEntityString(shard, realm, num);
+    }
+
+    static String asEntityString(final String shard, final String realm, final String num) {
+        return String.format("%s.%s.%s", shard, realm, num);
+    }
+
+    static String asEntityString(final AccountID id) {
+        return asEntityString(id.getShardNum(), id.getRealmNum(), id.getAccountNum());
     }
 
     static long numberOfLongZero(@NonNull final byte[] explicit) {

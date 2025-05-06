@@ -35,8 +35,8 @@ import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -117,11 +117,11 @@ public class TipsetEventCreatorTestUtils {
 
         final PlatformEvent selfParent = allEvents.get(newEvent.getSelfParent());
         final long selfParentGeneration =
-                selfParent == null ? EventConstants.GENERATION_UNDEFINED : selfParent.getNGen();
+                selfParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : selfParent.getNGen();
         final PlatformEvent otherParent =
                 allEvents.get(newEvent.getOtherParents().stream().findFirst().orElse(null));
         final long otherParentGeneration =
-                otherParent == null ? EventConstants.GENERATION_UNDEFINED : otherParent.getNGen();
+                otherParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : otherParent.getNGen();
 
         if (selfParent == null) {
             // The only legal time to have a null self parent is genesis.
