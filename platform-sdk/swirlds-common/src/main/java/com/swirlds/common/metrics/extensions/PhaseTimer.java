@@ -63,7 +63,7 @@ public class PhaseTimer<T extends Enum<T>> {
         absoluteTimeUnit = builder.getAbsoluteUnit();
 
         registerMetrics(
-                builder.getPlatformContext().getMetrics(),
+                builder.getMetrics(),
                 builder.getMetricsCategory(),
                 builder.getMetricsNamePrefix(),
                 builder.getPhases());
@@ -104,6 +104,14 @@ public class PhaseTimer<T extends Enum<T>> {
 
         previousTime = now;
         activePhase = phase;
+    }
+
+    /**
+     * Returns current phase which was last activated on this time
+     * @return active phase
+     */
+    public T getActivePhase() {
+        return activePhase;
     }
 
     /**

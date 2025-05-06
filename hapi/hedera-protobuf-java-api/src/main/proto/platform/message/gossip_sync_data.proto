@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package com.hedera.hapi.platform.message;
+
+option java_package = "com.hedera.hapi.platform.message.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.platform.message">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Describes the event window which is currently seen by given node.
+ */
+message GossipEventWindow {
+
+  /**
+   * the latest round that has come to consensus
+   */
+  int64 latestConsensusRound = 1;
+
+  /**
+   * the minimum ancient indicator value for an event to be considered non-ancient
+   */
+  int64 ancientThreshold = 2;
+
+  /**
+   * the minimum ancient indicator value for an event to be considered not expired
+   */
+  int64 expiredThreshold = 3;
+}
+
+/**
+ * Message exchange at the start of rpc sync, to exchange the event window and tipset.
+ */
+message GossipSyncData {
+  /**
+   * Current consensus/event window of sender
+   */
+  GossipEventWindow window = 1;
+
+  /**
+   * The hashes of the tips.<br/>
+   * The hash SHALL be a SHA-384 hash.<br/>
+   */
+  repeated bytes tips = 2;
+
+}

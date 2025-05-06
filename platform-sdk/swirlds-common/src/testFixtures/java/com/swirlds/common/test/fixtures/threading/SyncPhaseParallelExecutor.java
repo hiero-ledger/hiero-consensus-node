@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.concurrent.ThrowingRunnable;
 
 /**
  * A parallel executor that executes a {@link Runnable} after a specified sync phase (not step).
@@ -157,6 +158,16 @@ public class SyncPhaseParallelExecutor implements ParallelExecutor {
             Thread.currentThread().interrupt();
             throw new ParallelExecutionException(e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     * Not implemented
+     */
+    @Override
+    public void doParallel(final Runnable onThrow, final ThrowingRunnable task1, final ThrowingRunnable... tasks)
+            throws ParallelExecutionException {
+        throw new UnsupportedOperationException();
     }
 
     private static Runnable noopIfNull(Runnable runnable) {

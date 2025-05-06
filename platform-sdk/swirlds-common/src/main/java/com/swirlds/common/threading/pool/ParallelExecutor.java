@@ -22,6 +22,17 @@ public interface ParallelExecutor extends Mutable, Startable {
     <T> T doParallel(Callable<T> task1, Callable<Void> task2) throws ParallelExecutionException;
 
     /**
+     * Run number of tasks in parallel
+     *
+     * @param task1 a task to execute in parallel
+     * @param tasks number of tasks to execute in parallel
+     * @throws MutabilityException        if executed prior to object being started
+     * @throws ParallelExecutionException if anything goes wrong
+     */
+    void doParallel(final Runnable onThrow, ThrowingRunnable task1, ThrowingRunnable... tasks)
+            throws ParallelExecutionException;
+
+    /**
      * Same as {@link #doParallel(Callable, Callable, Runnable)} but without a return type
      */
     default void doParallel(final ThrowingRunnable task1, final ThrowingRunnable task2, final Runnable onThrow)

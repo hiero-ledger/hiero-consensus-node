@@ -124,7 +124,15 @@ public class CommonPcesWriter {
         spanOverlapFactor = pcesConfig.spanOverlapFactor();
         minimumSpan = pcesConfig.minimumSpan();
         preferredFileSizeMegabytes = pcesConfig.preferredFileSizeMegabytes();
-        pcesFileWriterType = pcesConfig.pcesFileWriterType();
+
+        // performance of FILE_CHANNEL is 150x slower on MacOS, but marginally better on Linux; it is so bad on Mac
+        // that basic tests cannot pass in some cases, so we need to make it system dependent, at same time allowing
+        // override if needed
+        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            pcesFileWriterType = pcesConfig.macPcesFileWriterType();
+        } else {
+            pcesFileWriterType = pcesConfig.pcesFileWriterType();
+        }
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
     }
