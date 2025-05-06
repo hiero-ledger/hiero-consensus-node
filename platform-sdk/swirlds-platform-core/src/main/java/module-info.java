@@ -62,6 +62,7 @@ module com.swirlds.platform.core {
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
     exports com.swirlds.platform.consensus to
+            com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.app;
@@ -69,10 +70,12 @@ module com.swirlds.platform.core {
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
     exports com.swirlds.platform.uptime to
+            com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.common,
             com.hedera.node.test.clients;
     exports com.swirlds.platform.gossip.sync.config to
+            com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures,
