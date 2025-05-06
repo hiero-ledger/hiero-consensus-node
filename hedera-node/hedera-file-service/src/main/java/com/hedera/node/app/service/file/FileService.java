@@ -23,6 +23,7 @@ public interface FileService extends RpcService {
     @NonNull
     @Override
     default String getServiceName() {
+        // return the NAME of the service
         return NAME;
     }
 
