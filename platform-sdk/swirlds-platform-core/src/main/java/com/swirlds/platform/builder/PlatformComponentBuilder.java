@@ -47,6 +47,7 @@ import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.gossip.SyncGossipModular;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -105,9 +106,9 @@ import org.hiero.consensus.model.event.CesEvent;
  *     <li>A component must not be a static singleton or use static stateful variables in any way.</li>
  * </ul>
  */
-public class PlatformComponentBuilder {
+public class PlatformComponentBuilder<T extends MerkleNodeState> {
 
-    private final PlatformBuildingBlocks blocks;
+    private final PlatformBuildingBlocks<T> blocks;
 
     private EventHasher eventHasher;
     private InternalEventValidator internalEventValidator;
@@ -139,7 +140,7 @@ public class PlatformComponentBuilder {
     private LatestCompleteStateNotifier latestCompleteStateNotifier;
     private FutureEventBuffer futureEventBuffer;
 
-    private SwirldsPlatform swirldsPlatform;
+    private SwirldsPlatform<T> swirldsPlatform;
 
     private boolean metricsDocumentationEnabled = true;
 
@@ -154,7 +155,7 @@ public class PlatformComponentBuilder {
      * @param blocks the build context for the platform under construction, contains all data needed to construct
      *               platform components
      */
-    public PlatformComponentBuilder(@NonNull final PlatformBuildingBlocks blocks) {
+    public PlatformComponentBuilder(@NonNull final PlatformBuildingBlocks<T> blocks) {
         this.blocks = Objects.requireNonNull(blocks);
     }
 
@@ -164,7 +165,7 @@ public class PlatformComponentBuilder {
      * @return the build context
      */
     @NonNull
-    public PlatformBuildingBlocks getBuildingBlocks() {
+    public PlatformBuildingBlocks<T> getBuildingBlocks() {
         return blocks;
     }
 
@@ -188,7 +189,7 @@ public class PlatformComponentBuilder {
         used = true;
 
         try (final ReservedSignedState initialState = blocks.initialState()) {
-            swirldsPlatform = new SwirldsPlatform(this);
+            swirldsPlatform = new SwirldsPlatform<T>(this);
             return swirldsPlatform;
         } finally {
             if (metricsDocumentationEnabled) {
@@ -211,7 +212,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withMetricsDocumentationEnabled(final boolean metricsDocumentationEnabled) {
+    public PlatformComponentBuilder<T> withMetricsDocumentationEnabled(final boolean metricsDocumentationEnabled) {
         throwIfAlreadyUsed();
         this.metricsDocumentationEnabled = metricsDocumentationEnabled;
         return this;
@@ -224,7 +225,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withEventHasher(@NonNull final EventHasher eventHasher) {
+    public PlatformComponentBuilder<T> withEventHasher(@NonNull final EventHasher eventHasher) {
         throwIfAlreadyUsed();
         if (this.eventHasher != null) {
             throw new IllegalStateException("Event hasher has already been set");
@@ -255,7 +256,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withInternalEventValidator(
+    public PlatformComponentBuilder<T> withInternalEventValidator(
             @NonNull final InternalEventValidator internalEventValidator) {
         throwIfAlreadyUsed();
         if (this.internalEventValidator != null) {
@@ -291,7 +292,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withEventDeduplicator(@NonNull final EventDeduplicator eventDeduplicator) {
+    public PlatformComponentBuilder<T> withEventDeduplicator(@NonNull final EventDeduplicator eventDeduplicator) {
         throwIfAlreadyUsed();
         if (this.eventDeduplicator != null) {
             throw new IllegalStateException("Event deduplicator has already been set");
@@ -323,7 +324,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withEventSignatureValidator(
+    public PlatformComponentBuilder<T> withEventSignatureValidator(
             @NonNull final EventSignatureValidator eventSignatureValidator) {
         throwIfAlreadyUsed();
         if (this.eventSignatureValidator != null) {
@@ -360,7 +361,7 @@ public class PlatformComponentBuilder {
      * @param stateGarbageCollector the state garbage collector to use
      * @return this builder
      */
-    public PlatformComponentBuilder withStateGarbageCollector(
+    public PlatformComponentBuilder<T> withStateGarbageCollector(
             @NonNull final StateGarbageCollector stateGarbageCollector) {
         throwIfAlreadyUsed();
         if (this.stateGarbageCollector != null) {
@@ -393,7 +394,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withSelfEventSigner(@NonNull final SelfEventSigner selfEventSigner) {
+    public PlatformComponentBuilder<T> withSelfEventSigner(@NonNull final SelfEventSigner selfEventSigner) {
         throwIfAlreadyUsed();
         if (this.selfEventSigner != null) {
             throw new IllegalStateException("Self event signer has already been set");
@@ -441,7 +442,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withOrphanBuffer(@NonNull final OrphanBuffer orphanBuffer) {
+    public PlatformComponentBuilder<T> withOrphanBuffer(@NonNull final OrphanBuffer orphanBuffer) {
         throwIfAlreadyUsed();
         if (this.orphanBuffer != null) {
             throw new IllegalStateException("Orphan buffer has already been set");
@@ -458,7 +459,8 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withEventCreationManager(@NonNull final EventCreationManager eventCreationManager) {
+    public PlatformComponentBuilder<T> withEventCreationManager(
+            @NonNull final EventCreationManager eventCreationManager) {
         throwIfAlreadyUsed();
         if (this.eventCreationManager != null) {
             throw new IllegalStateException("Event creation manager has already been set");
@@ -500,7 +502,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withConsensusEngine(@NonNull final ConsensusEngine consensusEngine) {
+    public PlatformComponentBuilder<T> withConsensusEngine(@NonNull final ConsensusEngine consensusEngine) {
         throwIfAlreadyUsed();
         if (this.consensusEngine != null) {
             throw new IllegalStateException("Consensus engine has already been set");
@@ -532,7 +534,8 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withConsensusEventStream(@NonNull final ConsensusEventStream consensusEventStream) {
+    public PlatformComponentBuilder<T> withConsensusEventStream(
+            @NonNull final ConsensusEventStream consensusEventStream) {
         throwIfAlreadyUsed();
         if (this.consensusEventStream != null) {
             throw new IllegalStateException("Consensus event stream has already been set");
@@ -572,7 +575,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withStatusStateMachine(@NonNull final StatusStateMachine statusStateMachine) {
+    public PlatformComponentBuilder<T> withStatusStateMachine(@NonNull final StatusStateMachine statusStateMachine) {
         throwIfAlreadyUsed();
         if (this.statusStateMachine != null) {
             throw new IllegalStateException("Status state machine has already been set");
@@ -604,7 +607,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withSignedStateSentinel(@NonNull final SignedStateSentinel signedStateSentinel) {
+    public PlatformComponentBuilder<T> withSignedStateSentinel(@NonNull final SignedStateSentinel signedStateSentinel) {
         throwIfAlreadyUsed();
         if (this.signedStateSentinel != null) {
             throw new IllegalStateException("Signed state sentinel has already been set");
@@ -636,7 +639,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withTransactionPrehandler(
+    public PlatformComponentBuilder<T> withTransactionPrehandler(
             @NonNull final TransactionPrehandler transactionPrehandler) {
         throwIfAlreadyUsed();
         if (this.transactionPrehandler != null) {
@@ -672,7 +675,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withInlinePcesWriter(@NonNull final InlinePcesWriter inlinePcesWriter) {
+    public PlatformComponentBuilder<T> withInlinePcesWriter(@NonNull final InlinePcesWriter inlinePcesWriter) {
         throwIfAlreadyUsed();
         if (this.inlinePcesWriter != null) {
             throw new IllegalStateException("Inline PCES writer has already been set");
@@ -715,7 +718,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withIssDetector(@NonNull final IssDetector issDetector) {
+    public PlatformComponentBuilder<T> withIssDetector(@NonNull final IssDetector issDetector) {
         throwIfAlreadyUsed();
         if (this.issDetector != null) {
             throw new IllegalStateException("ISS detector has already been set");
@@ -784,7 +787,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withIssHandler(@NonNull final IssHandler issHandler) {
+    public PlatformComponentBuilder<T> withIssHandler(@NonNull final IssHandler issHandler) {
         throwIfAlreadyUsed();
         if (this.issHandler != null) {
             throw new IllegalStateException("ISS handler has already been set");
@@ -823,7 +826,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withStaleEventDetector(@NonNull final StaleEventDetector staleEventDetector) {
+    public PlatformComponentBuilder<T> withStaleEventDetector(@NonNull final StaleEventDetector staleEventDetector) {
         throwIfAlreadyUsed();
         if (this.staleEventDetector != null) {
             throw new IllegalStateException("Stale event detector has already been set");
@@ -857,7 +860,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withTransactionResubmitter(
+    public PlatformComponentBuilder<T> withTransactionResubmitter(
             @NonNull final TransactionResubmitter transactionResubmitter) {
         throwIfAlreadyUsed();
         if (this.transactionResubmitter != null) {
@@ -890,7 +893,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withTransactionPool(@NonNull final TransactionPool transactionPool) {
+    public PlatformComponentBuilder<T> withTransactionPool(@NonNull final TransactionPool transactionPool) {
         throwIfAlreadyUsed();
         if (this.transactionPool != null) {
             throw new IllegalStateException("Transaction pool has already been set");
@@ -921,7 +924,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withGossip(@NonNull final Gossip gossip) {
+    public PlatformComponentBuilder<T> withGossip(@NonNull final Gossip gossip) {
         throwIfAlreadyUsed();
         if (this.gossip != null) {
             throw new IllegalStateException("Gossip has already been set");
@@ -947,13 +950,13 @@ public class PlatformComponentBuilder {
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
                     blocks.appVersion(),
-                    blocks.swirldStateManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
                     x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
                     state -> blocks.loadReconnectStateReference().get().accept(state),
                     () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
-                    blocks.platformStateFacade());
+                    blocks.platformStateFacade(),
+                    blocks.stateLifecycleManager());
         }
         return gossip;
     }
@@ -965,7 +968,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withStateHasher(@NonNull final StateHasher stateHasher) {
+    public PlatformComponentBuilder<T> withStateHasher(@NonNull final StateHasher stateHasher) {
         throwIfAlreadyUsed();
         if (this.stateHasher != null) {
             throw new IllegalStateException("Signed state hasher has already been set");
@@ -996,7 +999,8 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withStateSnapshotManager(@NonNull final StateSnapshotManager stateSnapshotManager) {
+    public PlatformComponentBuilder<T> withStateSnapshotManager(
+            @NonNull final StateSnapshotManager stateSnapshotManager) {
         throwIfAlreadyUsed();
         if (this.stateSnapshotManager != null) {
             throw new IllegalStateException("State snapshot manager has already been set");
@@ -1037,7 +1041,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withHashLogger(@NonNull final HashLogger hashLogger) {
+    public PlatformComponentBuilder<T> withHashLogger(@NonNull final HashLogger hashLogger) {
         throwIfAlreadyUsed();
         if (this.hashLogger != null) {
             throw new IllegalStateException("Hash logger has already been set");
@@ -1068,7 +1072,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withBranchDetector(@NonNull final BranchDetector branchDetector) {
+    public PlatformComponentBuilder<T> withBranchDetector(@NonNull final BranchDetector branchDetector) {
         throwIfAlreadyUsed();
         if (this.branchDetector != null) {
             throw new IllegalStateException("Branch detector has already been set");
@@ -1100,7 +1104,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withBranchReporter(@NonNull final BranchReporter branchReporter) {
+    public PlatformComponentBuilder<T> withBranchReporter(@NonNull final BranchReporter branchReporter) {
         throwIfAlreadyUsed();
         if (this.branchReporter != null) {
             throw new IllegalStateException("Branch reporter has already been set");
@@ -1132,7 +1136,7 @@ public class PlatformComponentBuilder {
      * @param stateSigner the state signer to use
      * @return this builder
      */
-    public PlatformComponentBuilder withStateSigner(@NonNull final StateSigner stateSigner) {
+    public PlatformComponentBuilder<T> withStateSigner(@NonNull final StateSigner stateSigner) {
         throwIfAlreadyUsed();
         if (this.stateSigner != null) {
             throw new IllegalStateException("State signer has already been set");
@@ -1163,7 +1167,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withTransactionHandler(@NonNull final TransactionHandler transactionHandler) {
+    public PlatformComponentBuilder<T> withTransactionHandler(@NonNull final TransactionHandler transactionHandler) {
         throwIfAlreadyUsed();
         if (this.transactionHandler != null) {
             throw new IllegalStateException("Transaction handler has already been set");
@@ -1183,12 +1187,15 @@ public class PlatformComponentBuilder {
     @NonNull
     public TransactionHandler buildTransactionHandler() {
         if (transactionHandler == null) {
-            transactionHandler = new DefaultTransactionHandler(
+            transactionHandler = new DefaultTransactionHandler<T>(
                     blocks.platformContext(),
-                    blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
-                    blocks.platformStateFacade());
+                    blocks.platformStateFacade(),
+                    blocks.stateLifecycleManager(),
+                    blocks.consensusStateEventHandler(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.selfId());
         }
         return transactionHandler;
     }
@@ -1200,7 +1207,7 @@ public class PlatformComponentBuilder {
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withLatestCompleteStateNotifier(
+    public PlatformComponentBuilder<T> withLatestCompleteStateNotifier(
             @NonNull final LatestCompleteStateNotifier latestCompleteStateNotifier) {
         throwIfAlreadyUsed();
         if (this.latestCompleteStateNotifier != null) {

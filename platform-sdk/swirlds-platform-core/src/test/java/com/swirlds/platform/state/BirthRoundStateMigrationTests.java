@@ -96,7 +96,7 @@ class BirthRoundStateMigrationTests {
         final SemanticVersion newSoftwareVersion = createNextVersion(previousSoftwareVersion);
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.GENERATION_THRESHOLD, newSoftwareVersion, platformStateFacade);
+                signedState.getState(), AncientMode.GENERATION_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
@@ -126,7 +126,7 @@ class BirthRoundStateMigrationTests {
         final Hash originalHash = signedState.getState().getHash();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
+                signedState.getState(), AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertEquals(originalHash, signedState.getState().getHash());
 
@@ -160,7 +160,7 @@ class BirthRoundStateMigrationTests {
                 .minimumJudgeAncientThreshold();
 
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
-                signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
+                signedState.getState(), AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
         assertNotEquals(originalHash, signedState.getState().getHash());
 

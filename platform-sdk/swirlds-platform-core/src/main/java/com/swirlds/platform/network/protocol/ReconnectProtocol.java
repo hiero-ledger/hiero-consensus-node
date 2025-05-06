@@ -25,7 +25,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 public class ReconnectProtocol implements Protocol {
 
     private final ReconnectThrottle reconnectThrottle;
-    private final Supplier<ReservedSignedState> lastCompleteSignedState;
+    private final Supplier<ReservedSignedState<?>> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
     private final ThreadManager threadManager;
@@ -41,7 +41,7 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final ReconnectThrottle reconnectThrottle,
-            @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
+            @NonNull final Supplier<ReservedSignedState<?>> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final ReconnectSyncHelper reconnectSyncHelper,

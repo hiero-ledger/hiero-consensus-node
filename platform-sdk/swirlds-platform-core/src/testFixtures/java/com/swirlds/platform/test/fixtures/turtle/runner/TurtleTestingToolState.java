@@ -78,8 +78,8 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
      * @return merkle tree root
      */
     @NonNull
-    public static MerkleNodeState getStateRootNode() {
-        final MerkleNodeState state = new TurtleTestingToolState();
+    public static TurtleTestingToolState getStateRootNode() {
+        final TurtleTestingToolState state = new TurtleTestingToolState();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initRosterState(state);
 
