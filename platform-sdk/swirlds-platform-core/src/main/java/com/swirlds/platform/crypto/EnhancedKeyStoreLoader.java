@@ -3,10 +3,10 @@ package com.swirlds.platform.crypto;
 
 import static com.swirlds.logging.legacy.LogMarker.ERROR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 import static com.swirlds.platform.crypto.CryptoStatic.copyPublicKeys;
 import static com.swirlds.platform.crypto.CryptoStatic.createEmptyTrustStore;
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
+import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;

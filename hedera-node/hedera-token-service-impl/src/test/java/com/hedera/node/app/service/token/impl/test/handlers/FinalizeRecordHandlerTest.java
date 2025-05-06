@@ -13,7 +13,7 @@ import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,7 +50,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -933,10 +932,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         writableNftStore.put(nft222.copyBuilder().ownerId(ACCOUNT_1212_ID).build());
         writableNftStore.put(nft223.copyBuilder().ownerId(ACCOUNT_1212_ID).build());
         context = mockContext();
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("staking.isEnabled", String.valueOf(false))
-                .getOrCreateConfig();
-        given(context.configuration()).willReturn(config);
+        given(context.configuration()).willReturn(configuration);
 
         subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
 
@@ -975,7 +971,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                 .build()));
 
         subject.finalizeStakingRecord(context, HederaFunctionality.CRYPTO_DELETE, Collections.emptySet(), emptyMap());
-        verify(stakingRewardsHandler, never())
+        verify(stakingRewardsHandler, times(2))
                 .applyStakingRewards(context, Collections.emptySet(), Collections.emptyMap());
     }
 

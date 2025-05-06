@@ -5,6 +5,8 @@ public class NodeConfig {
     private int id;
     private long account;
     private String ipv4Addr;
+    private long shard;
+    private long realm;
 
     public long getAccount() {
         return account;
@@ -30,12 +32,16 @@ public class NodeConfig {
         this.id = id;
     }
 
-    @Override
-    public String toString() {
-        return String.format("%s:0.0.%d#%d", ipv4Addr, account, id);
+    public void setShard(long shard) {
+        this.shard = shard;
     }
 
-    public String asNodesItem() {
-        return String.format("%s:0.0.%d", ipv4Addr, account);
+    public void setRealm(long realm) {
+        this.realm = realm;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s:%d.%d.%d#%d", ipv4Addr, shard, realm, account, id);
     }
 }

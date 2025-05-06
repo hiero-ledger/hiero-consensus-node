@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.remote;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 
 /**
@@ -51,6 +53,7 @@ public class RemoteNodeSpec {
      * @return a {@link NodeConnectInfo} object representing this node
      */
     public NodeConnectInfo asNodeConnectInfo(final long shard, final long realm) {
-        return new NodeConnectInfo(String.format("%s:%d:%d.%d.%d", host, port, shard, realm, accountNum));
+        final var fqAcct = asEntityString(shard, realm, accountNum);
+        return new NodeConnectInfo(String.format("%s:%d:%s", host, port, fqAcct));
     }
 }

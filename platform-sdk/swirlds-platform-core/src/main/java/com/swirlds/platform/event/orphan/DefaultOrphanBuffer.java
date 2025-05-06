@@ -2,6 +2,7 @@
 package com.swirlds.platform.event.orphan;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
@@ -15,7 +16,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -121,26 +121,6 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     }
 
     /**
-     * Calculates and sets the nGen value for this event. The event must not be an orphan. The value is the max of all
-     * non-ancient parent nGen values + 1, or {@link EventConstants#FIRST_GENERATION} if no such parents exist.
-     *
-     * @param event the non-orphan event to populate nGen for
-     */
-    private void calculateAndSetNGen(final PlatformEvent event) {
-        long maxParentNGen = EventConstants.GENERATION_UNDEFINED;
-        for (final EventDescriptorWrapper parentDesc : event.getAllParents()) {
-            final PlatformEvent parent = eventsWithParents.get(parentDesc);
-            if (parent != null) {
-                maxParentNGen = Math.max(maxParentNGen, parent.getNGen());
-            }
-        }
-        final long nGen = maxParentNGen == EventConstants.GENERATION_UNDEFINED
-                ? EventConstants.FIRST_GENERATION
-                : maxParentNGen + 1;
-        event.setNGen(nGen);
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -241,7 +221,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
 
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
-            calculateAndSetNGen(nonOrphan);
+            assignNGen(nonOrphan, eventsWithParents);
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might
             // not be orphans anymore

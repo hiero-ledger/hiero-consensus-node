@@ -59,7 +59,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -100,9 +99,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private Configuration configuration;
-
-    @Mock
-    private StakingConfig stakingConfig;
 
     @Mock
     private LedgerConfig ledgerConfig;
@@ -507,9 +503,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .transactionID(transactionID)
                 .build();
         when(context.body()).thenReturn(txn);
-        when(context.configuration()).thenReturn(configuration);
-        when(configuration.getConfigData(StakingConfig.class)).thenReturn(stakingConfig);
-        when(stakingConfig.isEnabled()).thenReturn(true);
         when(contract.copyBuilder()).thenReturn(mock(Builder.class));
         when(context.savepointStack()).thenReturn(stack);
         when(stack.getBaseBuilder(ContractUpdateStreamBuilder.class)).thenReturn(recordBuilder);
@@ -518,7 +511,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any());
         verify(tokenServiceApi, times(1))
-                .assertValidStakingElectionForUpdate(anyBoolean(), anyBoolean(), any(), any(), any(), any(), any());
+                .assertValidStakingElectionForUpdate(anyBoolean(), any(), any(), any(), any(), any());
         verify(tokenServiceApi, times(1)).updateContract(any());
         verify(recordBuilder, times(1)).contractID(any());
     }
@@ -738,9 +731,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .transactionID(transactionID)
                 .build();
         when(context.body()).thenReturn(txn);
-        when(context.configuration()).thenReturn(configuration);
-        when(configuration.getConfigData(StakingConfig.class)).thenReturn(stakingConfig);
-        when(stakingConfig.isEnabled()).thenReturn(true);
         when(contract.copyBuilder()).thenReturn(mock(Builder.class));
         when(context.savepointStack()).thenReturn(stack);
         when(stack.getBaseBuilder(ContractUpdateStreamBuilder.class)).thenReturn(recordBuilder);
@@ -749,7 +739,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any());
         verify(tokenServiceApi, times(1))
-                .assertValidStakingElectionForUpdate(anyBoolean(), anyBoolean(), any(), any(), any(), any(), any());
+                .assertValidStakingElectionForUpdate(anyBoolean(), any(), any(), any(), any(), any());
         verify(tokenServiceApi, times(1)).updateContract(any());
         verify(recordBuilder, times(1)).contractID(any());
     }

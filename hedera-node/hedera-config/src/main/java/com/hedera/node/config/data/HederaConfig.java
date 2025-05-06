@@ -38,6 +38,5 @@ public record HederaConfig(
         @ConfigProperty(value = "workflow.verificationTimeoutMS", defaultValue = "20000") @NetworkProperty
                 long workflowVerificationTimeoutMS,
         // FUTURE: Set<HederaFunctionality>.
-        @ConfigProperty(value = "workflows.enabled", defaultValue = "true") @NetworkProperty String workflowsEnabled,
         @ConfigProperty(value = "ingestThrottle.enabled", defaultValue = "true") @NetworkProperty
                 boolean ingestThrottleEnabled) {}

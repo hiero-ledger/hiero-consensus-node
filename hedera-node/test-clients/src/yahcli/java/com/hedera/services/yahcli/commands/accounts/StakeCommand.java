@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -68,7 +69,7 @@ public class StakeCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (stakedAccountNum == null) {
-            stakedAccountNum = ConfigUtils.asId(config.getDefaultPayer());
+            stakedAccountNum = asEntityString(config.getDefaultPayer());
         }
         if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
             final var msgSb = new StringBuilder("SUCCESS - account ")

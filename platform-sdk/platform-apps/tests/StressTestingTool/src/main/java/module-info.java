@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.demo.stress {
+    exports com.swirlds.demo.stress;
+
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;

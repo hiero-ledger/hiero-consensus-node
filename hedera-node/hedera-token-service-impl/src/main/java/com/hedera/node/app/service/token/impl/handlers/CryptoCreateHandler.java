@@ -72,7 +72,6 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -373,7 +372,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // Validate the staking information included in this account creation.
         if (op.hasStakedAccountId() || op.hasStakedNodeId()) {
             StakingValidator.validateStakedIdForCreation(
-                    context.configuration().getConfigData(StakingConfig.class).isEnabled(),
                     op.declineReward(),
                     op.stakedId().kind().name(),
                     op.stakedAccountId(),

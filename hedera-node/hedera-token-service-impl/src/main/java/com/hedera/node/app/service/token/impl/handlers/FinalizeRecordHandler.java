@@ -29,7 +29,6 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -110,10 +109,9 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         final var writableAccountStore = context.writableStore(WritableAccountStore.class);
         final var writableTokenRelStore = context.writableStore(WritableTokenRelationStore.class);
         final var writableNftStore = context.writableStore(WritableNftStore.class);
-        final var stakingConfig = context.configuration().getConfigData(StakingConfig.class);
         final var writableTokenStore = context.writableStore(WritableTokenStore.class);
 
-        if (stakingConfig.isEnabled() && explicitRewardReceivers != null && prePaidRewards != null) {
+        if (explicitRewardReceivers != null && prePaidRewards != null) {
             // staking rewards are triggered for any balance changes to account's that are staked to
             // a node. They are also triggered if staking related fields are modified
             // Calculate staking rewards and add them also to hbarChanges here, before assessing

@@ -5,7 +5,6 @@ import static java.util.Arrays.asList;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -21,21 +20,6 @@ import org.apache.logging.log4j.core.LoggerContext;
 public abstract class ResourceLoader {
 
     private static final ClassLoader classLoader = ResourceLoader.class.getClassLoader();
-
-    /**
-     * Read a file from disk. The path is considered to be relative to the resources directory.
-     *
-     * FUTURE WORK: can this method be unified with the other methods in this class?
-     *
-     * @param path
-     * 		the path to the file relative to the resources directory
-     * @return an InputStream for the requested file
-     */
-    public static InputStream loadFileAsStream(final String path) {
-        InputStream stream = classLoader.getResourceAsStream(path);
-        checkIfFound(stream, path);
-        return stream;
-    }
 
     /**
      * Returns a File instance pointing to the requested resource

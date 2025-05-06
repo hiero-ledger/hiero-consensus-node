@@ -9,7 +9,6 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("tokens")
 public record TokensConfig(
         @ConfigProperty(defaultValue = "200000000") @NetworkProperty long maxAggregateRels,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean storeRelsOnDisk,
         @ConfigProperty(defaultValue = "1000000") @NetworkProperty long maxNumber,
         @ConfigProperty(defaultValue = "1000") @NetworkProperty int maxPerAccount,
         @ConfigProperty(defaultValue = "100") @NetworkProperty int maxSymbolUtf8Bytes,
@@ -18,7 +17,6 @@ public record TokensConfig(
         @ConfigProperty(defaultValue = "2") @NetworkProperty int maxCustomFeeDepth,
         @ConfigProperty(defaultValue = "1000") @NetworkProperty int maxRelsPerInfoQuery,
         @ConfigProperty(value = "reject.enabled", defaultValue = "true") @NetworkProperty boolean tokenRejectEnabled,
-        @ConfigProperty(value = "nfts.areEnabled", defaultValue = "true") @NetworkProperty boolean nftsAreEnabled,
         @ConfigProperty(value = "nfts.maxMetadataBytes", defaultValue = "100") @NetworkProperty
                 int nftsMaxMetadataBytes,
         @ConfigProperty(value = "nfts.maxBatchSizeBurn", defaultValue = "10") @NetworkProperty int nftsMaxBatchSizeBurn,
@@ -27,12 +25,8 @@ public record TokensConfig(
         @ConfigProperty(value = "nfts.maxAllowedMints", defaultValue = "100000000") @NetworkProperty
                 long nftsMaxAllowedMints,
         @ConfigProperty(value = "nfts.maxQueryRange", defaultValue = "100") @NetworkProperty long nftsMaxQueryRange,
-        @ConfigProperty(value = "nfts.useTreasuryWildcards", defaultValue = "true") @NetworkProperty
-                boolean nftsUseTreasuryWildcards,
         @ConfigProperty(value = "nfts.mintThrottleScaleFactor", defaultValue = "5:2")
                 ScaleFactor nftsMintThrottleScaleFactor,
-        @ConfigProperty(value = "nfts.useVirtualMerkle", defaultValue = "true") @NetworkProperty
-                boolean nftsUseVirtualMerkle,
         @ConfigProperty(defaultValue = "20000000") @NetworkProperty long maxAllowedPendingAirdrops,
         @ConfigProperty(value = "maxAllowedPendingAirdropsToClaim", defaultValue = "10") @NetworkProperty
                 int maxAllowedPendingAirdropsToClaim,

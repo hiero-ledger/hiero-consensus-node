@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.otter.fixtures {
+    requires transitive com.hedera.node.hapi;
+    requires transitive com.swirlds.base.test.fixtures;
+    requires transitive com.swirlds.base;
+    requires transitive com.swirlds.common.test.fixtures;
+    requires transitive com.swirlds.common;
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.platform.core.test.fixtures;
     requires transitive com.swirlds.platform.core;
@@ -11,10 +16,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
-    requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
-    requires com.swirlds.base.test.fixtures;
-    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.component.framework;
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
@@ -30,4 +32,6 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
     exports org.hiero.otter.fixtures.result;
+    exports org.hiero.otter.fixtures.turtle;
+    exports org.hiero.otter.fixtures.turtle.app;
 }

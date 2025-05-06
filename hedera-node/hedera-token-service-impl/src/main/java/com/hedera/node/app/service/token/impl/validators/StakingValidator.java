@@ -2,8 +2,6 @@
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.STAKING_NOT_ENABLED;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -32,7 +30,6 @@ public class StakingValidator {
      * Validates staked id if present for update transactions. It will error if stakedId is set to
      * the sentinel values for creation.
      *
-     * @param isStakingEnabled       if staking is enabled
      * @param hasDeclineRewardChange if the transaction body has decline reward field to be updated
      * @param stakedIdKind           staked id kind (account or node)
      * @param stakedAccountIdInOp    staked account id
@@ -41,7 +38,6 @@ public class StakingValidator {
      * @param networkInfo            network info
      */
     public static void validateStakedIdForCreation(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -49,8 +45,6 @@ public class StakingValidator {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         final var hasStakingId = stakedAccountIdInOp != null || stakedNodeIdInOp != null;
-        // If staking is not enabled, then can't update staked id or declineReward
-        validateFalse(!isStakingEnabled && (hasDeclineRewardChange || hasStakingId), STAKING_NOT_ENABLED);
         if (!hasStakingId) {
             return;
         }
@@ -66,7 +60,6 @@ public class StakingValidator {
      * Validates staked id if present for update transactions. It is possible for stakedId to be set to
      * the sentinel values for update.
      *
-     * @param isStakingEnabled       if staking is enabled
      * @param hasDeclineRewardChange if the transaction body has decline reward field to be updated
      * @param stakedIdKind           staked id kind (account or node)
      * @param stakedAccountIdInOp    staked account id
@@ -75,7 +68,6 @@ public class StakingValidator {
      * @param networkInfo            network info
      */
     public static void validateStakedIdForUpdate(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -83,8 +75,6 @@ public class StakingValidator {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         final var hasStakingId = stakedAccountIdInOp != null || stakedNodeIdInOp != null;
-        // If staking is not enabled, then can't update staked id or declineReward
-        validateFalse(!isStakingEnabled && (hasDeclineRewardChange || hasStakingId), STAKING_NOT_ENABLED);
         if (!hasStakingId) {
             return;
         }

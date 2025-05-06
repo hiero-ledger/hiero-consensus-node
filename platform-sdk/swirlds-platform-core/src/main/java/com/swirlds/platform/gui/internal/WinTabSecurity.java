@@ -3,11 +3,11 @@ package com.swirlds.platform.gui.internal;
 
 import static com.swirlds.platform.gui.GuiUtils.wrap;
 
-import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.gui.GuiUtils;
 import com.swirlds.platform.gui.components.PrePaintableJPanel;
 import com.swirlds.platform.gui.model.Reference;
 import javax.swing.JTextArea;
+import org.hiero.consensus.crypto.CryptoConstants;
 
 /**
  * The tab in the Browser window that shows available apps, running swirlds, and saved swirlds.

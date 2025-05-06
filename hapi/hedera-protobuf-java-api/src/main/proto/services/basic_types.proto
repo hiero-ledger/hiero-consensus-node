@@ -717,6 +717,12 @@ enum SubType {
      * with custom fees.
      */
     TOPIC_CREATE_WITH_CUSTOM_FEES = 6;
+
+    /**
+     * The resource cost for the transaction type includes a ConsensusSubmitMessage
+     * for a topic with custom fees.
+     */
+    SUBMIT_MESSAGE_WITH_CUSTOM_FEES = 7;
 }
 
 /**

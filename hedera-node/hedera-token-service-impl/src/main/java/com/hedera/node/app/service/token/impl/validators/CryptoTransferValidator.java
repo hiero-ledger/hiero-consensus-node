@@ -30,7 +30,6 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -82,13 +81,11 @@ public class CryptoTransferValidator {
      * All validations needed for the crypto transfer operation, that include state or config.
      * @param op the crypto transfer operation
      * @param ledgerConfig the ledger config
-     * @param tokensConfig the tokens config
      * @param accountsConfig the accounts config
      */
     public void validateSemantics(
             @NonNull final CryptoTransferTransactionBody op,
             @NonNull final LedgerConfig ledgerConfig,
-            @NonNull final TokensConfig tokensConfig,
             @NonNull final AccountsConfig accountsConfig) {
         final var transfers = op.transfersOrElse(TransferList.DEFAULT);
 
@@ -111,7 +108,6 @@ public class CryptoTransferValidator {
         final var tokenTransfers = op.tokenTransfers();
         var totalFungibleTransfers = 0;
         var totalNftTransfers = 0;
-        final var nftsEnabled = tokensConfig.nftsAreEnabled();
         for (final TokenTransferList tokenTransfer : tokenTransfers) {
             // Validate the fungible token transfer(s) (if present)
             final var fungibleTransfers = tokenTransfer.transfers();
@@ -119,7 +115,6 @@ public class CryptoTransferValidator {
 
             // Validate the nft transfer(s) (if present)
             final var nftTransfers = tokenTransfer.nftTransfers();
-            validateTrue(nftsEnabled || nftTransfers.isEmpty(), NOT_SUPPORTED);
             totalNftTransfers += nftTransfers.size();
 
             // Verify that the current total number of (counted) fungible transfers does not exceed the limit

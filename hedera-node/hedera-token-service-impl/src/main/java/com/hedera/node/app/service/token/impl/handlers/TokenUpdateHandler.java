@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CURRENT_TREASURY_STILL_OWNS_NFTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -12,7 +11,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenKeyValidation.NO_VALIDATION;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
-import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.txnEstimateFactory;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
@@ -42,7 +40,6 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
-import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.service.token.impl.validators.TokenUpdateValidator;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
@@ -154,14 +151,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 recordBuilder.addAutomaticTokenAssociation(
                         asTokenAssociation(newRelation.tokenId(), newRelation.accountId()));
                 newTreasuryAccount = requireNonNull(accountStore.get(newTreasury));
-            }
-            // Treasury can be modified when it owns NFTs when the property "tokens.nfts.useTreasuryWildcards"
-            // is enabled.
-            if (!tokensConfig.nftsUseTreasuryWildcards() && token.tokenType().equals(NON_FUNGIBLE_UNIQUE)) {
-                final var existingTreasuryRel =
-                        TokenHandlerHelper.getIfUsable(existingTreasury, tokenId, tokenRelStore);
-                final var tokenRelBalance = existingTreasuryRel.balance();
-                validateTrue(tokenRelBalance == 0, CURRENT_TREASURY_STILL_OWNS_NFTS);
             }
 
             if (!newTreasury.equals(existingTreasury)) {

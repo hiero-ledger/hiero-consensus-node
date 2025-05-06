@@ -103,7 +103,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
     @Override
     public void assertValidStakingElectionForCreation(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -111,18 +110,11 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         StakingValidator.validateStakedIdForCreation(
-                isStakingEnabled,
-                hasDeclineRewardChange,
-                stakedIdKind,
-                stakedAccountIdInOp,
-                stakedNodeIdInOp,
-                accountStore,
-                networkInfo);
+                hasDeclineRewardChange, stakedIdKind, stakedAccountIdInOp, stakedNodeIdInOp, accountStore, networkInfo);
     }
 
     @Override
     public void assertValidStakingElectionForUpdate(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -130,13 +122,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         StakingValidator.validateStakedIdForUpdate(
-                isStakingEnabled,
-                hasDeclineRewardChange,
-                stakedIdKind,
-                stakedAccountIdInOp,
-                stakedNodeIdInOp,
-                accountStore,
-                networkInfo);
+                hasDeclineRewardChange, stakedIdKind, stakedAccountIdInOp, stakedNodeIdInOp, accountStore, networkInfo);
     }
 
     /**
@@ -685,21 +671,18 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final boolean preservingRewardBalance =
                 nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
         if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
-            // We only pay node and staking rewards if the feature is enabled
-            if (stakingConfig.isEnabled()) {
-                final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
-                balance -= nodeReward;
-                payNodeRewardAccount(nodeReward);
-                if (cb != null) {
-                    cb.accept(nodeRewardAccountID, nodeReward);
-                }
+            final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
+            balance -= nodeReward;
+            payNodeRewardAccount(nodeReward);
+            if (cb != null) {
+                cb.accept(nodeRewardAccountID, nodeReward);
+            }
 
-                final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
-                balance -= stakingReward;
-                payStakingRewardAccount(stakingReward);
-                if (cb != null) {
-                    cb.accept(stakingRewardAccountID, stakingReward);
-                }
+            final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
+            balance -= stakingReward;
+            payStakingRewardAccount(stakingReward);
+            if (cb != null) {
+                cb.accept(stakingRewardAccountID, stakingReward);
             }
 
             // Whatever is left over goes to the funding account
@@ -734,15 +717,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
         if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
             long amountRetracted = 0;
-            // We only pay node and staking rewards if the feature is enabled
-            if (stakingConfig.isEnabled()) {
-                final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
-                balance -= nodeReward;
-                amountRetracted += retractNodeRewardAccount(nodeReward);
-                final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
-                balance -= stakingReward;
-                amountRetracted += retractStakingRewardAccount(stakingReward);
-            }
+            final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
+            balance -= nodeReward;
+            amountRetracted += retractNodeRewardAccount(nodeReward);
+            final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
+            balance -= stakingReward;
+            amountRetracted += retractStakingRewardAccount(stakingReward);
             // Whatever is left over goes to the funding account
             final var fundingAccount = lookupAccount("Funding", fundingAccountID);
             final long fundingBalance = fundingAccount.tinybarBalance();

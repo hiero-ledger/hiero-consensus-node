@@ -33,7 +33,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ENTITIES_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_LEDGER_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_STAKING_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEV_CHAIN_ID_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
@@ -144,7 +143,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 null,
@@ -324,14 +322,7 @@ class HevmTransactionFactoryTest {
     void fromHapiCreationValidatesStaking() {
         doThrow(new HandleException(INVALID_STAKING_ID))
                 .when(tokenServiceApi)
-                .assertValidStakingElectionForCreation(
-                        DEFAULT_STAKING_CONFIG.isEnabled(),
-                        false,
-                        "STAKED_NODE_ID",
-                        null,
-                        123L,
-                        accountStore,
-                        networkInfo);
+                .assertValidStakingElectionForCreation(false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
         assertCreateFailsWith(INVALID_STAKING_ID, b -> b.stakedNodeId(123)
                 .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
@@ -712,7 +703,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 null,
@@ -733,7 +723,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 HydratedEthTxData.failureFrom(CONTRACT_FILE_EMPTY),
@@ -754,7 +743,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 HydratedEthTxData.successFrom(ethTxData),
@@ -775,7 +763,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEV_CHAIN_ID_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 HydratedEthTxData.successFrom(ethTxData),

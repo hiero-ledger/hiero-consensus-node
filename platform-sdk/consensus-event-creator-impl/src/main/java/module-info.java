@@ -3,6 +3,7 @@ module org.hiero.consensus.event.creator.impl {
     exports org.hiero.consensus.event.creator.impl.config;
     exports org.hiero.consensus.event.creator.impl.pool;
     exports org.hiero.consensus.event.creator.impl.rules;
+    exports org.hiero.consensus.event.creator.impl.signing;
     exports org.hiero.consensus.event.creator.impl.stale;
     exports org.hiero.consensus.event.creator.impl;
 
@@ -15,6 +16,7 @@ module org.hiero.consensus.event.creator.impl {
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
     requires com.swirlds.logging;
+    requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;

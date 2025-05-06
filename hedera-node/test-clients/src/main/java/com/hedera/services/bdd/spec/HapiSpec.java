@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED_UNEXPECTEDLY;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PENDING;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.RUNNING;
+import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultPropertySource;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.setupFrom;
 import static com.hedera.services.bdd.spec.infrastructure.HapiClients.clientsFor;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.DEFAULT_KEY_GEN;
@@ -1277,6 +1278,16 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         this(
                 name,
                 setupFrom(HapiSpecSetup.getDefaultPropertySource()),
+                new SpecOperation[0],
+                new SpecOperation[0],
+                ops,
+                List.of());
+    }
+
+    public HapiSpec(String name, HapiPropertySource source, SpecOperation[] ops) {
+        this(
+                name,
+                setupFrom(source, getDefaultPropertySource()),
                 new SpecOperation[0],
                 new SpecOperation[0],
                 ops,

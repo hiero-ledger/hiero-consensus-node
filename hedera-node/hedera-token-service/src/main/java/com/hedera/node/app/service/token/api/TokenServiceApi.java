@@ -51,7 +51,6 @@ public interface TokenServiceApi {
      * Validates the creation of a given staking election relative to the given account store, network info,
      * and staking config.
      *
-     * @param isStakingEnabled       if staking is enabled
      * @param hasDeclineRewardChange if the transaction body has decline reward field to be updated
      * @param stakedIdKind           staked id kind (account or node)
      * @param stakedAccountIdInOp    staked account id
@@ -61,7 +60,6 @@ public interface TokenServiceApi {
      * @throws HandleException if the staking election is invalid
      */
     void assertValidStakingElectionForCreation(
-            boolean isStakingEnabled,
             boolean hasDeclineRewardChange,
             @NonNull String stakedIdKind,
             @Nullable AccountID stakedAccountIdInOp,
@@ -73,7 +71,6 @@ public interface TokenServiceApi {
      * Validates the update of a given staking election relative to the given account store, network info,
      * and staking config.
      *
-     * @param isStakingEnabled       if staking is enabled
      * @param hasDeclineRewardChange if the transaction body has decline reward field to be updated
      * @param stakedIdKind           staked id kind (account or node)
      * @param stakedAccountIdInOp    staked account id
@@ -83,7 +80,6 @@ public interface TokenServiceApi {
      * @throws HandleException if the staking election is invalid
      */
     void assertValidStakingElectionForUpdate(
-            boolean isStakingEnabled,
             boolean hasDeclineRewardChange,
             @NonNull String stakedIdKind,
             @Nullable AccountID stakedAccountIdInOp,

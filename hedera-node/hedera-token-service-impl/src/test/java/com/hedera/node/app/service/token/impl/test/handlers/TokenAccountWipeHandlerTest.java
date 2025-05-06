@@ -90,7 +90,6 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
     public void setUp() {
         super.setUp();
         configuration = HederaTestConfigBuilder.create()
-                .withValue("tokens.nfts.areEnabled", true)
                 .withValue("tokens.nfts.maxBatchSizeWipe", 100)
                 .getOrCreateConfig();
     }
@@ -218,7 +217,6 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
         @Test
         void nftAmountExceedsBatchSize() {
             configuration = HederaTestConfigBuilder.create()
-                    .withValue("tokens.nfts.areEnabled", true)
                     .withValue("tokens.nfts.maxBatchSizeWipe", 2)
                     .getOrCreateConfig();
             mockOkExpiryValidator();

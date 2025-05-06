@@ -44,7 +44,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -196,9 +195,6 @@ public class ContractUpdateHandler implements TransactionHandler {
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)
                 .assertValidStakingElectionForUpdate(
-                        context.configuration()
-                                .getConfigData(StakingConfig.class)
-                                .isEnabled(),
                         op.hasDeclineReward(),
                         op.stakedId().kind().name(),
                         op.stakedAccountId(),

@@ -61,13 +61,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
 
     /**
-     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
-     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
-     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
-     * higher number indicates the event is higher in the hashgraph). NGen will be
-     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
+     * The non-deterministic generation. For more info, see {@link NonDeterministicGeneration}
      */
-    private long nGen = EventConstants.GENERATION_UNDEFINED;
+    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -206,7 +202,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return {@code true} if the nGen has been set, {@code false} otherwise
      */
     public boolean hasNGen() {
-        return nGen != EventConstants.GENERATION_UNDEFINED;
+        return nGen != NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     /**

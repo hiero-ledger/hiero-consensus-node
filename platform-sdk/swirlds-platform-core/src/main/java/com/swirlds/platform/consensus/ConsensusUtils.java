@@ -4,10 +4,10 @@ package com.swirlds.platform.consensus;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import org.hiero.consensus.crypto.CryptoConstants;
 
 /** Various utility methods used by {@link com.swirlds.platform.ConsensusImpl} */
 public final class ConsensusUtils {

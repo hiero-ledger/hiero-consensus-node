@@ -17,7 +17,6 @@ public record StakingConfig(
         @ConfigProperty(value = "fees.stakingRewardPercentage", defaultValue = "10") @NetworkProperty
                 int feesStakingRewardPercentage,
         // @ConfigProperty(defaultValue = "") Map<Long, Long> nodeMaxToMinStakeRatios,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean isEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean requireMinStakeToReward,
         // Assume there should have been no skipped staking periods
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean assumeContiguousPeriods,

@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -44,7 +45,7 @@ public class ConsensusRounds {
      * non-deterministic generation than this do not affect any consensus calculations and do not have their metadata
      * recalculated.
      */
-    private long consensusRelevantNGen = EventConstants.GENERATION_UNDEFINED;
+    private long consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /** Constructs an empty object */
     public ConsensusRounds(
@@ -65,7 +66,7 @@ public class ConsensusRounds {
         maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
         roundElections.reset();
         updateAncientThreshold();
-        consensusRelevantNGen = EventConstants.GENERATION_UNDEFINED;
+        consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     /**

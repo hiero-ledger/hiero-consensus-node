@@ -24,6 +24,7 @@ import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -163,7 +164,7 @@ public class TestingEventBuilder {
      * The non-deterministic generation of the event. This value is calculated by the orphan buffer in production.
      * Defaults to {@link EventConstants#GENERATION_UNDEFINED}
      */
-    private long nGen = EventConstants.GENERATION_UNDEFINED;
+    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
      * Constructor

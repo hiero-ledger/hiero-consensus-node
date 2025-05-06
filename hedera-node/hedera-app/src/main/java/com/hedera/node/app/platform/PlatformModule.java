@@ -5,7 +5,6 @@ import com.hedera.node.app.annotations.CommonExecutor;
 import com.hedera.node.app.state.listeners.FatalIssListenerImpl;
 import com.hedera.node.app.state.listeners.ReconnectListener;
 import com.hedera.node.app.state.listeners.WriteStateToDiskListener;
-import com.swirlds.common.stream.Signer;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.system.Platform;
@@ -19,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
+import org.hiero.base.crypto.Signer;
 
 @Module
 public interface PlatformModule {

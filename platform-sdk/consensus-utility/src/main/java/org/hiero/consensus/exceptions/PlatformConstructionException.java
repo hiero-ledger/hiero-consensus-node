@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system;
+package org.hiero.consensus.exceptions;
 
 /**
  * Thrown when an issue occurs while constructing required platform instances

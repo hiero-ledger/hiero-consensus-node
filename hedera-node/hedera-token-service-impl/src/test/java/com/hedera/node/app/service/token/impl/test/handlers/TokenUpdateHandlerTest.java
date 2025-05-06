@@ -4,7 +4,6 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CURRENT_TREASURY_STILL_OWNS_NFTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_SCHEDULE_KEY;
@@ -1166,29 +1165,6 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_PAUSE_KEY));
-    }
-
-    @Test
-    void rejectsTreasuryUpdateIfNonzeroBalanceForNFTs() {
-        given(expiryValidator.resolveUpdateAttempt(any(), any()))
-                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        final var copyTokenRel = writableTokenRelStore
-                .get(treasuryId, nonFungibleTokenId)
-                .copyBuilder()
-                .balance(1)
-                .build();
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("tokens.nfts.useTreasuryWildcards", "false")
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-        writableTokenRelStore.put(copyTokenRel);
-        given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
-        txn = new TokenUpdateBuilder().withToken(nonFungibleTokenId).build();
-        given(handleContext.body()).willReturn(txn);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CURRENT_TREASURY_STILL_OWNS_NFTS));
     }
 
     @Test

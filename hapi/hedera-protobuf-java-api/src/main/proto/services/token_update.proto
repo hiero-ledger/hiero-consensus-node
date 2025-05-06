@@ -35,8 +35,7 @@ import "google/protobuf/wrappers.proto";
  * If the `treasury` is set to a new account, the new account MUST sign this
  * transaction.<br/>
  * If the `treasury` is set to a new account for a _non-fungible/unique_ token,
- * The current treasury MUST NOT hold any tokens, or the network configuration
- * property `tokens.nfts.useTreasuryWildcards` MUST be set.
+ * The current treasury MAY hold some tokens.
  *
  * #### Requirements for Keys
  * Any of the key values may be changed, even without an admin key, but the

@@ -12,7 +12,6 @@ import static org.hiero.base.crypto.DigestType.SHA_384;
 import static org.hiero.base.crypto.SignatureType.RSA;
 import static org.hiero.consensus.model.stream.StreamAligned.NO_ALIGNMENT;
 
-import com.swirlds.common.stream.Signer;
 import com.swirlds.common.stream.StreamType;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -32,6 +31,7 @@ import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.crypto.SerializableHashable;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.Signer;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;

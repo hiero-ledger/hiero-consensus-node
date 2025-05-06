@@ -63,6 +63,8 @@ module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.support.validators.block;
     exports com.hedera.services.bdd.utils;
     exports com.hedera.services.bdd.junit.restart;
+    exports com.hedera.services.bdd.junit.hedera.remote;
+    exports com.hedera.services.bdd.spec.remote;
 
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;

@@ -27,9 +27,14 @@ public final class ConsensusOpsUsage {
             final BaseTransactionMeta baseMeta,
             final UsageAccumulator accumulator) {
         accumulator.resetForTransaction(baseMeta, sigUsage);
-        accumulator.addBpt(LONG_BASIC_ENTITY_ID_SIZE + submitMeta.numMsgBytes());
-        /* SubmitMessage receipts include a sequence number and running hash */
-        final var extraReceiptBytes = LONG_SIZE + TX_HASH_SIZE;
-        accumulator.addNetworkRbs(extraReceiptBytes * RECEIPT_STORAGE_TIME_SEC);
+        if (submitMeta.numCustomFees() > 0) {
+            accumulator.addVpt(Math.max(0, sigUsage.numSigs() - 1));
+            accumulator.addBpt((LONG_BASIC_ENTITY_ID_SIZE + submitMeta.numMsgBytes() + 475) / 500);
+        } else {
+            accumulator.addBpt(LONG_BASIC_ENTITY_ID_SIZE + submitMeta.numMsgBytes());
+            /* SubmitMessage receipts include a sequence number and running hash */
+            final var extraReceiptBytes = LONG_SIZE + TX_HASH_SIZE;
+            accumulator.addNetworkRbs(extraReceiptBytes * RECEIPT_STORAGE_TIME_SEC);
+        }
     }
 }
