@@ -122,7 +122,7 @@ public class NodeUpdateHandler implements TransactionHandler {
             addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
         }
 
-        final var nodeBuilder = updateNode(op, existingNode, nodeConfig);
+        final var nodeBuilder = updateNode(op, existingNode);
         nodeStore.put(nodeBuilder.build());
     }
 
@@ -139,10 +139,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         return calculator.calculate();
     }
 
-    private Node.Builder updateNode(
-            @NonNull final NodeUpdateTransactionBody op,
-            @NonNull final Node node,
-            @NonNull final NodesConfig nodeConfig) {
+    private Node.Builder updateNode(@NonNull final NodeUpdateTransactionBody op, @NonNull final Node node) {
         requireNonNull(op);
         requireNonNull(node);
 

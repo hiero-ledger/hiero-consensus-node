@@ -1756,7 +1756,8 @@ enum ResponseCodeEnum {
     AIRDROP_CONTAINS_MULTIPLE_SENDERS_FOR_A_TOKEN = 398;
 
     /**
-     * GRPC web proxy is not supported for this transaction
+     * The GRPC proxy endpoint is set in the NodeCreate or NodeUpdate transaction,
+     * which the network does not support.
      */
     GRPC_WEB_PROXY_NOT_SUPPORTED = 399;
 }
