@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -94,6 +95,11 @@ public class HandleException extends RuntimeException {
 
     public ResponseCodeEnum getStatus() {
         return status;
+    }
+
+    public static void validateSuccess(@NonNull final ResponseCodeEnum status) {
+        requireNonNull(status);
+        validateTrue(status == SUCCESS, status);
     }
 
     public static void validateTrue(final boolean flag, final ResponseCodeEnum errorStatus) {

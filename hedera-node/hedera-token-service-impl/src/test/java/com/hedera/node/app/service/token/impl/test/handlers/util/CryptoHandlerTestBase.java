@@ -55,7 +55,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-// FUTURE : Remove this and use CryptoTokenHandlerTestBase instead for all classes extending this class
 
 /**
  * Base class for testing Crypto handlers implementations.
@@ -385,6 +384,8 @@ public class CryptoHandlerTestBase {
                 false,
                 null,
                 null,
+                0,
+                0,
                 0);
     }
 
@@ -423,6 +424,8 @@ public class CryptoHandlerTestBase {
                 false,
                 null,
                 null,
+                0,
+                0,
                 0);
     }
 

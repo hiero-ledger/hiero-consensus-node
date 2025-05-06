@@ -2,7 +2,6 @@
 package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.*;
 import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
@@ -14,6 +13,7 @@ import com.hedera.hapi.node.base.FeeComponents;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -23,6 +23,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.hooks.HookInstall;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -116,6 +117,27 @@ public class CommonPbjConverters {
         try {
             final var bytes = asBytes(Key.PROTOBUF, keyValue);
             return com.hederahashgraph.api.proto.java.Key.parseFrom(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static @NonNull com.hederahashgraph.api.proto.java.HookCall fromPbj(@NonNull final HookCall hookCall) {
+        requireNonNull(hookCall);
+        try {
+            final var bytes = asBytes(HookCall.PROTOBUF, hookCall);
+            return com.hederahashgraph.api.proto.java.HookCall.parseFrom(bytes);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static @NonNull com.hederahashgraph.api.proto.java.HookInstall fromPbj(
+            @NonNull final HookInstall hookInstall) {
+        requireNonNull(hookInstall);
+        try {
+            final var bytes = asBytes(HookInstall.PROTOBUF, hookInstall);
+            return com.hederahashgraph.api.proto.java.HookInstall.parseFrom(bytes);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

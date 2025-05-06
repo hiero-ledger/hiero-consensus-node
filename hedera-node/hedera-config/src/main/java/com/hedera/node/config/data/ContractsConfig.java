@@ -116,4 +116,5 @@ public record ContractsConfig(
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
                 boolean metricsSmartContractPrimaryEnabled,
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty
-                boolean metricsSmartContractSecondaryEnabled) {}
+                boolean metricsSmartContractSecondaryEnabled,
+        @ConfigProperty(defaultValue = "25000") @NetworkProperty long defaultLambdaGasLimit) {}

@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -10,7 +11,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Objects;
 import org.hyperledger.besu.datatypes.Wei;
 
 public record HederaEvmTransaction(
@@ -25,8 +25,13 @@ public record HederaEvmTransaction(
         long offeredGasPrice,
         long maxGasAllowance,
         @Nullable ContractCreateTransactionBody hapiCreation,
-        @Nullable HandleException exception) {
+        @Nullable HandleException exception,
+        boolean isHookDispatch) {
     public static final long NOT_APPLICABLE = -1L;
+
+    public @NonNull AccountID relayerIdOrThrow() {
+        return requireNonNull(relayerId);
+    }
 
     public boolean hasExpectedNonce() {
         return nonce != NOT_APPLICABLE;
@@ -65,7 +70,7 @@ public record HederaEvmTransaction(
     }
 
     public @NonNull ContractID contractIdOrThrow() {
-        return Objects.requireNonNull(contractId);
+        return requireNonNull(contractId);
     }
 
     public boolean hasValue() {
@@ -129,6 +134,7 @@ public record HederaEvmTransaction(
                 this.offeredGasPrice,
                 this.maxGasAllowance,
                 this.hapiCreation,
-                exception);
+                exception,
+                this.isHookDispatch);
     }
 }

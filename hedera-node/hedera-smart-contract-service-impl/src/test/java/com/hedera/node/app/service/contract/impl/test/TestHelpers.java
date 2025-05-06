@@ -559,7 +559,8 @@ public class TestHelpers {
             0L,
             0L,
             ContractCreateTransactionBody.DEFAULT,
-            null);
+            null,
+            false);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
             null,
@@ -572,7 +573,8 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
+            false);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = HederaEvmTransactionResult.successFrom(
             GAS_LIMIT / 2,
@@ -793,7 +795,8 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 null,
-                null);
+                null,
+                false);
     }
 
     public static HederaEvmTransaction wellKnownHapiCreate() {
@@ -822,7 +825,8 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
-                null);
+                null,
+                false);
     }
 
     public static HederaEvmContext wellKnownContextWith(

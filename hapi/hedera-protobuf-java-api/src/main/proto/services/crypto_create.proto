@@ -18,6 +18,7 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "services/hook_types.proto";
 import "services/basic_types.proto";
 import "services/duration.proto";
 
@@ -198,4 +199,9 @@ message CryptoCreateTransactionBody {
      * Once set, an account alias is immutable and MUST NOT be changed.
      */
     bytes alias = 18;
+
+    /**
+     * The hook installs to run immediately after creating this account.
+     */
+    repeated HookInstall hook_installs = 19;
 }

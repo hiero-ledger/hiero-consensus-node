@@ -465,6 +465,16 @@ message Account {
      * identified by `head_pending_airdrop_id`.
      */
     uint64 number_pending_airdrops = 35;
+
+    /**
+     * The number of lambdas currently installed on this account.
+     */
+    uint64 number_installed_lambdas = 36;
+
+    /**
+     * If positive, the index of the first lambda installed on this account.
+     */
+    uint64 first_lambda_index = 37;
 }
 
 /**

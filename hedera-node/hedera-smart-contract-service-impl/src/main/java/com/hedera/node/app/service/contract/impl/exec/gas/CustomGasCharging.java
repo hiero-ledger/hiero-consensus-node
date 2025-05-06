@@ -156,8 +156,9 @@ public class CustomGasCharging {
         final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false);
 
         if (transaction.isEthereumTransaction()) {
-            final var fee = feeForAborted(transaction.relayerId(), context, worldUpdater, intrinsicGas);
-            worldUpdater.collectFee(transaction.relayerId(), fee);
+            final var payerId = transaction.relayerIdOrThrow();
+            final var fee = feeForAborted(payerId, context, worldUpdater, intrinsicGas);
+            worldUpdater.collectFee(payerId, fee);
         } else {
             final var fee = feeForAborted(sender, context, worldUpdater, intrinsicGas);
             worldUpdater.collectFee(sender, fee);
@@ -165,22 +166,21 @@ public class CustomGasCharging {
     }
 
     private long feeForAborted(
-            @NonNull final AccountID accountID,
+            @NonNull final AccountID payerId,
             @NonNull final HederaEvmContext context,
             @NonNull final HederaWorldUpdater worldUpdater,
             final long intrinsicGas) {
-        requireNonNull(accountID);
+        requireNonNull(payerId);
         requireNonNull(context);
         requireNonNull(worldUpdater);
-
-        final var hederaAccount = worldUpdater.getHederaAccount(accountID);
-        requireNonNull(hederaAccount);
+        final var account = worldUpdater.getHederaAccount(payerId);
+        requireNonNull(account);
         final var fee = Math.min(
                 gasCostGiven(intrinsicGas, context.gasPrice()),
-                hederaAccount.getBalance().toLong());
+                account.getBalance().toLong());
         // protective check to ensure that the fee is not excessive
         final var protectedFee = Math.min(fee, ONE_HBAR_IN_TINYBARS);
-        validateTrue(hederaAccount.getBalance().toLong() >= protectedFee, INSUFFICIENT_PAYER_BALANCE);
+        validateTrue(account.getBalance().toLong() >= protectedFee, INSUFFICIENT_PAYER_BALANCE);
         return protectedFee;
     }
 

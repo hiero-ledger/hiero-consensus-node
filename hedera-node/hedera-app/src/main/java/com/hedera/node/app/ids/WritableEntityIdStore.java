@@ -58,12 +58,13 @@ public class WritableEntityIdStore extends ReadableEntityIdStoreImpl implements 
     }
 
     @Override
-    public void incrementEntityTypeCount(final EntityType entityType) {
+    public void incrementEntityTypeCount(@NonNull final EntityType entityType) {
         adjustEntityCount(entityType, 1);
     }
 
     @Override
-    public void adjustEntityCount(final EntityType entityType, final long delta) {
+    public void adjustEntityCount(@NonNull final EntityType entityType, final long delta) {
+        requireNonNull(entityType);
         final var entityCounts = requireNonNull(entityCountsState.get());
         final var newEntityCounts = entityCounts.copyBuilder();
         switch (entityType) {
@@ -81,6 +82,7 @@ public class WritableEntityIdStore extends ReadableEntityIdStoreImpl implements 
             case AIRDROP -> newEntityCounts.numAirdrops(entityCounts.numAirdrops() + delta);
             case NODE -> newEntityCounts.numNodes(entityCounts.numNodes() + delta);
             case STAKING_INFO -> newEntityCounts.numStakingInfos(entityCounts.numStakingInfos() + delta);
+            case HOOK -> newEntityCounts.numHooks(entityCounts.numHooks() + delta);
         }
         entityCountsState.put(newEntityCounts.build());
     }

@@ -35,6 +35,7 @@ module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.suites.meta;
     exports com.hedera.services.bdd.spec.keys.deterministic;
     exports com.hedera.services.bdd.spec.transactions.file;
+    exports com.hedera.services.bdd.spec.transactions.lambda;
     exports com.hedera.services.bdd.spec.transactions.token;
     exports com.hedera.services.bdd.spec.transactions.node;
     exports com.hedera.services.bdd.spec.keys;

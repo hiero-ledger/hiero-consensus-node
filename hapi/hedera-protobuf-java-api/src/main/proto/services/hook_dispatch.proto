@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package proto;
+
+/*-
+ * ‌
+ * Hedera Network Services Protobuf
+ * ​
+ * Copyright (C) 2018 - 2021 Hedera Hashgraph, LLC
+ * ​
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ‍
+ */
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.lambda">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/hook_types.proto";
+
+/**
+ * Dispatches a hook action to an appropriate service.
+ */
+message HookDispatchTransactionBody {
+  oneof action {
+    /**
+     * The id of the hook to uninstall.
+     */
+    HookId hook_id_to_uninstall = 1;
+
+    /**
+     * The installation of a new hook.
+     */
+    HookInstallation installation = 2;
+
+    /**
+     * An execution of an installed hook.
+     */
+    HookExecution execution = 3;
+  }
+}
+
+/**
+ * Specifies the execution of a hook by its installer id and
+ * the details of the call (which includes the index).
+ */
+message HookExecution {
+  /**
+   * The id of the hook's installer.
+   */
+  HookInstallerId installer_id = 1;
+
+  /**
+   * The call details.
+   */
+  HookCall call = 2;
+}
+

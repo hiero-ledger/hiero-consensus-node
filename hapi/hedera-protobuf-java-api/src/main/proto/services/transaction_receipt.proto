@@ -194,4 +194,10 @@ message TransactionReceipt {
      * This value SHALL NOT be set following any other transaction.
      */
     uint64 node_id = 15;
+
+    /**
+     * In the receipt of a successful create or update transaction for an entity that supports hooks,
+     * the indexes of any newly installed hooks.
+     */
+    repeated uint64 installed_hook_indexes = 16;
 }

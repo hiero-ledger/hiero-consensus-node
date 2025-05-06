@@ -36,6 +36,8 @@ import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
+import com.hedera.hapi.node.base.EvmHookCall;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -131,31 +133,22 @@ public class TxnUtils {
             .setEd25519(ByteString.fromHex("0000000000000000000000000000000000000000"))
             .build();
 
-    public static Key netOf(@NonNull final HapiSpec spec, @NonNull final Optional<String> keyName) {
-        return netOf(spec, keyName, Optional.empty(), Optional.empty());
+    /**
+     * Small helper to more concisely express a call to an EVM hook.
+     * @param index the index of the EVM hook
+     * @param callData the call data to be passed to the EVM hook
+     * @return the {@link HookCall}
+     */
+    public static HookCall evmHookCall(final long index, @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes callData) {
+        requireNonNull(callData);
+        return HookCall.newBuilder()
+                .index(index)
+                .evmHookCall(EvmHookCall.newBuilder().evmCallData(callData))
+                .build();
     }
 
-    /**
-     * Dumps the given records to a file at the given path.
-     * @param path the path to the file to write to
-     * @param codec the codec to use to serialize the records
-     * @param records the records to dump
-     * @param <T> the type of the records
-     */
-    public static <T> void dumpJsonList(
-            @NonNull final Path path, @NonNull final JsonCodec<T> codec, @NonNull final List<T> records) {
-        try (final var fout = Files.newBufferedWriter(path)) {
-            fout.write("[");
-            for (int i = 0, n = records.size(); i < n; i++) {
-                fout.write(codec.toJSON(records.get(i)));
-                if (i < n - 1) {
-                    fout.write(",");
-                }
-            }
-            fout.write("]");
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    public static Key netOf(@NonNull final HapiSpec spec, @NonNull final Optional<String> keyName) {
+        return netOf(spec, keyName, Optional.empty(), Optional.empty());
     }
 
     public static Key netOf(
