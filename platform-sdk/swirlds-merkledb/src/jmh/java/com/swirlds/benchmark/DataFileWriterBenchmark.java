@@ -30,9 +30,11 @@ import org.openjdk.jmh.annotations.Warmup;
 
 /**
  * This benchmarks can be used to measure performance of {@link DataFileWriter} class. <p>
+ * NOTE: it has to be used as indicator before the high-level performance tests from benchmarks module.
+ *
  * The following parameters are used to configure the benchmark:
  * <ul>
- *   <li><b>bufferSizeMb</b>: Size of the buffer in MB.</li>
+ *   <li><b>bufferSizeMb</b>: Size of the buffer in MB - <b>should not</b> impact on performance with the current implementation.</li>
  *   <li><b>maxFileSizeMb</b>: Maximum size of the file to write in MB.</li>
  *   <li><b>sampleSize</b>: Number of sample data items to generate.</li>
  *   <li><b>sampleRangeBytes</b>: Range of the sample data items in bytes, chosen randomly from the sample.</li>
