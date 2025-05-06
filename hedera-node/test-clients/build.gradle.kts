@@ -13,8 +13,6 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
-testModuleInfo { runtimeOnly("org.junit.jupiter.api") }
-
 sourceSets {
     create("rcdiff")
     create("yahcli")
@@ -65,9 +63,6 @@ tasks.test {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prCheckTags =
@@ -195,9 +190,6 @@ tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testSubprocess") {
@@ -297,9 +289,6 @@ tasks.register<Test>("testSubprocess") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testRemote") {
@@ -363,9 +352,6 @@ tasks.register<Test>("testRemote") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prEmbeddedCheckTags = mapOf("hapiEmbeddedMisc" to "EMBEDDED")
@@ -414,9 +400,6 @@ tasks.register<Test>("testEmbedded") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prRepeatableCheckTags = mapOf("hapiRepeatableMisc" to "REPEATABLE")
@@ -460,9 +443,6 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
