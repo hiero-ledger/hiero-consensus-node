@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.turtle.runner;
 
 import com.swirlds.platform.state.*;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -79,8 +79,8 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
     @NonNull
     public static MerkleNodeState getStateRootNode() {
         final MerkleNodeState state = new TurtleTestingToolState();
-        MockConsensusStateInitializer.DEFAULT.initPlatformState(state);
-        MockConsensusStateInitializer.DEFAULT.initRosterState(state);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.DEFAULT.initRosterState(state);
 
         return state;
     }

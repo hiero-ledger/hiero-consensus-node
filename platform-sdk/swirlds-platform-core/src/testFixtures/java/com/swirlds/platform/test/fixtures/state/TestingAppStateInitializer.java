@@ -46,7 +46,11 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.roster.RosterStateId;
 
-public class MockConsensusStateInitializer {
+/**
+ * This class is used to initialize the state of test applications. It allows to register the necessary
+ * constructables and initializes the platform and roster states.
+ */
+public class TestingAppStateInitializer {
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(AddressBookConfig.class)
@@ -58,11 +62,16 @@ public class MockConsensusStateInitializer {
             .withConfigDataType(FileSystemManagerConfig.class)
             .build();
 
-    public static final MockConsensusStateInitializer DEFAULT = new MockConsensusStateInitializer(CONFIGURATION);
+    public static final TestingAppStateInitializer DEFAULT = new TestingAppStateInitializer(CONFIGURATION);
 
     private final Configuration configuration;
 
-    public MockConsensusStateInitializer(@NonNull final Configuration configuration) {
+    /**
+     * Constructor for {@link TestingAppStateInitializer}
+     *
+     * @param configuration the configuration to use for the initialized state
+     */
+    public TestingAppStateInitializer(@NonNull final Configuration configuration) {
         this.configuration = requireNonNull(configuration);
     }
 
@@ -98,6 +107,13 @@ public class MockConsensusStateInitializer {
                 .forEach(def -> registerWithSystem(new StateMetadata<>(name, schema, def), registry));
     }
 
+    /**
+     * Initialize the states for the given {@link MerkleNodeState}. This method will initialize both the
+     * platform and roster states.
+     *
+     * @param state the state to initialize
+     * @return a list of builders for the states that were initialized. Currently, returns an empty list.
+     */
     public List<Builder> initStates(@NonNull final MerkleNodeState state) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
@@ -105,6 +121,13 @@ public class MockConsensusStateInitializer {
         return list;
     }
 
+    /**
+     * Initialize the platform state for the given {@link MerkleNodeState}. This method will initialize the
+     * states used by the {@link PlatformStateService}.
+     *
+     * @param state the state to initialize
+     * @return a list of builders for the states that were initialized. Currently, returns an empty list.
+     */
     public List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
         final var schema = new V0540PlatformStateSchema(
                 config -> SemanticVersion.newBuilder().minor(1).build());
@@ -133,6 +156,13 @@ public class MockConsensusStateInitializer {
         return Collections.emptyList();
     }
 
+    /**
+     * Initialize the roster state for the given {@link MerkleNodeState}. This method will initialize the
+     * states used by the {@code RosterService}.
+     *
+     * @param state the state to initialize
+     * @return a list of builders for the states that were initialized. Currently, returns an empty list.
+     */
     public List<Builder> initRosterState(@NonNull final MerkleNodeState state) {
         if (!(state instanceof MerkleStateRoot<?>)) {
             throw new IllegalArgumentException("Can only be used with MerkleStateRoot instances");

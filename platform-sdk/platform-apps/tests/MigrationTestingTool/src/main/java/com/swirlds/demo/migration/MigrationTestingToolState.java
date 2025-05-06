@@ -14,7 +14,7 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
@@ -123,7 +123,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     @Override
     public MerkleNode migrate(int version) {
         if (version == ClassVersion.VIRTUAL_MAP) {
-            MockConsensusStateInitializer.DEFAULT.initRosterState(this);
+            TestingAppStateInitializer.DEFAULT.initRosterState(this);
             return this;
         }
 

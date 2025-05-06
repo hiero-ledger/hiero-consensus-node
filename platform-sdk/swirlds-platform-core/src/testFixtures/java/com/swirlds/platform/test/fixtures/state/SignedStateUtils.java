@@ -19,7 +19,7 @@ public class SignedStateUtils {
     public static SignedState randomSignedState(Random random) {
         TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         MerkleNodeState root = new TestMerkleStateRoot();
-        MockConsensusStateInitializer.DEFAULT.initPlatformState(root);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(root);
         randomPlatformState(random, root, platformStateFacade);
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(

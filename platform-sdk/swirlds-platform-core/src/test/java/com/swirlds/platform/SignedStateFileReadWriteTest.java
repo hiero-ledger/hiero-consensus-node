@@ -10,7 +10,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeHashInfoFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignatureSetFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
-import static com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.nio.file.Files.exists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,7 +36,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
 import java.io.BufferedReader;
@@ -78,7 +78,7 @@ class SignedStateFileReadWriteTest {
     void beforeEach() throws IOException {
         // Don't use JUnit @TempDir as it runs into a thread race with Merkle DB DataSource release...
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "SignedStateFileReadWriteTest", MockConsensusStateInitializer.CONFIGURATION);
+                "SignedStateFileReadWriteTest", TestingAppStateInitializer.CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
         MerkleDb.resetDefaultInstancePath();
     }

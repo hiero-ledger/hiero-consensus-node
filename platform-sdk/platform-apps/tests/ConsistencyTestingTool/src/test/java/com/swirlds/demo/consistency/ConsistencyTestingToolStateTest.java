@@ -16,7 +16,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -57,7 +57,7 @@ public class ConsistencyTestingToolStateTest {
     static void initState() {
         state = new ConsistencyTestingToolState();
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        MockConsensusStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
     }
 
     @BeforeEach

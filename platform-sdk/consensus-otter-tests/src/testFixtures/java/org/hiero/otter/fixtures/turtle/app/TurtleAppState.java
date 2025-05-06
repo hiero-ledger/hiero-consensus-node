@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.turtle.app;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -71,7 +71,7 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
      */
     @NonNull
     public static MerkleNodeState getStateRootNode(@NonNull final Configuration configuration) {
-        final MockConsensusStateInitializer initializer = new MockConsensusStateInitializer(configuration);
+        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
         final MerkleNodeState state = new TurtleAppState();
         initializer.initStates(state);
         return state;

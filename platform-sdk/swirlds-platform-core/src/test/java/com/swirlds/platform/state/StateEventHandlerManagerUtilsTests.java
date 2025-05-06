@@ -8,7 +8,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.metrics.StateMetrics;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.State;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +23,7 @@ public class StateEventHandlerManagerUtilsTests {
     void testFastCopyIsMutable() {
 
         final MerkleNodeState state = new TestMerkleStateRoot();
-        MockConsensusStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         state.getRoot().reserve();
         final StateMetrics stats = mock(StateMetrics.class);
         final State result = SwirldStateManagerUtils.fastCopy(

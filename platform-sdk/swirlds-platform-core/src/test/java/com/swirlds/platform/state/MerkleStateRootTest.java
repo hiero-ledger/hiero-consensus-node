@@ -2,7 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
-import static com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;

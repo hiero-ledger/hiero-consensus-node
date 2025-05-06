@@ -13,7 +13,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -81,7 +81,7 @@ public class ConsistencyTestingToolConsensusStateEventHandler
 
         state.initState(logFilePath);
 
-        MockConsensusStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
     }
 
     /**

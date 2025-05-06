@@ -53,7 +53,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -1146,7 +1146,7 @@ public class PlatformTestingToolConsensusStateEventHandler
             genesisInit(state);
         }
         state.invalidateHash();
-        MockConsensusStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
 
         // compute hash
         try {

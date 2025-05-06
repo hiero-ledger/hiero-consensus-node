@@ -16,7 +16,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import java.time.Duration;
 import java.time.Instant;
@@ -62,7 +62,7 @@ class AddressBookTestingToolStateTest {
         state = new AddressBookTestingToolState();
         consensusStateEventHandler =
                 new AddressBookTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        MockConsensusStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
     }
 
     @BeforeEach

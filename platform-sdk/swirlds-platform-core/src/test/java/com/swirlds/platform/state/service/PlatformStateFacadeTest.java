@@ -17,7 +17,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
@@ -38,7 +38,7 @@ class PlatformStateFacadeTest {
     @BeforeAll
     static void beforeAll() {
         state = new TestMerkleStateRoot();
-        MockConsensusStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         emptyState = new TestMerkleStateRoot();
         platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
@@ -184,7 +184,7 @@ class PlatformStateFacadeTest {
     @Test
     void testSetSnapshotTo() {
         TestMerkleStateRoot randomState = new TestMerkleStateRoot();
-        MockConsensusStateInitializer.DEFAULT.initPlatformState(randomState);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);

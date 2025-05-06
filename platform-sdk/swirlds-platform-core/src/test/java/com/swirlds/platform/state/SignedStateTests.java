@@ -19,7 +19,7 @@ import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
@@ -67,7 +67,7 @@ class SignedStateTests {
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var real = new TestMerkleStateRoot();
-        MockConsensusStateInitializer.DEFAULT.initStates(real);
+        TestingAppStateInitializer.DEFAULT.initStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
         if (reserveCallback != null) {
@@ -214,7 +214,7 @@ class SignedStateTests {
         final MerkleNodeState state = spy(new TestMerkleStateRoot());
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
-        MockConsensusStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
         final SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),

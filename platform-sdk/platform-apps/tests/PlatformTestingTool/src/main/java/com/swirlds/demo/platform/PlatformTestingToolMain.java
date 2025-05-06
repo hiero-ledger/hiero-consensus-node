@@ -21,7 +21,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_6_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
-import static com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static java.lang.System.exit;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
@@ -77,7 +77,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
-import com.swirlds.platform.test.fixtures.state.MockConsensusStateInitializer;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -861,7 +861,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     @NonNull
     public PlatformTestingToolState newStateRoot() {
         final PlatformTestingToolState state = new PlatformTestingToolState();
-        MockConsensusStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
     }
 
