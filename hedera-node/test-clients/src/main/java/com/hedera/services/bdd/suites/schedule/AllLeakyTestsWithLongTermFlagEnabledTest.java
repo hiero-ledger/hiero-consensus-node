@@ -47,7 +47,6 @@ public class AllLeakyTestsWithLongTermFlagEnabledTest {
 
     @LeakyHapiTest(
             overrides = {
-                "tokens.nfts.areEnabled",
                 "tokens.nfts.maxBatchSizeMint",
                 "ledger.schedule.txExpiryTimeSecs",
                 "ledger.transfers.maxLen",

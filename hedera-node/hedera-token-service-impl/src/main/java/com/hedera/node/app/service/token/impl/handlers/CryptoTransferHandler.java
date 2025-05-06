@@ -51,7 +51,6 @@ import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -188,10 +187,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         final var op = txn.cryptoTransferOrThrow();
 
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
-        final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
 
-        validator.validateSemantics(op, ledgerConfig, tokensConfig, accountsConfig);
+        validator.validateSemantics(op, ledgerConfig, accountsConfig);
 
         // create a new transfer context that is specific only for this transaction
         final var transferContext =
