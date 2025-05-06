@@ -205,13 +205,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         public static final int NO_VIRTUAL_ROOT_NODE = 5;
     }
 
-    private static final class ChildIndices {
-        /**
-         * The index of the second child which is the {@link VirtualRootNode}.
-         */
-        private static final int VIRTUAL_ROOT_CHILD_INDEX = 0;
-    }
-
     public static final int MAX_LABEL_CHARS = 512;
 
     /**
@@ -463,7 +456,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * @param state
      * 		The accessor. Cannot be null. Must have a label.
      */
-    public void postInit(@NonNull final VirtualMapState state) {
+    void postInit(@NonNull final VirtualMapState state) {
         requireNonNull(state);
         requireNonNull(state.getLabel());
 
@@ -526,7 +519,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     // Exposed for tests only.
-    public VirtualPipeline getPipeline() {
+    VirtualPipeline getPipeline() {
         return pipeline;
     }
 

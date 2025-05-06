@@ -45,8 +45,8 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
      */
     private final VirtualHashRecord virtualHashRecord;
 
-    public VirtualInternalNode(final VirtualMap root, final VirtualHashRecord virtualHashRecord) {
-        this.root = Objects.requireNonNull(root);
+    public VirtualInternalNode(final VirtualMap map, final VirtualHashRecord virtualHashRecord) {
+        this.root = Objects.requireNonNull(map);
         this.virtualHashRecord = Objects.requireNonNull(virtualHashRecord);
         setHash(virtualHashRecord.hash());
     }

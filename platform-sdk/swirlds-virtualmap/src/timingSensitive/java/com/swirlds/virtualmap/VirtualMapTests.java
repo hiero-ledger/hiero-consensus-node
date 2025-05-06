@@ -1149,12 +1149,10 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
 
         final VirtualMap fcm = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
-        fcm.postInit(new VirtualMapState(VM_LABEL));
         fcm.enableFlush();
         fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = fcm.copy();
-        copy.postInit(fcm.getState());
 
         fcm.getHash();
         final Hash expectedHash = fcm.getHash();
@@ -1258,7 +1256,7 @@ class VirtualMapTests extends VirtualTestBase {
         serializeRoot(fileName);
         deserializeRootNodeAndVerify(
                 new FileInputStream(testDirectory.resolve(fileName).toFile()),
-                VirtualRootNode.ClassVersion.CURRENT_VERSION);
+                VirtualMap.ClassVersion.NO_VIRTUAL_ROOT_NODE);
     }
 
     private void deserializeRootNodeAndVerify(InputStream resourceAsStream, int version) throws IOException {

@@ -66,7 +66,6 @@ class VirtualMapHashingTest {
         }
 
         final VirtualMap map1 = root0.copy();
-        map1.postInit(root0.getState());
         final Hash hash0 = root0.getHash();
         assertNotNull(hash0, "hash should not be null");
 
@@ -75,7 +74,6 @@ class VirtualMapHashingTest {
         }
 
         final VirtualMap map2 = map1.copy();
-        map2.postInit(map1.getState());
         final Hash hash1 = map1.getHash();
         assertNotNull(hash1, "hash should not be null");
 
