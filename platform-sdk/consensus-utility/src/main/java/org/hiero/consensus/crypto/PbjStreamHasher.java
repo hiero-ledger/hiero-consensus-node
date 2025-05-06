@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.hashing;
+package org.hiero.consensus.crypto;
 
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -22,7 +22,7 @@ import org.hiero.consensus.model.transaction.TransactionWrapper;
  * Hashes the PBJ representation of an event. This hasher double hashes each transaction in order to allow redaction of
  * transactions without invalidating the event hash.
  */
-public class PbjStreamHasher implements EventHasher, UnsignedEventHasher {
+public class PbjStreamHasher implements EventHasher {
 
     /** The hashing stream for the event. */
     private final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();

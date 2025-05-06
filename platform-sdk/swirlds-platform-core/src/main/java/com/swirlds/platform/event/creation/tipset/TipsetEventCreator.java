@@ -10,8 +10,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.event.EventUtils;
-import com.swirlds.platform.event.hashing.PbjStreamHasher;
-import com.swirlds.platform.event.hashing.UnsignedEventHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -27,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -95,7 +94,7 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * Event hasher for unsigned events.
      */
-    private final UnsignedEventHasher eventHasher;
+    private final PbjStreamHasher eventHasher;
 
     /**
      * Create a new tipset event creator.

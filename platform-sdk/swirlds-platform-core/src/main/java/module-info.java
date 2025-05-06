@@ -114,7 +114,6 @@ module com.swirlds.platform.core {
             com.swirlds.config.impl;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.event.hashing;
     exports com.swirlds.platform.event.orphan;
     exports com.swirlds.platform.publisher;
     exports com.swirlds.platform.components.consensus;
