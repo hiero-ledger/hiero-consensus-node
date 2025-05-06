@@ -98,4 +98,4 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,
         @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency,
         @ConfigProperty(defaultValue = "EVERY_EVENT") FileSyncOption inlinePcesSyncOption,
-        @ConfigProperty(defaultValue = "FILE_CHANNEL_SYNC") PcesFileWriterType pcesFileWriterType) {}
+        @ConfigProperty(defaultValue = "OS_DEPENDENT") PcesFileWriterType pcesFileWriterType) {}
