@@ -242,10 +242,11 @@ public class PeerCommunication implements ConnectionTracker {
 
     private List<DedicatedStoppableThread<NodeId>> buildProtocolThreads(Collection<NodeId> peers) {
 
-        var syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         final BasicConfig basicConfig = platformContext.getConfiguration().getConfigData(BasicConfig.class);
         final Duration hangingThreadDuration = basicConfig.hangingThreadDuration();
-        var syncProtocolThreads = new ArrayList<DedicatedStoppableThread<NodeId>>();
+        final ArrayList<DedicatedStoppableThread<NodeId>> syncProtocolThreads =
+                new ArrayList<DedicatedStoppableThread<NodeId>>();
         for (final NodeId otherId : peers) {
             syncProtocolThreads.add(new DedicatedStoppableThread<NodeId>(
                     otherId,
