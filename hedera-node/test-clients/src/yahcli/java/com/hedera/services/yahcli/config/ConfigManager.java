@@ -68,6 +68,17 @@ public class ConfigManager {
                 });
             });
 
+            globalConfig
+                    .getNetworks()
+                    .forEach((name, netConfig) -> netConfig.getNodes().forEach(nodeConfig -> {
+                        if (netConfig.getShard() != null) {
+                            nodeConfig.setShard(netConfig.getShard());
+                        }
+                        if (netConfig.getRealm() != null) {
+                            nodeConfig.setRealm(netConfig.getRealm());
+                        }
+                    }));
+
             return new ConfigManager(yahcli, globalConfig);
         }
     }
