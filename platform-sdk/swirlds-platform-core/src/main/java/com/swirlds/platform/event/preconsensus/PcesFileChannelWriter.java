@@ -30,7 +30,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     /** Tracks the size of the file in bytes */
     private int fileSize;
     /** Keeps stats of the writing process */
-    private final PcesFileWritingStats stats;
+    private final PcesFileWriterStats stats;
 
     /**
      * Create a new writer that writes events to a file using a {@link FileChannel}.
@@ -57,7 +57,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         this.channel = FileChannel.open(filePath, allOpenOptions.toArray(OpenOption[]::new));
         this.buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
         this.writableSequentialData = BufferedData.wrap(buffer);
-        this.stats = new PcesFileWritingStats();
+        this.stats = new PcesFileWriterStats();
     }
 
     @Override
@@ -130,7 +130,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         return fileSize;
     }
 
-    public PcesFileWritingStats getStats() {
+    public PcesFileWriterStats getStats() {
         return stats;
     }
 }

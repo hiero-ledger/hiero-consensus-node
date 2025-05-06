@@ -156,7 +156,12 @@ public class PcesMutableFile {
         return descriptor.toString();
     }
 
-    public PcesFileWritingStats stats() {
+    /**
+     * Return the stats accumulated by the writer during the writing of this file.
+     *
+     * @return the stats accumulated by the writer during the writing of this file
+     */
+    public PcesFileWriterStats writerStats() {
         return writer.getStats();
     }
 }

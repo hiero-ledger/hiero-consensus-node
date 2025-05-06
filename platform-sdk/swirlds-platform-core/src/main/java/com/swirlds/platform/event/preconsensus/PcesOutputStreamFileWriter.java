@@ -24,7 +24,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     /** Counts the bytes written to the file */
     private final CountingStreamExtension counter;
     /** Keeps stats of the writing process */
-    private final PcesFileWritingStats stats;
+    private final PcesFileWriterStats stats;
 
     /**
      * Create a new file writer.
@@ -36,7 +36,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
         counter = new CountingStreamExtension(false);
         final FileOutputStream fileOutputStream = new FileOutputStream(filePath.toFile());
         fileDescriptor = fileOutputStream.getFD();
-        this.stats = new PcesFileWritingStats();
+        this.stats = new PcesFileWriterStats();
         out = new SerializableDataOutputStream(
                 new ExtendableOutputStream(new BufferedOutputStream(fileOutputStream), counter));
     }
@@ -49,13 +49,10 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
         long startTime = System.currentTimeMillis();
-        long writeFinish = startTime;
         try {
             out.writePbjRecord(event, GossipEvent.PROTOBUF);
-            writeFinish = System.currentTimeMillis();
         } finally {
-            stats.updateWriteStats(
-                    startTime, startTime, writeFinish, writeFinish, GossipEvent.PROTOBUF.measureRecord(event), false);
+            stats.updateWriteStats(startTime, System.currentTimeMillis(), GossipEvent.PROTOBUF.measureRecord(event));
         }
     }
 
@@ -88,7 +85,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     }
 
     @Override
-    public PcesFileWritingStats getStats() {
+    public PcesFileWriterStats getStats() {
         return stats;
     }
 }

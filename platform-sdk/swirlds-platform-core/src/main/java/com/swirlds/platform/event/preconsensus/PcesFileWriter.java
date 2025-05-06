@@ -45,5 +45,5 @@ public interface PcesFileWriter {
     long fileSize();
 
     /** Keeps stats of the writing process */
-    PcesFileWritingStats getStats();
+    PcesFileWriterStats getStats();
 }

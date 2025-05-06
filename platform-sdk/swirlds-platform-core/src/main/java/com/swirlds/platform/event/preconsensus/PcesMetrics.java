@@ -72,18 +72,19 @@ public class PcesMetrics {
             .withDescription("The age of the oldest preconsensus event file, in seconds.");
     private final LongGauge preconsensusEventFileOldestSeconds;
 
-    static final RunningAverageMetric.Config AVG_EVENT_SIZE =
-            new RunningAverageMetric.Config(CATEGORY, "avgEventSize").withDescription("The average size of an event");
-    public static final RunningAverageMetric.Config PCES_AVG_SYNC_DURATION = new RunningAverageMetric.Config(
+    private static final RunningAverageMetric.Config AVG_EVENT_SIZE = new RunningAverageMetric.Config(
+                    CATEGORY, "pcesAvgEventSize")
+            .withDescription("The average size of an event");
+    private static final RunningAverageMetric.Config PCES_AVG_SYNC_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgSyncDuration")
             .withDescription("The average duration of the sync method");
-    public static final RunningAverageMetric.Config PCES_AVG_WRITE_DURATION = new RunningAverageMetric.Config(
+    private static final RunningAverageMetric.Config PCES_AVG_WRITE_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgWriteDuration")
             .withDescription("The average duration of the write fs call");
-    public static final RunningAverageMetric.Config PCES_AVG_TOTAL_WRITE_DURATION = new RunningAverageMetric.Config(
+    private static final RunningAverageMetric.Config PCES_AVG_TOTAL_WRITE_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgTotalWriteDuration")
             .withDescription("The average of the total duration of the write method");
-    public static final Counter.Config PCES_BUFFER_EXPANSIONS_COUNTER = new Counter.Config(
+    private static final Counter.Config PCES_BUFFER_EXPANSIONS_COUNTER = new Counter.Config(
                     CATEGORY, "pcesBufferExpansionCounter")
             .withDescription("How many times the write buffer needed to be expanded");
 
@@ -180,10 +181,10 @@ public class PcesMetrics {
     /**
      * Updates the metrics with the stats reported by the writer
      */
-    public void updateMetricsWithPcesFileWritingStats(final PcesFileWritingStats stats) {
+    public void updateMetricsWithPcesFileWritingStats(final PcesFileWriterStats stats) {
         metrics.getOrCreate(PcesMetrics.AVG_EVENT_SIZE).update(stats.averageEventSize());
         metrics.getOrCreate(PcesMetrics.PCES_AVG_SYNC_DURATION).update(stats.averageSyncDuration());
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_WRITE_DURATION).update(stats.averageFsWriteDuration());
+        metrics.getOrCreate(PcesMetrics.PCES_AVG_WRITE_DURATION).update(stats.averageWriteDuration());
         metrics.getOrCreate(PcesMetrics.PCES_AVG_TOTAL_WRITE_DURATION).update(stats.averageTotalWriteDuration());
         if (stats.totalExpansions() > 0)
             metrics.getOrCreate(PcesMetrics.PCES_BUFFER_EXPANSIONS_COUNTER).add(stats.totalExpansions());
