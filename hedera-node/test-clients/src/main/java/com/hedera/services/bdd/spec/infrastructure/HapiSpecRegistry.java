@@ -333,6 +333,9 @@ public class HapiSpecRegistry {
         if (txn.hasMemo()) {
             meta.setMemo(txn.getMemo().getValue());
         }
+        if (txn.hasCustomFees()) {
+            meta.addAllCustomFees(txn.getCustomFees().getFeesList());
+        }
         put(name, meta.build());
         if (txn.hasExpirationTime()) {
             put(name, txn.getExpirationTime().getSeconds());
@@ -558,6 +561,10 @@ public class HapiSpecRegistry {
 
     public TopicID getTopicID(String name) {
         return get(name, TopicID.class);
+    }
+
+    public boolean hasTopicID(String name) {
+        return registry.containsKey(full(name, TopicID.class));
     }
 
     public TokenID getTokenID(String name) {
