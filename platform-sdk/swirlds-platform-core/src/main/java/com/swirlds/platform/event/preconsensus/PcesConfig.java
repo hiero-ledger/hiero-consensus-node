@@ -74,6 +74,8 @@ import java.time.Duration;
  * @param maxEventReplayFrequency              the maximum number of events that can be replayed per second
  * @param inlinePcesSyncOption                 when to sync the preconsensus event file to disk (applies only to inline
  *                                             PCES)
+ * @param pcesFileWriterType                   type of pces writer to be used in default environment (Linux for now, Mac has its override at {@link #macPcesFileWriterType}
+ * @param macPcesFileWriterType                override for pcesFileWriterType to be used on Mac, as FileChannel is 150x slower there
  */
 @ConfigData("event.preconsensus")
 public record PcesConfig(
@@ -98,4 +100,5 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,
         @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency,
         @ConfigProperty(defaultValue = "EVERY_EVENT") FileSyncOption inlinePcesSyncOption,
-        @ConfigProperty(defaultValue = "FILE_CHANNEL_SYNC") PcesFileWriterType pcesFileWriterType) {}
+        @ConfigProperty(defaultValue = "FILE_CHANNEL_SYNC") PcesFileWriterType pcesFileWriterType,
+        @ConfigProperty(defaultValue = "OUTPUT_STREAM") PcesFileWriterType macPcesFileWriterType) {}
