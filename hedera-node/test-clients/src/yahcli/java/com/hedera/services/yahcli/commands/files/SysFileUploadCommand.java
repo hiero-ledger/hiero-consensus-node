@@ -99,14 +99,8 @@ public class SysFileUploadCommand implements Callable<Integer> {
 
         var delegate = isSpecialFile()
                 ? new SysFileUploadSuite(
-                        bytesPerAppend,
-                        appendsPerBurst,
-                        restartFromFailure,
-                        srcDir,
-                        config.asSpecConfig(),
-                        sysFile,
-                        dryRun)
-                : new SysFileUploadSuite(srcDir, config.asSpecConfig(), sysFile, dryRun);
+                        bytesPerAppend, appendsPerBurst, restartFromFailure, srcDir, config, sysFile, dryRun)
+                : new SysFileUploadSuite(srcDir, config, sysFile, dryRun);
 
         delegate.runSuiteSync();
 

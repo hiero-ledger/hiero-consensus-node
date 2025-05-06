@@ -14,10 +14,12 @@ public class HapiSpecUtils {
     }
 
     /**
-     * todo
-     * @param spec
-     * @param configManager
-     * @return
+     * Runs a HapiSpec with the given spec and config manager. The config manager provides details such as
+     * shard/realm to further configure the spec.
+     *
+     * @param spec the spec to run
+     * @param configManager the config manager to use
+     * @return the spec wrapped in a DynamicTest
      */
     public static Stream<DynamicTest> targeted(HapiSpec spec, ConfigManager configManager) {
         final var network = RemoteNetworkFactory.newWithTargetFrom(

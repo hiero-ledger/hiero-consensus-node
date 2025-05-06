@@ -459,11 +459,7 @@ public interface HapiPropertySource {
 
     static FileID asFile(String v) {
         long[] nativeParts = asDotDelimitedLongArray(v);
-        return FileID.newBuilder()
-                .setShardNum(nativeParts[0])
-                .setRealmNum(nativeParts[1])
-                .setFileNum(nativeParts[2])
-                .build();
+        return asFile(nativeParts[0], nativeParts[1], nativeParts[2]);
     }
 
     static EntityNumber asEntityNumber(String v) {
@@ -570,6 +566,7 @@ public interface HapiPropertySource {
         return String.format("%d.%d.%s", shard, realm, num);
     }
 
+    @Deprecated
     static String asEntityString(final long num) {
         return asEntityString(shard, realm, num);
     }

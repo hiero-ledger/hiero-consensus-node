@@ -57,17 +57,6 @@ public class ConfigManager {
         try (InputStream fin = Files.newInputStream(Paths.get(yamlLoc))) {
             GlobalConfig globalConfig = yamlIn.load(fin);
 
-            globalConfig.getNetworks().forEach((name, netConfig) -> {
-                netConfig.getNodes().forEach(nodeConfig -> {
-                    if (netConfig.getShard() != null) {
-                        nodeConfig.setShard(netConfig.getShard());
-                    }
-                    if (netConfig.getRealm() != null) {
-                        nodeConfig.setRealm(netConfig.getRealm());
-                    }
-                });
-            });
-
             globalConfig
                     .getNetworks()
                     .forEach((name, netConfig) -> netConfig.getNodes().forEach(nodeConfig -> {

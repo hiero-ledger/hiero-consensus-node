@@ -92,17 +92,15 @@ public class Utils {
             Map.entry("throttles.json", 123L),
             Map.entry("software-zip", 150L),
             Map.entry("telemetry-zip", 159L));
-    private static final Map<FileID, String> IDS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
-            .filter(entry -> !entry.getKey().contains("."))
-            .collect(Collectors.toMap(
-                    (Map.Entry<String, Long> entry) ->
-                            FileID.newBuilder().setFileNum(entry.getValue()).build(),
-                    Map.Entry::getKey));
+    private static final Map<Long, String> NUMBERS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
+            // For any found duplicates, use the actual file name as the key
+            .filter(e -> e.getKey().matches("^[a-zA-Z0-9-]\\.[a-z0-9]+$"))
+            .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
 
     private static final Set<Long> VALID_NUMBERS = new HashSet<>(NAMES_TO_NUMBERS.values());
 
     public static String nameOf(FileID fid) {
-        return Optional.ofNullable(IDS_TO_NAMES.get(fid)).orElse("<N/A>");
+        return Optional.ofNullable(NUMBERS_TO_NAMES.get(fid.getFileNum())).orElse("<N/A>");
     }
 
     public static EnumSet<ServiceType> rationalizedServices(final String[] services) {
