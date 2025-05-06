@@ -2,13 +2,13 @@
 package com.swirlds.platform.state.signed;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Basic record object to carry information useful for signed state validation.

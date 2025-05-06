@@ -38,7 +38,7 @@ public class ThrottleOnDispatchTest {
             throttles = "testSystemFiles/one-tps-nft-mint.json")
     final Stream<DynamicTest> throttledChildDispatchCapacityOnlyCommitsOnSuccess(
             @NonFungibleToken SpecNonFungibleToken nft,
-            @Contract(contract = "ConsensusMintCheck") SpecContract consensusMintCheck) {
+            @Contract(contract = "ConsensusMintCheck", creationGas = 3_000_000) SpecContract consensusMintCheck) {
         return hapiTest(
                 overridingTwo(
                         "tokens.nfts.mintThrottleScaleFactor", "1:1",

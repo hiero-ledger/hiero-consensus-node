@@ -17,7 +17,6 @@ import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
@@ -34,7 +33,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
@@ -43,6 +42,7 @@ import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 import org.hiero.consensus.model.sequence.set.SequenceSet;
 import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A default implementation of the {@link IssDetector}.
@@ -506,12 +506,14 @@ public class DefaultIssDetector implements IssDetector {
                 }
                 yield notification;
             }
-            case UNDECIDED -> throw new IllegalStateException(
-                    "status is undecided, but method reported a decision, round = " + round);
-            case LACK_OF_DATA -> throw new IllegalStateException(
-                    "a decision that we lack data should only be possible once time runs out, round = " + round);
-            default -> throw new IllegalStateException(
-                    "unhandled case " + roundValidator.getStatus() + ", round = " + round);
+            case UNDECIDED ->
+                throw new IllegalStateException(
+                        "status is undecided, but method reported a decision, round = " + round);
+            case LACK_OF_DATA ->
+                throw new IllegalStateException(
+                        "a decision that we lack data should only be possible once time runs out, round = " + round);
+            default ->
+                throw new IllegalStateException("unhandled case " + roundValidator.getStatus() + ", round = " + round);
         };
     }
 

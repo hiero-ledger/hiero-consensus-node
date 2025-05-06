@@ -141,6 +141,10 @@ public class RecordStreamingUtils {
         return isRelevant(file) && !file.contains(SIDECAR_ONLY_TOKEN);
     }
 
+    public static boolean isSidecarMarkerFile(final String file) {
+        return file.contains(SIDECAR_ONLY_TOKEN) && file.contains(".mf");
+    }
+
     public static boolean isSidecarFile(final String file) {
         return isRelevant(file) && file.contains(SIDECAR_ONLY_TOKEN);
     }

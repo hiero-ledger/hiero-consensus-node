@@ -111,7 +111,6 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -120,12 +119,10 @@ import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadableRosterStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -158,13 +155,16 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.RosterUtils;
 
 /*
  ****************        ****************************************************************************************
@@ -1186,9 +1186,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                     .initLastBlockHash(
                             switch (trigger) {
                                 case GENESIS -> ZERO_BLOCK_HASH;
-                                default -> blockStreamService
-                                        .migratedLastBlockHash()
-                                        .orElseGet(() -> startBlockHashFrom(state));
+                                default ->
+                                    blockStreamService
+                                            .migratedLastBlockHash()
+                                            .orElseGet(() -> startBlockHashFrom(state));
                             });
             migrationStateChanges = null;
         }
@@ -1355,12 +1356,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
-            final var writableStates = initState.getWritableStates(HintsService.NAME);
-            final var entityCounters = new WritableEntityIdStore(writableStates);
-            final var store = new WritableHintsStoreImpl(writableStates, entityCounters);
+            final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
+            final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
+            final var entityCounters = new WritableEntityIdStore(writableEntityStates);
+            final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
             hintsService.manageRosterAdoption(
                     store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
-            ((CommittableWritableStates) writableStates).commit();
+            ((CommittableWritableStates) writableHintsStates).commit();
         }
     }
 

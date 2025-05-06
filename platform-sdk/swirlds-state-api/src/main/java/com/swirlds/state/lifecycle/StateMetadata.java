@@ -4,12 +4,12 @@ package com.swirlds.state.lifecycle;
 import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.NonCryptographicHashing;
 
 /**
  * Holds metadata related to a registered service's state.

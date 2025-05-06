@@ -4,7 +4,7 @@ package com.swirlds.common;
 import com.swirlds.base.state.Mutable;
 import org.hiero.base.Copyable;
 import org.hiero.base.Releasable;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * An interface for classes that can be copied and serialized in a way specific to the Swirlds platform. If a class

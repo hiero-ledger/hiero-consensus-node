@@ -91,7 +91,9 @@ public class CryptoCreateSuite {
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
     public static final String ED_25519_KEY = "ed25519Alias";
     public static final String ACCOUNT_ID = asEntityString(10);
+    ;
     public static final String STAKED_ACCOUNT_ID = asEntityString(3);
+    ;
     public static final String CIVILIAN = "civilian";
     public static final String NO_KEYS = "noKeys";
     public static final String SHORT_KEY = "shortKey";
@@ -161,7 +163,7 @@ public class CryptoCreateSuite {
     @HapiTest
     @DisplayName("canonical EVM addresses are determined by aliases")
     final Stream<DynamicTest> canonicalEvmAddressesDeterminedByAliases(
-            @Contract(contract = "MakeCalls") SpecContract makeCalls) {
+            @Contract(contract = "MakeCalls", creationGas = 3_000_000) SpecContract makeCalls) {
         return hapiTest(
                 newKeyNamed("oneKey").shape(SECP256K1_ON),
                 newKeyNamed("twoKey").shape(SECP256K1_ON),
@@ -209,7 +211,7 @@ public class CryptoCreateSuite {
                         .has(accountWith()
                                 .isDeclinedReward(true)
                                 .noStakingNodeId()
-                                .stakedAccountId(ACCOUNT_ID)),
+                                .stakedAccountIdWithLiteral(ACCOUNT_ID)),
                 cryptoCreate("civilianWRewardStakingNode")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
@@ -227,11 +229,13 @@ public class CryptoCreateSuite {
                         .has(accountWith()
                                 .isDeclinedReward(false)
                                 .noStakingNodeId()
-                                .stakedAccountId(ACCOUNT_ID)),
-                /* --- sentiel values throw */
+                                .stakedAccountIdWithLiteral(ACCOUNT_ID)),
+                /* --- sentinel values throw */
                 cryptoCreate("invalidStakedAccount")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
+                        .shardId(ShardID.newBuilder().setShardNum(0).build())
+                        .realmId(RealmID.newBuilder().setRealmNum(0).build())
                         .stakedAccountId("0.0.0")
                         .hasPrecheck(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")
@@ -309,15 +313,11 @@ public class CryptoCreateSuite {
     final Stream<DynamicTest> createAnAccountEmptyKeyList() {
         KeyShape shape = listOf(0);
         long initialBalance = 10_000L;
-        ShardID shardID = ShardID.newBuilder().build();
-        RealmID realmID = RealmID.newBuilder().build();
 
         return hapiTest(
                 cryptoCreate(NO_KEYS)
                         .keyShape(shape)
                         .balance(initialBalance)
-                        .shardId(shardID)
-                        .realmId(realmID)
                         .logged()
                         .hasPrecheck(KEY_REQUIRED)
                 // In modular code this error is thrown in handle, but it is fixed using dynamic property
@@ -1031,6 +1031,7 @@ public class CryptoCreateSuite {
                         .balance(1L)
                         .shardId(ShardID.newBuilder().setShardNum(1).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID),
+                // expected realm is 2
                 cryptoCreate("differentRealm")
                         .key(key)
                         .balance(1L)

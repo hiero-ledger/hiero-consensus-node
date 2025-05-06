@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.utility.ByteUtils.intToByteArray;
 
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -70,7 +69,8 @@ public class TurtleTransactionGenerator implements TransactionGenerator, TimeTic
             for (long i = previousCount; i < currentCount; i++) {
                 for (final Node node : network.getNodes()) {
                     // Generate a random transaction and submit it to the node.
-                    final byte[] transaction = intToByteArray(randotron.nextInt());
+                    final byte[] transaction = TransactionFactory.createEmptyTransaction(randotron.nextInt())
+                            .toByteArray();
                     node.submitTransaction(transaction);
                 }
             }
