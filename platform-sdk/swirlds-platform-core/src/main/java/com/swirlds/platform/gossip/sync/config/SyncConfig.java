@@ -35,6 +35,10 @@ import java.time.Duration;
  * @param minimumHealthyUnrevokedPermitCount the minimum number of permits that must be unrevoked when the system is in
  *                                           a healthy state. If non-zero, this means that this number of permits is
  *                                           immediately returned as soon as the system becomes healthy.
+ * @param syncPeriod                         period between successful syncs; currently ignored and assumed 0 for old
+ *                                           style network sync, used only for rpc sync
+ * @param chatter                            enable simplistic chatter, where all self-events are broadcast to all
+ *                                           neighbours
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -43,7 +47,7 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "true") boolean onePermitPerPeer,
         @ConfigProperty(defaultValue = "1000") int syncProtocolHeartbeatPeriod,
         @ConfigProperty(defaultValue = "true") boolean waitForEventsInIntake,
-        @ConfigProperty(defaultValue = "true") boolean filterLikelyDuplicates,
+        @ConfigProperty(defaultValue = "false") boolean filterLikelyDuplicates,
         @ConfigProperty(defaultValue = "3s") Duration nonAncestorFilterThreshold,
         @ConfigProperty(defaultValue = "500ms") Duration syncKeepalivePeriod,
         @ConfigProperty(defaultValue = "1m") Duration maxSyncTime,
@@ -51,4 +55,6 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "1s") Duration unhealthyGracePeriod,
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
         @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
-        @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount) {}
+        @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
+        @ConfigProperty(defaultValue = "10ms") Duration syncPeriod,
+        @ConfigProperty(defaultValue = "true") boolean chatter) {}

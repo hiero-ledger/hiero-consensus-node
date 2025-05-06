@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.swirlds.platform.gossip.rpc;
+
+import com.hedera.hapi.platform.event.GossipEvent;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * Stub interface for sending sync and chatter messages to remote peer
+ */
+public interface GossipRpcSender {
+
+    /**
+     * Send information about our tips and event window. If we indicated fallen behind status previously, this call
+     * indicates we are ready to sync again
+     * @param syncMessage container class for tips and event window
+     */
+    void sendSyncData(@NonNull SyncData syncMessage);
+
+    /**
+     * Send information which of the remote tips we have on our side
+     * @param tips list of true in case we know of tip, false otherwise
+     */
+    void sendTips(@NonNull List<Boolean> tips);
+
+    /**
+     * Send all provided events, preserving orders in which they are presented
+     * @param gossipEvents events to send
+     */
+    void sendEvents(@NonNull List<GossipEvent> gossipEvents);
+
+    /**
+     * Send marker indicating that all events were already provided to the channel
+     *
+     * @return future, indicating when the previous messages have been finally processed by the channel output and end
+     * of events message was pushed; it does NOT indicate that remote side has processed everything, as there is no way
+     * of knowing that
+     */
+    CompletableFuture<Void> sendEndOfEvents();
+
+    void breakConversation();
+}
