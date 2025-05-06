@@ -495,11 +495,13 @@ public class BlockStreamStateManager {
                      * given time there should only be one state manager and thus one scheduled prune task. However, if
                      * there are multiple instances of the manager or something gets messed up threading-wise, then we
                      * need to handle the possibility that there are multiple blocking futures concurrently. With this
-                     * in mind, we will  set the CompletableFuture we use to block in {@link #ensureNewBlocksPermitted()}
+                     * in mind, we will set the CompletableFuture we use to block in {@link #ensureNewBlocksPermitted()}
                      * to complete with a value of {@code false}. This false indicates that the CompletableFuture was
                      * completed but another CompletableFuture took its place and that blocking should continue to
                      * be enabled.
                      */
+                    logger.warn("Multiple backpressure blocking futures encountered; this may indicate multiple state "
+                            + "managers or buffer pruning tasks were concurrently active");
                     oldCf.complete(false);
                 }
                 newCf = new CompletableFuture<>();
@@ -517,10 +519,12 @@ public class BlockStreamStateManager {
                      * given time there should only be one state manager and thus one scheduled prune task. However, if
                      * there are multiple instances of the manager or something gets messed up threading-wise, then we
                      * need to handle the possibility that there are multiple blocking futures concurrently. With this
-                     * in mind, we will  set the CompletableFuture we use to block in {@link #ensureNewBlocksPermitted()}
+                     * in mind, we will set the CompletableFuture we use to block in {@link #ensureNewBlocksPermitted()}
                      * to complete with a value of {@code true}. This true indicates that the CompletableFuture was
                      * completed and that we are no longer applying backpressure and thus no longer blocking.
                      */
+                    logger.warn("Multiple backpressure blocking futures encountered; this may indicate multiple state "
+                            + "managers or buffer pruning tasks were concurrently active");
                     oldCf.complete(true);
                 }
                 newCf = CompletableFuture.completedFuture(true);
