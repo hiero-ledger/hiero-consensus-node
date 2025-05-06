@@ -52,7 +52,10 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
     private List<ServiceEndpoint> grpcEndpoints = List.of(
             ServiceEndpoint.newBuilder().setDomainName("test.com").setPort(123).build());
-    private Optional<ServiceEndpoint> grpcWebProxyEndpoint = Optional.of(endpointFor("grpc.web.proxy.com", 123));
+    // (FUTURE) Since the introduction of a flag to explicitly enable the web proxy endpoint functionality, a non-empty
+    // default here causes some tests to fail with GRPC_WEB_PROXY_NOT_SUPPORTED. Once we can enable
+    // nodes.webProxyEndpointsEnabled permanently, we can restore the non-null default.
+    private Optional<ServiceEndpoint> grpcWebProxyEndpoint = Optional.empty();
     private Optional<byte[]> gossipCaCertificate = Optional.empty();
     private Optional<byte[]> grpcCertificateHash = Optional.empty();
     private Optional<String> adminKeyName = Optional.empty();

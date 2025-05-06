@@ -612,9 +612,10 @@ public class NodeCreateTest {
                         .hasKnownStatus(UNAUTHORIZED));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
     final Stream<DynamicTest> createNodeWithDefaultGrpcProxyFails() throws CertificateEncodingException {
         return hapiTest(
+                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")
