@@ -10,7 +10,9 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.platform.event.DefaultFutureEventBuffer;
 import com.swirlds.platform.event.EventUtils;
+import com.swirlds.platform.event.FutureEventBuffer;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.event.hashing.UnsignedEventHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,6 +57,7 @@ public class TipsetEventCreator implements EventCreator {
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final TransactionSupplier transactionSupplier;
     private final SemanticVersion softwareVersion;
+    private final FutureEventBuffer futureEventBuffer;
     private EventWindow eventWindow;
 
     /**
@@ -128,30 +131,53 @@ public class TipsetEventCreator implements EventCreator {
         final EventCreationConfig eventCreationConfig =
                 platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
 
-        antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
-        tipsetMetrics = new TipsetMetrics(platformContext, roster);
-        ancientMode = platformContext
+        this.antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
+        this.tipsetMetrics = new TipsetMetrics(platformContext, roster);
+        this.ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-        tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
-        childlessOtherEventTracker = new ChildlessEventTracker();
-        tipsetWeightCalculator =
+        this.tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
+        this.childlessOtherEventTracker = new ChildlessEventTracker();
+        this.tipsetWeightCalculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessOtherEventTracker);
-        networkSize = roster.rosterEntries().size();
+        this.networkSize = roster.rosterEntries().size();
 
-        zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
-        noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        this.zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        this.noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
         this.eventHasher = new PbjStreamHasher();
+        this.futureEventBuffer = new DefaultFutureEventBuffer(platformContext);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void registerEvent(@NonNull final PlatformEvent event) {
+    public void addEvent(@NonNull final PlatformEvent event) {
+        futureEventBuffer.addEvent(event).forEach(this::registerEvent);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setEventWindow(@NonNull final EventWindow eventWindow) {
+        this.eventWindow = Objects.requireNonNull(eventWindow);
+        tipsetTracker.setEventWindow(eventWindow);
+        childlessOtherEventTracker.pruneOldEvents(eventWindow);
+        futureEventBuffer.updateEventWindow(eventWindow).forEach(this::registerEvent);
+    }
+
+    /**
+     * Registers an event with the event creator algorithm. The event must have a birth round equal to or less than the
+     * pending consensus round and must be received in topological order.
+     *
+     * @param event the event to register
+     */
+    private void registerEvent(@NonNull final PlatformEvent event) {
+        futureEventBuffer.addEvent(event);
         if (eventWindow.isAncient(event)) {
             return;
         }
@@ -181,16 +207,6 @@ public class TipsetEventCreator implements EventCreator {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
-        tipsetTracker.setEventWindow(eventWindow);
-        childlessOtherEventTracker.pruneOldEvents(eventWindow);
     }
 
     /**

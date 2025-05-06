@@ -4,7 +4,6 @@ package com.swirlds.platform.event;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -27,7 +26,7 @@ public interface FutureEventBuffer {
      * needs to be buffered.
      */
     @InputWireLabel("preconsensus event")
-    @Nullable
+    @NonNull
     List<PlatformEvent> addEvent(@NonNull PlatformEvent event);
 
     /**
@@ -35,10 +34,11 @@ public interface FutureEventBuffer {
      * were previously from the future are now from the present.
      *
      * @param eventWindow the new event window
-     * @return a list of events that were previously from the future but are now from the present
+     * @return a list of events that were previously from the future but are now from the present, or an empty list if
+     * there are no such events.
      */
     @InputWireLabel("event window")
-    @Nullable
+    @NonNull
     List<PlatformEvent> updateEventWindow(@NonNull EventWindow eventWindow);
 
     /**

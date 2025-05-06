@@ -7,8 +7,8 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -63,11 +63,11 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
      * {@inheritDoc}
      */
     @Override
-    @Nullable
+    @NonNull
     public List<PlatformEvent> addEvent(@NonNull final PlatformEvent event) {
         if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
-            return null;
+            return Collections.emptyList();
         } else if (event.getBirthRound() <= eventWindow.getPendingConsensusRound()) {
             // this is not a future event, no need to buffer it
             return List.of(event);
@@ -76,14 +76,14 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
         // this is a future event, buffer it
         futureEvents.computeIfAbsent(event.getBirthRound(), BUILD_LIST).add(event);
         bufferedEventCount.incrementAndGet();
-        return null;
+        return Collections.emptyList();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    @Nullable
+    @NonNull
     public List<PlatformEvent> updateEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 

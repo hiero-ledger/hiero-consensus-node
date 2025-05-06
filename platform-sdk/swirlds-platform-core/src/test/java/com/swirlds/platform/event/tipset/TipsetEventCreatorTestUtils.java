@@ -4,6 +4,7 @@ package com.swirlds.platform.event.tipset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -19,6 +20,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
@@ -42,6 +44,8 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
@@ -58,10 +62,16 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final TransactionSupplier transactionSupplier,
+            @NonNull final AncientMode ancientMode) {
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final PlatformContext platformContext = TestPlatformContextBuilder.create()
+                .withTime(time)
+                .withConfiguration(new TestConfigBuilder()
+                        .withValue(
+                                "event.useBirthRoundAncientThreshold", AncientMode.BIRTH_ROUND_THRESHOLD == ancientMode)
+                        .getOrCreateConfig())
+                .build();
 
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
@@ -91,7 +101,12 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntry address : roster.rosterEntries()) {
 
             final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier);
+            final EventCreator eventCreator =
+                    buildEventCreator(random, time, roster, selfId, transactionSupplier, ancientMode);
+
+            // Set a wide event window so that no events get stuck in the Future Event Buffer
+            eventCreator.setEventWindow(createGenesisEventWindow(ancientMode));
+
             final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
@@ -224,7 +239,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Map<NodeId, SimulatedNode> nodeMap, @NonNull final PlatformEvent event) {
 
         for (final SimulatedNode node : nodeMap.values()) {
-            node.eventCreator().registerEvent(event);
+            node.eventCreator().addEvent(event);
             if (!event.getCreatorId().equals(node.nodeId())) {
                 node.tipsetTracker().addPeerEvent(event);
             } else {
@@ -252,7 +267,7 @@ public class TipsetEventCreatorTestUtils {
 
     @NonNull
     public static PlatformEvent createTestEvent(
-            @NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
+            @NonNull final Random random, @NonNull final NodeId creator, final long nGen, final long birthRound) {
 
         final PlatformEvent selfParent =
                 new TestingEventBuilder(random).setCreatorId(creator).build();
@@ -260,7 +275,22 @@ public class TipsetEventCreatorTestUtils {
         return new TestingEventBuilder(random)
                 .setCreatorId(creator)
                 .setNGen(nGen)
+                .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .build();
+    }
+
+    @NonNull
+    static EventWindow createGenesisEventWindow(@NonNull final AncientMode ancientMode) {
+        return switch (ancientMode) {
+            case BIRTH_ROUND_THRESHOLD ->
+                new EventWindow(ConsensusConstants.ROUND_NEGATIVE_INFINITY, ROUND_FIRST, ROUND_FIRST, ancientMode);
+            case GENERATION_THRESHOLD ->
+                new EventWindow(
+                        ConsensusConstants.ROUND_NEGATIVE_INFINITY,
+                        EventConstants.FIRST_GENERATION,
+                        EventConstants.FIRST_GENERATION,
+                        ancientMode);
+        };
     }
 }

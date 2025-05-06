@@ -10,6 +10,8 @@ import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
+import com.swirlds.platform.event.DefaultFutureEventBuffer;
+import com.swirlds.platform.event.FutureEventBuffer;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.internal.EventImpl;
@@ -37,6 +39,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     private final InOrderLinker linker;
 
+    /** Buffers events until needed by the consensus algorithm based on their birth round */
+    private final FutureEventBuffer futureEventBuffer;
+
     /**
      * Executes the hashgraph consensus algorithm.
      */
@@ -51,7 +56,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * Constructor
      *
      * @param platformContext the platform context
-     * @param roster     the current roster
+     * @param roster          the current roster
      * @param selfId          the ID of the node
      */
     public DefaultConsensusEngine(
@@ -63,6 +68,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
         linker = new ConsensusLinker(platformContext, selfId);
+        futureEventBuffer = new DefaultFutureEventBuffer(platformContext);
         ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
@@ -91,6 +97,16 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
+        // This list will always contain 0 or 1 elements
+        final List<PlatformEvent> eventList = futureEventBuffer.addEvent(event);
+
+        if (eventList.isEmpty()) {
+            return List.of();
+        }
+        return addToConsensusAlgorithm(eventList.getFirst());
+    }
+
+    private List<ConsensusRound> addToConsensusAlgorithm(@NonNull final PlatformEvent event) {
         final EventImpl linkedEvent = linker.linkEvent(event);
         if (linkedEvent == null) {
             // linker discarded an ancient event
@@ -103,7 +119,15 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         if (!consensusRounds.isEmpty()) {
             // If multiple rounds reach consensus at the same moment there is no need to pass in
             // each event window. The latest event window is sufficient to keep event storage clean.
-            linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+            final EventWindow eventWindow = consensusRounds.getLast().getEventWindow();
+            linker.setEventWindow(eventWindow);
+
+            // Make a recursive call, adding any events that become unbuffered as a result of the event window shift.
+            // This recursive call is safe because after a couple calls, no more rounds will be able to reach
+            // consensus with the events that are in the future event buffer
+            futureEventBuffer
+                    .updateEventWindow(eventWindow)
+                    .forEach(e -> consensusRounds.addAll(addToConsensusAlgorithm(e)));
         }
 
         return consensusRounds;

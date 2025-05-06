@@ -118,7 +118,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
-        creator.registerEvent(event);
+        creator.addEvent(event);
     }
 
     /**

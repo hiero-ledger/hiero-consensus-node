@@ -12,11 +12,11 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 public interface EventCreator {
 
     /**
-     * Register a new event from event intake.
+     * Adds a new event from event intake.
      *
      * @param event the event to add
      */
-    void registerEvent(@NonNull PlatformEvent event);
+    void addEvent(@NonNull PlatformEvent event);
 
     /**
      * Update the event window.
