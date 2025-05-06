@@ -15,6 +15,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.components.state.output;
     exports com.swirlds.platform.config;
     exports com.swirlds.platform.config.legacy;
+    exports com.swirlds.platform.crypto;
     exports com.swirlds.platform.event.report;
     exports com.swirlds.platform.gui.hashgraph;
     exports com.swirlds.platform.gui.hashgraph.internal;
@@ -57,46 +58,34 @@ module com.swirlds.platform.core {
 
     /* Targeted Exports to External Libraries */
     exports com.swirlds.platform.internal to
-            com.swirlds.platform.test,
             com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
-            com.fasterxml.jackson.databind,
-            com.swirlds.platform.test.gui;
-    exports com.swirlds.platform.swirldapp to
-            com.swirlds.platform.test;
+            com.fasterxml.jackson.databind;
     exports com.swirlds.platform.consensus to
-            com.swirlds.platform.test,
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl,
             com.swirlds.platform.core.test.fixtures,
-            com.hedera.node.app,
-            com.swirlds.platform.test.gui;
-    exports com.swirlds.platform.crypto to
-            com.swirlds.platform.test,
-            com.hedera.node.test.clients,
-            com.swirlds.platform.core.test.fixtures,
-            com.hedera.node.app.test.fixtures,
-            com.hedera.node.app,
-            org.hiero.otter.fixtures;
+            com.hedera.node.app;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
-            com.swirlds.platform.test,
             com.swirlds.platform.core.test.fixtures;
-    exports com.swirlds.platform.state.notifications to
-            com.swirlds.platform.test;
-    exports com.swirlds.platform.state.iss to
-            com.swirlds.platform.test;
-    exports com.swirlds.platform.state.iss.internal to
-            com.swirlds.platform.test;
-    exports com.swirlds.platform.recovery.internal to
-            com.swirlds.platform.test;
     exports com.swirlds.platform.uptime to
+            com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.common,
             com.hedera.node.test.clients;
     exports com.swirlds.platform.gossip.sync.config to
+            com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
+    exports com.swirlds.platform.proof to
+            com.swirlds.common,
+            org.hiero.base.utility;
+    exports com.swirlds.platform.proof.tree to
+            com.swirlds.common,
+            org.hiero.base.utility;
 
     opens com.swirlds.platform.cli to
             info.picocli;
