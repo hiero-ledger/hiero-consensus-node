@@ -12,6 +12,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.google.protobuf;
     requires transitive org.apache.logging.log4j.core;
     requires transitive org.apache.logging.log4j;
+    requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
@@ -24,12 +25,13 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.state.api;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.utility;
-    requires org.assertj.core;
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.otter.fixtures;
+    exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
+    exports org.hiero.otter.fixtures.result;
     exports org.hiero.otter.fixtures.turtle;
     exports org.hiero.otter.fixtures.turtle.app;
 }

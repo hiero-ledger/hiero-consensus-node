@@ -41,7 +41,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 
 import com.google.common.base.MoreObjects;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -321,15 +320,11 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     public long shard() {
-        return anyNodeAccountId().shardNum();
+        return requireNonNull(targetNetwork).shard();
     }
 
     public long realm() {
-        return anyNodeAccountId().realmNum();
-    }
-
-    private AccountID anyNodeAccountId() {
-        return getNetworkNodes().getFirst().getAccountId();
+        return requireNonNull(targetNetwork).realm();
     }
 
     public void adhocIncrement() {
@@ -1393,41 +1388,14 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     // (FUTURE) Refactor to a more intuitive location
     private static ShardRealm determineShardRealm(@NonNull final HederaNetwork targetNetwork) {
-        var shard = targetNetwork.shard();
+        final var shard = targetNetwork.shard();
         if (shard < 0) {
             throw new IllegalArgumentException("Shard must be >= 0");
         }
-        var realm = targetNetwork.realm();
+        final var realm = targetNetwork.realm();
         if (realm < 0) {
             throw new IllegalArgumentException("Realm must be >= 0");
         }
-
-        if (shard == 0) {
-            // No shard specified in the target network
-            var sysShard = System.getProperty("hapi.spec.default.shard");
-
-            try {
-                var parsedShard = Long.parseLong(sysShard);
-                if (parsedShard > 0) {
-                    shard = parsedShard;
-                }
-            } catch (Exception ignore) {
-            }
-        }
-
-        if (realm == 0) {
-            // No realm specified in the target network
-            var sysRealm = System.getProperty("hapi.spec.default.realm");
-
-            try {
-                var parsedRealm = Long.parseLong(sysRealm);
-                if (parsedRealm > 0) {
-                    realm = parsedRealm;
-                }
-            } catch (Exception ignore) {
-            }
-        }
-
         return new ShardRealm(shard, realm);
     }
 }

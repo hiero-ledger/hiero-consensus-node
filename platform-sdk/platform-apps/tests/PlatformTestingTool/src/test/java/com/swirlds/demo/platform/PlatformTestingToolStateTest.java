@@ -35,7 +35,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -60,6 +60,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -113,8 +114,8 @@ class PlatformTestingToolStateTest {
 
         final Randotron randotron = Randotron.create();
 
-        final KeysAndCerts keysAndCerts =
-                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+        final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(
+                NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();

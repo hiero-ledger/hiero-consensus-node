@@ -67,6 +67,7 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
@@ -350,7 +351,8 @@ public final class CryptoStatic {
 
             keysAndCerts.put(
                     nodeId,
-                    KeysAndCerts.loadExistingAndCreateAgrKeyIfMissing(nodeId, password, privateKS, publicStores));
+                    KeysAndCertsGenerator.loadExistingAndCreateAgrKeyIfMissing(
+                            nodeId, password, privateKS, publicStores));
         }
         copyPublicKeys(publicStores, addressBook);
 
@@ -373,7 +375,7 @@ public final class CryptoStatic {
      * know).
      *
      * @param addressBook the address book of the network
-     * @throws ExecutionException   if {@link KeysAndCerts#generate(NodeId, byte[], byte[], byte[], PublicStores)}
+     * @throws ExecutionException   if {@link KeysAndCertsGenerator#generate(NodeId, byte[], byte[], byte[], PublicStores)}
      *                              throws an exception, it will be wrapped in an ExecutionException
      * @throws InterruptedException if this thread is interrupted
      * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
@@ -453,7 +455,7 @@ public final class CryptoStatic {
                 final int memId = i;
                 futures.put(
                         nodeId,
-                        threadPool.submit(() -> KeysAndCerts.generate(
+                        threadPool.submit(() -> KeysAndCertsGenerator.generate(
                                 nodeId, masterKeyClone, swirldIdClone, CommonUtils.intToBytes(memId), publicStores)));
             }
             final Map<NodeId, KeysAndCerts> keysAndCerts = futuresToMap(futures);

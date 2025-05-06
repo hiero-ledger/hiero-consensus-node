@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 
 /**
  * Interface representing a network of nodes.
@@ -65,4 +66,17 @@ public interface Network {
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     void resume(@NonNull Duration duration) throws InterruptedException;
+
+    /**
+     * Gets the consensus rounds of multiple nodes.
+     *
+     * <p>It is possible to request only the results of a subset of nodes by providing filters.
+     * The filters are applied to the nodes and only the nodes that match the filters are included
+     * in the result. If no filters are provided, all nodes are included in the result.
+     *
+     * @param filters the filters to apply to the nodes
+     * @return the consensus rounds of the node
+     */
+    @NonNull
+    MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters);
 }
