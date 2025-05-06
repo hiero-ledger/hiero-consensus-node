@@ -9,12 +9,14 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 description = "Default Consensus Event Creator Implementation"
 
 testModuleInfo {
-    requires("com.hedera.node.hapi")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.platform.core.test.fixtures")
+    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

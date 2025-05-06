@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 
-import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;

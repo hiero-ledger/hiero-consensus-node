@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
-import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

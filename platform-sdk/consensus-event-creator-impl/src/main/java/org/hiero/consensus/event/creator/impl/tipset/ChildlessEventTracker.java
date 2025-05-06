@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.creation.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;

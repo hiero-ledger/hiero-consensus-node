@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
-import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -11,8 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
-import com.swirlds.platform.event.creation.tipset.Tipset;
-import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
