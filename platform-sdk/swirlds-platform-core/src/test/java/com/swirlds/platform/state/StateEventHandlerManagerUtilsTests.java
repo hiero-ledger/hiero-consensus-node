@@ -8,8 +8,8 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.metrics.StateMetrics;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
