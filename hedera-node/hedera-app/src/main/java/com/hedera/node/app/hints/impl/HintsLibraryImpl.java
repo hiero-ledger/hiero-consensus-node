@@ -22,7 +22,7 @@ public class HintsLibraryImpl implements HintsLibrary {
 
     @Override
     public Bytes newCrs(final int n) {
-        return Bytes.wrap(BRIDGE.initCRS(n));
+        return Bytes.wrap(BRIDGE.initCRS((short) n));
     }
 
     @Override
@@ -106,12 +106,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        return BRIDGE.verifyBls(
-                crs.toByteArray(),
-                signature.toByteArray(),
-                message.toByteArray(),
-                aggregationKey.toByteArray(),
-                partyId);
+        return BRIDGE.verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
     }
 
     @Override
