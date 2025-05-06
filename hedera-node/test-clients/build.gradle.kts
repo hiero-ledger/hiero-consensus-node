@@ -26,7 +26,7 @@ tasks.register<JavaExec>("runTestClient") {
     group = "build"
     description = "Run a test client via -PtestClient=<Class>"
 
-    classpath = sourceSets.main.get().runtimeClasspath + files(tasks.jar)
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar)) + files(tasks.jar)
     mainClass = providers.gradleProperty("testClient")
 }
 
@@ -41,7 +41,7 @@ tasks.jacocoTestReport {
 
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -133,7 +133,7 @@ tasks {
 
 tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     // Choose a different initial port for each test task if running as PR check
     val initialPort =
@@ -202,7 +202,7 @@ tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
 
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -304,7 +304,7 @@ tasks.register<Test>("testSubprocess") {
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -379,7 +379,7 @@ tasks {
 // Runs tests against an embedded network that supports concurrent tests
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -431,7 +431,7 @@ tasks {
 // single thread
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
