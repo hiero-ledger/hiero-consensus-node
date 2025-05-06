@@ -10,8 +10,8 @@ import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SE
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_KEY;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
-import static com.swirlds.platform.roster.RosterUtils.isWeightRotation;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProof;

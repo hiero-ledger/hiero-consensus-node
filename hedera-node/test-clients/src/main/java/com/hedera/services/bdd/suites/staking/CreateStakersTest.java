@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActiva
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static java.util.stream.Collectors.toSet;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -35,21 +34,17 @@ public class CreateStakersTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 2)
     static SpecAccount NODE2_STAKER;
 
-    @Account(tinybarBalance = ONE_MILLION_HBARS, stakedNodeId = 3)
-    static SpecAccount NODE3_STAKER;
-
     @HapiTest
     final Stream<DynamicTest> createStakers() {
         return hapiTest(
                 ensureStakingActivated(),
-                touchBalanceOf(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER),
+                touchBalanceOf(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER),
                 // Give all stakers the 0.0.2 key to easily transfer their balances later
-                inParallel(Stream.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER)
+                inParallel(Stream.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER)
                         .map(staker -> cryptoUpdate(staker.name()).key(GENESIS))
                         .toArray(SpecOperation[]::new)),
-                doingContextual(
-                        spec -> HapiSpec.setStakerIds(Stream.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER, NODE3_STAKER)
-                                .map(staker -> spec.registry().getAccountID(staker.name()))
-                                .collect(toSet()))));
+                doingContextual(spec -> HapiSpec.setStakerIds(Stream.of(NODE0_STAKER, NODE1_STAKER, NODE2_STAKER)
+                        .map(staker -> spec.registry().getAccountID(staker.name()))
+                        .collect(toSet()))));
     }
 }
