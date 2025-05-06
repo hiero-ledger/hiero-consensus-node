@@ -327,6 +327,9 @@ public class HashgraphPicture extends JPanel {
                             .branchIndex();
         }
 
+        if (options.writeDeGen()) {
+            s += " " + event.getDeGen();
+        }
         if (!s.isEmpty()) {
             final Rectangle2D rect = fm.getStringBounds(s, g);
 

@@ -11,7 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
-import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.network.PeerCommunication;
@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,7 +86,7 @@ public class PeerCommunicationTests {
         for (int i = 0; i < nodeCount; i++) {
             NodeId nodeId = NodeId.of(i);
             KeysAndCerts keysAndCerts =
-                    KeysAndCerts.generate(nodeId, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+                    KeysAndCertsGenerator.generate(nodeId, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
             perNodeCerts.put(nodeId, keysAndCerts);
             allPeers.add(new PeerInfo(nodeId, "127.0.0.1", 15301 + i, keysAndCerts.sigCert()));
         }

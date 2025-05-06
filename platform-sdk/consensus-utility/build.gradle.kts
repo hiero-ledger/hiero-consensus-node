@@ -2,9 +2,19 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
-    id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Consensus Utility"
 
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+
+testModuleInfo {
+    requires("com.swirlds.platform.core")
+    requires("com.swirlds.platform.core.test.fixtures")
+    requires("com.swirlds.state.api.test.fixtures")
+    requires("com.swirlds.state.impl")
+    requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+    requires("org.mockito.junit.jupiter")
+}

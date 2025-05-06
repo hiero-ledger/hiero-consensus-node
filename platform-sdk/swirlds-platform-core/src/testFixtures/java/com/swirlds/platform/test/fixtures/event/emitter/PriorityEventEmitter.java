@@ -2,10 +2,10 @@
 package com.swirlds.platform.test.fixtures.event.emitter;
 
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Emits events based on node priority while maintaining a topologically correct order.
