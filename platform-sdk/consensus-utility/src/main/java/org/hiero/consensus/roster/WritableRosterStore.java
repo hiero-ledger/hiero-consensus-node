@@ -106,10 +106,14 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
         if (!roundRosterPairs.isEmpty()) {
             final RoundRosterPair activeRosterPair = roundRosterPairs.getFirst();
 
-            // Even if the roster we are setting is the same as the active roster, set it anyway.
-            // This can happen on upgrade boundaries if there were no changes that affect the roster.
-            // In this case, we still want to rotate the rosters because it is important for the current roster
-            // to become the previous roster on every upgrade.
+            if (activeRosterPair.activeRosterHash().equals(rosterHash)) {
+                // We're trying to set the exact same active roster, maybe even with the same roundNumber.
+                // This may happen if, for whatever reason, roster updates come from different code paths.
+                // This shouldn't be considered an error because the system wants to use the exact same
+                // roster that is currently active anyway. So we silently ignore such a putActiveRoster request
+                // because it's a no-op:
+                return;
+            }
 
             if (round < 0 || round <= activeRosterPair.roundNumber()) {
                 throw new IllegalArgumentException("incoming round number = " + round
