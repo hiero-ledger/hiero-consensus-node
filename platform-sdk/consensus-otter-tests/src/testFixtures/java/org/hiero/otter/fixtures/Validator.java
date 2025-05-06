@@ -3,8 +3,19 @@ package org.hiero.otter.fixtures;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.validator.LogLevelFilter;
+import org.hiero.otter.fixtures.validator.LogMarkerFilter;
+import org.hiero.otter.fixtures.validator.LogNodeFilter;
 
 /**
  * Interface for validating the results of a test.
@@ -22,7 +33,7 @@ public interface Validator {
      * @return this {@code Validator} instance for method chaining
      */
     @NonNull
-    Validator assertLogErrors(@NonNull LogErrorConfig... configs);
+    Validator assertLogs(@NonNull LogFilter... configs);
 
     /**
      * Allows to configure the stdout validator that checks there are no Exceptions in the stdout.
@@ -100,20 +111,61 @@ public interface Validator {
      *
      * <p>This configuration can for example be used to specify errors that are expected and can be ignored.
      */
-    class LogErrorConfig {
-
-        private static final Logger log = LogManager.getLogger(LogErrorConfig.class);
+    interface LogFilter {
+        /**
+         * Specifies how the {@link LogMarkerFilter} interprets the marker set.
+         */
+        enum Mode {
+            INCLUDE,
+            EXCLUDE
+        }
 
         /**
-         * Creates a configuration to ignore specific log markers.
+         * Determines whether a given log message should be filtered out.
+         *
+         * @param logMsg the structured log message to evaluate
+         * @return {@code true} if the log message should be filtered out (ignored), {@code false} otherwise
+         */
+        boolean filter(@NonNull StructuredLog logMsg);
+
+        /**
+         * Creates a filter configuration that ignores log messages with any of the specified markers.
          *
          * @param markers the log markers to ignore
-         * @return a {@code LogErrorConfig} instance
+         * @return a {@code LogFilter} instance that filters out messages with the given markers
          */
         @NonNull
-        public static LogErrorConfig ignoreMarkers(@NonNull final LogMarker... markers) {
-            log.warn("Creating a log error config is not implemented yet.");
-            return new LogErrorConfig();
+        static LogFilter ignoreMarkers(@NonNull final LogMarker... markers) {
+            Objects.requireNonNull(markers, "markers cannot be null");
+            final Set<Marker> markerSet =
+                    Stream.of(markers).map(LogMarker::getMarker).collect(Collectors.toSet());
+            return new LogMarkerFilter(Mode.EXCLUDE, markerSet);
+        }
+
+        /**
+         * Creates a filter configuration that ignores log messages from the specified nodes.
+         *
+         * @param nodes the nodes to ignore
+         * @return a {@code LogFilter} instance that filters out messages from the given nodes
+         */
+        @NonNull
+        static LogFilter ignoreNodes(@NonNull final Node... nodes) {
+            Objects.requireNonNull(nodes, "nodes cannot be null");
+            final Set<Long> nodeSet =
+                    Stream.of(nodes).map(Node::getSelfId).map(NodeId::id).collect(Collectors.toSet());
+            return new LogNodeFilter(Mode.EXCLUDE, nodeSet);
+        }
+
+        /**
+         * Creates a filter configuration that ignores log messages with a severity level less than or equal to the given level.
+         *
+         * @param level the maximum log level to ignore (e.g., {@code INFO} means messages with level {@code INFO} or lower are filtered out)
+         * @return a {@code LogFilter} instance that filters out log messages up to and including the given level
+         */
+        @NonNull
+        static LogFilter maxLogLevel(@NonNull final Level level) {
+            Objects.requireNonNull(level, "level cannot be null");
+            return new LogLevelFilter(level);
         }
     }
 

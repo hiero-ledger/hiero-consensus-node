@@ -21,7 +21,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,6 +35,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Simple facility that notifies interested parties when the freeze state is updated.

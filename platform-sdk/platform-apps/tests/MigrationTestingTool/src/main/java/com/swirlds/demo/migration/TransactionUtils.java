@@ -2,7 +2,6 @@
 package com.swirlds.demo.migration;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -21,7 +20,7 @@ public class TransactionUtils {
         // Remove the first byte, which is marker added to distinguish application transactions from system ones in
         // TransactionGenerator
         final Bytes slicedBytes = bytes.slice(1, bytes.length() - 1);
-        final SerializableDataInputStream in = new SerializableDataInputStreamImpl(slicedBytes.toInputStream());
+        final SerializableDataInputStream in = new SerializableDataInputStream(slicedBytes.toInputStream());
 
         try {
             return in.readSerializable(false, MigrationTestingToolTransaction::new);

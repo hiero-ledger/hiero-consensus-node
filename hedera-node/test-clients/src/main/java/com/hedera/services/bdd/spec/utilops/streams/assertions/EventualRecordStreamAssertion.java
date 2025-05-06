@@ -35,6 +35,8 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
     @Nullable
     private RecordStreamAssertion assertion;
 
+    private boolean needsBackgroundTraffic = false;
+
     /**
      * Returns an {@link EventualRecordStreamAssertion} that will pass as long as the given assertion does not
      * throw an {@link AssertionError} before its timeout.
@@ -43,7 +45,7 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
      */
     public static EventualRecordStreamAssertion eventuallyAssertingNoFailures(
             final Function<HapiSpec, RecordStreamAssertion> assertionFactory) {
-        return new EventualRecordStreamAssertion(assertionFactory, true, false);
+        return new EventualRecordStreamAssertion(assertionFactory, true, false).withBackgroundTraffic();
     }
 
     /**
@@ -67,7 +69,21 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertionFactory,
             @NonNull final Duration timeout) {
         requireNonNull(assertionFactory);
-        return new EventualRecordStreamAssertion(assertionFactory, false, timeout, true);
+        return new EventualRecordStreamAssertion(assertionFactory, false, timeout, true).withBackgroundTraffic();
+    }
+
+    @Override
+    public boolean needsBackgroundTraffic() {
+        return needsBackgroundTraffic;
+    }
+
+    /**
+     * Returns an {@link EventualRecordStreamAssertion} enabling background traffic.
+     * @return the eventual record stream assertion with background traffic
+     */
+    public EventualRecordStreamAssertion withBackgroundTraffic() {
+        this.needsBackgroundTraffic = true;
+        return this;
     }
 
     /**

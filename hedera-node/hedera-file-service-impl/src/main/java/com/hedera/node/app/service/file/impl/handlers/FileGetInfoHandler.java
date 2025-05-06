@@ -32,8 +32,6 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -41,6 +39,8 @@ import java.io.UncheckedIOException;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#FILE_GET_INFO}.

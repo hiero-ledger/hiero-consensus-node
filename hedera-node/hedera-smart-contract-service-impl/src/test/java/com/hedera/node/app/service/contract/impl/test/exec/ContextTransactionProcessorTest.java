@@ -13,7 +13,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.processorsForAllCurrentEvmVersions;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithGasLimit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -22,15 +21,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
@@ -38,7 +34,6 @@ import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
-import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -93,12 +88,6 @@ class ContextTransactionProcessorTest {
 
     @Mock
     private HederaEvmAccount senderAccount;
-
-    @Mock
-    private SystemContractGasCalculator systemContractGasCalculator;
-
-    @Mock
-    private ExchangeRateInfo exchangeRateInfo;
 
     @Mock
     private EntityIdFactory entityIdFactory;
@@ -234,44 +223,6 @@ class ContextTransactionProcessorTest {
 
         verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
         verify(rootProxyWorldUpdater).commit();
-    }
-
-    @Test
-    void chargeHapiFeeOnFailedEthTransaction() {
-        final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
-        final var processors = processorsForAllCurrentEvmVersions(processor);
-        final var subject = new ContextTransactionProcessor(
-                null,
-                context,
-                contractsConfig,
-                CONFIGURATION,
-                hederaEvmContext,
-                null,
-                tracer,
-                rootProxyWorldUpdater,
-                hevmTransactionFactory,
-                feesOnlyUpdater,
-                processor,
-                customGasCharging);
-
-        given(context.body()).willReturn(TransactionBody.DEFAULT);
-        given(context.payer()).willReturn(AccountID.DEFAULT);
-        final var ethTx = wellKnownRelayedHapiCallWithGasLimit(1_000_000L);
-        given(hevmTransactionFactory.fromHapiTransaction(TransactionBody.DEFAULT, context.payer()))
-                .willReturn(ethTx);
-        given(processor.processTransaction(
-                        ethTx, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
-                .willThrow(new HandleException(INVALID_CONTRACT_ID));
-
-        given(hederaEvmContext.systemContractGasCalculator()).willReturn(systemContractGasCalculator);
-        given(systemContractGasCalculator.canonicalPriceInTinycents(any())).willReturn(1000L);
-        given(context.exchangeRateInfo()).willReturn(exchangeRateInfo);
-        final ExchangeRate exchangeRate = new ExchangeRate(1, 2, TimestampSeconds.DEFAULT);
-        given(exchangeRateInfo.activeRate(any())).willReturn(exchangeRate);
-
-        subject.call();
-        verify(rootProxyWorldUpdater).commit();
-        verify(rootProxyWorldUpdater).collectFee(any(), anyLong());
     }
 
     @Test

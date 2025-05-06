@@ -35,13 +35,13 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Factory for all writable stores. It creates new writable stores based on the {@link State}.

@@ -30,26 +30,25 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.BasicConfig_;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
-import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsTestCollector;
-import com.swirlds.platform.test.fixtures.turtle.consensus.DefaultConsensusRoundsTestCollector;
+import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder;
+import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
+import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
-import com.swirlds.platform.test.fixtures.turtle.signedstate.DefaultSignedStatesTestCollector;
-import com.swirlds.platform.test.fixtures.turtle.signedstate.SignedStatesTestCollector;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Encapsulates a single node running in a TURTLE network.
@@ -70,9 +69,17 @@ public class TurtleNode {
 
     private final DeterministicWiringModel model;
     private final Platform platform;
-    private final NodeId nodeId;
-    private ConsensusRoundsTestCollector consensusRoundsTestCollector;
-    private SignedStatesTestCollector signedStatesTestCollector;
+    private final ConsensusRoundsHolder consensusRoundsHolder;
+
+    @NonNull
+    private static Configuration createBasicConfiguration(final @NonNull Path outputDirectory) {
+        return new TestConfigBuilder()
+                .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
+                .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
+                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.toString())
+                .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.toString())
+                .getOrCreateConfig();
+    }
 
     /**
      * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
@@ -93,14 +100,28 @@ public class TurtleNode {
             @NonNull final KeysAndCerts privateKeys,
             @NonNull final SimulatedNetwork network,
             @NonNull final Path outputDirectory) {
+        this(randotron, time, nodeId, addressBook, privateKeys, network, createBasicConfiguration(outputDirectory));
+    }
 
-        this.nodeId = nodeId;
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
-                .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0")
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.toString())
-                .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory.toString())
-                .getOrCreateConfig();
+    /**
+     * Create a new TurtleNode. Simulates a single consensus node in a TURTLE network.
+     *
+     * @param randotron   a source of randomness
+     * @param time        the current time
+     * @param nodeId      the ID of this node
+     * @param addressBook the address book for the network
+     * @param privateKeys the private keys for this node
+     * @param network     the simulated network
+     * @param configuration the configuration for this node
+     */
+    public TurtleNode(
+            @NonNull final Randotron randotron,
+            @NonNull final Time time,
+            @NonNull final NodeId nodeId,
+            @NonNull final AddressBook addressBook,
+            @NonNull final KeysAndCerts privateKeys,
+            @NonNull final SimulatedNetwork network,
+            @NonNull final Configuration configuration) {
 
         setupGlobalMetrics(configuration);
 
@@ -134,6 +155,8 @@ public class TurtleNode {
                 platformContext);
         final var initialState = reservedState.state();
 
+        final State state = initialState.get().getState();
+        final long round = platformStateFacade.roundOf(state);
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         "foo",
                         "bar",
@@ -142,7 +165,7 @@ public class TurtleNode {
                         TURTLE_CONSENSUS_STATE_EVENT_HANDLER,
                         nodeId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
-                        RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),
+                        RosterUtils.buildRosterHistory(initialState.get().getState(), round),
                         platformStateFacade)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
@@ -155,45 +178,36 @@ public class TurtleNode {
 
         final PlatformBuildingBlocks buildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
-        final PlatformWiring platformWiring = buildingBlocks.platformWiring();
+        final ComponentWiring<ConsensusRoundsHolder, Void> consensusRoundsHolderWiring =
+                new ComponentWiring<>(model, ConsensusRoundsHolder.class, TaskSchedulerConfiguration.parse("DIRECT"));
 
-        wireConsensusRoundsTestCollector(platformWiring);
-        wireSignedStatesTestCollector(platformWiring);
+        consensusRoundsHolder = new ConsensusRoundsListContainer(nodeId);
+        consensusRoundsHolderWiring.bind(consensusRoundsHolder);
+
+        final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
+                consensusRoundsHolderWiring.getInputWire(ConsensusRoundsHolder::interceptRounds);
+
+        final PlatformWiring platformWiring = buildingBlocks.platformWiring();
+        final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
+                platformWiring.getConsensusEngineOutputWire();
+        consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
+
+        final SimulatedGossip gossip = network.getGossipInstance(nodeId);
+        gossip.provideIntakeEventCounter(
+                platformComponentBuilder.getBuildingBlocks().intakeEventCounter());
 
         platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(nodeId));
 
         platform = platformComponentBuilder.build();
     }
 
-    private void wireConsensusRoundsTestCollector(@NonNull final PlatformWiring platformWiring) {
-        final ComponentWiring<ConsensusRoundsTestCollector, Void> consensusRoundsTestCollectorWiring =
-                new ComponentWiring<>(
-                        model, ConsensusRoundsTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
-
-        consensusRoundsTestCollector = new DefaultConsensusRoundsTestCollector(nodeId);
-        consensusRoundsTestCollectorWiring.bind(consensusRoundsTestCollector);
-
-        final InputWire<List<ConsensusRound>> consensusRoundsHolderInputWire =
-                consensusRoundsTestCollectorWiring.getInputWire(ConsensusRoundsTestCollector::interceptRounds);
-
-        final OutputWire<List<ConsensusRound>> consensusEngineOutputWire =
-                platformWiring.getConsensusEngineOutputWire();
-        consensusEngineOutputWire.solderTo(consensusRoundsHolderInputWire);
-    }
-
-    private void wireSignedStatesTestCollector(final PlatformWiring platformWiring) {
-        final OutputWire<ReservedSignedState> reservedSignedStatesOutputWiring =
-                platformWiring.getReservedSignedStateCollectorOutputWire();
-
-        final ComponentWiring<SignedStatesTestCollector, Void> signedStatesTestCollectorWiring = new ComponentWiring<>(
-                model, SignedStatesTestCollector.class, TaskSchedulerConfiguration.parse("DIRECT"));
-
-        signedStatesTestCollector = new DefaultSignedStatesTestCollector(nodeId);
-        signedStatesTestCollectorWiring.bind(signedStatesTestCollector);
-
-        final InputWire<ReservedSignedState> signedStateHolderInputWire =
-                signedStatesTestCollectorWiring.getInputWire(SignedStatesTestCollector::interceptReservedSignedState);
-        reservedSignedStatesOutputWiring.solderTo(signedStateHolderInputWire);
+    /**
+     * Returns the {@link Configuration} of this node.
+     *
+     * @return the {@link Configuration} of this node
+     */
+    public Configuration getConfiguration() {
+        return platform.getContext().getConfiguration();
     }
 
     /**
@@ -220,12 +234,16 @@ public class TurtleNode {
     }
 
     @NonNull
-    public ConsensusRoundsTestCollector getConsensusRoundsTestCollector() {
-        return consensusRoundsTestCollector;
+    public ConsensusRoundsHolder getConsensusRoundsHolder() {
+        return consensusRoundsHolder;
     }
 
-    @NonNull
-    public SignedStatesTestCollector getSignedStatesTestCollector() {
-        return signedStatesTestCollector;
+    /**
+     * Shut down the node immediately. No attempt is made to finish ongoing tasks or to save
+     * the current state. All resources are released. This method is idempotent and can be
+     * called multiple times without any side effects after the first call.
+     */
+    public void destroy() throws InterruptedException {
+        getMetricsProvider().removePlatformMetrics(platform.getSelfId());
     }
 }

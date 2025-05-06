@@ -342,7 +342,10 @@ public class ContractCreateSuite {
                         .via("constructorCreate")
                         .maxAutomaticTokenAssociations(5)
                         .hasKnownStatus(SUCCESS),
-                contractCall(createContract, "create").via("createViaCall").hasKnownStatus(SUCCESS),
+                contractCall(createContract, "create")
+                        .via("createViaCall")
+                        .gas(400_000L)
+                        .hasKnownStatus(SUCCESS),
                 ethereumCall(createContract, "create")
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -909,6 +912,22 @@ public class ContractCreateSuite {
                     // get last TRANSACTION_OUTPUT in all blocks
                     final var item = getLastContractCreateTx(blocks, ts.get());
                     asserBlockContractId(item, true);
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> contractCreateGas() {
+        final String txn = "contractCreateGas";
+        return hapiTest(
+                uploadInitCode("Storage"),
+                contractCreate("Storage").gas(124_000L).via(txn).logged(),
+                getTxnRecord(txn).andAllChildRecords().logged().saveTxnRecordToRegistry(txn),
+                withOpContext((spec, ignore) -> {
+                    final var gasUsed = spec.registry()
+                            .getTransactionRecord(txn)
+                            .getContractCreateResult()
+                            .getGasUsed();
+                    assertEquals(117661, gasUsed);
                 }));
     }
 

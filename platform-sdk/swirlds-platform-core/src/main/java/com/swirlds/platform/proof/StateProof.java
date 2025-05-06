@@ -2,8 +2,6 @@
 package com.swirlds.platform.proof;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Threshold;
@@ -13,16 +11,18 @@ import com.swirlds.platform.proof.algorithms.StateProofSerialization;
 import com.swirlds.platform.proof.algorithms.StateProofTreeBuilder;
 import com.swirlds.platform.proof.algorithms.StateProofUtils;
 import com.swirlds.platform.proof.tree.StateProofNode;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Signature;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A state proof on one or more merkle nodes.

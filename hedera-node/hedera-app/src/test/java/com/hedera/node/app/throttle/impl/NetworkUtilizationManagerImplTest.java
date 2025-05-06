@@ -37,7 +37,7 @@ class NetworkUtilizationManagerImplTest {
     private final Instant consensusNow = Instant.ofEpochSecond(1_234_567L, 123);
 
     private final DeterministicThrottle throttle = DeterministicThrottle.withTpsAndBurstPeriodMsNamed(500, 10, "test");
-    private final LeakyBucketDeterministicThrottle gasThrottle = new LeakyBucketDeterministicThrottle(100, "Gas");
+    private final LeakyBucketDeterministicThrottle gasThrottle = new LeakyBucketDeterministicThrottle(100, "Gas", 1);
 
     @LoggingSubject
     private NetworkUtilizationManagerImpl subject;

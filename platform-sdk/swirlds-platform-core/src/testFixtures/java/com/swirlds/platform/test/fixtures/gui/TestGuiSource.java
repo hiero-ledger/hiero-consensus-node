@@ -1,16 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
+import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
+import com.swirlds.platform.gui.BranchedEventMetadata;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -20,6 +31,8 @@ import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;
@@ -27,6 +40,8 @@ public class TestGuiSource {
     private ConsensusSnapshot savedSnapshot;
     private final GuiEventStorage eventStorage;
     private final AncientMode ancientMode;
+    private final Map<GossipEvent, BranchedEventMetadata> eventsToBranchMetadata = new HashMap<>();
+    private final OrphanBuffer orphanBuffer;
 
     /**
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
@@ -46,6 +61,7 @@ public class TestGuiSource {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
+        this.orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
     }
 
     public void runGui() {
@@ -53,10 +69,23 @@ public class TestGuiSource {
     }
 
     public void generateEvents(final int numEvents) {
-        final List<PlatformEvent> events = eventProvider.provideEvents(numEvents);
+        final List<PlatformEvent> rawEvents = eventProvider.provideEvents(numEvents);
+        final List<PlatformEvent> events = rawEvents.stream()
+                .map(orphanBuffer::handleEvent)
+                .flatMap(Collection::stream)
+                .toList();
+        final Map<PlatformEvent, Integer> eventToBranchIndex = getEventToBranchIndex();
         for (final PlatformEvent event : events) {
+            if (!eventToBranchIndex.isEmpty() && eventToBranchIndex.containsKey(event)) {
+                final BranchedEventMetadata branchedEventMetadata =
+                        new BranchedEventMetadata(eventToBranchIndex.get(event), event.getGeneration());
+                eventsToBranchMetadata.put(event.getGossipEvent(), branchedEventMetadata);
+            }
+
             eventStorage.handlePreconsensusEvent(event);
         }
+
+        eventStorage.setBranchedEventsMetadata(eventsToBranchMetadata);
     }
 
     public @NonNull JPanel controls() {
@@ -76,11 +105,25 @@ public class TestGuiSource {
                 Integer.valueOf(Integer.MAX_VALUE),
                 Integer.valueOf(numEventsStep)));
         nextEvent.addActionListener(e -> {
-            final List<PlatformEvent> events = eventProvider.provideEvents(
+            final List<PlatformEvent> rawEvents = eventProvider.provideEvents(
                     numEvents.getValue() instanceof final Integer value ? value : defaultNumEvents);
+
+            final List<PlatformEvent> events = rawEvents.stream()
+                    .map(orphanBuffer::handleEvent)
+                    .flatMap(Collection::stream)
+                    .toList();
+
+            final Map<PlatformEvent, Integer> eventToBranchIndex = getEventToBranchIndex();
             for (final PlatformEvent event : events) {
+                if (!eventToBranchIndex.isEmpty() && eventToBranchIndex.containsKey(event)) {
+                    final BranchedEventMetadata branchedEventMetadata =
+                            new BranchedEventMetadata(eventToBranchIndex.get(event), event.getGeneration());
+                    eventsToBranchMetadata.put(event.getGossipEvent(), branchedEventMetadata);
+                }
+
                 eventStorage.handlePreconsensusEvent(event);
             }
+            eventStorage.setBranchedEventsMetadata(eventsToBranchMetadata);
 
             updateFameDecidedBelow.run();
         });
@@ -150,5 +193,36 @@ public class TestGuiSource {
     @SuppressWarnings("unused") // useful for debugging
     public GuiEventStorage getEventStorage() {
         return eventStorage;
+    }
+
+    /**
+     * Get a map between events and their branch index in case there are {@link ForkingEventSource instances}
+     * that produce branched events.
+     *
+     * @return the constructed map
+     */
+    private Map<PlatformEvent, Integer> getEventToBranchIndex() {
+        final Map<PlatformEvent, Integer> eventToBranchIndex = new HashMap<>();
+
+        if (eventProvider instanceof GeneratorEventProvider) {
+            final List<ForkingEventSource> forkingEventSources = new ArrayList<>();
+            for (final NodeId nodeId : guiSource.getAddressBook().getNodeIdSet()) {
+                if (((GeneratorEventProvider) eventProvider).getNodeSource(nodeId)
+                        instanceof ForkingEventSource forkingEventSource) {
+                    forkingEventSources.add(forkingEventSource);
+
+                    final List<LinkedList<EventImpl>> branches = forkingEventSource.getBranches();
+
+                    for (int i = 0; i < branches.size(); i++) {
+                        final List<EventImpl> branch = branches.get(i);
+                        for (final EventImpl event : branch) {
+                            eventToBranchIndex.put(event.getBaseEvent(), i);
+                        }
+                    }
+                }
+            }
+        }
+
+        return eventToBranchIndex;
     }
 }

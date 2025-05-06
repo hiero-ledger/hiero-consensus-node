@@ -4,14 +4,42 @@ package com.swirlds.platform.test.fixtures.graph;
 import static com.swirlds.platform.test.fixtures.event.EventImplTestUtils.createEventImpl;
 
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Stream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 
 public class SimpleGraphs {
+
+    /**
+     * Builds graph below:
+     *
+     * <pre>
+     * 3  4
+     * | /|
+     * 2  |  7
+     * | \|  | \
+     * 0  1  5  6
+     * </pre>
+     *
+     * Note that this graph has two parts which are not connected to each other
+     */
+    public static List<PlatformEvent> graph8e4n(final Random random) {
+        final PlatformEvent e5 =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(3)).build();
+        final PlatformEvent e6 =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(4)).build();
+        final PlatformEvent e7 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(3))
+                .setSelfParent(e5)
+                .setOtherParent(e6)
+                .build();
+        return Stream.concat(graph5e2n(random).stream(), Stream.of(e5, e6, e7)).toList();
+    }
+
     /**
      * Builds graph below:
      *
@@ -42,11 +70,6 @@ public class SimpleGraphs {
                 .setSelfParent(e1)
                 .setOtherParent(e2)
                 .build();
-        System.out.println("e0 " + e0.getDescriptor());
-        System.out.println("e1 " + e1.getDescriptor());
-        System.out.println("e2 " + e2.getDescriptor());
-        System.out.println("e3 " + e3.getDescriptor());
-        System.out.println("e4 " + e4.getDescriptor());
         return List.of(e0, e1, e2, e3, e4);
     }
 

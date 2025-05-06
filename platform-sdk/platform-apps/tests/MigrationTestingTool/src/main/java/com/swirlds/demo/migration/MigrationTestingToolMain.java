@@ -10,14 +10,10 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.fcqueue.FCQueueStatistics;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
 import com.swirlds.merkle.map.MerkleMapMetrics;
 import com.swirlds.platform.ParameterProvider;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -25,7 +21,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * An application designed for testing migration from version to version.

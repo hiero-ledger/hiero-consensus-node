@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.UNQUALIFIED_DELEGATE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -55,10 +56,10 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     private final ContractMetrics contractMetrics;
 
     protected AbstractNativeSystemContract(
-            @NonNull String name,
-            @NonNull CallFactory callFactory,
-            @NonNull GasCalculator gasCalculator,
-            @NonNull ContractMetrics contractMetrics) {
+            @NonNull final String name,
+            @NonNull final CallFactory callFactory,
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final ContractMetrics contractMetrics) {
         super(name, gasCalculator);
         this.callFactory = requireNonNull(callFactory);
         this.contractMetrics = requireNonNull(contractMetrics);
@@ -66,7 +67,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
 
     @Override
     public FullResult computeFully(
-            @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
+            @NonNull final ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
         final var callType = callTypeOf(frame);
@@ -78,7 +79,10 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         try {
             validateTrue(input.size() >= FUNCTION_SELECTOR_LENGTH, INVALID_TRANSACTION_BODY);
             attempt = callFactory.createCallAttemptFrom(contractID, input, callType, frame);
-            call = requireNonNull(attempt.asExecutableCall());
+            call = attempt.asExecutableCall();
+            if (call == null) {
+                return successResult(Bytes.EMPTY, 0);
+            }
             if (frame.isStatic() && !call.allowsStaticFrame()) {
                 // FUTURE - we should really set an explicit halt reason here; instead we just halt the frame
                 // without setting a halt reason to simulate mono-service for differential testing

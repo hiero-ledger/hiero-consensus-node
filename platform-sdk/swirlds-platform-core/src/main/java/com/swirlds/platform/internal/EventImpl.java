@@ -2,6 +2,8 @@
 package com.swirlds.platform.internal;
 
 import com.swirlds.platform.consensus.CandidateWitness;
+import com.swirlds.platform.consensus.DeGen;
+import com.swirlds.platform.consensus.LocalConsensusGeneration;
 import com.swirlds.platform.event.EventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -10,7 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.Clearable;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -79,6 +81,12 @@ public class EventImpl implements Clearable {
      * current election
      */
     private boolean[] votes;
+
+    /** Local consensus generation, for more info, see {@link com.swirlds.platform.consensus.LocalConsensusGeneration} */
+    private int cGen = LocalConsensusGeneration.GENERATION_UNDEFINED;
+
+    /** The deterministic generation, see {@link DeGen} */
+    private int deGen = 0;
 
     public EventImpl(
             @NonNull final PlatformEvent platformEvent,
@@ -435,6 +443,7 @@ public class EventImpl implements Clearable {
     public void clearMetadata() {
         clearJudgeFlags();
         clearNonJudgeMetadata();
+        DeGen.clearDeGen(this);
     }
 
     private void clearJudgeFlags() {
@@ -507,6 +516,15 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the non-deterministic generation of this event
+     *
+     * @return the non-deterministic generation of this event
+     */
+    public long getNGen() {
+        return baseEvent.getNGen();
+    }
+
+    /**
      * Get the birth round of this event
      *
      * @return the birth round of this event
@@ -535,6 +553,46 @@ public class EventImpl implements Clearable {
     @NonNull
     public NodeId getCreatorId() {
         return baseEvent.getCreatorId();
+    }
+
+    /**
+     * Returns the local consensus generation (cGen) of this event.
+     *
+     * @return the local consensus generation
+     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     */
+    public int getCGen() {
+        return cGen;
+    }
+
+    /**
+     * Sets the local consensus generation (cGen) of this event.
+     *
+     * @param cGen the local consensus generation to set
+     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     */
+    public void setCGen(final int cGen) {
+        this.cGen = cGen;
+    }
+
+    /**
+     * Returns the deterministic generation (deGen) of this event.
+     *
+     * @return the deterministic generation
+     * @see com.swirlds.platform.consensus.DeGen
+     */
+    public int getDeGen() {
+        return deGen;
+    }
+
+    /**
+     * Sets the deterministic generation (deGen) of this event.
+     *
+     * @param deGen the deterministic generation to set
+     * @see com.swirlds.platform.consensus.DeGen
+     */
+    public void setDeGen(final int deGen) {
+        this.deGen = deGen;
     }
 
     //

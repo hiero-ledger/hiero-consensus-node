@@ -48,10 +48,17 @@ public class ScheduleFeeCharging implements FeeCharging {
     }
 
     @Override
-    public void charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+    public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
         requireNonNull(ctx);
         requireNonNull(validation);
         requireNonNull(fees);
-        service.baseFeeCharging().charge(ctx, validation, fees.onlyServiceComponent());
+        return service.baseFeeCharging().charge(ctx, validation, fees.onlyServiceComponent());
+    }
+
+    @Override
+    public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+        requireNonNull(ctx);
+        requireNonNull(fees);
+        service.baseFeeCharging().refund(ctx, fees.onlyServiceComponent());
     }
 }

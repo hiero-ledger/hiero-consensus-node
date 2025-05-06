@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.network;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.ConnectionTracker;
@@ -10,6 +9,7 @@ import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.topology.ConnectionManagerFactory;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 public class TestConnectionManagerFactory implements ConnectionManagerFactory {

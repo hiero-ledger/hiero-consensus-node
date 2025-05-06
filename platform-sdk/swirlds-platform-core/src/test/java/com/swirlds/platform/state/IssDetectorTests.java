@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.crypto.CryptoRandomUtils.randomHash;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateCatastrophicNodeHashes;
 import static com.swirlds.platform.state.RoundHashValidatorTests.generateRegularNodeHashes;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -24,7 +24,6 @@ import com.swirlds.common.test.fixtures.GaussianWeightGenerator;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
@@ -42,11 +41,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -279,10 +279,11 @@ class IssDetectorTests extends PlatformTest {
                     switch (expectedRoundStatus.get((int) notification.getRound())) {
                         case SELF_ISS -> IssNotification.IssType.SELF_ISS;
                         case CATASTROPHIC_ISS -> IssNotification.IssType.CATASTROPHIC_ISS;
-                            // if there was an other-ISS, then the round should still be valid
+                        // if there was an other-ISS, then the round should still be valid
                         case VALID -> IssNotification.IssType.OTHER_ISS;
-                        default -> throw new IllegalStateException(
-                                "Unexpected value: " + expectedRoundStatus.get((int) notification.getRound()));
+                        default ->
+                            throw new IllegalStateException(
+                                    "Unexpected value: " + expectedRoundStatus.get((int) notification.getRound()));
                     };
             assertEquals(
                     expectedType,

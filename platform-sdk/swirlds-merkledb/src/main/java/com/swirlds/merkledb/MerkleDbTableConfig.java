@@ -10,15 +10,15 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.DigestType;
 
 /**
  * Virtual database table configuration. It describes how to store virtual keys and values
