@@ -7,7 +7,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
-import com.swirlds.platform.gossip.GossipController;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
@@ -25,19 +24,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * Implementation of a factory for sync protocol
  */
-public class SyncProtocol implements Protocol, GossipController {
+public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> {
 
     private static final Logger logger = LogManager.getLogger(SyncProtocol.class);
 
     private final PlatformContext platformContext;
-    private final ShadowgraphSynchronizer synchronizer;
     private final FallenBehindManager fallenBehindManager;
     private final SyncPermitProvider permitProvider;
     private final IntakeEventCounter intakeEventCounter;
@@ -66,6 +63,8 @@ public class SyncProtocol implements Protocol, GossipController {
             @NonNull final SyncMetrics syncMetrics,
             final int rosterSize) {
 
+        super(synchronizer);
+
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         final int permitCount;
         if (syncConfig.onePermitPerPeer()) {
@@ -76,7 +75,6 @@ public class SyncProtocol implements Protocol, GossipController {
 
         this.permitProvider = new SyncPermitProvider(platformContext, permitCount);
         this.platformContext = Objects.requireNonNull(platformContext);
-        this.synchronizer = Objects.requireNonNull(synchronizer);
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.sleepAfterSync = Objects.requireNonNull(sleepAfterSync);
@@ -153,24 +151,6 @@ public class SyncProtocol implements Protocol, GossipController {
      */
     public void clear() {
         synchronizer.clear();
-    }
-
-    /**
-     * Events sent here should be gossiped to the network
-     *
-     * @param platformEvent event to be sent outside
-     */
-    public void addEvent(@NonNull final PlatformEvent platformEvent) {
-        synchronizer.addEvent(platformEvent);
-    }
-
-    /**
-     * Updates the current event window (mostly ancient thresholds)
-     *
-     * @param eventWindow new event window to apply
-     */
-    public void updateEventWindow(@NonNull final EventWindow eventWindow) {
-        synchronizer.updateEventWindow(eventWindow);
     }
 
     /**

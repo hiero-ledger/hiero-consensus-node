@@ -21,11 +21,13 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
+import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.network.protocol.ReconnectProtocol;
 import com.swirlds.platform.network.protocol.SyncProtocol;
+import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
 import com.swirlds.platform.reconnect.ReconnectController;
 import com.swirlds.platform.reconnect.ReconnectLearnerFactory;
@@ -62,8 +64,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * Utility class for wiring various subcomponents of gossip module. In particular, it abstracts away
- * specific protocols from network component using them and connects all of these to wiring framework.
+ * Utility class for wiring various subcomponents of gossip module. In particular, it abstracts away specific protocols
+ * from network component using them and connects all of these to wiring framework.
  */
 public class SyncGossipModular implements Gossip {
 
@@ -71,7 +73,7 @@ public class SyncGossipModular implements Gossip {
 
     private final PeerCommunication network;
     private final ImmutableList<Protocol> protocols;
-    private final SyncProtocol syncProtocol;
+    private final AbstractSyncProtocol<?> syncProtocol;
     private final SyncManagerImpl syncManager;
 
     // this is not a nice dependency, should be removed as well as the sharedState
@@ -136,13 +138,27 @@ public class SyncGossipModular implements Gossip {
                         statusActionSubmitter,
                         platformContext.getConfiguration().getConfigData(ReconnectConfig.class)));
 
-        this.syncProtocol = SyncProtocol.create(
-                platformContext,
-                syncManager,
-                event -> receivedEventHandler.accept(event),
-                intakeEventCounter,
-                threadManager,
-                peers.size() + 1);
+        final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
+
+        if (protocolConfig.rpcGossip()) {
+            this.syncProtocol = RpcProtocol.create(
+                    platformContext,
+                    syncManager,
+                    event -> receivedEventHandler.accept(event),
+                    intakeEventCounter,
+                    threadManager,
+                    peers.size() + 1,
+                    selfId);
+
+        } else {
+            this.syncProtocol = SyncProtocol.create(
+                    platformContext,
+                    syncManager,
+                    event -> receivedEventHandler.accept(event),
+                    intakeEventCounter,
+                    threadManager,
+                    peers.size() + 1);
+        }
 
         this.protocols = ImmutableList.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
@@ -160,7 +176,6 @@ public class SyncGossipModular implements Gossip {
                         platformStateFacade),
                 syncProtocol);
 
-        final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
         final VersionCompareHandshake versionCompareHandshake =
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
@@ -215,7 +230,8 @@ public class SyncGossipModular implements Gossip {
             }
         };
 
-        var throttle = new ReconnectLearnerThrottle(platformContext.getTime(), selfId, reconnectConfig);
+        final ReconnectLearnerThrottle throttle =
+                new ReconnectLearnerThrottle(platformContext.getTime(), selfId, reconnectConfig);
 
         final ReconnectSyncHelper reconnectNetworkHelper = new ReconnectSyncHelper(
                 swirldStateManager::getConsensusState,
