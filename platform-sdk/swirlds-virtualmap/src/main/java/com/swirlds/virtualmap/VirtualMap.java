@@ -3,6 +3,7 @@ package com.swirlds.virtualmap;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.logging.legacy.LogMarker.ERROR;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
@@ -218,7 +219,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
     /**
      * The maximum size() we have reached, where we have (already) recorded a warning message about how little
-     * space is left before this {@link VirtualRootNode} hits the size limit.  We retain this information
+     * space is left before this {@link VirtualMap} hits the size limit.  We retain this information
      * because if we later delete some nodes and then add some more, we don't want to trigger a duplicate warning.
      */
     private long maxSizeReachedTriggeringWarning = 0;
@@ -233,7 +234,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
     /**
      * Provides access to the {@link VirtualDataSource} for tree data.
-     * All instances of {@link VirtualRootNode} in the "family" (i.e. that are copies
+     * All instances of {@link VirtualMap} in the "family" (i.e. that are copies
      * going back to some first progenitor) share the exact same dataSource instance.
      */
     private VirtualDataSource dataSource;
@@ -248,7 +249,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * <p>
      * Deleted leaves are represented with records that have the "deleted" flag set.
      * <p>
-     * Since this is fast-copyable and shared across all copies of a {@link VirtualRootNode}, it contains the changed
+     * Since this is fast-copyable and shared across all copies of a {@link VirtualMap}, it contains the changed
      * leaves over history. Since we always flush from oldest to newest, we know for certain that
      * anything here is at least as new as, or newer than, what is on disk. So we check it first whenever
      * we need a leaf. This allows us to keep the disk simple and not fast-copyable.
@@ -263,7 +264,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     private VirtualMapState state;
 
     /**
-     * An interface through which the {@link VirtualRootNode} can access record data from the cache and the
+     * An interface through which the {@link VirtualMap} can access record data from the cache and the
      * data source. By encapsulating this logic in a RecordAccessor, we make it convenient to access records
      * using a combination of different caches, states, and data sources, which becomes important for reconnect
      * and other uses. This should never be null except for a brief window during initialization / reconnect /
@@ -277,7 +278,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     private final VirtualHasher hasher;
 
     /**
-     * The {@link VirtualPipeline}, shared across all copies of a given {@link VirtualRootNode}, maintains the
+     * The {@link VirtualPipeline}, shared across all copies of a given {@link VirtualMap}, maintains the
      * lifecycle of the nodes, making sure they are merged or flushed or hashed in order and according to the
      * defined lifecycle rules. This class makes calls to the pipeline, and the pipeline calls back methods
      * defined in this class.
@@ -289,7 +290,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     private final AtomicReference<Hash> hash = new AtomicReference<>();
     /**
-     * If true, then this copy of {@link VirtualRootNode} should eventually be flushed to disk. A heuristic is
+     * If true, then this copy of {@link VirtualMap} should eventually be flushed to disk. A heuristic is
      * used to determine which copy is flushed.
      */
     private final AtomicBoolean shouldBeFlushed = new AtomicBoolean(false);
@@ -442,7 +443,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         virtualMapConfig = source.virtualMapConfig;
 
         if (this.pipeline.isTerminated()) {
-            throw new IllegalStateException("A fast-copy was made of a VirtualRootNode with a terminated pipeline!");
+            throw new IllegalStateException("A fast-copy was made of a VirtualMap with a terminated pipeline!");
         }
 
         postInit(state);
@@ -459,6 +460,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     void postInit(@NonNull final VirtualMapState state) {
         requireNonNull(state);
         requireNonNull(state.getLabel());
+        requireNonNull(dataSourceBuilder);
 
         if (cache == null) {
             cache = new VirtualNodeCache(virtualMapConfig);
@@ -480,7 +482,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             this.state = state;
         }
         updateShouldBeFlushed();
-        requireNonNull(dataSourceBuilder);
 
         this.records = new RecordAccessorImpl(this.state, cache, dataSource);
         if (statistics == null) {
@@ -505,6 +506,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     private void persistState() {
         if (!isHashed()) {
             putBytes(VM_STATE_KEY, state.toBytes());
+        } else {
+            logger.warn(ERROR.getMarker(), "Attempted to persist state of a hashed virtual map.");
         }
     }
 
@@ -600,15 +603,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return 2;
     }
 
-    //  FUTURE WORK: Uncomment this once migration from the existing VirtualRootNode is done
+    //  FUTURE WORK: Uncomment this once migration from the existing VirtualMap is done
     //    /**
-    //     * This is never called for a {@link VirtualRootNode}.
+    //     * This is never called for a {@link VirtualMap}.
     //     *
     //     * {@inheritDoc}
     //     */
     //    @Override
     //    protected void setChildInternal(final int index, final MerkleNode child) {
-    //        throw new UnsupportedOperationException("You cannot set the child of a VirtualRootNode directly with this
+    //        throw new UnsupportedOperationException("You cannot set the child of a VirtualMap directly with this
     // API");
     //    }
 
@@ -724,8 +727,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         throwIfImmutable();
         requireNonNull(key);
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
-        // don't allow deletion of VirtualStateMap instance
-        assert !key.equals(VM_STATE_KEY);
+        if (key.equals(VM_STATE_KEY)) {
+            throw new IllegalArgumentException("Cannot remove the virtual map state key");
+        }
         try {
             // Verify whether the current leaf exists. If not, we can just return null.
             VirtualLeafBytes<V> leafToDelete = records.findLeafRecord(key);
@@ -1654,7 +1658,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      *
      * @param inputFile              The input .vmap file. Cannot be null.
      * @param vmStateExternal        true for versions prior to version 4, the state is not a leaf for the VirtualMap
-     * @param virtualRootNodePresent
+     * @param virtualRootNodePresent true, if the map still has an instance of {@link VirtualRootNode} as a child
      * @throws IOException For problems.
      */
     public void loadFromFile(final Path inputFile, boolean vmStateExternal, boolean virtualRootNodePresent)
@@ -1674,31 +1678,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                     }
 
                     if (virtualRootNodePresent) {
-                        final int version = stream.readInt();
-                        final String label = stream.readNormalisedString(MAX_LABEL_LENGTH);
-                        dataSourceBuilder = stream.readSerializable();
-                        dataSource = dataSourceBuilder.restore(label, inputFile.getParent());
-
-                        VirtualLeafBytes virtualLeafBytes = dataSource.loadLeafRecord(VM_STATE_KEY);
-                        if (virtualLeafBytes != null) {
-                            state = new VirtualMapState(virtualLeafBytes.valueBytes());
-                        } else {
-                            state = new VirtualMapState(label);
-                        }
-                        if (version < VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
-                            throw new UnsupportedOperationException("Version " + version + " is not supported");
-                        }
-                        if (version < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
-                            // FUTURE WORK: clean up all serializers, once all states are of version 4+
-                            stream.readSerializable(); // skip key serializer
-                            stream.readSerializable(); // skip value serializer
-                        }
-                        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
+                        loadFromFilePreV5(inputFile, stream);
                     } else {
-                        dataSourceBuilder = stream.readSerializable();
-                        dataSource = dataSourceBuilder.restore(
-                                virtualMapStateRef.getValue().getLabel(), inputFile.getParent());
-                        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
+                        loadFromFileV5(inputFile, stream, virtualMapStateRef);
                     }
 
                     return null;
@@ -1708,6 +1690,37 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         // Otherwise, the assumption is that VirtualMapState is a leaf of the VM
         VirtualMapState state = virtualMapStateRef.getValue();
         postInit(state);
+    }
+
+    private void loadFromFileV5(
+            Path inputFile, MerkleDataInputStream stream, ValueReference<VirtualMapState> virtualMapStateRef)
+            throws IOException {
+        dataSourceBuilder = stream.readSerializable();
+        dataSource = dataSourceBuilder.restore(virtualMapStateRef.getValue().getLabel(), inputFile.getParent());
+        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
+    }
+
+    private void loadFromFilePreV5(Path inputFile, MerkleDataInputStream stream) throws IOException {
+        final int version = stream.readInt();
+        final String label = stream.readNormalisedString(MAX_LABEL_LENGTH);
+        dataSourceBuilder = stream.readSerializable();
+        dataSource = dataSourceBuilder.restore(label, inputFile.getParent());
+
+        VirtualLeafBytes virtualLeafBytes = dataSource.loadLeafRecord(VM_STATE_KEY);
+        if (virtualLeafBytes != null) {
+            state = new VirtualMapState(virtualLeafBytes.valueBytes());
+        } else {
+            state = new VirtualMapState(label);
+        }
+        if (version < VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
+            throw new UnsupportedOperationException("Version " + version + " is not supported");
+        }
+        if (version < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
+            // FUTURE WORK: clean up all serializers, once all states are of version 4+
+            stream.readSerializable(); // skip key serializer
+            stream.readSerializable(); // skip value serializer
+        }
+        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
     }
 
     /*
