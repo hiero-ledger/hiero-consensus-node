@@ -22,9 +22,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.exceptions.ReferenceCountException;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
@@ -66,9 +63,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.crypto.Hash;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -601,26 +599,31 @@ class VirtualMapTests extends VirtualTestBase {
         final VirtualMap<TestKey, TestValue> completed = fcm;
         fcm = fcm.copy();
 
-        final Hash firstHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
-        final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
-        while (breadthItr.hasNext()) {
-            assertNotNull(breadthItr.next().getHash(), "Expected a value");
+        try {
+            final Hash firstHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(completed);
+            final Iterator<MerkleNode> breadthItr = completed.treeIterator().setOrder(BREADTH_FIRST);
+            while (breadthItr.hasNext()) {
+                assertNotNull(breadthItr.next().getHash(), "Expected a value");
+            }
+
+            final Random rand = new Random(1234);
+            for (int i = 0; i < 10_000; i++) {
+                final int index = rand.nextInt(1_000_000);
+                final int value = 1_000_000 + rand.nextInt(1_000_000);
+                fcm.put(new TestKey(index), new TestValue("" + value));
+            }
+
+            final VirtualMap second = fcm;
+            fcm = copyAndRelease(fcm);
+            final Hash secondHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(second);
+            assertNotSame(firstHash, secondHash, "Wrong value");
+        } finally {
+            fcm.release();
+            completed.release();
+
+            final VirtualRootNode<TestKey, TestValue> root = fcm.getRight();
+            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
-
-        final Random rand = new Random(1234);
-        for (int i = 0; i < 10_000; i++) {
-            final int index = rand.nextInt(1_000_000);
-            final int value = 1_000_000 + rand.nextInt(1_000_000);
-            fcm.put(new TestKey(index), new TestValue("" + value));
-        }
-
-        final VirtualMap second = fcm;
-        fcm = copyAndRelease(fcm);
-        final Hash secondHash = TestMerkleCryptoFactory.getInstance().digestTreeSync(second);
-        assertNotSame(firstHash, secondHash, "Wrong value");
-
-        fcm.release();
-        completed.release();
     }
 
     @Test
@@ -974,12 +977,12 @@ class VirtualMapTests extends VirtualTestBase {
         assertVirtualMapsEqual(map0, map1);
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStreamImpl(byteOut);
+        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
         // serialize the existing maps
         map0.serialize(out, testDirectory);
 
         final SerializableDataInputStream in =
-                new SerializableDataInputStreamImpl(new ByteArrayInputStream(byteOut.toByteArray()));
+                new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         final VirtualMap<TestKey, TestValue> map2 = createMap();
         // read the serialized map back into map2
@@ -1050,7 +1053,9 @@ class VirtualMapTests extends VirtualTestBase {
                 assertNull(map.get(new TestKey(i)), "The old value should not exist anymore");
             }
         } finally {
+            final VirtualRootNode<TestKey, TestValue> root = map.getRight();
             map.release();
+            assertTrue(root.getPipeline().awaitTermination(30, SECONDS), "Pipeline termination timed out");
         }
     }
 

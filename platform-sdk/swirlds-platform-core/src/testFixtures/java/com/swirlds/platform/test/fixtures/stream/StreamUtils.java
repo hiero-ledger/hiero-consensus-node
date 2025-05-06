@@ -9,8 +9,8 @@ import com.swirlds.common.stream.internal.TimestampStreamFileWriter;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collection;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 

@@ -134,7 +134,7 @@ message NodeUpdateTransactionBody {
     google.protobuf.BytesValue grpc_certificate_hash = 7;
 
     /**
-    * An administrative key controlled by the node operator.
+     * An administrative key controlled by the node operator.
      * <p>
      * This field is OPTIONAL.<br/>
      * If set, this key MUST sign this transaction.<br/>
@@ -152,4 +152,17 @@ message NodeUpdateTransactionBody {
      * This node SHALL NOT receive reward if this value is set, and `true`.
      */
     google.protobuf.BoolValue decline_reward = 9;
+
+    /**
+     * A web proxy for gRPC from non-gRPC clients.
+     * <p>
+     * This endpoint SHALL be a Fully Qualified Domain Name (FQDN) using the HTTPS
+     * protocol, and SHALL support gRPC-Web for use by browser-based clients.<br/>
+     * This endpoint MUST be signed by a trusted certificate authority.<br/>
+     * This endpoint MUST use a valid port and SHALL be reachable over TLS.<br/>
+     * This field MAY be omitted if the node does not support gRPC-Web access.<br/>
+     * This field MUST be updated if the gRPC-Web endpoint changes.<br/>
+     * This field SHALL enable frontend clients to avoid hard-coded proxy endpoints.
+     */
+    proto.ServiceEndpoint grpc_proxy_endpoint = 10;
 }

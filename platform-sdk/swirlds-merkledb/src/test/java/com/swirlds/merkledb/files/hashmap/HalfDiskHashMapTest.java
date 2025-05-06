@@ -4,6 +4,7 @@ package com.swirlds.merkledb.files.hashmap;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.collections.LongList;
@@ -234,6 +235,44 @@ class HalfDiskHashMapTest {
         assertEquals(2, map.get(testType.keySerializer.toBytes(key2), key2.hashCode(), -1));
         assertEquals(3, map.get(testType.keySerializer.toBytes(key3), key3.hashCode(), -1));
         assertEquals(4, map.get(testType.keySerializer.toBytes(key4), key4.hashCode(), -1));
+    }
+
+    @Test
+    void testRebuildIncompleteMap() throws Exception {
+        final FilesTestType testType = FilesTestType.variable;
+        final HalfDiskHashMap map = createNewTempMap(testType, 100);
+
+        map.startWriting();
+        final VirtualKey key1 = testType.createVirtualLongKey(1);
+        map.put(testType.keySerializer.toBytes(key1), key1.hashCode(), 1);
+        final VirtualKey key2 = testType.createVirtualLongKey(2);
+        map.put(testType.keySerializer.toBytes(key2), key2.hashCode(), 2);
+        final VirtualKey key3 = testType.createVirtualLongKey(3);
+        map.put(testType.keySerializer.toBytes(key3), key3.hashCode(), 3);
+        final VirtualKey key4 = testType.createVirtualLongKey(4);
+        // No entry for key 4
+        map.endWriting();
+
+        assertEquals(1, map.get(testType.keySerializer.toBytes(key1), key1.hashCode(), -1));
+        assertEquals(2, map.get(testType.keySerializer.toBytes(key2), key2.hashCode(), -1));
+        assertEquals(3, map.get(testType.keySerializer.toBytes(key3), key3.hashCode(), -1));
+
+        final MemoryIndexDiskKeyValueStore kv = createNewTempKV(testType, 100);
+        kv.startWriting();
+        kv.updateValidKeyRange(2, 4);
+        final VirtualLeafBytes rec2 =
+                new VirtualLeafBytes(2, testType.keySerializer.toBytes(key2), key2.hashCode(), Bytes.wrap("12"));
+        kv.put(2, rec2::writeTo, rec2.getSizeInBytes());
+        final VirtualLeafBytes rec3 =
+                new VirtualLeafBytes(3, testType.keySerializer.toBytes(key3), key3.hashCode(), Bytes.wrap("13"));
+        kv.put(3, rec3::writeTo, rec3.getSizeInBytes());
+        final VirtualLeafBytes rec4 =
+                new VirtualLeafBytes(4, testType.keySerializer.toBytes(key4), key4.hashCode(), Bytes.wrap("14"));
+        kv.put(4, rec4::writeTo, rec4.getSizeInBytes());
+        kv.endWriting();
+
+        // key4 is missing in the map, it cannot be restored from pathToKeyValue store
+        assertThrows(IOException.class, () -> map.repair(2, 4, kv));
     }
 
     private static void printTestUpdate(long start, long count, String msg) {

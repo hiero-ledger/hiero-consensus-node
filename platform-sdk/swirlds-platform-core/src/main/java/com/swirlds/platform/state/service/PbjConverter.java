@@ -11,7 +11,7 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This class handles conversion from PBJ objects related to the platform state to the corresponding Java objects, and vice versa.

@@ -27,8 +27,8 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.Clearable;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.crypto.Hash;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -377,13 +377,7 @@ public class Shadowgraph implements Clearable {
 
         while (oldestUnexpiredIndicator < minimumIndicatorToKeep) {
             final Set<ShadowEvent> shadowsToExpire = indicatorToShadowEvent.remove(oldestUnexpiredIndicator);
-            // shadowsToExpire should never be null, but check just in case.
-            if (shadowsToExpire == null) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "There were no events with ancient indicator {} to expire.",
-                        oldestUnexpiredIndicator);
-            } else {
+            if (shadowsToExpire != null) {
                 shadowsToExpire.forEach(this::expire);
             }
             oldestUnexpiredIndicator++;

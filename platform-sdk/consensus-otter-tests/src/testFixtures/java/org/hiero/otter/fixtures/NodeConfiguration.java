@@ -17,4 +17,13 @@ public interface NodeConfiguration<T extends NodeConfiguration> {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     T set(@NonNull String key, boolean value);
+
+    /**
+     * Updates a single property of the configuration.
+     *
+     * @param key the key of the property
+     * @param value the value of the property
+     * @return this {@code NodeConfiguration} instance for method chaining
+     */
+    T set(@NonNull String key, @NonNull String value);
 }

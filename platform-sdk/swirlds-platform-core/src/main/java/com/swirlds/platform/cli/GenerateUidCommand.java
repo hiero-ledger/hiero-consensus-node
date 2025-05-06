@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.common.constructable.GenerateClassId.generateAndPrintClassId;
+import static org.hiero.base.constructable.GenerateClassId.generateAndPrintClassId;
 
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;

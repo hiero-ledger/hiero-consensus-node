@@ -38,7 +38,7 @@ class ConsensusOpsUsageTest {
                 .build();
         final var accum = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(memo.length(), 0);
-        final var submitMeta = new SubmitMessageMeta(message.length());
+        final var submitMeta = new SubmitMessageMeta(message.length(), 0);
 
         subject.submitMessageUsage(sigUsage, submitMeta, baseMeta, accum);
         final var actualLegacyRepr = AdapterUtils.feeDataFrom(accum);

@@ -42,4 +42,14 @@ public interface TestEnvironment {
      */
     @NonNull
     Validator validator();
+
+    /**
+     * Destroys the test environment. Once this method is called, the test environment and all its
+     * components are no longer usable. This method is idempotent, meaning that it is safe to call
+     * multiple times.
+     *
+     * @throws InterruptedException if the thread is interrupted while waiting for the destruction
+     * process to complete causing the test to fail.
+     */
+    void destroy() throws InterruptedException;
 }

@@ -7,8 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.exceptions.ReferenceCountException;
 import java.util.Random;
+import org.hiero.base.ValueReference;
+import org.hiero.base.exceptions.ReferenceCountException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

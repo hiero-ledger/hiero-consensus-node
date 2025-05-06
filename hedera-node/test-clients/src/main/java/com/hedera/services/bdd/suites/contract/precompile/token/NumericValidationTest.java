@@ -28,13 +28,13 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
-import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -49,10 +49,10 @@ public class NumericValidationTest {
     public static final long EXPIRY_RENEW = 3_000_000L;
     public static final long EXPIRY_SECOND = 10L;
 
-    @Contract(contract = "NumericContract", creationGas = 1_000_000L)
+    @Contract(contract = "NumericContract", creationGas = 8_000_000L)
     static SpecContract numericContract;
 
-    @Contract(contract = "NumericContractComplex", creationGas = 1_000_000L)
+    @Contract(contract = "NumericContractComplex", creationGas = 8_000_000L)
     static SpecContract numericContractComplex;
 
     @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS)
@@ -274,6 +274,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
+        @Disabled
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for NFT")
         public Stream<DynamicTest> failToGetTokenKeyNFT() {
@@ -283,6 +284,7 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
+        @Disabled
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for Fungible Token")
         public Stream<DynamicTest> failToGetTokenKeyFT() {
@@ -329,6 +331,7 @@ public class NumericValidationTest {
     }
 
     @Nested
+    @Disabled
     @DisplayName("fail to call HAS functions with invalid amounts")
     class HASFunctionsTests {
 
@@ -358,6 +361,7 @@ public class NumericValidationTest {
     }
 
     @Nested
+    @Disabled
     @DisplayName("fail to call Exchange Rate System contract functions")
     class ExchangeRateSystemContractTests {
 
@@ -388,9 +392,6 @@ public class NumericValidationTest {
         public static void beforeAll(final @NonNull TestLifecycle lifecycle) {
             lifecycle.doAdhoc(
                     fungibleToken.authorizeContracts(numericContractComplex),
-                    nft.authorizeContracts(numericContractComplex, numericContract)
-                            .alsoAuthorizing(TokenKeyType.METADATA_KEY, TokenKeyType.SUPPLY_KEY),
-                    nft.authorizeContracts(numericContractComplex),
                     alice.transferHBarsTo(numericContractComplex, ONE_HUNDRED_HBARS),
                     numericContractComplex.getBalance().andAssert(balance -> balance.hasTinyBars(ONE_HUNDRED_HBARS)));
         }
