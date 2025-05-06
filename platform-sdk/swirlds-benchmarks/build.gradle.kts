@@ -22,8 +22,12 @@ jmhModuleInfo {
     requires("com.swirlds.merkledb")
     requires("com.swirlds.virtualmap")
     requires("com.swirlds.platform.core")
+    requires("org.hiero.base.crypto")
+    requires("org.hiero.base.utility")
+    requires("org.hiero.consensus.model")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
+    requires("org.hiero.consensus.model")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
 }

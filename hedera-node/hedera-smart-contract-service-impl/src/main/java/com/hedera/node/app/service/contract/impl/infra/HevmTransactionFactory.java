@@ -19,12 +19,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIALIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_CHAIN_ID;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction.NOT_APPLICABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPriorityId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthEthTxCreation;
-import static com.hedera.node.app.spi.key.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -60,7 +60,6 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -77,7 +76,6 @@ public class HevmTransactionFactory {
     private final HederaConfig hederaConfig;
     private final FeatureFlags featureFlags;
     private final GasCalculator gasCalculator;
-    private final StakingConfig stakingConfig;
     private final ContractsConfig contractsConfig;
     private final EntitiesConfig entitiesConfig;
     private final ReadableFileStore fileStore;
@@ -97,7 +95,6 @@ public class HevmTransactionFactory {
             @NonNull final HederaConfig hederaConfig,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull final StakingConfig stakingConfig,
             @NonNull final ContractsConfig contractsConfig,
             @NonNull final EntitiesConfig entitiesConfig,
             @Nullable final HydratedEthTxData hydratedEthTxData,
@@ -117,7 +114,6 @@ public class HevmTransactionFactory {
         this.accountStore = requireNonNull(accountStore);
         this.ledgerConfig = requireNonNull(ledgerConfig);
         this.hederaConfig = requireNonNull(hederaConfig);
-        this.stakingConfig = requireNonNull(stakingConfig);
         this.contractsConfig = requireNonNull(contractsConfig);
         this.entitiesConfig = requireNonNull(entitiesConfig);
         this.tokenServiceApi = requireNonNull(tokenServiceApi);
@@ -245,8 +241,8 @@ public class HevmTransactionFactory {
             @NonNull final TransactionBody body, @NonNull final HandleException exception) {
         final var gasPrice =
                 switch (body.data().kind()) {
-                    case CONTRACT_CREATE_INSTANCE -> body.contractCreateInstanceOrThrow()
-                            .gas();
+                    case CONTRACT_CREATE_INSTANCE ->
+                        body.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> body.contractCallOrThrow().gas();
                     case ETHEREUM_TRANSACTION -> {
                         final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
@@ -314,7 +310,6 @@ public class HevmTransactionFactory {
         final var usesNonDefaultProxyId = body.hasProxyAccountID() && !AccountID.DEFAULT.equals(body.proxyAccountID());
         validateFalse(usesNonDefaultProxyId, PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
         tokenServiceApi.assertValidStakingElectionForCreation(
-                stakingConfig.isEnabled(),
                 body.declineReward(),
                 body.stakedId().kind().name(),
                 body.stakedAccountId(),

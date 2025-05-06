@@ -2,6 +2,6 @@
 module org.hiero.consensus.gossip {
     exports org.hiero.consensus.gossip;
 
-    requires transitive com.swirlds.common;
+    requires transitive org.hiero.consensus.model;
     requires static transitive com.github.spotbugs.annotations;
 }

@@ -4,8 +4,6 @@ package com.swirlds.virtualmap.internal.hash;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
@@ -13,6 +11,8 @@ import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import java.util.function.LongFunction;
 import java.util.stream.LongStream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

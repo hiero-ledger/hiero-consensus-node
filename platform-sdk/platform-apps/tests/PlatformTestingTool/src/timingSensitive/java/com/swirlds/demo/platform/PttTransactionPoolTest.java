@@ -11,8 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.crypto.ED25519SigningProvider;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.FCMTransactionHandler;
@@ -32,6 +30,8 @@ import com.swirlds.platform.system.Platform;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Random;
+import org.hiero.base.crypto.test.fixtures.ED25519SigningProvider;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

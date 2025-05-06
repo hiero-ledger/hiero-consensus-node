@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtual.merkle.reconnect;
 
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public final class BrokenBuilder implements VirtualDataSourceBuilder {
 
@@ -85,5 +85,9 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
 
     public void setNumTimesToBreak(final int numTimesToBreak) {
         this.numTimesToBreak = numTimesToBreak;
+    }
+
+    public void nextAttempt() {
+        this.numCalls = 0;
     }
 }

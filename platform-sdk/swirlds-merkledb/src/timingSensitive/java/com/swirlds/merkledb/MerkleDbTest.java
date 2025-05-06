@@ -6,8 +6,6 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -20,6 +18,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.UUID;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -167,8 +167,8 @@ public class MerkleDbTest {
         instance.createDataSource(tableName, tableConfig, false).close();
 
         // create datasource reusing existing metadata
-        MerkleDbDataSource dataSource =
-                new MerkleDbDataSource(instance, tableName, instance.getNextTableId() - 1, tableConfig, false, false);
+        MerkleDbDataSource dataSource = new MerkleDbDataSource(
+                instance, CONFIGURATION, tableName, instance.getNextTableId() - 1, tableConfig, false, false);
         // This datasource cannot be properly closed because MerkleDb instance is not aware of this.
         // Assertion error is expected
         assertThrows(AssertionError.class, dataSource::close);

@@ -3,10 +3,6 @@ package com.swirlds.common.merkle.crypto.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
 
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.HashBuilder;
-import com.swirlds.common.crypto.engine.CachingOperationProvider;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildHashException;
@@ -15,6 +11,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.HashBuilder;
+import org.hiero.base.crypto.engine.CachingOperationProvider;
 
 /**
  * A {@link CachingOperationProvider} implementation that is capable of computing a hash for a supplied {@link

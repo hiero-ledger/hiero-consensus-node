@@ -304,15 +304,19 @@ public class TransactionProcessor {
                 updater.setupTopLevelLazyCreate(requireNonNull(parties.receiverAddress));
             } else {
                 updater.setContractNotRequired();
-                parties =
-                        new InvolvedParties(sender, relayer, contractIDToBesuAddress(transaction.contractIdOrThrow()));
+                parties = new InvolvedParties(
+                        sender,
+                        relayer,
+                        contractIDToBesuAddress(updater.entityIdFactory(), transaction.contractIdOrThrow()));
             }
         } else {
             updater.setContractNotRequired();
             parties = new InvolvedParties(
                     sender,
                     relayer,
-                    to != null ? to.getAddress() : contractIDToBesuAddress(transaction.contractIdOrThrow()));
+                    to != null
+                            ? to.getAddress()
+                            : contractIDToBesuAddress(updater.entityIdFactory(), transaction.contractIdOrThrow()));
         }
         return parties;
     }
@@ -321,6 +325,6 @@ public class TransactionProcessor {
             @NonNull final HederaEvmTransaction transaction,
             @Nullable final HederaEvmAccount to,
             @NonNull final Configuration config) {
-        return to == null && transaction.isEthereumTransaction() && messageCall.isImplicitCreationEnabled(config);
+        return to == null && transaction.isEthereumTransaction() && messageCall.isImplicitCreationEnabled();
     }
 }

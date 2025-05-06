@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
+import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.functionOfTxn;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getKeyVerifier;
@@ -69,8 +70,6 @@ import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -79,14 +78,13 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 @Singleton
 public class ParentTxnFactory {
@@ -105,14 +103,11 @@ public class ParentTxnFactory {
     private final TransactionDispatcher dispatcher;
     private final NetworkUtilizationManager networkUtilizationManager;
     private final StreamMode streamMode;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
     private final BlockRecordManager blockRecordManager;
     private final BlockStreamManager blockStreamManager;
     private final ChildDispatchFactory childDispatchFactory;
     private final TransactionChecker transactionChecker;
-
-    @Nullable
-    private final AtomicBoolean systemEntitiesCreatedFlag;
 
     @Inject
     public ParentTxnFactory(
@@ -131,9 +126,8 @@ public class ParentTxnFactory {
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ChildDispatchFactory childDispatchFactory,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory,
-            @NonNull final TransactionChecker transactionChecker,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
+            @NonNull final SemanticVersion softwareVersionFactory,
+            @NonNull final TransactionChecker transactionChecker) {
         this.configProvider = requireNonNull(configProvider);
         this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
@@ -155,7 +149,6 @@ public class ParentTxnFactory {
                 .streamMode();
         this.softwareVersionFactory = softwareVersionFactory;
         this.transactionChecker = requireNonNull(transactionChecker);
-        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
     /**
@@ -193,7 +186,7 @@ public class ParentTxnFactory {
         requireNonNull(type);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state, type);
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
         final var txnInfo = preHandleResult.txInfo();
@@ -205,11 +198,7 @@ public class ParentTxnFactory {
             return null;
         }
         final var tokenContext = new TokenContextImpl(
-                config,
-                stack,
-                consensusNow,
-                new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)),
-                softwareVersionFactory);
+                config, stack, consensusNow, new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
         return new ParentTxn(
                 type,
                 txnInfo.functionality(),
@@ -250,12 +239,12 @@ public class ParentTxnFactory {
         requireNonNull(body);
         final var config = configProvider.getConfiguration();
         final var stack = createRootSavepointStack(state, type);
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var functionality = functionOfTxn(body);
-        final var preHandleResult = preHandleSystemTransaction(body, payerId, config, readableStoreFactory);
+        final var preHandleResult =
+                preHandleSystemTransaction(body, payerId, config, readableStoreFactory, creatorInfo, type);
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
-        final var tokenContext =
-                new TokenContextImpl(config, stack, consensusNow, entityIdStore, softwareVersionFactory);
+        final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         return new ParentTxn(
                 type,
                 functionality,
@@ -331,7 +320,7 @@ public class ParentTxnFactory {
         final var tokenContextImpl = parentTxn.tokenContextImpl();
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
 
-        final var readableStoreFactory = new ReadableStoreFactory(stack, softwareVersionFactory);
+        final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
@@ -340,8 +329,8 @@ public class ParentTxnFactory {
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
         final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
-        final var feeAccumulator =
-                new FeeAccumulator(serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder);
+        final var feeAccumulator = new FeeAccumulator(
+                serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -427,19 +416,23 @@ public class ParentTxnFactory {
     /**
      * Creates the {@link PreHandleResult} for a system transaction, which never has additional cryptographic
      * signatures that need to be verified; hence the pre-handle process is much simpler.
-     * @param body the system transaction body
-     * @param payerId the payer of the transaction
-     * @param config the current configuration
+     *
+     * @param body                 the system transaction body
+     * @param payerId              the payer of the transaction
+     * @param config               the current configuration
      * @param readableStoreFactory the readable store factory
+     * @param type               the type of the transaction
      * @return the pre-handle result
      */
     private PreHandleResult preHandleSystemTransaction(
             @NonNull final TransactionBody body,
             @NonNull final AccountID payerId,
             @NonNull final Configuration config,
-            @NonNull final ReadableStoreFactory readableStoreFactory) {
-        // Until system entities exist, we can skip everything here
-        if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
+            @NonNull final ReadableStoreFactory readableStoreFactory,
+            @NonNull final NodeInfo creatorInfo,
+            @NonNull final TransactionType type) {
+        // Internal transactions are synthetic and do not require pre-handle checks.
+        if (type == INTERNAL_TRANSACTION) {
             return new PreHandleResult(
                     payerId,
                     null,
@@ -457,7 +450,7 @@ public class ParentTxnFactory {
             final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(
-                    readableStoreFactory, body, payerId, config, dispatcher, transactionChecker);
+                    readableStoreFactory, body, payerId, config, dispatcher, transactionChecker, creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
             final var txInfo = getTxnInfoFrom(payerId, body);
             return new PreHandleResult(

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream.internal;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.crypto.SerializableHashable;
 import java.util.Objects;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHashable;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * This abstract class implements boiler plate functionality for a {@link LinkedObjectStream}.

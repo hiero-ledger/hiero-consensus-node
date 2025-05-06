@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -31,10 +32,10 @@ import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -74,7 +75,8 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("updateTokenExpiryInfo")
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
-    private static final Address MISSING_LONG_ZERO_ADDRESS = asHeadlongAddress(Long.toHexString(Integer.MAX_VALUE));
+    private static final Address MISSING_LONG_ZERO_ADDRESS =
+            asHeadlongAddress(toAddressStringWithShardAndRealm(Long.toHexString(Integer.MAX_VALUE)));
     private static final String TOKEN_EXPIRY_CONTRACT = "TokenExpiryContract";
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String UPDATED_AUTO_RENEW_ACCOUNT = "updatedAutoRenewAccount";
@@ -170,7 +172,8 @@ public class TokenExpiryInfoSuite {
                     // set an invalid auto-renew account period of 1 second
                     tokenExpiryContract
                             .call("updateExpiryInfoForToken", mutableToken, 0L, ZERO_ADDRESS, 1L)
-                            .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_RENEWAL_PERIOD)));
+                            .andAssert(txn ->
+                                    txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, AUTORENEW_DURATION_NOT_IN_RANGE)));
         }
 
         @HapiTest

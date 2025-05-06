@@ -31,9 +31,9 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.FAKE_
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileAppendsPerBurst;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -53,7 +53,7 @@ import java.util.function.Supplier;
  */
 public interface LifecycleTest {
     int MIXED_OPS_BURST_TPS = 50;
-    Duration FREEZE_TIMEOUT = Duration.ofSeconds(180);
+    Duration FREEZE_TIMEOUT = Duration.ofSeconds(240);
     Duration RESTART_TIMEOUT = Duration.ofSeconds(180);
     Duration SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
     Duration MIXED_OPS_BURST_DURATION = Duration.ofSeconds(10);

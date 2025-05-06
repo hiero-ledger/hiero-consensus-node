@@ -11,7 +11,6 @@ package com.swirlds.demo.platform;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -24,23 +23,20 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_6_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static java.lang.System.exit;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.constructable.NoArgsConstructor;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.common.utility.StopWatch;
@@ -74,16 +70,13 @@ import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -111,6 +104,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.constructable.NoArgsConstructor;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It
@@ -302,15 +302,15 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     /** defines how many queries should be sent in each second for querying a leaf in the latest signed state */
     private long queriesSentPerSec = -1;
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
 
     final PlatformTestingToolConsensusStateEventHandler consensusStateEventHandler;
 
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(
-                new PlatformStateFacade(v -> new BasicSoftwareVersion(v.major())));
+        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(new PlatformStateFacade());
     }
 
     /**
@@ -895,8 +895,8 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
     }
 
     private boolean timeToCheckBalances(final Instant consensusTimestamp) {

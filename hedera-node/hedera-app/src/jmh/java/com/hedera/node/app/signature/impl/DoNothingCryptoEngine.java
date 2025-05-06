@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.SerializableHashable;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.io.SelfSerializable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
+import org.hiero.base.io.SelfSerializable;
 
 public class DoNothingCryptoEngine implements Cryptography {
 

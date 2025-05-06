@@ -9,8 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.Path;
@@ -28,6 +26,8 @@ import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -412,7 +412,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         }
 
         @Override
-        public synchronized void onHashingStarted() {
+        public synchronized void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {
             onHashingStartedCallCount++;
             callHistory.append(ON_HASHING_STARTED_SYMBOL);
             internals.clear();

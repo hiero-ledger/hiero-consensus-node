@@ -142,10 +142,11 @@ public class DispatchValidator {
         }
         return switch (duplicateStatus) {
             case DUPLICATE -> newPayerDuplicateError(creatorId, payer);
-            case NO_DUPLICATE -> dispatch.preHandleResult().status() == SO_FAR_SO_GOOD
-                    ? validation
-                    : newPayerUniqueError(
-                            creatorId, payer, dispatch.preHandleResult().responseCode());
+            case NO_DUPLICATE ->
+                dispatch.preHandleResult().status() == SO_FAR_SO_GOOD
+                        ? validation
+                        : newPayerUniqueError(
+                                creatorId, payer, dispatch.preHandleResult().responseCode());
         };
     }
 
@@ -208,9 +209,17 @@ public class DispatchValidator {
         final var account = accountStore.getAccountById(accountID);
         return switch (category) {
             case USER, NODE, BATCH_INNER -> {
-                if (account == null || account.deleted() || account.smartContract()) {
-                    throw new IllegalStateException("Category " + category
-                            + " payer account should have resulted in failure upstream " + account);
+                if (account == null) {
+                    throw new IllegalStateException(
+                            String.format("Category %s payer account with id %s does not exists", category, accountID));
+                }
+                if (account.deleted()) {
+                    throw new IllegalStateException(
+                            String.format("Category %s payer account with id %s is deleted", category, accountID));
+                }
+                if (account.smartContract()) {
+                    throw new IllegalStateException(String.format(
+                            "Category %s payer account with id %s is a smart contract", category, accountID));
                 }
                 yield account;
             }

@@ -4,9 +4,7 @@ package com.swirlds.platform.gossip.sync;
 import static com.swirlds.common.io.extendable.ExtendableInputStream.extendInputStream;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
@@ -15,6 +13,8 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 public class SyncInputStream extends SerializableDataInputStream {
 

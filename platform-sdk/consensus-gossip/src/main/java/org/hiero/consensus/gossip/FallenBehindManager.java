@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip;
 
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.model.node.NodeId;
 
 public interface FallenBehindManager {
     /**
@@ -13,7 +13,7 @@ public interface FallenBehindManager {
      * @param id
      * 		the id of the node who says we have fallen behind
      */
-    void reportFallenBehind(NodeId id);
+    void reportFallenBehind(@NonNull NodeId id);
 
     /**
      * We have determined that we have not fallen behind, or we have reconnected, so reset everything to the initial

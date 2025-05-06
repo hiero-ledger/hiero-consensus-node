@@ -176,7 +176,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
 
     @Override
     public boolean tryToChargePayer(final long amount) {
-        return feeAccumulator.chargeNetworkFee(payerId, amount, null);
+        return feeAccumulator.chargeFee(payerId, amount, null).networkFee() == amount;
     }
 
     @NonNull
@@ -267,7 +267,13 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         final var nestedPureChecksContext = new PureChecksContextImpl(nestedTxn, dispatcher);
         dispatcher.dispatchPureChecks(nestedPureChecksContext);
         final var nestedContext = new PreHandleContextImpl(
-                storeFactory.asReadOnly(), nestedTxn, payerForNested, configuration(), dispatcher, transactionChecker);
+                storeFactory.asReadOnly(),
+                nestedTxn,
+                payerForNested,
+                configuration(),
+                dispatcher,
+                transactionChecker,
+                creatorInfo);
         try {
             dispatcher.dispatchPreHandle(nestedContext);
         } catch (final PreCheckException ignored) {

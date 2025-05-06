@@ -2,14 +2,14 @@
 package com.swirlds.demo.stats.signing;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.crypto.TransactionSignature;
 import com.swirlds.demo.stats.signing.algorithms.ECSecP256K1Algorithm;
 import com.swirlds.demo.stats.signing.algorithms.SigningAlgorithm;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.TransactionSignature;
 
 /**
  * The core transaction encoder and decoder implementation. See below for the binary transaction format specification.

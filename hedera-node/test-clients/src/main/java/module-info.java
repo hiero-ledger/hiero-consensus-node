@@ -63,6 +63,8 @@ module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.support.validators.block;
     exports com.hedera.services.bdd.utils;
     exports com.hedera.services.bdd.junit.restart;
+    exports com.hedera.services.bdd.junit.hedera.remote;
+    exports com.hedera.services.bdd.spec.remote;
 
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
@@ -88,6 +90,11 @@ module com.hedera.node.test.clients {
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.concurrent;
+    requires org.hiero.base.crypto;
+    requires org.hiero.base.utility;
+    requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires com.esaulpaugh.headlong;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;

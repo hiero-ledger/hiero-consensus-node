@@ -48,7 +48,7 @@ public class InertHintsController implements HintsController {
     }
 
     @Override
-    public void advanceCRSWork(
+    public void advanceCrsWork(
             @NonNull final Instant now,
             @NonNull final WritableHintsStore hintsStore,
             final boolean currentPlatformStatus) {

@@ -2,15 +2,12 @@
 package com.swirlds.virtualmap;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
-import static com.swirlds.common.utility.CommonUtils.getNormalisedStringBytes;
 import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
-import com.swirlds.common.constructable.ConstructableClass;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -18,7 +15,6 @@ import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.common.utility.ValueReference;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -38,6 +34,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import org.hiero.base.ValueReference;
+import org.hiero.base.constructable.ConstructableClass;
+import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -162,7 +163,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
     private final Configuration configuration;
 
     /**
-     * Required by the {@link com.swirlds.common.constructable.RuntimeConstructable} contract.
+     * Required by the {@link RuntimeConstructable} contract.
      * This can <strong>only</strong> be called as part of serialization and reconnect, not for normal use.
      */
     public VirtualMap(final @NonNull Configuration configuration) {

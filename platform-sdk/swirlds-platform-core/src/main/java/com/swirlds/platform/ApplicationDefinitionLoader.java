@@ -9,7 +9,6 @@ import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.JarAppConfig;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -18,6 +17,7 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * This class only contains one method that was extracted from the {@link Browser} class.

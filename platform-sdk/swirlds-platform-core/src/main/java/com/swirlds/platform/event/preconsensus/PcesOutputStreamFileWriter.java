@@ -4,7 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.extendable.ExtendableOutputStream;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.FileDescriptor;
@@ -12,6 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.SyncFailedException;
 import java.nio.file.Path;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Writes events to a file using an output stream.

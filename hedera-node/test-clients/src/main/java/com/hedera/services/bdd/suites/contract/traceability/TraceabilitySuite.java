@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -79,8 +80,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_G
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.hex;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -110,7 +111,6 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -122,6 +122,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -169,7 +170,7 @@ public class TraceabilitySuite {
         return hapiTest(
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
-                        .gas(500_000L)
+                        .gas(2_500_000L)
                         .via(FIRST_CREATE_TXN),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
@@ -917,7 +918,7 @@ public class TraceabilitySuite {
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
                         .via(FIRST_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY)
@@ -1308,7 +1309,7 @@ public class TraceabilitySuite {
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
                         .via(FIRST_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY)
@@ -1591,7 +1592,7 @@ public class TraceabilitySuite {
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
                         .via(FIRST_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY)
@@ -1630,7 +1631,7 @@ public class TraceabilitySuite {
                         BigInteger.TWO),
                 contractCustomCreate(TRACEABILITY, SECOND, BigInteger.ZERO, BigInteger.ZERO, BigInteger.valueOf(12))
                         .via(SECOND_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         SECOND_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY + SECOND)
@@ -1669,7 +1670,7 @@ public class TraceabilitySuite {
                         BigInteger.valueOf(12)),
                 contractCustomCreate(TRACEABILITY, THIRD, BigInteger.valueOf(4), BigInteger.ONE, BigInteger.ZERO)
                         .via(THIRD_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         THIRD_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY + THIRD)
@@ -1882,7 +1883,7 @@ public class TraceabilitySuite {
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
                         .via(FIRST_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY)
@@ -2915,7 +2916,7 @@ public class TraceabilitySuite {
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.valueOf(55), BigInteger.TWO, BigInteger.TWO)
                         .via(FIRST_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY)
@@ -3209,7 +3210,7 @@ public class TraceabilitySuite {
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
                         .via(FIRST_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY)
@@ -3540,7 +3541,7 @@ public class TraceabilitySuite {
                 uploadInitCode(TRACEABILITY),
                 contractCreate(TRACEABILITY, BigInteger.TWO, BigInteger.valueOf(3), BigInteger.valueOf(4))
                         .via(FIRST_CREATE_TXN)
-                        .gas(500_000L),
+                        .gas(2_500_000L),
                 expectContractStateChangesSidecarFor(
                         FIRST_CREATE_TXN,
                         List.of(StateChange.stateChangeFor(TRACEABILITY)
@@ -3987,7 +3988,7 @@ public class TraceabilitySuite {
                     final var childId = ContractID.newBuilder()
                             .setContractNum(parentId.getContractNum() + 1L)
                             .build();
-                    mirrorLiteralId.set("0.0." + childId.getContractNum());
+                    mirrorLiteralId.set(SHARD_AND_REALM + childId.getContractNum());
                     final var topLevelCallTxnRecord =
                             getTxnRecord(CREATE_2_TXN).andAllChildRecords().logged();
                     final var hapiGetContractBytecode =

@@ -3,14 +3,14 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.AutoCloseableNonThrowing;
-import com.swirlds.common.exceptions.ReferenceCountException;
+import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
  * A wrapper around a signed state that holds a reservation. Until this wrapper is released/closed, the signed state

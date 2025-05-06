@@ -21,12 +21,15 @@ testModuleInfo {
     requires("org.apache.commons.lang3")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.logging.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("jakarta.inject")
+
+    opensTo("com.swirlds.base.test.fixtures") // injection via reflection
 }
 
 timingSensitiveModuleInfo {
@@ -37,6 +40,8 @@ timingSensitiveModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     runtimeOnly("com.swirlds.common.test.fixtures")
+
+    opensTo("com.swirlds.base.test.fixtures") // injection via reflection
 }
 
 jmhModuleInfo {

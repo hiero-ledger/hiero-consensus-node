@@ -8,12 +8,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStreamGenerator;
 import com.swirlds.common.test.fixtures.stream.WriteToStreamConsumer;
@@ -22,6 +16,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Iterator;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +40,7 @@ class QueueThreadObjectStreamTest {
     @BeforeAll
     static void init() {
         cryptography = mock(Cryptography.class);
-        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(RandomUtils.randomHash());
+        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(CryptoRandomUtils.randomHash());
     }
 
     @BeforeEach

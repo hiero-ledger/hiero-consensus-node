@@ -2,9 +2,6 @@
 package com.hedera.node.app.hints.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
@@ -65,7 +62,7 @@ class HintsContextTest {
         assertThrows(IllegalStateException.class, subject::constructionIdOrThrow);
         assertThrows(IllegalStateException.class, subject::verificationKeyOrThrow);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstructions(CONSTRUCTION);
 
         assertTrue(subject.isReady());
 
@@ -74,9 +71,7 @@ class HintsContextTest {
     }
 
     @Test
-    void signingWorksAsExpectedFor() {
-        given(library.verifyBls(eq(CRS), eq(signature), eq(BLOCK_HASH), any(), anyInt()))
-                .willReturn(true);
+    void incorporatingValidWorksAsExpected() {
         final long cWeight = 1L;
         final long dWeight = 2L;
         final var currentRoster = Roster.newBuilder()
@@ -106,22 +101,18 @@ class HintsContextTest {
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstructions(CONSTRUCTION);
 
         final var signing = subject.newSigning(BLOCK_HASH, currentRoster, () -> {});
         final var future = signing.future();
 
-        signing.incorporate(CRS, CONSTRUCTION.constructionId() + 1, 0L, signature);
+        signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
-        signing.incorporate(CRS, CONSTRUCTION.constructionId(), Long.MAX_VALUE, signature);
+        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
-        signing.incorporate(CRS, CONSTRUCTION.constructionId(), A_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, C_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
-        signing.incorporate(CRS, CONSTRUCTION.constructionId(), B_NODE_PARTY_ID.nodeId(), signature);
-        assertFalse(future.isDone());
-        signing.incorporate(CRS, CONSTRUCTION.constructionId(), C_NODE_PARTY_ID.nodeId(), signature);
-        assertFalse(future.isDone());
-        signing.incorporate(CRS, CONSTRUCTION.constructionId(), D_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
     }

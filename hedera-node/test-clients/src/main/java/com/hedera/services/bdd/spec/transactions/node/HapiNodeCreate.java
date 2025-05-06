@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.transactions.node;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -45,15 +46,18 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     private boolean useAvailableSubProcessPorts = false;
     private final String nodeName;
     private Optional<AccountID> accountId = Optional.empty();
+    private Optional<Long> accountNum = Optional.empty();
     private Optional<String> description = Optional.empty();
     private List<ServiceEndpoint> gossipEndpoints =
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
-    private List<ServiceEndpoint> grpcEndpoints = Arrays.asList(
+    private List<ServiceEndpoint> grpcEndpoints = List.of(
             ServiceEndpoint.newBuilder().setDomainName("test.com").setPort(123).build());
+    private ServiceEndpoint grpcWebProxyEndpoint = endpointFor("grpc.web.proxy.com", 123);
     private Optional<byte[]> gossipCaCertificate = Optional.empty();
     private Optional<byte[]> grpcCertificateHash = Optional.empty();
     private Optional<String> adminKeyName = Optional.empty();
     private Optional<KeyShape> adminKeyShape = Optional.empty();
+    private Optional<Boolean> declineReward = Optional.empty();
 
     @Nullable
     private LongConsumer nodeIdObserver;
@@ -90,6 +94,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return this;
     }
 
+    public HapiNodeCreate accountNum(final long accountNum) {
+        this.accountNum = Optional.of(accountNum);
+        return this;
+    }
+
     public HapiNodeCreate description(final String description) {
         this.description = Optional.of(description);
         return this;
@@ -110,6 +119,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return this;
     }
 
+    public HapiNodeCreate grpcWebProxyEndpoint(final ServiceEndpoint grpcWebProxyEndpoint) {
+        this.grpcWebProxyEndpoint = grpcWebProxyEndpoint;
+        return this;
+    }
+
     public HapiNodeCreate gossipCaCertificate(@NonNull final Bytes cert) {
         return gossipCaCertificate(cert.toByteArray());
     }
@@ -121,6 +135,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
 
     public HapiNodeCreate grpcCertificateHash(final byte[] grpcCertificateHash) {
         this.grpcCertificateHash = Optional.of(grpcCertificateHash);
+        return this;
+    }
+
+    public HapiNodeCreate declineReward(final boolean decline) {
+        this.declineReward = Optional.of(decline);
         return this;
     }
 
@@ -169,12 +188,16 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
                 .<NodeCreateTransactionBody, NodeCreateTransactionBody.Builder>body(
                         NodeCreateTransactionBody.class, builder -> {
                             accountId.ifPresent(builder::setAccountId);
+                            accountNum.ifPresent(accountNum ->
+                                    builder.setAccountId(asAccount(spec.shard(), spec.realm(), accountNum)));
                             description.ifPresent(builder::setDescription);
                             builder.setAdminKey(adminKey);
                             builder.clearGossipEndpoint().addAllGossipEndpoint(gossipEndpoints);
                             builder.clearServiceEndpoint().addAllServiceEndpoint(grpcEndpoints);
+                            builder.setGrpcProxyEndpoint(grpcWebProxyEndpoint);
                             gossipCaCertificate.ifPresent(s -> builder.setGossipCaCertificate(ByteString.copyFrom(s)));
                             grpcCertificateHash.ifPresent(s -> builder.setGrpcCertificateHash(ByteString.copyFrom(s)));
+                            declineReward.ifPresent(builder::setDeclineReward);
                         });
         return b -> b.setNodeCreate(opBody);
     }
@@ -217,6 +240,7 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return helper;
     }
 
+    @Nullable
     public Key getAdminKey() {
         return adminKey;
     }

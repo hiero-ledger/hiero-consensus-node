@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 
 public class BlockStreamUtils {
+    private static final String UPGRADE_DATA_FILE_NUM_FORMAT =
+            "FileService.UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
+
     public static String stateNameOf(final int stateId) {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
             case STATE_ID_NODES -> "AddressBookService.NODES";
@@ -18,16 +24,16 @@ public class BlockStreamUtils {
             case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
             case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
             case STATE_ID_FILES -> "FileService.FILES";
-            case STATE_ID_UPGRADE_DATA_150 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=150]]";
-            case STATE_ID_UPGRADE_DATA_151 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=151]]";
-            case STATE_ID_UPGRADE_DATA_152 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=152]]";
-            case STATE_ID_UPGRADE_DATA_153 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=153]]";
-            case STATE_ID_UPGRADE_DATA_154 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=154]]";
-            case STATE_ID_UPGRADE_DATA_155 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=155]]";
-            case STATE_ID_UPGRADE_DATA_156 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=156]]";
-            case STATE_ID_UPGRADE_DATA_157 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=157]]";
-            case STATE_ID_UPGRADE_DATA_158 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=158]]";
-            case STATE_ID_UPGRADE_DATA_159 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=159]]";
+            case STATE_ID_UPGRADE_DATA_150 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 150);
+            case STATE_ID_UPGRADE_DATA_151 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 151);
+            case STATE_ID_UPGRADE_DATA_152 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 152);
+            case STATE_ID_UPGRADE_DATA_153 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 153);
+            case STATE_ID_UPGRADE_DATA_154 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 154);
+            case STATE_ID_UPGRADE_DATA_155 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 155);
+            case STATE_ID_UPGRADE_DATA_156 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 156);
+            case STATE_ID_UPGRADE_DATA_157 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 157);
+            case STATE_ID_UPGRADE_DATA_158 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 158);
+            case STATE_ID_UPGRADE_DATA_159 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 159);
             case STATE_ID_UPGRADE_FILE -> "FileService.UPGRADE_FILE";
             case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
             case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
@@ -67,6 +73,7 @@ public class BlockStreamUtils {
             case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
+            case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
         };
     }
 }

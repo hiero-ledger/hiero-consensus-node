@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip583;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -85,7 +87,7 @@ public class CreateWithAliasDisabledTest {
                 newKeyNamed(ECDSA_KEY).shape(SECP256K1),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).key(ECDSA_KEY),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(4_000_000L),
                 tokenCreate(EXISTING_TOKEN),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -96,8 +98,8 @@ public class CreateWithAliasDisabledTest {
                                                 .getKey(ECDSA_KEY)
                                                 .getECDSASecp256K1()
                                                 .toByteArray(),
-                                        HapiParserUtil.asHeadlongAddress(
-                                                (byte[]) ArrayUtils.toPrimitive(Utils.asSolidityAddress(0, 0, 15252L))),
+                                        HapiParserUtil.asHeadlongAddress((byte[])
+                                                ArrayUtils.toPrimitive(Utils.asSolidityAddress(shard, realm, 15252L))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(EXISTING_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(

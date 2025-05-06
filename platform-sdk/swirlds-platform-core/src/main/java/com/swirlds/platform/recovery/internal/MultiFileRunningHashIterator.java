@@ -3,9 +3,9 @@ package com.swirlds.platform.recovery.internal;
 
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
-import com.swirlds.platform.system.events.CesEvent;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * A wrapper around {@link EventStreamMultiFileIterator}

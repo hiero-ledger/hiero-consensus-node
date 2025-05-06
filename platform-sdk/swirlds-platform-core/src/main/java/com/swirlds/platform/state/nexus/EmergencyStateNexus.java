@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.nexus;
 
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * A thread-safe container that also manages reservations for the emergency state.

@@ -6,8 +6,11 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -16,8 +19,6 @@ import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contra
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
 import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
-import static com.hedera.services.bdd.spec.keys.KeyShape.ON;
-import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -33,7 +34,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCustomCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
@@ -44,14 +44,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadSingleIni
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddressArray;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractActionSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.sidecarValidation;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmountAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -63,8 +60,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferLists;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
@@ -125,11 +120,10 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static com.swirlds.common.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -167,7 +161,6 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -180,6 +173,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -190,7 +184,7 @@ public class LeakyContractTestsSuite {
     public static final String CREATE_TX = "createTX";
     public static final String CREATE_TX_REC = "createTXRec";
     public static final String FALSE = "false";
-    public static final int GAS_TO_OFFER = 1_000_000;
+    public static final int GAS_TO_OFFER = 2_000_000;
     private static final Logger log = LogManager.getLogger(LeakyContractTestsSuite.class);
     public static final String SENDER = "yahcliSender";
     public static final String RECEIVER = "yahcliReceiver";
@@ -228,7 +222,6 @@ public class LeakyContractTestsSuite {
     public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
     private static final String EVM_VERSION_PROPERTY = "contracts.evm.version";
     private static final String EVM_VERSION_038 = "v0.38";
-    public static final String LAZY_CREATION_ENABLED = "lazyCreation.enabled";
     private static final String CREATION = "creation";
     private static final String ENTITY_MEMO = "JUST DO IT";
     private static final String CREATE_2_TXN = "create2Txn";
@@ -267,7 +260,7 @@ public class LeakyContractTestsSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(SHARD, REALM, num))),
                 sourcing(() -> contractCallLocal(
                                 contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
                         .exposingTypedResultsTo(results -> {
@@ -526,7 +519,8 @@ public class LeakyContractTestsSuite {
                 cryptoCreate(normalPayer),
                 cryptoCreate(longLivedPayer).autoRenewSecs(longLifetime - 12345),
                 uploadInitCode(toyMaker, createIndirectly),
-                contractCreate(toyMaker).exposingNumTo(num -> toyMakerMirror.set(asHexedSolidityAddress(0, 0, num))),
+                contractCreate(toyMaker)
+                        .exposingNumTo(num -> toyMakerMirror.set(asHexedSolidityAddress(SHARD, REALM, num))),
                 sourcing(() -> contractCreate(createIndirectly)
                         .autoRenewSecs(longLifetime - 12345)
                         .payingWith(GENESIS)),
@@ -729,7 +723,7 @@ public class LeakyContractTestsSuite {
                     final var parentNum = spec.registry().getContractId(contract);
 
                     final var expectedParentContractAddress = asHeadlongAddress(asEvmAddress(
-                                    parentNum.getShardNum(), parentNum.getShardNum(), parentNum.getContractNum()))
+                                    parentNum.getShardNum(), parentNum.getRealmNum(), parentNum.getContractNum()))
                             .toString()
                             .toLowerCase()
                             .substring(2);
@@ -740,11 +734,15 @@ public class LeakyContractTestsSuite {
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
 
                     final var childId = ContractID.newBuilder()
+                            .setShardNum(SHARD)
+                            .setRealmNum(REALM)
                             .setContractNum(parentNum.getContractNum() + 1L)
                             .build();
                     childLiteralId.set(HapiPropertySource.asContractString(childId));
                     expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
                     final var grandChildId = ContractID.newBuilder()
+                            .setShardNum(SHARD)
+                            .setRealmNum(REALM)
                             .setContractNum(parentNum.getContractNum() + 2L)
                             .build();
                     grandChildLiteralId.set(HapiPropertySource.asContractString(grandChildId));
@@ -823,7 +821,7 @@ public class LeakyContractTestsSuite {
                 inParallel(IntStream.range(0, createBurstSize)
                         .mapToObj(i -> contractCustomCreate(contract, String.valueOf(i), numSlots)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .gas(300_000L)
+                                .gas(800_000L)
                                 .payingWith(GENESIS)
                                 .noLogging()
                                 .deferStatusResolution()
@@ -838,66 +836,6 @@ public class LeakyContractTestsSuite {
                         .payingWith(GENESIS)
                         .gas(300_000L)
                         .via(callTxn)));
-    }
-
-    @LeakyHapiTest(overrides = {"lazyCreation.enabled"})
-    final Stream<DynamicTest> lazyCreateThroughPrecompileNotSupportedWhenFlagDisabled() {
-        final var CONTRACT = CRYPTO_TRANSFER;
-        final var SENDER = "sender";
-        final var FUNGIBLE_TOKEN = "fungibleToken";
-        final var DELEGATE_KEY = "contractKey";
-        final var NOT_SUPPORTED_TXN = "notSupportedTxn";
-        final var TOTAL_SUPPLY = 1_000;
-
-        return hapiTest(
-                overriding("lazyCreation.enabled", "false"),
-                cryptoCreate(SENDER).balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(TOTAL_SUPPLY)
-                        .treasury(TOKEN_TREASURY),
-                tokenAssociate(SENDER, List.of(FUNGIBLE_TOKEN)),
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).maxAutomaticTokenAssociations(1),
-                getContractInfo(CONTRACT)
-                        .has(ContractInfoAsserts.contractWith().maxAutoAssociations(1))
-                        .logged(),
-                withOpContext((spec, opLog) -> {
-                    final var ecdsaKey = spec.registry().getKey(SECP_256K1_SOURCE_KEY);
-                    final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
-                    final var addressBytes = recoverAddressFromPubKey(tmp);
-                    final var token = spec.registry().getTokenID(FUNGIBLE_TOKEN);
-                    final var sender = spec.registry().getAccountID(SENDER);
-                    final var amountToBeSent = 50L;
-
-                    allRunFor(
-                            spec,
-                            newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))),
-                            cryptoUpdate(SENDER).key(DELEGATE_KEY),
-                            contractCall(
-                                            CONTRACT,
-                                            "transferMultipleTokens",
-                                            tokenTransferLists()
-                                                    .withTokenTransferList(tokenTransferList()
-                                                            .forToken(token)
-                                                            .withAccountAmounts(
-                                                                    accountAmount(sender, -amountToBeSent),
-                                                                    accountAmountAlias(addressBytes, amountToBeSent))
-                                                            .build())
-                                                    .build())
-                                    .payingWith(GENESIS)
-                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                    .via(NOT_SUPPORTED_TXN)
-                                    .gas(GAS_TO_OFFER),
-                            getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
-                            childRecordsCheck(
-                                    NOT_SUPPORTED_TXN,
-                                    CONTRACT_REVERT_EXECUTED,
-                                    recordWith().status(NOT_SUPPORTED)));
-                }));
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
@@ -917,7 +855,7 @@ public class LeakyContractTestsSuite {
                 overriding("contracts.evm.version", "v0.34"),
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
                 uploadInitCode(LAZY_CREATE_CONTRACT),
-                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC),
+                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(6_000_000L),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged().exposingAllTo(records -> {
                     final var lastChildResult = records.getLast().getContractCreateResult();
                     evmAddressOfChildContract.set(lastChildResult.getEvmAddress());
@@ -939,7 +877,8 @@ public class LeakyContractTestsSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(6_000_000),
                             emptyChildRecordsCheck(mirrorTxn, CONTRACT_REVERT_EXECUTED),
-                            getAccountInfo("0.0." + NONEXISTENT_CONTRACT_NUM).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
+                            getAccountInfo(asEntityString(NONEXISTENT_CONTRACT_NUM))
+                                    .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // given a reverting contract call, should also revert the hollow account creation
                             contractCall(LAZY_CREATE_CONTRACT, revertingCallLazyCreateFunction, address)
                                     .sending(depositAmount)
@@ -1015,7 +954,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
                 newKeyNamed(ECDSA_KEY2).shape(SECP_256K1_SHAPE),
                 uploadInitCode(LAZY_CREATE_CONTRACT),
-                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC),
+                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(2_000_000),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged(),
                 withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
@@ -1042,47 +981,6 @@ public class LeakyContractTestsSuite {
                 emptyChildRecordsCheck(TRANSFER_TXN, MAX_CHILD_RECORDS_EXCEEDED));
     }
 
-    @Order(20)
-    @LeakyHapiTest(overrides = {"hedera.allowances.isEnabled"})
-    final Stream<DynamicTest> erc20TransferFromDoesNotWorkIfFlagIsDisabled() {
-        return hapiTest(
-                overriding("hedera.allowances.isEnabled", "false"),
-                newKeyNamed(MULTI_KEY),
-                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
-                cryptoCreate(RECIPIENT),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .initialSupply(10L)
-                        .maxSupply(1000L)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY),
-                uploadInitCode(ERC_20_CONTRACT),
-                contractCreate(ERC_20_CONTRACT),
-                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
-                tokenAssociate(RECIPIENT, FUNGIBLE_TOKEN),
-                tokenAssociate(ERC_20_CONTRACT, FUNGIBLE_TOKEN),
-                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, OWNER)),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        ERC_20_CONTRACT,
-                                        TRANSFER_FROM,
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(OWNER))),
-                                        HapiParserUtil.asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(RECIPIENT))),
-                                        BigInteger.TWO)
-                                .gas(500_000L)
-                                .via(TRANSFER_FROM_ACCOUNT_TXN)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
-                getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN).logged());
-    }
-
     @Order(22)
     @LeakyHapiTest(overrides = {"contracts.permittedDelegateCallers"})
     final Stream<DynamicTest> whitelistPositiveCase() {
@@ -1107,7 +1005,7 @@ public class LeakyContractTestsSuite {
                         .adminKey(DEFAULT_PAYER)
                         .exposingNumTo(num -> {
                             whitelistedCalleeMirrorNum.set(num);
-                            whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num));
+                            whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(SHARD, REALM, num));
                         }),
                 tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
                 tokenAssociate(DELEGATE_PRECOMPILE_CALLEE, FUNGIBLE_TOKEN),
@@ -1153,14 +1051,14 @@ public class LeakyContractTestsSuite {
                 uploadInitCode(DELEGATE_ERC_CALLEE),
                 contractCreate(DELEGATE_ERC_CALLEE).adminKey(DEFAULT_PAYER).exposingNumTo(num -> {
                     whitelistedCalleeMirrorNum.set(num);
-                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num));
+                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(SHARD, REALM, num));
                 }),
                 uploadInitCode(DELEGATE_PRECOMPILE_CALLEE),
                 contractCreate(DELEGATE_PRECOMPILE_CALLEE)
                         .adminKey(DEFAULT_PAYER)
                         .exposingNumTo(num -> {
                             unlistedCalleeMirrorNum.set(num);
-                            unListedCalleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num));
+                            unListedCalleeMirrorAddr.set(asHexedSolidityAddress(SHARD, REALM, num));
                         }),
                 tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
                 tokenAssociate(DELEGATE_ERC_CALLEE, FUNGIBLE_TOKEN),
@@ -1207,7 +1105,7 @@ public class LeakyContractTestsSuite {
                 overriding("contracts.nonces.externalization.enabled", "false"),
                 cryptoCreate(payer).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).logged().gas(500_000L).via("txn"),
+                contractCreate(contract).logged().gas(1_000_000L).via("txn"),
                 withOpContext((spec, opLog) -> {
                     HapiGetTxnRecord op = getTxnRecord("txn")
                             .logged()
@@ -1231,7 +1129,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(MULTI_KEY_NAME),
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000L),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1339,7 +1237,7 @@ public class LeakyContractTestsSuite {
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 cryptoCreate(B_CIVILIAN).exposingCreatedIdTo(id -> bCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1415,7 +1313,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(MULTI_KEY_NAME),
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.impl;
 
-import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
+import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Implementing this interface allows for a class to implement the {@link MerkleInternal} interface using inheritance

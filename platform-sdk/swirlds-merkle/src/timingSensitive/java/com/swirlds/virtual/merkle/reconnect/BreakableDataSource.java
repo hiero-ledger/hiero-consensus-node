@@ -2,8 +2,6 @@
 package com.swirlds.virtual.merkle.reconnect;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -16,6 +14,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public final class BreakableDataSource implements VirtualDataSource {
 
@@ -39,14 +39,15 @@ public final class BreakableDataSource implements VirtualDataSource {
         final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.toList();
 
         if (builder.numTimesBroken < builder.numTimesToBreak) {
-            // Synchronization block is not required here, as this code is never called in parallel
-            // (though from different threads). `volatile` modifier is sufficient to ensure visibility.
-            builder.numCalls += leaves.size();
-            if (builder.numCalls > builder.numCallsBeforeThrow) {
-                builder.numCalls = 0;
-                builder.numTimesBroken++;
-                delegate.close();
-                throw new IOException("Something bad on the DB!");
+            if (builder.numCalls <= builder.numCallsBeforeThrow) {
+                // Synchronization block is not required here, as this code is never called in parallel
+                // (though from different threads). `volatile` modifier is sufficient to ensure visibility.
+                builder.numCalls += leaves.size();
+                if (builder.numCalls > builder.numCallsBeforeThrow) {
+                    builder.numTimesBroken++;
+                    delegate.close();
+                    throw new IOException("Something bad on the DB!");
+                }
             }
         }
 

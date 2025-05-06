@@ -25,7 +25,6 @@ import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.TokenBalance;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.Transaction;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.AbstractMap;
@@ -43,6 +42,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -91,7 +91,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             repr = "KeyAlias(" + aliasKeySource + ")";
         } else if (type == ReferenceType.HEXED_CONTRACT_ALIAS) {
             literalHexedAlias = reference;
-            repr = "0.0." + reference;
+            repr = reference;
         } else {
             account = reference;
             repr = account;
@@ -241,7 +241,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                             String.format("Wrong balance for token '%s'!", HapiPropertySource.asTokenString(tokenId)));
                 } catch (AssertionError e) {
                     if (includeTokenMemoOnError) {
-                        final var lookup = QueryVerbs.getTokenInfo("0.0." + tokenId.getTokenNum());
+                        final var lookup = QueryVerbs.getTokenInfo(
+                                tokenId.getShardNum() + "." + tokenId.getRealmNum() + "." + tokenId.getTokenNum());
                         allRunFor(spec, lookup);
                         final var memo = lookup.getResponse()
                                 .getTokenGetInfo()
@@ -316,6 +317,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             config = b -> b.setContractID(TxnUtils.asContractId(account, spec));
         } else if (referenceType == ReferenceType.HEXED_CONTRACT_ALIAS) {
             final var cid = ContractID.newBuilder()
+                    .setShardNum(spec.shard())
+                    .setRealmNum(spec.realm())
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(literalHexedAlias)))
                     .build();
             config = b -> b.setContractID(cid);
@@ -324,7 +327,11 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             if (referenceType == ReferenceType.REGISTRY_NAME) {
                 id = TxnUtils.asId(account, spec);
             } else if (referenceType == ReferenceType.LITERAL_ACCOUNT_ALIAS) {
-                id = AccountID.newBuilder().setAlias(rawAlias).build();
+                id = AccountID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setAlias(rawAlias)
+                        .build();
             } else {
                 id = spec.registry().keyAliasIdFor(aliasKeySource);
             }

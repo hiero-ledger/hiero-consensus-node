@@ -14,13 +14,10 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeTheirTipsIH
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.threading.framework.Stoppable;
+import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
@@ -43,7 +40,12 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The goal of the ShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both sides have
@@ -450,5 +452,48 @@ public class ShadowgraphSynchronizer {
         Objects.requireNonNull(connection);
 
         return executor.doParallel(readTask, writeTask, connection::disconnect);
+    }
+
+    /**
+     * Clear the internal state of the gossip engine.
+     */
+    public void clear() {
+        this.shadowGraph.clear();
+    }
+
+    /**
+     * Events sent here should be gossiped to the network
+     * @param platformEvent event to be sent outside
+     */
+    public void addEvent(@NonNull final PlatformEvent platformEvent) {
+        this.shadowGraph.addEvent(platformEvent);
+    }
+
+    /**
+     * Updates the current event window (mostly ancient thresholds)
+     * @param eventWindow new event window to apply
+     */
+    public void updateEventWindow(@NonNull final EventWindow eventWindow) {
+        this.shadowGraph.updateEventWindow(eventWindow);
+    }
+
+    /**
+     * Starts helper threads needed for synchronizing shadowgraph
+     */
+    public void start() {
+        executor.start();
+    }
+
+    /**
+     * Stops helper threads needed for synchronizing shadowgraph
+     */
+    public void stop() {
+        // this part is pretty horrible - there is no real production reason for executor to be passed and managed
+        // from outside of this class; unfortunately, a lot of testing code around SyncNode misuses the executor
+        // to inject network behaviour in various places; refactoring that is a huge task, so for now, we need to live
+        // with test-specific limitations in production code
+        if (executor instanceof Stoppable stoppable) {
+            stoppable.stop(StopBehavior.INTERRUPTABLE);
+        }
     }
 }

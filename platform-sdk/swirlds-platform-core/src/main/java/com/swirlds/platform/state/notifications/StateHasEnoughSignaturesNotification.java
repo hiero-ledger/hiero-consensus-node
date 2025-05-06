@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.notifications;
 
-import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.state.notifications.NewSignedStateNotification;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
- * A {@link com.swirlds.common.notification.Notification Notification} that a signed state has collected all necessary
+ * A {@link Notification Notification} that a signed state has collected all necessary
  * signatures. Unlike
  * {@link NewSignedStateNotification NewSignedStateNotification}, this is
  * called on every single state that becomes signed, even if signing happens out of order. NOT called when a state is

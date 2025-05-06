@@ -5,8 +5,8 @@ import static com.swirlds.common.test.fixtures.io.FileManipulation.corruptFile;
 import static com.swirlds.common.test.fixtures.io.FileManipulation.truncateFile;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
+import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
+import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -15,9 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.RandomUtils;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,6 +29,9 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -96,7 +96,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(0, 10);
@@ -149,7 +149,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         final long middle = upperBound / 2;
@@ -177,7 +177,7 @@ class PcesReadWriteTests {
         iterator.forEachRemaining(deserializedEvents::add);
 
         // We don't want any events with an ancient indicator less than the middle
-        events.removeIf(event -> event.getAncientIndicator(ancientMode) < middle);
+        events.removeIf(event -> ancientMode.selectIndicator(event) < middle);
 
         assertEquals(events.size(), deserializedEvents.size());
         for (int i = 0; i < events.size(); i++) {
@@ -231,7 +231,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(0, 10);
@@ -300,7 +300,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(0, 10);
@@ -365,8 +365,8 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, event.getAncientIndicator(ancientMode));
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         // Intentionally choose minimum and maximum boundaries that do not permit all generated events
@@ -385,8 +385,8 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> validEvents = new ArrayList<>();
         for (final PlatformEvent event : events) {
-            if (event.getAncientIndicator(ancientMode) >= restrictedLowerBound
-                    && event.getAncientIndicator(ancientMode) <= restrictedUpperBound) {
+            if (ancientMode.selectIndicator(event) >= restrictedLowerBound
+                    && ancientMode.selectIndicator(event) <= restrictedUpperBound) {
                 mutableFile.writeEvent(event);
                 validEvents.add(event);
             } else {
@@ -428,8 +428,8 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, event.getAncientIndicator(ancientMode));
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(1, 10);
@@ -494,8 +494,8 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, event.getAncientIndicator(ancientMode));
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         final long maximumFileBoundary = upperBound + random.nextInt(10, 20);

@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.*;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -62,7 +64,8 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -90,15 +93,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@OrderedInIsolation
 @Tag(SMART_CONTRACT)
 public class AirdropToContractSystemContractTest {
 
-    @Contract(contract = "Airdrop", maxAutoAssociations = -1)
+    @Contract(contract = "Airdrop", maxAutoAssociations = -1, creationGas = 3_000_000)
     static SpecContract airdropContract;
 
     @Account(tinybarBalance = 100_000_000_000_000_000L)
@@ -113,11 +114,11 @@ public class AirdropToContractSystemContractTest {
     @DisplayName("With the Receiver already associated")
     class AirdropToAssociatedReceiverContract {
 
-        @Order(0)
         @HapiTest
         @DisplayName("Can airdrop fungible token to a contract that is already associated to it")
         public Stream<DynamicTest> airdropToContract(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1000L) SpecFungibleToken token) {
             return hapiTest(
                     receiverContract.call("associateTokenToThisContract", token).gas(1_000_000L),
@@ -129,11 +130,12 @@ public class AirdropToContractSystemContractTest {
                     receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
         }
 
-        @Order(1)
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to contract that is already associated with them")
         public Stream<DynamicTest> airdropTokensToContract(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token3,
@@ -181,11 +183,15 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @Order(2)
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to a contract that is already associated to some of them")
         public Stream<DynamicTest> canAirdropTokensToContractWithSomeAssociations(
-                @Contract(contract = "AssociateContract", isImmutable = true, maxAutoAssociations = 2)
+                @Contract(
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = 2,
+                                creationGas = 3_000_000)
                         SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -226,12 +232,16 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @Order(3)
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Can airdrop two tokens to contract with no remaining auto assoc slot and already associated to one of the tokens")
         public Stream<DynamicTest> canAirdropTwoTokensToContractWithNoAutoAssocSlots(
-                @Contract(contract = "AssociateContract", isImmutable = true, maxAutoAssociations = 0)
+                @Contract(
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = 0,
+                                creationGas = 3_000_000)
                         SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2) {
@@ -271,12 +281,13 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @Order(4)
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdropped token with custom fees to be paid by the contract receiver should be paid by the sender")
         public Stream<DynamicTest> airdropWithCustomFees(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @NonNull
                         @FungibleToken(
                                 initialSupply = 1_000_000L,
@@ -307,12 +318,12 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @Order(5)
         @HapiTest
         @DisplayName(
                 "Airdropped token with custom fees (net of transfers = true) to be paid by the contract receiver should be paid by the sender")
         public Stream<DynamicTest> airdropWithCustomFeesNetOfTransfersTrue(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @NonNull
                         @FungibleToken(
                                 initialSupply = 1_000_000L,
@@ -345,12 +356,13 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @Order(6)
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdropped token with custom fees to be paid by the contract receiver that is a fee collector for another fee would not be paid")
         public Stream<DynamicTest> airdropWithCustomFeeWhereReceiverIsCollectorForAnotherFee(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @NonNull
                         @FungibleToken(
                                 initialSupply = 1_000_000L,
@@ -383,8 +395,8 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
-        @Order(7)
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdropped token with custom fees to be paid by the contract receiver when the collector is contract should not be paid")
         public Stream<DynamicTest> airdropWithCustomFeesToContractCollector() {
@@ -399,7 +411,8 @@ public class AirdropToContractSystemContractTest {
                         contractCreate(receiverContract)
                                 .bytecode("AssociateContract")
                                 .gas(5_000_000L)
-                                .exposingNumTo(num -> receiverContractAddress.set(asHexedSolidityAddress(0, 0, num))),
+                                .exposingNumTo(
+                                        num -> receiverContractAddress.set(asHexedSolidityAddress(shard, realm, num))),
                         newKeyNamed("adminKey"),
                         newKeyNamed("feeScheduleKey"),
                         tokenCreate(token)
@@ -439,6 +452,7 @@ public class AirdropToContractSystemContractTest {
     class AirdropToContract {
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop token to a contract that is not associated to it with free auto association slots")
         public Stream<DynamicTest> airdropToContractWithFreeAutoAssocSlots(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 10)
@@ -471,6 +485,7 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop token to a contract deployed with CREATE2 on hollow account address")
         public Stream<DynamicTest> canAirdropToContractDeployedWithCreate2(
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token,
@@ -602,6 +617,7 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Airdrop to Contract that has filled all its maxAutoAssociation slots")
         public Stream<DynamicTest> airdropToContractWithFilledMaxAutoAssoc(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 1)
@@ -651,9 +667,14 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to contract that has free auto association slots")
         public Stream<DynamicTest> airdropTokensToContractWithFreeSlots(
-                @Contract(contract = "AssociateContract", isImmutable = true, maxAutoAssociations = -1)
+                @Contract(
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = -1,
+                                creationGas = 3_000_000L)
                         SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -700,9 +721,14 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to contract that has no free auto association slots")
         public Stream<DynamicTest> airdropTokensToContractWithoutFreeSlots(
-                @Contract(contract = "AssociateContract", isImmutable = true, maxAutoAssociations = 0)
+                @Contract(
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = 0,
+                                creationGas = 3_000_000L)
                         SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -758,6 +784,7 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Multiple airdrops with single/multiple senders and single/multiple contract receivers")
         public Stream<DynamicTest> multipleAirdrops(
                 @NonNull @Account final SpecAccount sender1,
@@ -833,6 +860,7 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Multiple airdrops with single sender and single/multiple contract receivers")
         public Stream<DynamicTest> multipleAirdropsSingleSender(
                 @NonNull
@@ -880,6 +908,7 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Airdrop token to a contract that is not associated to it with free auto association slots")
         public Stream<DynamicTest> airdropTokenToNotAssociatedContract(
                 @NonNull
@@ -1017,10 +1046,12 @@ public class AirdropToContractSystemContractTest {
     class AirdropToContractNegativeCases {
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdrop frozen token that is already associated to the receiving contract should result in failed airdrop")
         public Stream<DynamicTest> airdropFrozenToken(
-                @Contract(contract = "AssociateContract", isImmutable = true) SpecContract receiverContract,
+                @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @FungibleToken(
                                 initialSupply = 1_000_000L,
                                 keys = {ADMIN_KEY, FREEZE_KEY})
@@ -1047,6 +1078,7 @@ public class AirdropToContractSystemContractTest {
         }
 
         @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdrop token to a contract that results in a pending state then transfer same token to the same contract should fail")
         public Stream<DynamicTest> airdropToContractWithPendingAirdrop(

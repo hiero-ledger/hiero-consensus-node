@@ -2,19 +2,11 @@
 package com.swirlds.platform.event.orphan;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.sequence.map.SequenceMap;
-import com.swirlds.platform.sequence.map.StandardSequenceMap;
-import com.swirlds.platform.sequence.set.SequenceSet;
-import com.swirlds.platform.sequence.set.StandardSequenceSet;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -22,10 +14,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.sequence.map.SequenceMap;
+import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
 /**
- * Takes as input an unordered stream of {@link PlatformEvent}s and emits a stream
- * of {@link PlatformEvent}s in topological order.
+ * Takes as input an unordered stream of {@link PlatformEvent}s and emits a stream of {@link PlatformEvent}s in
+ * topological order.
  */
 public class DefaultOrphanBuffer implements OrphanBuffer {
     /**
@@ -55,10 +54,10 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     private final IntakeEventCounter intakeEventCounter;
 
     /**
-     * A set containing descriptors of all non-ancient events that have found their parents (or whose parents have
+     * A map of descriptors to events for all non-ancient events that have found their parents (or whose parents have
      * become ancient).
      */
-    private final SequenceSet<EventDescriptorWrapper> eventsWithParents;
+    private final SequenceMap<EventDescriptorWrapper, PlatformEvent> eventsWithParents;
 
     /**
      * A map where the key is the descriptor of a missing parent, and the value is a list of orphans that are missing
@@ -90,17 +89,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            missingParentMap = new StandardSequenceMap<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().birthRound());
-            eventsWithParents = new StandardSequenceSet<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().birthRound());
-        } else {
-            missingParentMap = new StandardSequenceMap<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().generation());
-            eventsWithParents = new StandardSequenceSet<>(
-                    0, INITIAL_CAPACITY, true, ed -> ed.eventDescriptor().generation());
-        }
+        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
+        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
     }
 
     /**
@@ -191,7 +181,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
         final List<EventDescriptorWrapper> missingParents = new ArrayList<>();
 
         for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            if (!eventsWithParents.contains(parent) && !eventWindow.isAncient(parent)) {
+            if (!eventsWithParents.containsKey(parent) && !eventWindow.isAncient(parent)) {
                 missingParents.add(parent);
             }
         }
@@ -230,7 +220,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
             }
 
             unorphanedEvents.add(nonOrphan);
-            eventsWithParents.add(nonOrphanDescriptor);
+            eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
+            assignNGen(nonOrphan, eventsWithParents);
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might
             // not be orphans anymore

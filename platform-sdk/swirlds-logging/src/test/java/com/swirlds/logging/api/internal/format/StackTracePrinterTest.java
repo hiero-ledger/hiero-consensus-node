@@ -37,7 +37,7 @@ class StackTracePrinterTest {
         // Then
         final StringWriter stringWriter = new StringWriter();
         deepThrowable.printStackTrace(new PrintWriter(stringWriter));
-        assertEquals(stringWriter.toString(), writer.toString());
+        assertEquals(stringWriter.toString(), removeJavaBaseVersion(writer.toString()));
     }
 
     @Test
@@ -57,7 +57,7 @@ class StackTracePrinterTest {
         // Then
         final StringWriter stringWriter = new StringWriter();
         deepThrowable3.printStackTrace(new PrintWriter(stringWriter));
-        assertEquals(stringWriter.toString(), writer.toString());
+        assertEquals(stringWriter.toString(), removeJavaBaseVersion(writer.toString()));
     }
 
     @Test
@@ -84,5 +84,11 @@ class StackTracePrinterTest {
             count++;
         }
         return count;
+    }
+
+    private String removeJavaBaseVersion(String trace) {
+        // Java's printStackTrace() skips the versions of JDK core modules (like java.base).
+        // We don't to avoid special handling of them in StackTracePrinter.
+        return trace.replaceAll("java.base@[0-9.]+/", "java.base/");
     }
 }

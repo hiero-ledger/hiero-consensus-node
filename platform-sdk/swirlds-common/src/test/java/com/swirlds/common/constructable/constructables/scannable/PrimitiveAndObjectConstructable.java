@@ -3,9 +3,9 @@ package com.swirlds.common.constructable.constructables.scannable;
 
 import static com.swirlds.common.constructable.constructables.scannable.PrimitiveAndObjectConstructable.CLASS_ID;
 
-import com.swirlds.common.constructable.ConstructableClass;
-import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.constructable.constructors.PrimitiveAndObjectConstructor;
+import org.hiero.base.constructable.ConstructableClass;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 @ConstructableClass(value = CLASS_ID, constructorType = PrimitiveAndObjectConstructor.class)
 public class PrimitiveAndObjectConstructable implements RuntimeConstructable {

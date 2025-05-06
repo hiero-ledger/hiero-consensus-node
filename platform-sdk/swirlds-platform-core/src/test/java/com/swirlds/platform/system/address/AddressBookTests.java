@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
 import static com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -11,11 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBuilder;
@@ -33,6 +29,13 @@ import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -396,10 +399,10 @@ class AddressBookTests {
         final NodeId secondNode = addressBook.getNodeId(1);
         addressBook.add(addressBook.getAddress(secondNode).copySetMemo("has a memo"));
 
-        final String addressBookText = addressBook.toConfigText();
+        final String addressBookText = addressBookConfigText(addressBook);
         final AddressBook parsedAddressBook = parseAddressBookText(addressBookText);
         // Equality done on toConfigText() strings since the randomly generated address book has public key data.
-        assertEquals(addressBookText, parsedAddressBook.toConfigText(), "The AddressBooks are not equal.");
+        assertEquals(addressBookText, addressBookConfigText(parsedAddressBook), "The AddressBooks are not equal.");
         assertTrue(parsedAddressBook.getAddress(firstNode).getMemo().isEmpty(), "memo is empty");
         assertEquals(parsedAddressBook.getAddress(secondNode).getMemo(), "has a memo", "memo matches");
 

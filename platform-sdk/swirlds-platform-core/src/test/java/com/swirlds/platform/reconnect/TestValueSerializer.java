@@ -3,9 +3,9 @@ package com.swirlds.platform.reconnect;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.utility.CommonUtils;
 
 public class TestValueSerializer implements ValueSerializer<TestValue> {
 

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
-import com.swirlds.common.Releasable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.base.Releasable;
+import org.hiero.base.constructable.RuntimeConstructable;
 
 /**
- * Keeps track of a {@link com.swirlds.common.constructable.RuntimeConstructable} object. When the object is released,
+ * Keeps track of a {@link RuntimeConstructable} object. When the object is released,
  * this record will also be released.
  */
 public class RuntimeObjectRecord implements Releasable {

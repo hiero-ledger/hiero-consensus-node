@@ -5,20 +5,20 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.test.fixtures.sync.ConnectionFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class HashHandshakeTests {
     @Test
     @DisplayName("They have the same hash as us")
     void sameHash() throws IOException {
-        final Hash commonHash = RandomUtils.randomHash();
+        final Hash commonHash = CryptoRandomUtils.randomHash();
 
         final ProtocolRunnable protocolToleratingMismatch = new HashCompareHandshake(commonHash, false);
         final ProtocolRunnable protocolThrowingOnMismatch = new HashCompareHandshake(commonHash, true);
@@ -69,8 +69,8 @@ class HashHandshakeTests {
     @Test
     @DisplayName("They have a different hash than us")
     void differentHash() throws IOException {
-        final Hash ourHash = RandomUtils.randomHash();
-        final Hash theirHash = RandomUtils.randomHash();
+        final Hash ourHash = CryptoRandomUtils.randomHash();
+        final Hash theirHash = CryptoRandomUtils.randomHash();
 
         final ProtocolRunnable protocolToleratingMismatch = new HashCompareHandshake(ourHash, false);
         final ProtocolRunnable protocolThrowingOnMismatch = new HashCompareHandshake(ourHash, true);
@@ -85,7 +85,7 @@ class HashHandshakeTests {
     @Test
     @DisplayName("Their hash is null, and ours isn't")
     void theirHashIsNull() throws IOException {
-        final Hash ourHash = RandomUtils.randomHash();
+        final Hash ourHash = CryptoRandomUtils.randomHash();
 
         final ProtocolRunnable protocolToleratingMismatch = new HashCompareHandshake(ourHash, false);
         final ProtocolRunnable protocolThrowingOnMismatch = new HashCompareHandshake(ourHash, true);
@@ -100,7 +100,7 @@ class HashHandshakeTests {
     @Test
     @DisplayName("Our hash is null, and theirs isn't")
     void ourHashIsNull() throws IOException {
-        final Hash theirHash = RandomUtils.randomHash();
+        final Hash theirHash = CryptoRandomUtils.randomHash();
 
         final ProtocolRunnable protocolToleratingMismatch = new HashCompareHandshake(null, false);
         final ProtocolRunnable protocolThrowingOnMismatch = new HashCompareHandshake(null, true);

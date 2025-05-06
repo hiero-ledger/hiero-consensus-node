@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.util;
 
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -30,17 +31,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
-    static final Logger log = LogManager.getLogger(HapiAtomicBatch.class);
 
     private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
     private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
     private final Map<TransactionID, HapiTxnOp<?>> operationsMap = new HashMap<>();
-    private final List<Transaction> transactionsToBatch = new ArrayList<>();
-    private final List<String> txnIdsForOrderValidation = new ArrayList();
+    private final List<String> txnIdsForOrderValidation = new ArrayList<>();
 
     public HapiAtomicBatch() {}
 
@@ -76,12 +73,11 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         final AtomicBatchTransactionBody opBody = spec.txns()
                 .<AtomicBatchTransactionBody, AtomicBatchTransactionBody.Builder>body(
                         AtomicBatchTransactionBody.class, b -> {
-                            b.addAllTransactions(transactionsToBatch);
                             for (HapiTxnOp<?> op : operationsToBatch) {
                                 try {
                                     // set node account id to 0.0.0 if not set
                                     if (op.getNode().isEmpty()) {
-                                        op.setNode(DEFAULT_NODE_ACCOUNT_ID);
+                                        op.setNodeId(asId(DEFAULT_NODE_ACCOUNT_ID, spec));
                                     }
                                     // create a transaction for each operation
                                     final var transaction = op.signedTxnFor(spec);
@@ -89,7 +85,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                                     final var txnId = extractTxnId(transaction);
                                     operationsMap.put(txnId, op);
                                     // add the transaction to the batch
-                                    b.addTransactions(transaction);
+                                    b.addTransactions(transaction.getSignedTransactionBytes());
                                 } catch (Throwable e) {
                                     throw new RuntimeException(e);
                                 }
@@ -129,21 +125,12 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         return super.toStringHelper().add("range", operationsToBatch);
     }
 
-    public HapiAtomicBatch addTransaction(Transaction txn) {
-        transactionsToBatch.add(txn);
-        return this;
-    }
-
     public HapiAtomicBatch validateTxnOrder(String... txnIds) {
         txnIdsForOrderValidation.addAll(Arrays.asList(txnIds));
         return this;
     }
 
-    private boolean validateExecutionOrder(HapiSpec spec, List<String> transactionIds) throws Throwable {
-        if (transactionIds.size() < 2) {
-            return true;
-        }
-
+    private void validateExecutionOrder(HapiSpec spec, List<String> transactionIds) throws Throwable {
         for (int i = 0; i < transactionIds.size() - 1; i++) {
             final var txnId1 = spec.registry().getTxnId(transactionIds.get(i));
             final var txnId2 = spec.registry().getTxnId(transactionIds.get(i + 1));
@@ -178,6 +165,5 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                 throw new IllegalArgumentException("Invalid execution order");
             }
         }
-        return true;
     }
 }

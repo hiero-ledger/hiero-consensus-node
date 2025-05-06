@@ -34,13 +34,15 @@ import com.hederahashgraph.api.proto.java.SemanticVersion;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TopicID;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+import org.hiero.base.utility.CommonUtils;
 
 public interface HapiPropertySource {
 
@@ -93,17 +95,28 @@ public interface HapiPropertySource {
 
     default FileID getFile(String property) {
         try {
-            return asFile(get("default.shard"), get("default.realm"), get(property));
+            return asFile(getShard(), getRealm(), Long.parseLong(get(property)));
         } catch (Exception ignore) {
         }
         return FileID.getDefaultInstance();
     }
 
     default AccountID getAccount(String property) {
+        final var value = get(property);
+
+        if (value.matches("\\d+\\.\\d+\\.\\d+")) {
+            try {
+                var parts = value.split("\\.");
+                return asAccount(parts[0], parts[1], parts[2]);
+            } catch (Exception ignore) {
+            }
+        }
+
         try {
-            return asAccount(get("default.shard"), get("default.realm"), get(property));
+            return asAccount(getShard(), getRealm(), Long.parseLong(value));
         } catch (Exception ignore) {
         }
+
         return AccountID.getDefaultInstance();
     }
 
@@ -134,12 +147,26 @@ public interface HapiPropertySource {
         return ContractID.getDefaultInstance();
     }
 
+    @Deprecated
     default RealmID getRealm(String property) {
         return RealmID.newBuilder().setRealmNum(Long.parseLong(get(property))).build();
     }
 
+    default long getRealm() {
+        return Optional.ofNullable(get("hapi.spec.default.realm"))
+                .map(Long::parseLong)
+                .orElse(realm);
+    }
+
+    @Deprecated
     default ShardID getShard(String property) {
         return ShardID.newBuilder().setShardNum(Long.parseLong(get(property))).build();
+    }
+
+    default long getShard() {
+        return Optional.ofNullable(get("hapi.spec.default.shard"))
+                .map(Long::parseLong)
+                .orElse((long) shard);
     }
 
     default TimeUnit getTimeUnit(String property) {
@@ -210,6 +237,7 @@ public interface HapiPropertySource {
 
     static HapiPropertySource[] asSources(Object... sources) {
         return Stream.of(sources)
+                .filter(Objects::nonNull)
                 .map(s -> (s instanceof HapiPropertySource)
                         ? s
                         : ((s instanceof Map) ? new MapPropertySource((Map) s) : new JutilPropertySource((String) s)))
@@ -239,10 +267,14 @@ public interface HapiPropertySource {
     }
 
     static AccountID asAccount(String shard, String realm, String num) {
+        return asAccount(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
+    }
+
+    static AccountID asAccount(long shard, long realm, long num) {
         return AccountID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setAccountNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setAccountNum(num)
                 .build();
     }
 
@@ -255,10 +287,14 @@ public interface HapiPropertySource {
     }
 
     static FileID asFile(String shard, String realm, String num) {
+        return asFile(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
+    }
+
+    static FileID asFile(long shard, long realm, long num) {
         return FileID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setFileNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setFileNum(num)
                 .build();
     }
 
@@ -443,6 +479,14 @@ public interface HapiPropertySource {
         return Stream.of(parts).mapToLong(Long::valueOf).toArray();
     }
 
+    static ShardID asShard(long v) {
+        return ShardID.newBuilder().setShardNum(v).build();
+    }
+
+    static RealmID asRealm(long v) {
+        return RealmID.newBuilder().setRealmNum(v).build();
+    }
+
     static byte[] asSolidityAddress(final AccountID accountId) {
         return asSolidityAddress((int) accountId.getShardNum(), accountId.getRealmNum(), accountId.getAccountNum());
     }
@@ -518,7 +562,74 @@ public interface HapiPropertySource {
                 .build());
     }
 
-    static String asEntityString(final long num) {
+    static String asEntityString(final long shard, final long realm, final long num) {
         return String.format(ENTITY_STRING, shard, realm, num);
+    }
+
+    static String asEntityString(final long shard, final long realm, final String num) {
+        return String.format("%d.%d.%s", shard, realm, num);
+    }
+
+    static String asEntityString(final long num) {
+        return asEntityString(shard, realm, num);
+    }
+
+    static String asEntityString(final String shard, final String realm, final String num) {
+        return String.format("%s.%s.%s", shard, realm, num);
+    }
+
+    static String asEntityString(final AccountID id) {
+        return asEntityString(id.getShardNum(), id.getRealmNum(), id.getAccountNum());
+    }
+
+    static long numberOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(
+                explicit[12],
+                explicit[13],
+                explicit[14],
+                explicit[15],
+                explicit[16],
+                explicit[17],
+                explicit[18],
+                explicit[19]);
+    }
+
+    public static long realmOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(
+                explicit[4],
+                explicit[5],
+                explicit[6],
+                explicit[7],
+                explicit[8],
+                explicit[9],
+                explicit[10],
+                explicit[11]);
+    }
+
+    public static long shardOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
+    }
+
+    private static long longFrom(
+            final byte b1,
+            final byte b2,
+            final byte b3,
+            final byte b4,
+            final byte b5,
+            final byte b6,
+            final byte b7,
+            final byte b8) {
+        return (b1 & 0xFFL) << 56
+                | (b2 & 0xFFL) << 48
+                | (b3 & 0xFFL) << 40
+                | (b4 & 0xFFL) << 32
+                | (b5 & 0xFFL) << 24
+                | (b6 & 0xFFL) << 16
+                | (b7 & 0xFFL) << 8
+                | (b8 & 0xFFL);
+    }
+
+    private static long longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
+        return (b1 & 0xFFL) << 24 | (b2 & 0xFFL) << 16 | (b3 & 0xFFL) << 8 | (b4 & 0xFFL);
     }
 }

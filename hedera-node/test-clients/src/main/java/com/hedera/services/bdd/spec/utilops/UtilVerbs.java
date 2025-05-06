@@ -68,9 +68,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
-import static com.swirlds.platform.system.status.PlatformStatus.FREEZE_COMPLETE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -83,6 +83,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -142,7 +143,9 @@ import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
+import com.hedera.services.bdd.spec.utilops.streams.BlockStreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
+import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
@@ -180,9 +183,6 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
-import com.swirlds.common.utility.CommonUtils;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -227,11 +227,14 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Assertions;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
-    private static final Duration MAX_WAIT_PER_HISTORY_PROOF = Duration.ofMinutes(25);
+    private static final Duration HISTORY_PROOF_WAIT_TIMEOUT = Duration.ofMinutes(50);
 
     /**
      * Private constructor to prevent instantiation.
@@ -368,8 +371,16 @@ public class UtilVerbs {
         final int proofsToWaitFor = Optional.ofNullable(System.getProperty("hapi.spec.numHistoryProofsToObserve"))
                 .map(Integer::parseInt)
                 .orElse(0);
-        return new StreamValidationOp(
-                proofsToWaitFor, Duration.ofSeconds(MAX_WAIT_PER_HISTORY_PROOF.toSeconds() * proofsToWaitFor));
+        return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
+    }
+
+    /**
+     * Returns an operation that validates the streams of the target network with dynamic validators
+     *
+     * @return the operation that validates the streams
+     */
+    public static BlockStreamValidationOp validateBlockStream() {
+        return new BlockStreamValidationOp();
     }
 
     /**
@@ -585,7 +596,7 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that initiates background traffic running until the target network's
-     * first node has reached {@link com.swirlds.platform.system.status.PlatformStatus#FREEZE_COMPLETE}.
+     * first node has reached {@link PlatformStatus#FREEZE_COMPLETE}.
      * @return the operation
      */
     public static SpecOperation runBackgroundTrafficUntilFreezeComplete() {
@@ -1197,12 +1208,19 @@ public class UtilVerbs {
     /* Stream validation. */
     public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion)
+                .withBackgroundTraffic();
+    }
+
+    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
         return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion);
     }
 
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion);
+        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion)
+                .withBackgroundTraffic();
     }
 
     /**
@@ -1214,9 +1232,37 @@ public class UtilVerbs {
      */
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return recordStreamMustIncludePassFrom(assertion, timeout, true);
+    }
+
+    /**
+     * Returns an operation that asserts that the record stream must include a pass from the given assertion
+     * before its timeout elapses, and that background traffic is running.
+     * @param assertion the assertion to apply to the record stream
+     * @param timeout the timeout for the assertion
+     * @return the operation that asserts a passing record stream
+     */
+    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return recordStreamMustIncludePassFrom(assertion, timeout, false);
+    }
+
+    /**
+     * Returns an operation that asserts that the record stream must include a pass from the given assertion
+     * before its timeout elapses, and if the background traffic should be running.
+     * @param assertion the assertion to apply to the record stream
+     * @param timeout the timeout for the assertion
+     * @param needsBackgroundTraffic whether background traffic should be running
+     * @return the operation that asserts a passing record stream
+     */
+    private static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
+            @NonNull final Duration timeout,
+            final boolean needsBackgroundTraffic) {
         requireNonNull(assertion);
         requireNonNull(timeout);
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
+        final var result = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
+        return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
     }
 
     /**
@@ -2520,8 +2566,7 @@ public class UtilVerbs {
     public static byte[] getEcdsaPrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
-                .getEcdsaPrivateKey(com.swirlds.common.utility.CommonUtils.hex(
-                        key.getECDSASecp256K1().toByteArray()));
+                .getEcdsaPrivateKey(CommonUtils.hex(key.getECDSASecp256K1().toByteArray()));
 
         byte[] privateKeyByteArray;
         byte[] dByteArray = ((BCECPrivateKey) privateKey).getD().toByteArray();
@@ -2541,8 +2586,7 @@ public class UtilVerbs {
     public static PrivateKey getEd25519PrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
-                .getEd25519PrivateKey(com.swirlds.common.utility.CommonUtils.hex(
-                        key.getEd25519().toByteArray()));
+                .getEd25519PrivateKey(CommonUtils.hex(key.getEd25519().toByteArray()));
         return privateKey;
     }
 
@@ -2613,5 +2657,30 @@ public class UtilVerbs {
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
+    }
+
+    /**
+     * Asserts that a sequence of log messages appears in the specified node's log within a timeframe.
+     *
+     * @param selector the node selector
+     * @param startTimeSupplier supplier for the start time of the timeframe
+     * @param timeframe the duration of the timeframe window to search for messages
+     * @param waitTimeout the duration to wait for messages to appear
+     * @param patterns the sequence of patterns to look for
+     * @return a new LogContainmentTimeframeOp
+     */
+    public static LogContainmentTimeframeOp assertHgcaaLogContainsTimeframe(
+            @NonNull final NodeSelector selector,
+            @NonNull final Supplier<Instant> startTimeSupplier,
+            @NonNull final Duration timeframe,
+            @NonNull final Duration waitTimeout,
+            @NonNull final String... patterns) {
+        return new LogContainmentTimeframeOp(
+                selector,
+                ExternalPath.APPLICATION_LOG,
+                Arrays.asList(patterns),
+                startTimeSupplier,
+                timeframe,
+                waitTimeout);
     }
 }

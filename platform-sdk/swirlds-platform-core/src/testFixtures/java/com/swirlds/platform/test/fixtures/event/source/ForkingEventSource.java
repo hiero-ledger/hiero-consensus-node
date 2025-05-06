@@ -5,6 +5,7 @@ import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.internal.EventImpl;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -25,7 +26,7 @@ public class ForkingEventSource extends AbstractEventSource {
     /**
      * An collection of branches. Each branch contains a number of recent events on that branch.
      */
-    private ArrayList<LinkedList<EventImpl>> branches;
+    private List<LinkedList<EventImpl>> branches;
 
     /**
      * The index of the event that was last given out as the "latest" event.
@@ -33,20 +34,15 @@ public class ForkingEventSource extends AbstractEventSource {
     private int currentBranch;
 
     public ForkingEventSource() {
-        this(true, DEFAULT_TRANSACTION_GENERATOR, DEFAULT_WEIGHT);
+        this(true, DEFAULT_TRANSACTION_GENERATOR);
     }
 
     public ForkingEventSource(final boolean useFakeHashes) {
-        this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR, DEFAULT_WEIGHT);
+        this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR);
     }
 
-    public ForkingEventSource(final long weight) {
-        this(true, DEFAULT_TRANSACTION_GENERATOR, weight);
-    }
-
-    public ForkingEventSource(
-            final boolean useFakeHashes, final TransactionGenerator transactionGenerator, final long weight) {
-        super(useFakeHashes, transactionGenerator, weight);
+    public ForkingEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
+        super(useFakeHashes, transactionGenerator);
         maximumBranchCount = 3;
         forkProbability = 0.01;
         setMaximumBranchCount(maximumBranchCount);
@@ -113,7 +109,7 @@ public class ForkingEventSource extends AbstractEventSource {
 
     @Override
     public EventImpl getRecentEvent(final Random random, final int index) {
-        if (branches.size() == 0) {
+        if (branches.isEmpty()) {
             return null;
         }
 
@@ -172,6 +168,16 @@ public class ForkingEventSource extends AbstractEventSource {
 
         final LinkedList<EventImpl> branch = branches.get(currentBranch);
         branch.addFirst(event);
+
         pruneEventList(branch);
+    }
+
+    /**
+     * Get the list of all branches for this forking source.
+     *
+     * @return A list of all branches. Each branch is a list of events.
+     */
+    public List<LinkedList<EventImpl>> getBranches() {
+        return branches;
     }
 }

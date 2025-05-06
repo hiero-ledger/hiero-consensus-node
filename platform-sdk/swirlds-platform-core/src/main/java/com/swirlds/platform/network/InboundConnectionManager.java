@@ -4,13 +4,13 @@ package com.swirlds.platform.network;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.swirlds.common.threading.locks.AutoClosableResourceLock;
-import com.swirlds.common.threading.locks.Locks;
-import com.swirlds.common.threading.locks.locked.LockedResource;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import java.util.concurrent.locks.Condition;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
+import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
 
 /**
  * Manages a connection that is initiated by the peer. If a new connection is established by the peer, the previous one

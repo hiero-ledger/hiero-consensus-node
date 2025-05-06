@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
-import com.swirlds.common.crypto.config.CryptoConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.crypto.CryptoConstants;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.SocketConfig;
-import com.swirlds.platform.system.PlatformConstructionException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -33,6 +29,10 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
+import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.exceptions.PlatformConstructionException;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * used to create and receive TLS connections, based on the given trustStore

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.sync;
 
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.gossip.FallenBehindManager;
+import org.hiero.consensus.model.node.NodeId;
 
 public class TestingSyncManager implements FallenBehindManager {
     /** whether we have fallen behind or not */
     private boolean fallenBehind = false;
 
     @Override
-    public void reportFallenBehind(NodeId id) {
+    public void reportFallenBehind(@NonNull final NodeId id) {
         // for testing, we conclude we have fallen behind even if just 1 node says so
         fallenBehind = true;
     }
@@ -32,10 +32,10 @@ public class TestingSyncManager implements FallenBehindManager {
     }
 
     @Override
-    public boolean shouldReconnectFrom(final NodeId peerId) {
+    public boolean shouldReconnectFrom(@NonNull final NodeId peerId) {
         return false;
     }
 
     @Override
-    public void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed) {}
+    public void addRemovePeers(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {}
 }

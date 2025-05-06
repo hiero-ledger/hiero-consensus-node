@@ -74,7 +74,6 @@ import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -105,6 +104,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.base.utility.CommonUtils;
 
 public class TxnUtils {
     private static final Logger log = LogManager.getLogger(TxnUtils.class);
@@ -242,7 +242,13 @@ public class TxnUtils {
     }
 
     public static AccountID asId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asAccount(s) : lookupSpec.registry().getAccountID(s);
+        if (isIdLiteral(s)) {
+            return asAccount(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getAccountID(s);
     }
 
     public static AccountID asIdForKeyLookUp(final String s, final HapiSpec lookupSpec) {
@@ -285,7 +291,13 @@ public class TxnUtils {
     }
 
     public static FileID asFileId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asFile(s) : lookupSpec.registry().getFileId(s);
+        if (isIdLiteral(s)) {
+            return asFile(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asFile(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getFileId(s);
     }
 
     public static EntityNumber asNodeId(final String s, final HapiSpec lookupSpec) {
@@ -308,8 +320,8 @@ public class TxnUtils {
         final var effS = s.startsWith("0x") ? s.substring(2) : s;
         if (effS.length() == HapiContractCall.HEXED_EVM_ADDRESS_LEN) {
             return ContractID.newBuilder()
-                    .setShardNum(shard)
-                    .setRealmNum(realm)
+                    .setShardNum(lookupSpec.shard())
+                    .setRealmNum(lookupSpec.realm())
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effS)))
                     .build();
         }

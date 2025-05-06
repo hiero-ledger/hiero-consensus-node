@@ -6,18 +6,14 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,6 +25,10 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * <p>
@@ -63,8 +63,8 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
         }
     }
 
-    /** The software version of this application. */
-    private BasicSoftwareVersion softwareVersion;
+    /** The semantic version of this application. */
+    private SemanticVersion semanticVersion;
 
     /** The platform. */
     private Platform platform;
@@ -120,18 +120,16 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
     @Override
     @NonNull
     public ConsensusStateEventHandler<AddressBookTestingToolState> newConsensusStateEvenHandler() {
-        return new AddressBookTestingToolConsensusStateEventHandler(
-                new PlatformStateFacade((v) -> new BasicSoftwareVersion(v.major())));
+        return new AddressBookTestingToolConsensusStateEventHandler(new PlatformStateFacade());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public BasicSoftwareVersion getSoftwareVersion() {
-        if (softwareVersion != null) {
-            return softwareVersion;
+    public SemanticVersion getSemanticVersion() {
+        if (semanticVersion != null) {
+            return semanticVersion;
         }
 
         // Preload configuration so that we can change the software version on the fly
@@ -147,10 +145,10 @@ public class AddressBookTestingToolMain implements SwirldMain<AddressBookTesting
 
         final int version =
                 configuration.getConfigData(AddressBookTestingToolConfig.class).softwareVersion();
-        this.softwareVersion = new BasicSoftwareVersion(version);
+        this.semanticVersion = SemanticVersion.newBuilder().major(version).build();
 
-        logger.info(STARTUP.getMarker(), "returning software version {}", softwareVersion);
-        return softwareVersion;
+        logger.info(STARTUP.getMarker(), "returning semantic version {}", semanticVersion);
+        return semanticVersion;
     }
 
     @Override

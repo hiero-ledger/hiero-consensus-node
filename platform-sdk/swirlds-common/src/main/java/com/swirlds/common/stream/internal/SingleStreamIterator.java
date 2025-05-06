@@ -3,8 +3,6 @@ package com.swirlds.common.stream.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.logging.legacy.payload.StreamParseErrorPayload;
@@ -18,6 +16,8 @@ import java.util.NoSuchElementException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Parse an inputStream, return an Iterator from which we can get all SelfSerializable objects in the inputStream

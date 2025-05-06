@@ -18,7 +18,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_WIPE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_NAME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
@@ -26,10 +25,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
@@ -376,34 +375,14 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void uniqueNotSupportedIfNftsNotEnabled() {
-        setUpTxnContext();
-        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("tokens.nfts.areEnabled", "false")
-                .getOrCreateConfig();
-        txn = new TokenCreateBuilder().withUniqueToken().build();
-        given(handleContext.configuration()).willReturn(configOverride);
-        given(handleContext.body()).willReturn(txn);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
-    }
-
-    @Test
     // Suppressing the warning that we have too many assertions
     @SuppressWarnings("java:S5961")
     void uniqueSupportedIfNftsEnabled() {
         setUpTxnContext();
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("tokens.nfts.areEnabled", "true")
-                .getOrCreateConfig();
         txn = new TokenCreateBuilder()
                 .withUniqueToken()
                 .withCustomFees(List.of(withRoyaltyFee(royaltyFee)))
                 .build();
-        given(handleContext.configuration()).willReturn(configOverride);
         given(handleContext.body()).willReturn(txn);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))

@@ -39,11 +39,11 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -122,7 +122,7 @@ class IngestWorkflowImplTest extends AppTestBase {
                 SignatureMap.newBuilder().build(),
                 randomBytes(100), // Not used in this test, so random bytes is OK
                 HederaFunctionality.CONSENSUS_CREATE_TOPIC,
-                requestBuffer);
+                null);
         when(ingestChecker.runAllChecks(state, requestBuffer, configuration)).thenReturn(transactionInfo);
 
         // Create the workflow we are going to test with
@@ -218,7 +218,6 @@ class IngestWorkflowImplTest extends AppTestBase {
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
-
             // Then the response will indicate the platform rejected the transaction
             final TransactionResponse response = parseResponse(responseBuffer);
             assertThat(response.nodeTransactionPrecheckCode()).isEqualTo(FAIL_INVALID);

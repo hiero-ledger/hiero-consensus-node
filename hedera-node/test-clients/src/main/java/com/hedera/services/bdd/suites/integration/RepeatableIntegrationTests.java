@@ -56,15 +56,15 @@ public class RepeatableIntegrationTests {
         return hapiTest(
                 cryptoCreate("civilian").balance(100 * 100_000_000L),
                 usableTxnIdNamed("txnId").payerId("civilian"),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, "0.0.3", 100_000_000L)),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000L)),
                 uncheckedSubmit(cryptoCreate("nope")
                         .txnId("txnId")
                         .payingWith("civilian")
-                        .setNode("0.0.4")),
+                        .setNode("4")),
                 uncheckedSubmit(cryptoCreate("sure")
                         .txnId("txnId")
                         .payingWith("civilian")
-                        .setNode("0.0.3")),
+                        .setNode("3")),
                 getReceipt("txnId")
                         .andAnyDuplicates()
                         .hasPriorityStatus(SUCCESS)

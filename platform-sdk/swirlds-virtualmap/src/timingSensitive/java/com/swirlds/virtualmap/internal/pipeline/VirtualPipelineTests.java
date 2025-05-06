@@ -13,14 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -46,6 +43,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -175,9 +175,9 @@ class VirtualPipelineTests {
             }
         }
 
-        if (allAreDestroyed && copies.size() > 0) {
+        if (allAreDestroyed && !copies.isEmpty()) {
             final VirtualPipeline<VirtualKey, VirtualValue> pipeline =
-                    copies.get(0).getPipeline();
+                    copies.getFirst().getPipeline();
             assertTrue(pipeline.awaitTermination(2, TimeUnit.SECONDS), "thread should stop");
         }
     }

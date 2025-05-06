@@ -2,6 +2,9 @@
 package com.swirlds.platform.turtle.runner;
 
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import com.swirlds.platform.test.fixtures.turtle.runner.Turtle;
+import com.swirlds.platform.test.fixtures.turtle.runner.TurtleBuilder;
 import java.nio.file.Path;
 import java.time.Duration;
 import org.junit.jupiter.api.Disabled;
@@ -27,8 +30,8 @@ class TurtleTests {
      *         deadlocks a real possibility, and so it would be good to make the framework handle deadlocks.</li>
      * </ul>
      */
-    @Disabled
     @Test
+    @Disabled
     void turtleTest() {
         final Randotron randotron = Randotron.create();
 
@@ -37,9 +40,10 @@ class TurtleTests {
                 .withSimulationGranularity(Duration.ofMillis(10))
                 .withTimeReportingEnabled(true)
                 .withOutputDirectory(outputDirectory)
+                .withConsensusRoundValidator(new ConsensusRoundValidator())
                 .build();
 
         turtle.start();
-        turtle.simulateTime(Duration.ofMinutes(5));
+        turtle.simulateTimeAndValidate(Duration.ofMinutes(5L));
     }
 }

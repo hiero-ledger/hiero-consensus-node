@@ -14,7 +14,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
-import static com.swirlds.platform.roster.RosterUtils.buildAddressBook;
 import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
@@ -22,6 +21,7 @@ import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
@@ -41,20 +41,15 @@ import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.RuntimeConstructable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -70,20 +65,16 @@ import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StartupStateUtils;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -98,6 +89,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Main entry point.
@@ -137,8 +135,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull SoftwareVersion getSoftwareVersion() {
-        return hederaOrThrow().getSoftwareVersion();
+    public SemanticVersion getSemanticVersion() {
+        return hederaOrThrow().getSemanticVersion();
     }
 
     /**
@@ -276,9 +274,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade(ServicesSoftwareVersion::new);
+        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         hedera = newHedera(metrics, platformStateFacade);
-        final var version = hedera.getSoftwareVersion();
+        final var version = hedera.getSemanticVersion();
         final AtomicReference<Network> genesisNetwork = new AtomicReference<>();
         logger.info("Starting node {} with version {}", selfId, version);
 
@@ -300,14 +298,16 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final HashedReservedSignedState reservedState = loadInitialState(
                 platformConfig,
                 recycleBin,
-                version.getPbjSemanticVersion(),
+                version,
                 () -> {
                     Network network;
                     try {
                         network = hedera.startupNetworks().genesisNetworkOrThrow(platformConfig);
                     } catch (Exception ignore) {
                         // Fallback to the legacy address book if genesis-network.json or equivalent not loaded
-                        network = DiskStartupNetworks.fromLegacyAddressBook(maybeDiskAddressBook.orElseThrow());
+                        network = DiskStartupNetworks.fromLegacyAddressBook(
+                                maybeDiskAddressBook.orElseThrow(),
+                                hedera.bootstrapConfigProvider().getConfiguration());
                     }
                     genesisNetwork.set(network);
                     final var genesisState = hedera.newStateRoot();
@@ -434,8 +434,12 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 new OrderedServiceMigrator(),
                 InstantSource.system(),
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) ->
-                        new HintsServiceImpl(metrics, ForkJoinPool.commonPool(), appContext, new HintsLibraryImpl()),
+                (appContext, bootstrapConfig) -> new HintsServiceImpl(
+                        metrics,
+                        ForkJoinPool.commonPool(),
+                        appContext,
+                        new HintsLibraryImpl(),
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
