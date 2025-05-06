@@ -77,8 +77,8 @@ public class Negotiator {
             try {
                 prev = current;
                 current = current.transition();
-                logger.info(
-                        LogMarker.RECONNECT.getMarker(),
+                logger.debug(
+                        LogMarker.PROTOCOL_NEGOTIATION.getMarker(),
                         "Negotiator {} last transition: {}",
                         negotiatorName,
                         prev.getLastTransitionDescription());
