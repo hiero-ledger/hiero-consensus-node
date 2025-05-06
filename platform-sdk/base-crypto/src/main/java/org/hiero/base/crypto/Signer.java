@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.stream;
+package org.hiero.base.crypto;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.crypto.Signature;
 
 /**
  * An object capable of signing data.

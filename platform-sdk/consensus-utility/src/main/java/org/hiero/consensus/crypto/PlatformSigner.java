@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.crypto;
+package org.hiero.consensus.crypto;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.stream.HashSigner;
-import com.swirlds.common.stream.Signer;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.system.PlatformConstructionException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -16,12 +13,14 @@ import java.util.Objects;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.Signer;
+import org.hiero.consensus.exceptions.PlatformConstructionException;
 import org.hiero.consensus.model.node.KeysAndCerts;
 
 /**
  * An instance capable of signing data with the platforms private signing key. This class is not thread safe.
  */
-public class PlatformSigner implements Signer, HashSigner {
+public class PlatformSigner implements Signer {
     private final Signature signature;
 
     /**
@@ -65,7 +64,11 @@ public class PlatformSigner implements Signer, HashSigner {
         }
     }
 
-    @Override
+    /**
+     * Signs the given hash and returns the signature.
+     * @param hash the hash to sign
+     * @return the signature
+     */
     public @NonNull org.hiero.base.crypto.Signature sign(@NonNull final Hash hash) {
         Objects.requireNonNull(hash, "hash must not be null");
         return signBytes(hash.getBytes());

@@ -12,9 +12,9 @@ import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeyLoadingException;
 import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
 import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.system.PlatformConstructionException;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.exceptions.PlatformConstructionException;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
