@@ -170,7 +170,7 @@ class DataFileLowLevelTest {
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
     void checkMetadataOfWrittenFileReadBack(FilesTestType testType) throws IOException {
-        final var dataFileMetadata = new DataFileMetadata(dataFileMap.get(testType));
+        final var dataFileMetadata = DataFileMetadata.readFromFile(dataFileMap.get(testType));
         // check metadata
         assertEquals(1000, dataFileMetadata.getDataItemCount(), "unexpected data item count");
         assertEquals(TEST_START, dataFileMetadata.getCreationDate(), "unexpected creation date");

@@ -111,7 +111,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @param path the path to the data file
      */
     public DataFileReader(final MerkleDbConfig dbConfig, final Path path) throws IOException {
-        this(dbConfig, path, new DataFileMetadata(path));
+        this(dbConfig, path, DataFileMetadata.readFromFile(path));
     }
 
     /**
@@ -121,8 +121,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @param path the path to the data file
      * @param metadata the file's metadata to save loading from file
      */
-    public DataFileReader(final MerkleDbConfig dbConfig, final Path path, final DataFileMetadata metadata)
-            throws IOException {
+    DataFileReader(final MerkleDbConfig dbConfig, final Path path, final DataFileMetadata metadata) throws IOException {
         this.dbConfig = dbConfig;
         maxFileChannels = dbConfig.maxFileChannelsPerFileReader();
         threadsPerFileChannel = dbConfig.maxThreadsPerFileChannel();

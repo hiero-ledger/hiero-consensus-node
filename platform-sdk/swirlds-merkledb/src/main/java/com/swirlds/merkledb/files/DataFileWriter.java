@@ -33,6 +33,9 @@ import java.util.function.Consumer;
  */
 public final class DataFileWriter {
 
+    private static final String ERROR_DATA_ITEM_TOO_LARGE =
+            "Data item is too large to write to a data file. Increase data file mapped byte buffer size";
+
     /** Mapped buffer size */
     private static final int MMAP_BUF_SIZE = PAGE_SIZE * 1024 * 64;
 
@@ -166,7 +169,7 @@ public final class DataFileWriter {
             }
         } catch (final BufferOverflowException e) {
             // Buffer overflow here means the mapped buffer is smaller than even a single data item
-            throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
+            throw new IOException(ERROR_DATA_ITEM_TOO_LARGE, e);
         }
         // increment data item counter
         dataItemCount++;
@@ -196,7 +199,7 @@ public final class DataFileWriter {
             ProtoWriterTools.writeDelimited(writingPbjData, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
         } catch (final BufferOverflowException e) {
             // Buffer overflow here means the mapped buffer is smaller than even a single data item
-            throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
+            throw new IOException(ERROR_DATA_ITEM_TOO_LARGE, e);
         }
         // increment data item counter
         dataItemCount++;
