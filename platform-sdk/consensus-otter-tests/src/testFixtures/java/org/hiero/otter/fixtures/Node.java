@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
  * Interface representing a node in the network.
@@ -64,4 +65,12 @@ public interface Node {
      */
     @NonNull
     NodeId getSelfId();
+
+    /**
+     * Gets the consensus rounds of the node.
+     *
+     * @return the consensus rounds of the node
+     */
+    @NonNull
+    SingleNodeConsensusResult getConsensusResult();
 }

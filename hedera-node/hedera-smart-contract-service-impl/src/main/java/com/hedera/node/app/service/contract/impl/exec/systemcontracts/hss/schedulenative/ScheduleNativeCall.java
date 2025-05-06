@@ -102,7 +102,7 @@ public class ScheduleNativeCall extends AbstractCall {
      * @param scheduleTransactionBody
      * @return
      */
-    private @NonNull TransactionBody bodyForScheduleCreate(SchedulableTransactionBody scheduleTransactionBody) {
+    private @NonNull TransactionBody bodyForScheduleCreate(final SchedulableTransactionBody scheduleTransactionBody) {
         return TransactionBody.newBuilder()
                 .transactionID(nativeOperations().getTransactionID())
                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
