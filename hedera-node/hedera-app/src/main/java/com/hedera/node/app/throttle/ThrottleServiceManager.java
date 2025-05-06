@@ -200,7 +200,7 @@ public class ThrottleServiceManager {
     }
 
     private void applyOpsDurationConfig() {
-        backendThrottle.applyBytesConfig();
+        backendThrottle.applyDurationConfig();
     }
 
     private void syncFromCongestionLevelStarts(@NonNull final ReadableStates serviceStates) {

@@ -83,6 +83,9 @@ class AppThrottleFactoryTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
+    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+
+    @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
 
     private AppThrottleFactory subject;
@@ -102,6 +105,7 @@ class AppThrottleFactoryTest {
                 .willReturn(throttleAccumulator);
         given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
         given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
+        given(throttleAccumulator.opsDurationThrottle()).willReturn(opsDurationThrottle);
 
         final var throttle = subject.newThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
 
@@ -121,6 +125,7 @@ class AppThrottleFactoryTest {
         given(lastThrottle.usageSnapshot())
                 .willReturn(FAKE_SNAPSHOTS.tpsThrottles().getLast());
         given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+        given(opsDurationThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.evmOpsDurationThrottleOrThrow());
         assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
     }
 }

@@ -89,6 +89,9 @@ class ThrottleServiceManagerTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
+    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+
+    @Mock
     private DeterministicThrottle cryptoTransferThrottle;
 
     private ThrottleServiceManager subject;
@@ -137,6 +140,8 @@ class ThrottleServiceManagerTest {
         givenWritableThrottleState();
         givenThrottleMocks();
         given(gasThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+        given(backendThrottle.opsDurationThrottle()).willReturn(opsDurationThrottle);
+        given(opsDurationThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
         given(congestionMultipliers.entityUtilizationCongestionStarts())
                 .willReturn(asNullTerminatedInstants(
                         MOCK_CONGESTION_LEVEL_STARTS.genericLevelStarts().getFirst()));
