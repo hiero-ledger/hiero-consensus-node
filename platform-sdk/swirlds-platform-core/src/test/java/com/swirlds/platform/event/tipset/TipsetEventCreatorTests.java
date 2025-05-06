@@ -611,9 +611,12 @@ class TipsetEventCreatorTests {
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
-        final PlatformEvent eventC1 = createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
-        final PlatformEvent eventD1 = createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventB1 =
+                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventC1 =
+                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventD1 =
+                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.addEvent(eventB1);
         eventCreator.addEvent(eventC1);
@@ -691,10 +694,14 @@ class TipsetEventCreatorTests {
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
-        final PlatformEvent eventC1 = createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
-        final PlatformEvent eventD1 = createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
-        final PlatformEvent eventE1 = createTestEvent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventB1 =
+                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventC1 =
+                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventD1 =
+                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventE1 =
+                createTestEvent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.addEvent(eventB1);
         eventCreator.addEvent(eventC1);
