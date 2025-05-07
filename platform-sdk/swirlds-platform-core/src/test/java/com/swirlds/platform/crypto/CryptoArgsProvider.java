@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterRetriever;

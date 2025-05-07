@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.creation.tipset;
 
-import static org.hiero.consensus.model.event.EventConstants.GENERATION_UNDEFINED;
-
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -34,8 +33,7 @@ public class Tipset {
         this.roster = Objects.requireNonNull(roster);
         tips = new long[roster.rosterEntries().size()];
 
-        // Necessary because we currently start at generation 0, not generation 1.
-        Arrays.fill(tips, GENERATION_UNDEFINED);
+        Arrays.fill(tips, NonDeterministicGeneration.GENERATION_UNDEFINED);
     }
 
     /**
@@ -71,7 +69,7 @@ public class Tipset {
         final Tipset newTipset = buildEmptyTipset(tipsets.get(0));
 
         for (int index = 0; index < length; index++) {
-            long max = GENERATION_UNDEFINED;
+            long max = NonDeterministicGeneration.GENERATION_UNDEFINED;
             for (final Tipset tipSet : tipsets) {
                 max = Math.max(max, tipSet.tips[index]);
             }
@@ -91,7 +89,7 @@ public class Tipset {
     public long getTipGenerationForNode(@NonNull final NodeId nodeId) {
         final int index = RosterUtils.getIndex(roster, nodeId.id());
         if (index == -1) {
-            return GENERATION_UNDEFINED;
+            return NonDeterministicGeneration.GENERATION_UNDEFINED;
         }
         return tips[index];
     }

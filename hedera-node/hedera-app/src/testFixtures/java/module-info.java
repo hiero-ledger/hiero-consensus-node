@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.test.fixtures {
+    exports com.hedera.node.app.fixtures;
+    exports com.hedera.node.app.fixtures.signature;
     exports com.hedera.node.app.fixtures.state;
 
     requires transitive com.hedera.node.app.spi.test.fixtures;
     requires transitive com.hedera.node.app;
+    requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
@@ -19,8 +23,6 @@ module com.hedera.node.app.test.fixtures {
     requires com.hedera.node.app.service.token;
     requires com.hedera.node.app.spi;
     requires com.hedera.node.config.test.fixtures;
-    requires com.hedera.node.config;
-    requires com.hedera.pbj.runtime;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.impl.test.fixtures;

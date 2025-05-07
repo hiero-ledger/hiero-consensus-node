@@ -3,10 +3,10 @@ package com.swirlds.platform.crypto;
 
 import static com.swirlds.logging.legacy.LogMarker.ERROR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 import static com.swirlds.platform.crypto.CryptoStatic.copyPublicKeys;
 import static com.swirlds.platform.crypto.CryptoStatic.createEmptyTrustStore;
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
+import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig;
@@ -66,6 +66,7 @@ import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
@@ -309,7 +310,7 @@ public class EnhancedKeyStoreLoader {
             if (!agrPrivateKeys.containsKey(nodeId)) {
                 logger.info(STARTUP.getMarker(), "Generating agreement key pair for local nodeId {}", nodeId);
                 // Generate a new agreement key since it does not exist
-                final KeyPair agrKeyPair = KeysAndCerts.generateAgreementKeyPair();
+                final KeyPair agrKeyPair = KeysAndCertsGenerator.generateAgreementKeyPair();
                 agrPrivateKeys.put(nodeId, agrKeyPair.getPrivate());
 
                 // recover signing key pair to be root of trust on agreement certificate
