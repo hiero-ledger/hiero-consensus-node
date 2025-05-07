@@ -20,7 +20,7 @@ val besu = "24.3.3"
 val bouncycastle = "1.80"
 val dagger = "2.56.1"
 val eclipseCollections = "11.1.0"
-val grpc = "1.71.0"
+val grpc = "1.72.0"
 val hederaCryptography = "0.2.2-SNAPSHOT"
 val helidon = "4.2.0"
 val jackson = "2.18.3"
@@ -60,7 +60,7 @@ dependencies.constraints {
     api("com.google.auto.service:auto-service:$autoService") {
         because("com.google.auto.service.processor")
     }
-    api("com.google.guava:guava:33.4.7-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
     api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
@@ -87,10 +87,10 @@ dependencies.constraints {
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
-    api("org.apache.commons:commons-collections4:4.4") {
+    api("org.apache.commons:commons-collections4:4.5.0") {
         because("org.apache.commons.collections4")
     }
-    api("commons-io:commons-io:2.18.0") { because("org.apache.commons.io") }
+    api("commons-io:commons-io:2.19.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.17.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }

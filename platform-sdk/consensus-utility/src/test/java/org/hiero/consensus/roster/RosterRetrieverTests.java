@@ -15,19 +15,14 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -197,21 +192,6 @@ public class RosterRetrieverTests {
                 .when(rosterMap)
                 .get(eq(ProtoBytes.newBuilder().value(HASH_666).build()));
         assertEquals(null, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
-    }
-
-    public static X509Certificate randomX509Certificate() {
-        try {
-            final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
-
-            final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
-            rsaKeyGen.initialize(3072, secureRandom);
-            final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
-
-            final String name = "CN=Bob";
-            return CryptoStatic.generateCertificate(name, rsaKeyPair1, name, rsaKeyPair1, secureRandom);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private static Bytes getCertBytes(X509Certificate certificate) {

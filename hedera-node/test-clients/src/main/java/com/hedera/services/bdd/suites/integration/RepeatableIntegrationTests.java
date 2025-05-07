@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_H
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.NonFungibleTransfers.changingNFTBalances;
@@ -57,15 +56,15 @@ public class RepeatableIntegrationTests {
         return hapiTest(
                 cryptoCreate("civilian").balance(100 * 100_000_000L),
                 usableTxnIdNamed("txnId").payerId("civilian"),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, SHARD_AND_REALM + "3", 100_000_000L)),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000L)),
                 uncheckedSubmit(cryptoCreate("nope")
                         .txnId("txnId")
                         .payingWith("civilian")
-                        .setNode(SHARD_AND_REALM + "4")),
+                        .setNode("4")),
                 uncheckedSubmit(cryptoCreate("sure")
                         .txnId("txnId")
                         .payingWith("civilian")
-                        .setNode(SHARD_AND_REALM + "3")),
+                        .setNode("3")),
                 getReceipt("txnId")
                         .andAnyDuplicates()
                         .hasPriorityStatus(SUCCESS)

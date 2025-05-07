@@ -4,8 +4,10 @@ open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures.benchmark;
     exports com.swirlds.common.test.fixtures.dummy;
     exports com.swirlds.common.test.fixtures.io;
+    exports com.swirlds.common.test.fixtures.io.extendable;
     exports com.swirlds.common.test.fixtures.map;
     exports com.swirlds.common.test.fixtures.merkle;
+    exports com.swirlds.common.test.fixtures.merkle.dummy;
     exports com.swirlds.common.test.fixtures.merkle.util;
     exports com.swirlds.common.test.fixtures.threading;
     exports com.swirlds.common.test.fixtures.set;

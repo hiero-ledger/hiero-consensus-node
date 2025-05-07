@@ -33,6 +33,7 @@ import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -606,9 +607,9 @@ class TipsetEventCreatorTests {
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(random, nodeB, EventConstants.FIRST_GENERATION);
-        final PlatformEvent eventC1 = createTestEvent(random, nodeC, EventConstants.FIRST_GENERATION);
-        final PlatformEvent eventD1 = createTestEvent(random, nodeD, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventB1 = createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent eventC1 = createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent eventD1 = createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -642,7 +643,7 @@ class TipsetEventCreatorTests {
             otherParentId = null;
         }
 
-        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 1);
+        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 2);
 
         eventCreator.registerEvent(legalOtherParent);
 
@@ -682,10 +683,10 @@ class TipsetEventCreatorTests {
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(random, nodeB, EventConstants.FIRST_GENERATION);
-        final PlatformEvent eventC1 = createTestEvent(random, nodeC, EventConstants.FIRST_GENERATION);
-        final PlatformEvent eventD1 = createTestEvent(random, nodeD, EventConstants.FIRST_GENERATION);
-        final PlatformEvent eventE1 = createTestEvent(random, nodeE, EventConstants.FIRST_GENERATION);
+        final PlatformEvent eventB1 = createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent eventC1 = createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent eventD1 = createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent eventE1 = createTestEvent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -870,7 +871,7 @@ class TipsetEventCreatorTests {
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
         assertEquals(eventWithHighestNGen.getDescriptor(), newEvent.getSelfParent());
-        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
+        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent.getNGen());
     }
 
     /**
@@ -890,20 +891,20 @@ class TipsetEventCreatorTests {
 
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
-        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent.getNGen());
+        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent.getNGen());
 
         // Create a self event with an nGen value set and register it with the event creator. This can happen
         // if we are forced to reconnect and learn of an event we created a long time ago after we started creating
         // the events. This is a branch, but not necessarily an intentional branch. This old event should be discarded
         // because we want to favor any self event last created by the event creator even though it does not have an
         // nGen set.
-        final PlatformEvent oldSelfEvent = createTestEvent(random, selfId, EventConstants.FIRST_GENERATION);
+        final PlatformEvent oldSelfEvent = createTestEvent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION);
         eventCreator.registerEvent(oldSelfEvent);
 
         // Now create another event and check that the self parent is the expected event.
         final PlatformEvent newEvent2 = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
-        assertEquals(EventConstants.GENERATION_UNDEFINED, newEvent2.getNGen());
+        assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
     }
 }
