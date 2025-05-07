@@ -21,8 +21,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
 
     @Override
-    public Bytes newCrs(final int n) {
-        return Bytes.wrap(BRIDGE.initCRS((short) n));
+    public Bytes newCrs(final short n) {
+        return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
     @Override
