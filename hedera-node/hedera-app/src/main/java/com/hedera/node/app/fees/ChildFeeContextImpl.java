@@ -56,7 +56,7 @@ public class ChildFeeContextImpl implements FeeContext {
         this.authorizer = requireNonNull(authorizer);
         this.storeFactory = requireNonNull(storeFactory);
         this.consensusNow = requireNonNull(consensusNow);
-        this.verifier = requireNonNull(verifier);
+        this.verifier = verifier;
         this.signatureMapSize = signatureMapSize;
     }
 
