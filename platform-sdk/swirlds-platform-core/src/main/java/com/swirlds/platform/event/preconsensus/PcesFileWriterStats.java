@@ -16,39 +16,38 @@ public class PcesFileWriterStats {
     private final AtomicLong totalExpansions = new AtomicLong();
 
     /**
-     * Updates the stats related to the writing operation
+     * Updates the stats related to the total write operation
+     * @param startTime when the operation started in ms
+     * @param endTime when the operation finished in ms
+     * @param size the written event size in bytes
+     * @param bufferExpanded whether a buffer expansion happened
+     */
+    void updateWriteStats(final long startTime, final long endTime, final int size, final boolean bufferExpanded) {
+        averageEventSize.add(size);
+        averageTotalWriteDuration.add(endTime - startTime);
+        if (bufferExpanded) {
+            totalExpansions.incrementAndGet();
+        }
+    }
+
+    /**
+     * Updates the stats related to the total and partial write operation
      * @param startTime when the operation started in ms
      * @param endTime when the operation finished in ms
      * @param size the written event size in bytes
      */
     void updateWriteStats(final long startTime, final long endTime, final int size) {
-        this.updateWriteStats(startTime, -1, -1, endTime, size, false);
+        updateWriteStats(startTime, endTime, size, false);
+        updatePartialWriteStats(startTime, endTime);
     }
 
     /**
-     * Updates the stats related to the writing operation
+     * Updates the stats related to the partial write operation
      * @param startTime when the operation started in ms
-     * @param writeStart when the write system call is supposed to be invoked in ms
-     * @param writeFinish when the write system call is supposed to end in ms
      * @param endTime when the operation finished in ms
-     * @param size the written event size in bytes
-     * @param bufferExpanded whether a buffer expansion happened
      */
-    void updateWriteStats(
-            final long startTime,
-            final long writeStart,
-            final long writeFinish,
-            final long endTime,
-            final int size,
-            final boolean bufferExpanded) {
-        averageEventSize.add(size);
-        averageTotalWriteDuration.add(endTime - startTime);
-        if (writeStart != -1 && writeFinish != -1) {
-            averageWriteDuration.add(writeFinish - writeStart);
-        }
-        if (bufferExpanded) {
-            totalExpansions.incrementAndGet();
-        }
+    void updatePartialWriteStats(final long startTime, final long endTime) {
+        averageWriteDuration.add(endTime - startTime);
     }
 
     /**

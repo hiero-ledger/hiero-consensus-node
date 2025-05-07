@@ -71,8 +71,6 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         long starTime = System.currentTimeMillis();
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
         boolean bufferExpanded = false;
-        long writeStart = starTime;
-        long writeFinish = -1;
         try {
             if (size > buffer.capacity()) {
                 MemoryUtils.closeDirectByteBuffer(buffer);
@@ -81,12 +79,10 @@ public class PcesFileChannelWriter implements PcesFileWriter {
                 bufferExpanded = true;
             }
             buffer.putInt(size);
-            writeStart = System.currentTimeMillis();
             GossipEvent.PROTOBUF.write(event, writableSequentialData);
-            writeFinish = System.currentTimeMillis();
             flipWriteClear();
         } finally {
-            stats.updateWriteStats(starTime, writeStart, writeFinish, System.currentTimeMillis(), size, bufferExpanded);
+            stats.updateWriteStats(starTime, System.currentTimeMillis(), size, bufferExpanded);
         }
     }
 
@@ -96,14 +92,20 @@ public class PcesFileChannelWriter implements PcesFileWriter {
      * will be cleared so that it can be used again.
      */
     private void flipWriteClear() throws IOException {
+
         buffer.flip();
-        final int bytesWritten = channel.write(buffer);
-        fileSize += bytesWritten;
-        if (bytesWritten != buffer.limit()) {
-            throw new IOException(
-                    "Failed to write data to file. Wrote " + bytesWritten + " bytes out of " + buffer.limit());
+        long writeStart = System.currentTimeMillis();
+        try {
+            final int bytesWritten = channel.write(buffer);
+            fileSize += bytesWritten;
+            if (bytesWritten != buffer.limit()) {
+                throw new IOException(
+                        "Failed to write data to file. Wrote " + bytesWritten + " bytes out of " + buffer.limit());
+            }
+            buffer.clear();
+        } finally {
+            stats.updatePartialWriteStats(writeStart, System.currentTimeMillis());
         }
-        buffer.clear();
     }
 
     @Override
