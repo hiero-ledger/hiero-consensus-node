@@ -97,13 +97,12 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
-        // This list will always contain 0 or 1 elements
-        final List<PlatformEvent> eventList = futureEventBuffer.addEvent(event);
+        final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
 
-        if (eventList.isEmpty()) {
+        if (consensusRelevantEvent == null) {
             return List.of();
         }
-        return addToConsensusAlgorithm(eventList.getFirst());
+        return addToConsensusAlgorithm(consensusRelevantEvent);
     }
 
     private List<ConsensusRound> addToConsensusAlgorithm(@NonNull final PlatformEvent event) {
@@ -144,6 +143,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         linker.clear();
         linker.setEventWindow(eventWindow);
+        futureEventBuffer.updateEventWindow(eventWindow);
         consensus.loadSnapshot(snapshot);
     }
 }

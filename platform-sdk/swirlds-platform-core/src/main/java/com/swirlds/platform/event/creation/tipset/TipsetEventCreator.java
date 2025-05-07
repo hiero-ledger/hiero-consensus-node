@@ -156,7 +156,10 @@ public class TipsetEventCreator implements EventCreator {
      */
     @Override
     public void addEvent(@NonNull final PlatformEvent event) {
-        futureEventBuffer.addEvent(event).forEach(this::registerEvent);
+        final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
+        if (nonFutureEvent != null) {
+            registerEvent(nonFutureEvent);
+        }
     }
 
     /**
@@ -177,7 +180,6 @@ public class TipsetEventCreator implements EventCreator {
      * @param event the event to register
      */
     private void registerEvent(@NonNull final PlatformEvent event) {
-        futureEventBuffer.addEvent(event);
         if (eventWindow.isAncient(event)) {
             return;
         }

@@ -4,6 +4,7 @@ package com.swirlds.platform.event;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -22,12 +23,11 @@ public interface FutureEventBuffer {
      * Add an event to the future event buffer.
      *
      * @param event the event to add
-     * @return a list containing the event if it is not a time traveler, or null if the event is from the future and
-     * needs to be buffered.
+     * @return the event if it is not a time traveler, or null if the event is from the future and needs to be buffered.
      */
     @InputWireLabel("preconsensus event")
-    @NonNull
-    List<PlatformEvent> addEvent(@NonNull PlatformEvent event);
+    @Nullable
+    PlatformEvent addEvent(@NonNull PlatformEvent event);
 
     /**
      * Update the current event window. As the event window advances, time catches up to time travelers, and events that

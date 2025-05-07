@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
@@ -68,13 +69,11 @@ class FutureEventBufferTests {
             events.add(event);
         }
         // Put the events in topological order
-        events.sort(Comparator.comparingLong(a -> a.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         final List<PlatformEvent> futureEvents = new ArrayList<>();
         for (final PlatformEvent event : events) {
-            final List<PlatformEvent> returnedEvents = futureEventBuffer.addEvent(event);
-            assertTrue(returnedEvents == null || returnedEvents.size() == 1);
-            final PlatformEvent returnedEvent = returnedEvents == null ? null : returnedEvents.get(0);
+            final PlatformEvent returnedEvent = futureEventBuffer.addEvent(event);
             if (eventWindow.isAncient(event)) {
                 // Ancient events should be discarded.
                 assertNull(returnedEvent);
@@ -153,12 +152,10 @@ class FutureEventBufferTests {
             events.add(event);
         }
         // Put the events in topological order
-        events.sort(Comparator.comparingLong(a -> a.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         for (final PlatformEvent event : events) {
-            final List<PlatformEvent> returnedEvents = futureEventBuffer.addEvent(event);
-            assertTrue(returnedEvents == null || returnedEvents.size() == 1);
-            final PlatformEvent returnedEvent = returnedEvents == null ? null : returnedEvents.get(0);
+            final PlatformEvent returnedEvent = futureEventBuffer.addEvent(event);
             if (eventWindow.isAncient(event)) {
                 // Ancient events should be discarded.
                 assertNull(returnedEvent);
@@ -182,7 +179,7 @@ class FutureEventBufferTests {
      * Verify that an event that is buffered gets released at the exact moment we expect.
      */
     @Test
-    void eventInBufferIsReleasedOnTimeTest() {
+    void eventInBufferAreReleasedOnTimeTest() {
         final Random random = getRandomPrintSeed();
 
         final Configuration configuration = new TestConfigBuilder()
@@ -211,7 +208,7 @@ class FutureEventBufferTests {
                 .build();
 
         // Event is from the future, we can't release it yet
-        assertNull(futureEventBuffer.addEvent(event));
+        assertThat(futureEventBuffer.addEvent(event)).isNull();
 
         // While the (newPendingConsensusRound-1) is less than the event's birth round, the event should be buffered
         for (long currentConsensusRound = pendingConsensusRound - 1;
@@ -235,5 +232,28 @@ class FutureEventBufferTests {
         final List<PlatformEvent> bufferedEvents = futureEventBuffer.updateEventWindow(newEventWindow);
         assertEquals(1, bufferedEvents.size());
         assertSame(event, bufferedEvents.getFirst());
+    }
+
+    /**
+     * Tests that events are released from the future event buffer in the order that they were received in except that
+     * they are release by birth round. For example, if these events are received by the buffer:
+     * <br>
+     * E1 (BR 1)<br>
+     * E2 (BR 1)<br>
+     * E3 (BR 2)<br>
+     * E4 (BR 1)<br>
+     * <br>
+     * then the order of output from the buffer should be:
+     * <br>
+     * E1 (BR 1)<br>
+     * E2 (BR 1)<br>
+     * E4 (BR 1)<br>
+     * E3 (BR 2)<br>
+     * <br>
+     * assuming the event window is shifted to allow the release of all events.
+     */
+    @Test
+    void eventsAreReleasedInOrderOfReceipt() {
+
     }
 }
