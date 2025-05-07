@@ -34,6 +34,9 @@ public class ChildFeeContextImpl implements FeeContext {
     private final Authorizer authorizer;
     private final ReadableStoreFactory storeFactory;
     private final Instant consensusNow;
+    // The verifier is non-null only for batch inner transactions.
+    // Since all other child transactions have no signatures to verify, the verifier is no needed.
+    @Nullable
     private final AppKeyVerifier verifier;
     private final int signatureMapSize;
 
