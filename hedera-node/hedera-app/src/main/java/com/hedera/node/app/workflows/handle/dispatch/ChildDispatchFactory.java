@@ -170,7 +170,7 @@ public class ChildDispatchFactory {
                 : preHandleChild(options.body(), options.payerId(), config, readableStoreFactory, creatorInfo);
         final var childVerifier = overridePreHandleResult != null
                 ? new DefaultKeyVerifier(
-                        0, config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
+                        config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
                 : getKeyVerifier(options.effectiveKeyVerifier(), config, options.authorizingKeys());
         boolean isLastAllowedPreset = false;
         if (options.body().hasScheduleCreate()) {
@@ -435,7 +435,7 @@ public class ChildDispatchFactory {
                         }
                 : new AppKeyVerifier() {
                     private final AppKeyVerifier verifier =
-                            new DefaultKeyVerifier(0, config.getConfigData(HederaConfig.class), emptyMap());
+                            new DefaultKeyVerifier(config.getConfigData(HederaConfig.class), emptyMap());
 
                     @NonNull
                     @Override

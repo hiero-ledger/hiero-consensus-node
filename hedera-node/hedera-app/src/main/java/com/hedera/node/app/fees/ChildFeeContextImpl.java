@@ -38,6 +38,7 @@ public class ChildFeeContextImpl implements FeeContext {
     // Since all other child transactions have no signatures to verify, the verifier is no needed.
     @Nullable
     private final AppKeyVerifier verifier;
+
     private final int signatureMapSize;
 
     public ChildFeeContextImpl(

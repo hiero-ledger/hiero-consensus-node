@@ -37,23 +37,17 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
     private static final Logger logger = LogManager.getLogger(DefaultKeyVerifier.class);
 
     private static final Comparator<Key> KEY_COMPARATOR = new KeyComparator();
-
-    private final int legacyFeeCalcNetworkVpt;
     private final long timeout;
     private final Map<Key, SignatureVerificationFuture> keyVerifications;
 
     /**
      * Creates a {@link DefaultKeyVerifier}
      *
-     * @param legacyFeeCalcNetworkVpt the number of verifications to report for temporary mono-service parity
      * @param config configuration for the node
      * @param keyVerifications A {@link Map} with all data to verify signatures
      */
     public DefaultKeyVerifier(
-            final int legacyFeeCalcNetworkVpt,
-            @NonNull final HederaConfig config,
-            @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
-        this.legacyFeeCalcNetworkVpt = legacyFeeCalcNetworkVpt;
+            @NonNull final HederaConfig config, @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
         this.timeout = requireNonNull(config, "config must not be null").workflowVerificationTimeoutMS();
         this.keyVerifications = requireNonNull(keyVerifications, "keyVerifications must not be null");
     }
