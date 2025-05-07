@@ -13,14 +13,13 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.address.AddressBook;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,9 +74,9 @@ final class ServicesMainTest {
     @Test
     void delegatesSoftwareVersion() {
         ServicesMain.initGlobal(hedera, metrics);
-        final var mockVersion = new ServicesSoftwareVersion(SemanticVersion.DEFAULT);
-        given(hedera.getSoftwareVersion()).willReturn(mockVersion);
-        assertSame(mockVersion, subject.getSoftwareVersion());
+        final var mockVersion = SemanticVersion.DEFAULT;
+        given(hedera.getSemanticVersion()).willReturn(mockVersion);
+        assertSame(mockVersion, subject.getSemanticVersion());
     }
 
     @Test

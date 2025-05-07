@@ -22,15 +22,19 @@ mainModuleInfo {
 }
 
 testModuleInfo {
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions")
+    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+
+    exportsTo("org.hiero.base.utility")
 }
 
 timingSensitiveModuleInfo {
@@ -43,8 +47,8 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.metrics.impl")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("org.apache.logging.log4j.core")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

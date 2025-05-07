@@ -10,7 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -51,7 +51,7 @@ public class RepeatableHip1064TestsDisabled {
     final Stream<DynamicTest> doesntPayWhenFeatureFlagDisabled() {
         final AtomicLong expectedNodeFees = new AtomicLong(0);
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(selectedItems(
+                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> Assertions.fail("Should not have any records with 801 " + "being debited!"),
                         // We expect no reward payments in this test
                         1,
@@ -85,7 +85,7 @@ public class RepeatableHip1064TestsDisabled {
         final AtomicLong expectedNodeFees = new AtomicLong(0);
         return hapiTest(
                 overriding("nodes.preserveMinNodeRewardBalance", "true"),
-                recordStreamMustIncludeNoFailuresFrom(selectedItems(
+                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> Assertions.fail("Should not have any records with 801 " + "being debited!"),
                         // We expect no reward payments in this test
                         1,

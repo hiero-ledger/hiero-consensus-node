@@ -6,7 +6,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +15,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Stores all hashgraph round information in a single place.
@@ -40,10 +41,11 @@ public class ConsensusRounds {
     /** the current threshold below which all events are ancient */
     private long ancientThreshold = EventConstants.ANCIENT_THRESHOLD_UNDEFINED;
     /**
-     * the minimum generation of all the judges in the latest decided round. events with a lower generation than this do
-     * not affect any consensus calculations
+     * The minimum non-deterministic generation of all the judges in the latest decided round. events with a lower
+     * non-deterministic generation than this do not affect any consensus calculations and do not have their metadata
+     * recalculated.
      */
-    private long consensusRelevantGeneration = EventConstants.GENERATION_UNDEFINED;
+    private long consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /** Constructs an empty object */
     public ConsensusRounds(
@@ -64,7 +66,7 @@ public class ConsensusRounds {
         maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
         roundElections.reset();
         updateAncientThreshold();
-        consensusRelevantGeneration = EventConstants.GENERATION_UNDEFINED;
+        consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     /**
@@ -119,16 +121,16 @@ public class ConsensusRounds {
      * @return true if its older
      */
     public boolean isOlderThanDecidedRoundGeneration(@NonNull final EventImpl event) {
-        return consensusRelevantGeneration > event.getGeneration();
+        return consensusRelevantNGen > event.getNGen();
     }
 
     /**
-     * Setter for the {@link #consensusRelevantGeneration} field. This is used when loading consensus from a snapshot.
+     * Setter for the {@link #consensusRelevantNGen} field. This is used when loading consensus from a snapshot.
      *
-     * @param consensusRelevantGeneration the value to set
+     * @param consensusRelevantNGen the value to set
      */
-    public void setConsensusRelevantGeneration(final long consensusRelevantGeneration) {
-        this.consensusRelevantGeneration = consensusRelevantGeneration;
+    public void setConsensusRelevantNGen(final long consensusRelevantNGen) {
+        this.consensusRelevantNGen = consensusRelevantNGen;
     }
 
     /**
@@ -143,7 +145,7 @@ public class ConsensusRounds {
      */
     public void currentElectionDecided() {
         minimumJudgeStorage.add(roundElections.getRound(), roundElections.createMinimumJudgeInfo(ancientMode));
-        consensusRelevantGeneration = roundElections.getMinGeneration();
+        consensusRelevantNGen = roundElections.getMinNGen();
         roundElections.startNextElection();
         // Delete the oldest rounds with round number which is expired
         minimumJudgeStorage.removeOlderThan(getFameDecidedBelow() - config.roundsExpired());

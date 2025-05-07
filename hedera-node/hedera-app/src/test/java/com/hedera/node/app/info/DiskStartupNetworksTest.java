@@ -18,6 +18,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -36,7 +37,6 @@ import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.tss.TssBaseServiceImpl;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -48,9 +48,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -67,6 +64,9 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -289,9 +289,10 @@ class DiskStartupNetworksTest {
         final var tssBaseService = new TssBaseServiceImpl();
         given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(network);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
-        ServicesSoftwareVersion currentVersion = new ServicesSoftwareVersion(
-                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion());
-        PLATFORM_STATE_SERVICE.setAppVersionFn(ServicesSoftwareVersion::from);
+        SemanticVersion currentVersion =
+                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion();
+        PLATFORM_STATE_SERVICE.setAppVersionFn(
+                config -> config.getConfigData(VersionConfig.class).servicesVersion());
         Set.of(
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,

@@ -92,7 +92,7 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -563,9 +563,11 @@ public class AirdropsDisabledTest {
                     for (AtomicReference<TokenID> ftId : ftIds) {
                         b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAlias.get(), -500))
+                                .addTransfers(aaWith(spec, partyAlias.get(), -500))
                                 .addTransfers(aaWith(
-                                        ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
+                                        spec,
+                                        ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                        +500)));
                     }
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)

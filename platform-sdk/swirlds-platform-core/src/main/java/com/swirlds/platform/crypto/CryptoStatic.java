@@ -5,12 +5,10 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.logging.legacy.LogMarker.CERTIFICATES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
+import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.CryptographyException;
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
@@ -19,17 +17,12 @@ import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,9 +39,7 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,7 +65,14 @@ import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A collection of various static crypto methods
@@ -226,22 +224,6 @@ public final class CryptoStatic {
     }
 
     /**
-     * Decode a X509Certificate from a byte array that was previously obtained via X509Certificate.getEncoded().
-     *
-     * @param encoded a byte array with an encoded representation of a certificate
-     * @return the certificate reconstructed from its encoded form
-     */
-    @NonNull
-    public static X509Certificate decodeCertificate(@NonNull final byte[] encoded) {
-        try (final InputStream in = new ByteArrayInputStream(encoded)) {
-            final CertificateFactory factory = CertificateFactory.getInstance("X.509");
-            return (X509Certificate) factory.generateCertificate(in);
-        } catch (CertificateException | IOException e) {
-            throw new CryptographyException(e);
-        }
-    }
-
-    /**
      * Create a new trust store that is initially empty, but will later have all the members' key agreement public key
      * certificates added to it.
      *
@@ -370,7 +352,8 @@ public final class CryptoStatic {
 
             keysAndCerts.put(
                     nodeId,
-                    KeysAndCerts.loadExistingAndCreateAgrKeyIfMissing(nodeId, password, privateKS, publicStores));
+                    KeysAndCertsGenerator.loadExistingAndCreateAgrKeyIfMissing(
+                            nodeId, password, privateKS, publicStores));
         }
         copyPublicKeys(publicStores, addressBook);
 
@@ -393,7 +376,7 @@ public final class CryptoStatic {
      * know).
      *
      * @param addressBook the address book of the network
-     * @throws ExecutionException   if {@link KeysAndCerts#generate(NodeId, byte[], byte[], byte[], PublicStores)}
+     * @throws ExecutionException   if {@link KeysAndCertsGenerator#generate(NodeId, byte[], byte[], byte[], PublicStores)}
      *                              throws an exception, it will be wrapped in an ExecutionException
      * @throws InterruptedException if this thread is interrupted
      * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
@@ -473,7 +456,7 @@ public final class CryptoStatic {
                 final int memId = i;
                 futures.put(
                         nodeId,
-                        threadPool.submit(() -> KeysAndCerts.generate(
+                        threadPool.submit(() -> KeysAndCertsGenerator.generate(
                                 nodeId, masterKeyClone, swirldIdClone, CommonUtils.intToBytes(memId), publicStores)));
             }
             final Map<NodeId, KeysAndCerts> keysAndCerts = futuresToMap(futures);
@@ -651,28 +634,5 @@ public final class CryptoStatic {
             store.setCertificateEntry(SIGNING.storeName(peer.nodeId()), sigCert);
         }
         return store;
-    }
-
-    /**
-     * Check if a certificate is valid.  A certificate is valid if it is not null, has a public key, and can be encoded.
-     *
-     * @param certificate the certificate to check
-     * @return true if the certificate is valid, false otherwise
-     */
-    public static boolean checkCertificate(@Nullable final Certificate certificate) {
-        if (certificate == null) {
-            return false;
-        }
-        if (certificate.getPublicKey() == null) {
-            return false;
-        }
-        try {
-            if (certificate.getEncoded().length == 0) {
-                return false;
-            }
-        } catch (final CertificateEncodingException e) {
-            return false;
-        }
-        return true;
     }
 }

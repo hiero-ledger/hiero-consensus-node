@@ -13,19 +13,25 @@ open module com.swirlds.virtualmap {
 
     // Testing-only exports
     exports com.swirlds.virtualmap.internal to
+            com.swirlds.merkle,
+            com.swirlds.merkledb,
             com.swirlds.virtualmap.test.fixtures;
+    exports com.swirlds.virtualmap.internal.pipeline to
+            com.swirlds.merkle,
+            com.swirlds.merkledb;
     exports com.swirlds.virtualmap.internal.cache to
+            com.swirlds.merkledb,
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core.test.fixtures;
 
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.model;
-    requires com.swirlds.base;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires java.management; // Test dependency

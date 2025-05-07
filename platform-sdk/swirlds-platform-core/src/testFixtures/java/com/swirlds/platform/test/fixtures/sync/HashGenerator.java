@@ -3,8 +3,8 @@ package com.swirlds.platform.test.fixtures.sync;
 
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A simple, factory for Hashes, to create a  Hash with random bytes, or a

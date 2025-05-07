@@ -18,9 +18,9 @@ import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.roster.RosterUtils.formatNodeName;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
@@ -75,7 +75,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -119,6 +118,7 @@ public class SystemTransactions {
 
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
+    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {};
 
     private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
@@ -133,7 +133,7 @@ public class SystemTransactions {
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
 
     private int nextDispatchNonce = 1;
 
@@ -153,7 +153,7 @@ public class SystemTransactions {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final SemanticVersion softwareVersionFactory) {
         this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -188,7 +188,7 @@ public class SystemTransactions {
     public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
         requireNonNull(now);
         requireNonNull(state);
-        final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(dispatch -> {});
+        final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext =
                 newSystemContext(now, state, dispatch -> onSuccess.get().accept(dispatch), true);
 
@@ -213,9 +213,6 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
-        // For a slightly more intuitive stream, now create the system files (which come next numerically)
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
-        fileService.createSystemEntities(systemContext, nodeStore);
         // Create the treasury clones
         for (long i : LongStream.rangeClosed(FIRST_POST_SYSTEM_FILE_ENTITY, ledgerConfig.numReservedSystemEntities())
                 .filter(j -> j < FIRST_RESERVED_SYSTEM_CONTRACT || j > LAST_RESERVED_SYSTEM_CONTRACT)
@@ -279,21 +276,25 @@ public class SystemTransactions {
                     nodeInfo.hapiEndpoints().isEmpty() ? UNKNOWN_HAPI_ENDPOINT : nodeInfo.hapiEndpoints();
             onSuccess.set(dispatch -> {
                 final var stack = dispatch.stack();
-                final var writableNodeStore = new WritableStakingInfoStore(
+                final var writableStakingInfoStore = new WritableStakingInfoStore(
                         stack.getWritableStates(TokenService.NAME),
                         new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
-                final var rewardSumHistory = new Long[numStoredPeriods + 1];
-                Arrays.fill(rewardSumHistory, 0L);
-                writableNodeStore.putAndIncrementCount(
-                        nodeInfo.nodeId(),
-                        StakingNodeInfo.newBuilder()
-                                .nodeNumber(nodeInfo.nodeId())
-                                .maxStake(stakingConfig.maxStake())
-                                .minStake(stakingConfig.minStake())
-                                .rewardSumHistory(Arrays.asList(rewardSumHistory))
-                                .weight(DEFAULT_GENESIS_WEIGHT)
-                                .build());
-                stack.commitFullStack();
+                // Writing genesis staking info to state after the node create dispatch is only necessary if the created
+                // node's staking info isn't already present in state
+                if (writableStakingInfoStore.get(nodeInfo.nodeId()) == null) {
+                    final var rewardSumHistory = new Long[numStoredPeriods + 1];
+                    Arrays.fill(rewardSumHistory, 0L);
+                    writableStakingInfoStore.putAndIncrementCount(
+                            nodeInfo.nodeId(),
+                            StakingNodeInfo.newBuilder()
+                                    .nodeNumber(nodeInfo.nodeId())
+                                    .maxStake(stakingConfig.maxStake())
+                                    .minStake(stakingConfig.minStake())
+                                    .rewardSumHistory(Arrays.asList(rewardSumHistory))
+                                    .weight(DEFAULT_GENESIS_WEIGHT)
+                                    .build());
+                    stack.commitFullStack();
+                }
             });
             systemContext.dispatchAdmin(b -> {
                 final var isSystemAccount = nodeInfo.nodeId() <= ledgerConfig.numSystemAccounts();
@@ -310,6 +311,14 @@ public class SystemTransactions {
             });
         }
         networkInfo.updateFrom(state);
+
+        // Now that the onSuccess callback has executed for all the node create transactions, set the callback back to
+        // its benign, do-nothing default
+        onSuccess.set(DEFAULT_DISPATCH_ON_SUCCESS);
+
+        // Now that the node metadata is correct, create the system files
+        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        fileService.createSystemEntities(systemContext, nodeStore);
     }
 
     /**

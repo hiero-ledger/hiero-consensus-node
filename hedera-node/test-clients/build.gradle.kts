@@ -11,8 +11,6 @@ description = "Hedera Services Test Clients for End to End Tests (EET)"
 mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
     runtimeOnly("org.junit.platform.launcher")
-    runtimeOnly("org.hiero.event.creator")
-    runtimeOnly("org.hiero.event.creator.impl")
 }
 
 testModuleInfo { runtimeOnly("org.junit.jupiter.api") }
@@ -107,9 +105,8 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
         "hapiTestSmartContract" to "tss.historyEnabled=false",
-        // FUTURE -
-        // "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s"
-        "hapiTestRestart" to "tss.hintsEnabled=false",
+        "hapiTestRestart" to
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         "hapiTestMisc" to "nodes.nodeRewardsEnabled=false",
         "hapiTestTimeConsuming" to "nodes.nodeRewardsEnabled=false",
     )
@@ -125,7 +122,12 @@ val prCheckNetSizeOverrides =
     )
 
 tasks {
-    prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
+    prCheckTags.forEach { (taskName, _) ->
+        register(taskName) {
+            getByName(taskName).group = "hapi-test"
+            dependsOn("testSubprocess")
+        }
+    }
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
 }
 

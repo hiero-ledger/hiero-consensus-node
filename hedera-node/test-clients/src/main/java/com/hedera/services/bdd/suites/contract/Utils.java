@@ -18,8 +18,8 @@ import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -64,7 +64,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.bouncycastle.util.encoders.Hex;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -295,9 +295,9 @@ public class Utils {
                 .build();
     }
 
-    public static AccountAmount aaWith(final ByteString evmAddress, final long amount) {
+    public static AccountAmount aaWith(HapiSpec spec, final ByteString evmAddress, final long amount) {
         return AccountAmount.newBuilder()
-                .setAccountID(accountId(evmAddress))
+                .setAccountID(accountId(spec, evmAddress))
                 .setAmount(amount)
                 .build();
     }
@@ -325,10 +325,10 @@ public class Utils {
                 .build();
     }
 
-    public static AccountID accountId(final ByteString evmAddress) {
+    public static AccountID accountId(HapiSpec spec, final ByteString evmAddress) {
         return AccountID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setAlias(evmAddress)
                 .build();
     }
@@ -492,7 +492,9 @@ public class Utils {
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
             @NonNull final com.esaulpaugh.headlong.abi.Address address) {
         var addressHex = toChecksumAddress(address.value());
-        addressHex = addressHex.substring(2); // remove 0x
+        if (addressHex.startsWith("0x")) {
+            addressHex = addressHex.substring(2);
+        }
         var shard = addressHex.substring(0, 8);
         var realm = addressHex.substring(8, 24);
         var scheduleNum = addressHex.substring(24, 40);

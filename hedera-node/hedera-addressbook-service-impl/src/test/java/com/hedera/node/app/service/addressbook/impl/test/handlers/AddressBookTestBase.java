@@ -34,7 +34,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
@@ -51,6 +50,7 @@ import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.hiero.consensus.model.roster.Address;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -291,7 +291,8 @@ public class AddressBookTestBase {
                 0,
                 deleted,
                 key,
-                false);
+                false,
+                null);
     }
 
     protected void givenValidNodeWithAdminKey(Key adminKey) {
@@ -306,7 +307,8 @@ public class AddressBookTestBase {
                 0,
                 false,
                 adminKey,
-                false);
+                false,
+                null);
     }
 
     protected Node createNode() {

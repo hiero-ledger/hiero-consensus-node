@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.io.streams.SerializableDataInputStreamImpl;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import com.swirlds.platform.internal.Deserializer;
 import com.swirlds.platform.internal.Serializer;
 import java.io.ByteArrayInputStream;
@@ -18,8 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import javax.net.ssl.SSLException;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.Test;
 
 class UtilitiesTest {
@@ -27,7 +25,7 @@ class UtilitiesTest {
     @Test
     void writeReadList() throws IOException {
         ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        SerializableDataOutputStream fcOut = new SerializableDataOutputStreamImpl(byteOut);
+        SerializableDataOutputStream fcOut = new SerializableDataOutputStream(byteOut);
 
         List<Pair<Long, Long>> w1 = null;
         List<Pair<Long, Long>> w2 = new ArrayList<>();
@@ -45,7 +43,7 @@ class UtilitiesTest {
         Utilities.writeList(w3, fcOut, ser);
 
         SerializableDataInputStream fcIn =
-                new SerializableDataInputStreamImpl(new ByteArrayInputStream(byteOut.toByteArray()));
+                new SerializableDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
         Deserializer<Pair<Long, Long>> des = (stream) -> {
             long key = stream.readLong();

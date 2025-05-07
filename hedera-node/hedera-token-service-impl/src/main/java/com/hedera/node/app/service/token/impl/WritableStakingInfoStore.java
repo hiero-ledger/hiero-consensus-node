@@ -33,7 +33,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
      * @param entityCounters
      */
     public WritableStakingInfoStore(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
-        super(states);
+        super(states, entityCounters);
         requireNonNull(states);
 
         this.stakingInfoState = states.get(V0490TokenSchema.STAKING_INFO_KEY);

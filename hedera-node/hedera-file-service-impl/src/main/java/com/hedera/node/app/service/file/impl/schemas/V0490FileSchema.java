@@ -4,8 +4,7 @@ package com.hedera.node.app.service.file.impl.schemas;
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
-import static java.util.Spliterator.DISTINCT;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,8 +66,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -92,7 +89,7 @@ public class V0490FileSchema extends Schema {
      * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
      * not found.
      */
-    private static final String DEFAULT_THROTTLES_RESOURCE = "genesis/throttles.json";
+    private static final String DEFAULT_THROTTLES_RESOURCE = "/genesis/throttles.json";
 
     /**
      * A hint to the database system of the maximum number of files we will store. This MUST NOT BE CHANGED. If it is
@@ -195,8 +192,8 @@ public class V0490FileSchema extends Schema {
      * Given a {@link SystemContext}, dispatches a synthetic file update transaction for the given file ID and contents.
      *
      * @param systemContext the system context
-     * @param fileId the file ID
-     * @param contents the contents of the file
+     * @param fileId        the file ID
+     * @param contents      the contents of the file
      */
     public static void dispatchSynthFileUpdate(
             @NonNull final SystemContext systemContext, @NonNull final FileID fileId, @NonNull final Bytes contents) {
@@ -209,7 +206,7 @@ public class V0490FileSchema extends Schema {
 
     public Bytes nodeStoreNodeDetails(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeDetails = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        nodeStore.keys().stream()
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())
@@ -235,7 +232,7 @@ public class V0490FileSchema extends Schema {
 
     public Bytes nodeStoreAddressBook(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeAddresses = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        nodeStore.keys().stream()
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())
@@ -277,7 +274,7 @@ public class V0490FileSchema extends Schema {
      */
     public Bytes genesisFeeSchedules(@NonNull final Configuration config) {
         final var resourceName = config.getConfigData(BootstrapConfig.class).feeSchedulesJsonResource();
-        try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+        try (final var in = V0490FileSchema.class.getResourceAsStream(resourceName)) {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
@@ -590,8 +587,7 @@ public class V0490FileSchema extends Schema {
 
         if (throttleDefinitionsContent == null) {
             // Load the default throttle definitions resource
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(DEFAULT_THROTTLES_RESOURCE)) {
+            try (final var in = V0490FileSchema.class.getResourceAsStream(DEFAULT_THROTTLES_RESOURCE)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info(
                         "Throttle definitions loaded from default fallback classpath resource {}",

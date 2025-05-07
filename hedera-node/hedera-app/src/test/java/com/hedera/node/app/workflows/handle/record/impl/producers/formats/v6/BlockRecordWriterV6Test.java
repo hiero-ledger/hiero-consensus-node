@@ -22,7 +22,6 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.stream.Signer;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileSystem;
@@ -35,7 +34,8 @@ import java.util.List;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Signer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -360,7 +360,11 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             // Check that the sidecar file exists (if the block records produced any sidecars)
             final var sidecarPath = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.rcd.gz");
+            final var sidecarMarker = recordPath.getParent().resolve("sidecar/2018-08-24T16_25_42.000000890Z_01.mf");
             assertThat(Files.exists(sidecarPath)).isEqualTo(hasSidecars);
+            assertThat(Files.exists(sidecarMarker)).isEqualTo(hasSidecars);
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isEqualTo(hasSidecars);
         }
 
         @Test
@@ -413,6 +417,8 @@ final class BlockRecordWriterV6Test extends AppTestBase {
 
             assertThat(logCaptor.warnLogs()).hasSizeGreaterThan(0);
             assertThat(logCaptor.warnLogs()).allMatch(msg -> msg.contains("sidecar"));
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isFalse();
         }
     }
 
@@ -463,6 +469,17 @@ final class BlockRecordWriterV6Test extends AppTestBase {
             assertThat(logCaptor.warnLogs())
                     .matches(logs -> logs.getFirst().contains("Error closing sidecar file")
                             && logs.getLast().contains("Error closing record file"));
+            assertThat(anyMarkerFilesExist(recordPath.getParent().resolve("sidecar")))
+                    .isFalse();
+        }
+    }
+
+    private boolean anyMarkerFilesExist(Path dir) {
+        if (!dir.getFileSystem().isOpen() || Files.notExists(dir)) return false;
+        try (Stream<Path> paths = Files.walk(dir, 2)) {
+            return paths.anyMatch(p -> p.toString().endsWith(".mf"));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

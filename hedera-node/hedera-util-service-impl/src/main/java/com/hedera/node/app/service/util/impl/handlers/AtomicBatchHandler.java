@@ -281,9 +281,14 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         @Override
-        public void charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
+        public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
             final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
-            delegate.charge(recordingContext, validation, fees);
+            return delegate.charge(recordingContext, validation, fees);
+        }
+
+        @Override
+        public void refund(@NonNull final Context ctx, @NonNull final Fees fees) {
+            delegate.refund(ctx, fees);
         }
 
         /**
@@ -293,28 +298,53 @@ public class AtomicBatchHandler implements TransactionHandler {
             private final Context delegate;
             private final Consumer<Charge> chargeCb;
 
+            @Override
+            public AccountID payerId() {
+                return delegate.payerId();
+            }
+
+            @Override
+            public AccountID nodeAccountId() {
+                return delegate.nodeAccountId();
+            }
+
             public RecordingContext(@NonNull final Context delegate, @NonNull final Consumer<Charge> chargeCb) {
                 this.delegate = requireNonNull(delegate);
                 this.chargeCb = requireNonNull(chargeCb);
             }
 
             @Override
-            public void charge(
+            public Fees charge(
                     @NonNull final AccountID payerId,
                     @NonNull final Fees fees,
                     @Nullable final ObjLongConsumer<AccountID> cb) {
-                delegate.charge(payerId, fees, cb);
+                final var chargedFees = delegate.charge(payerId, fees, cb);
                 chargeCb.accept(new Charge(payerId, fees, null));
+                return chargedFees;
             }
 
             @Override
-            public void charge(
+            public void refund(
+                    @NonNull final AccountID payerId,
+                    @NonNull final Fees fees,
+                    @NonNull final AccountID nodeAccountId) {
+                delegate.refund(payerId, fees, nodeAccountId);
+            }
+
+            @Override
+            public void refund(@NonNull final AccountID receiverId, @NonNull final Fees fees) {
+                delegate.refund(receiverId, fees);
+            }
+
+            @Override
+            public Fees charge(
                     @NonNull final AccountID payerId,
                     @NonNull final Fees fees,
                     @NonNull final AccountID nodeAccountId,
                     @Nullable final ObjLongConsumer<AccountID> cb) {
-                delegate.charge(payerId, fees, nodeAccountId, cb);
+                final var chargedFees = delegate.charge(payerId, fees, nodeAccountId, cb);
                 chargeCb.accept(new Charge(payerId, fees, nodeAccountId));
+                return chargedFees;
             }
 
             @Override

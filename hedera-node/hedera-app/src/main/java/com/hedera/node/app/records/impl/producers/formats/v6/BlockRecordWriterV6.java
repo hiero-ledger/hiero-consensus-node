@@ -28,8 +28,6 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.stream.Signer;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
@@ -48,7 +46,9 @@ import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.DigestType;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signer;
 
 /**
  * An incremental file-based {@link BlockRecordWriter} that writes a single {@link RecordStreamItem} at a time. It also
@@ -376,17 +376,38 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                 sidecarFileWriter.close();
                 // get the sidecar hash
                 final Bytes sidecarHash = sidecarFileWriter.fileHash();
-                // create and add sidecar metadata to record file
+                // create and add sidecar metadata to the record file
                 if (sidecarMetadata == null) sidecarMetadata = new ArrayList<>();
                 sidecarMetadata.add(new SidecarMetadata(
                         new HashObject(HashAlgorithm.SHA_384, (int) sidecarHash.length(), sidecarHash),
                         sidecarFileWriter.id(),
                         sidecarFileWriter.types()));
+                // Add a marker file for the sidecar when it is closed
+                writeSidecarMarkerFile();
             }
         } catch (final IOException e) {
             // NOTE: Writing sidecar files really is best-effort, if it doesn't happen, we're OK with just logging the
             // warning and moving on.
             logger.warn("Error closing sidecar file", e);
+        }
+    }
+
+    /**
+     * Write a marker file for the sidecar file.
+     * This is used to indicate that the sidecar file has been closed and is ready to be uploaded.
+     * The marker file is named the same as the sidecar file, but with a .mf extension.
+     * The contents of the marker file are the hash of the sidecar file.
+     *
+     * @throws IOException if there was a problem writing the marker file
+     */
+    private void writeSidecarMarkerFile() throws IOException {
+        final Path sidecarPath = getSidecarFilePath(sidecarFileWriter.id());
+        final Path markerPath =
+                sidecarPath.resolveSibling(sidecarPath.getFileName().toString().replace(".rcd.gz", ".mf"));
+        if (Files.exists(markerPath)) {
+            logger.debug("Side‑car marker already exists: {}", markerPath);
+        } else {
+            Files.createFile(markerPath);
         }
     }
 

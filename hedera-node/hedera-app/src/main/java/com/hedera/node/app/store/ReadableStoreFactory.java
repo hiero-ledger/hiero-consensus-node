@@ -53,8 +53,6 @@ import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.state.service.ReadableRosterStore;
-import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,6 +61,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 
 /**
  * Factory for all readable stores. It creates new readable stores based on the {@link State}.
@@ -82,9 +82,7 @@ public class ReadableStoreFactory {
         newMap.put(ReadableAirdropStore.class, new StoreEntry(TokenService.NAME, ReadableAirdropStoreImpl::new));
         newMap.put(ReadableNftStore.class, new StoreEntry(TokenService.NAME, ReadableNftStoreImpl::new));
         newMap.put(
-                ReadableStakingInfoStore.class,
-                new StoreEntry(
-                        TokenService.NAME, (states, entityCounters) -> new ReadableStakingInfoStoreImpl(states)));
+                ReadableStakingInfoStore.class, new StoreEntry(TokenService.NAME, ReadableStakingInfoStoreImpl::new));
         newMap.put(ReadableTokenStore.class, new StoreEntry(TokenService.NAME, ReadableTokenStoreImpl::new));
         newMap.put(
                 ReadableTokenRelationStore.class,
@@ -131,7 +129,9 @@ public class ReadableStoreFactory {
         // Hints service
         newMap.put(
                 ReadableHintsStore.class,
-                new StoreEntry(HintsService.NAME, (states, entityCounters) -> new ReadableHintsStoreImpl(states)));
+                new StoreEntry(
+                        HintsService.NAME,
+                        (states, entityCounters) -> new ReadableHintsStoreImpl(states, entityCounters)));
         // History service
         newMap.put(
                 ReadableHistoryStore.class,
