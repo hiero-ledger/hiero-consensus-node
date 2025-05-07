@@ -791,7 +791,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
-                results);
+                results,
+                category);
     }
 
     private void mockNeeded() {

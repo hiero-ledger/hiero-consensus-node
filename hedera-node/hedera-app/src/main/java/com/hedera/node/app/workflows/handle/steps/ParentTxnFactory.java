@@ -356,7 +356,8 @@ public class ParentTxnFactory {
                 feeAccumulator,
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
-                preHandleResult.innerResults());
+                preHandleResult.innerResults(),
+                transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(

@@ -125,8 +125,7 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
 
     @Override
     public int numSignaturesVerified() {
-        // FUTURE - keyVerifications.size(); now this for mono-service differential testing
-        return legacyFeeCalcNetworkVpt;
+        return keyVerifications.size();
     }
 
     @Override
@@ -175,8 +174,8 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
                 final var clampedThreshold = Math.max(1, Math.min(threshold, keys.size()));
                 yield verificationFutureFor(key, keys, keys.size() - clampedThreshold);
             }
-            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET -> completedFuture(
-                    failedVerification(key));
+            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET ->
+                completedFuture(failedVerification(key));
         };
     }
 

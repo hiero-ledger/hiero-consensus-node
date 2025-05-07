@@ -57,6 +57,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +68,36 @@ import org.junit.jupiter.api.Nested;
 
 @HapiTestLifecycle
 public class AtomicBatchTest {
+    @HapiTest
+    public Stream<DynamicTest> validateFeesForChildren() {
+        final var batchOperator = "batchOperator";
+        final var alice = "alice";
+        final var bob = "bob";
+        final var innerTxnId = "innerId";
+        final var batchTxn = "batchTxn";
+        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
+        final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
+
+        final var innerCryptoTxn = cryptoTransfer(tinyBarsFromTo(alice, bob, ONE_HBAR))
+                .signedBy(alice)
+                .payingWith(alice)
+                .txnId(innerTxnId)
+                .blankMemo()
+                .batchKey(batchOperator);
+
+        return hapiTest(
+                cryptoCreate(batchOperator).balance(ONE_HBAR),
+                cryptoCreate(alice).balance(2 * ONE_HBAR),
+                cryptoCreate(bob).balance(4 * ONE_HBAR),
+                usableTxnIdNamed(innerTxnId).payerId(alice),
+                atomicBatch(innerCryptoTxn)
+                        .payingWith(batchOperator)
+                        .via(batchTxn)
+                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                getTxnRecord(innerTxnId).assertingNothingAboutHashes().logged(),
+                validateInnerTxnChargedUsd(innerTxnId, batchTxn, BASE_FEE_HBAR_CRYPTO_TRANSFER, 5));
+    }
 
     @HapiTest
     @DisplayName("Validate batch transaction passed")
@@ -560,8 +591,8 @@ public class AtomicBatchTest {
                             .via("batchTxn"),
                     // validate the fee charged for the batch txn and the inner txns
                     validateChargedUsd("batchTxn", 0.001),
-                    validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 30),
-                    validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 30));
+                    validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5),
+                    validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5));
         }
     }
 

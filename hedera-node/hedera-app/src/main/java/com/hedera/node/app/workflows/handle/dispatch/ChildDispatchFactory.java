@@ -52,7 +52,6 @@ import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
@@ -116,8 +115,7 @@ public class ChildDispatchFactory {
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final TransactionChecker transactionChecker,
-            @NonNull final DeduplicationCache deduplicationCache) {
+            @NonNull final TransactionChecker transactionChecker) {
         this.dispatcher = requireNonNull(dispatcher);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
@@ -189,7 +187,9 @@ public class ChildDispatchFactory {
                         .copyBuilder()
                         .transactionID(stack.nextPresetTxnId(isLastAllowedPreset))
                         .build();
-        final var childTxnInfo = getTxnInfoFrom(options.payerId(), body);
+        final var childTxnInfo = overridePreHandleResult != null
+                ? overridePreHandleResult.txInfo()
+                : getTxnInfoFrom(options.payerId(), body);
         final var streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
         final var childStack = SavepointStackImpl.newChildStack(
                 stack, options.reversingBehavior(), options.category(), options.transactionCustomizer(), streamMode);
@@ -283,7 +283,8 @@ public class ChildDispatchFactory {
                 childFeeAccumulator,
                 dispatchMetadata,
                 transactionChecker,
-                null);
+                null,
+                category);
         final var childFees = dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);
         final var congestionMultiplier = feeManager.congestionMultiplierFor(
                 txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
