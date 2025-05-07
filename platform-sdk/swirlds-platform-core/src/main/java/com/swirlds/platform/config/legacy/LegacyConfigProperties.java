@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config.legacy;
 
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Optional;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Bean for all parameters that can be part of the config.txt file

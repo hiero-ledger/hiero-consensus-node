@@ -14,7 +14,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.platform.event.creation.tipset.Tipset;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,10 +25,12 @@ import java.util.Set;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -86,7 +87,7 @@ class TipsetTrackerTests {
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
             } else {
-                nGen = 0;
+                nGen = NonDeterministicGeneration.FIRST_GENERATION;
             }
 
             birthRound += random.nextLong(0, 3) / 2;
@@ -131,8 +132,10 @@ class TipsetTrackerTests {
                 newTipset = tracker.addPeerEvent(event);
             }
             assertThat(newTipset.getTipGenerationForNode(selfId))
-                    .withFailMessage("The generation should always be -1 for the self node")
-                    .isEqualTo(-1);
+                    .withFailMessage(String.format(
+                            "The generation should always be %s for the self node",
+                            NonDeterministicGeneration.GENERATION_UNDEFINED))
+                    .isEqualTo(NonDeterministicGeneration.GENERATION_UNDEFINED);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.

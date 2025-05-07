@@ -18,7 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -43,6 +43,7 @@ import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
@@ -105,17 +106,20 @@ public class RepeatableHip1064Tests {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(selectedItems(
-                        nodeRewardsValidator(expectedNodeRewards::get),
-                        // We expect two node rewards payments in this test.
-                        // But first staking period all nodes are inactive and minReward is 0.
-                        // So no synthetic node rewards payment is expected.
-                        1,
-                        (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(
-                                                aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)
-                                && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                        .isAfter(startConsensusTime.get()))),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                nodeRewardsValidator(expectedNodeRewards::get),
+                                // We expect two node rewards payments in this test.
+                                // But first staking period all nodes are inactive and minReward is 0.
+                                // So no synthetic node rewards payment is expected.
+                                1,
+                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
+                        Duration.ofSeconds(1)),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
@@ -168,7 +172,8 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     /**
@@ -196,7 +201,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.adjustNodeFees", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get),
                                 // We expect two node rewards payments in this test.
@@ -260,7 +265,8 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     /**
@@ -290,7 +296,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.minPerPeriodNodeRewardUsd", "10"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidatorWithInactiveNodes(
                                         expectedNodeRewards::get, expectedMinNodeReward::get),
@@ -358,7 +364,8 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     @LeakyRepeatableHapiTest(
@@ -372,7 +379,7 @@ public class RepeatableHip1064Tests {
         return hapiTest(
                 overriding("nodes.preserveMinNodeRewardBalance", "false"),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(expectedNodeRewards::get),
                                 // We expect two node rewards payments in this test.
@@ -435,7 +442,8 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
-                cryptoCreate("nobody").payingWith(GENESIS));
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     static SpecOperation validateRecordFees(final String record, List<Long> expectedFeeAccounts) {

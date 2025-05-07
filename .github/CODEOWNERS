@@ -26,7 +26,7 @@
 /hedera-node/                                   @hiero-ledger/hiero-consensus-node-execution-codeowners
 
 # Hedera Node Deployments - Configuration & Grafana Dashboards
-/hedera-node/configuration/**                   @rbair23 @dalvizu @poulok @netopyr @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @beeradb
+/hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @beeradb
 /hedera-node/configuration/dev/**               @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/infrastructure/**                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
 

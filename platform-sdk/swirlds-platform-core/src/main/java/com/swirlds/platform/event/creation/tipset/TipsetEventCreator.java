@@ -8,12 +8,10 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.event.EventUtils;
 import com.swirlds.platform.event.hashing.PbjStreamHasher;
 import com.swirlds.platform.event.hashing.UnsignedEventHasher;
-import com.swirlds.platform.roster.RosterUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -26,6 +24,7 @@ import java.util.Objects;
 import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -38,6 +37,7 @@ import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Responsible for creating new events using the tipset algorithm.
@@ -456,5 +456,18 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Capable of signing a {@link Hash}
+     */
+    @FunctionalInterface
+    public interface HashSigner {
+        /**
+         * @param hash
+         * 		the hash to sign
+         * @return the signature for the hash provided
+         */
+        Signature sign(Hash hash);
     }
 }

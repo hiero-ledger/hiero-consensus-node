@@ -35,7 +35,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
 import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.system.address.Address;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,6 +65,7 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
 
 /**
  * Utility methods that are helpful when starting up a JVM.

@@ -17,16 +17,15 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.stream.HashSigner;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.creation.tipset.ChildlessEventTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
+import com.swirlds.platform.event.creation.tipset.TipsetEventCreator.HashSigner;
 import com.swirlds.platform.event.creation.tipset.TipsetTracker;
 import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -40,10 +39,11 @@ import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Assertions;
 
@@ -121,11 +121,11 @@ public class TipsetEventCreatorTestUtils {
 
         final PlatformEvent selfParent = allEvents.get(newEvent.getSelfParent());
         final long selfParentGeneration =
-                selfParent == null ? EventConstants.GENERATION_UNDEFINED : selfParent.getNGen();
+                selfParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : selfParent.getNGen();
         final PlatformEvent otherParent =
                 allEvents.get(newEvent.getOtherParents().stream().findFirst().orElse(null));
         final long otherParentGeneration =
-                otherParent == null ? EventConstants.GENERATION_UNDEFINED : otherParent.getNGen();
+                otherParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : otherParent.getNGen();
 
         if (selfParent == null) {
             // The only legal time to have a null self parent is genesis.

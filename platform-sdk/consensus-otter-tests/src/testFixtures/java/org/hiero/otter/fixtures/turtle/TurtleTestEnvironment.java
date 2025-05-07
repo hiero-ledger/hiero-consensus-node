@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
+
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -25,7 +27,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.Validator;
-import org.hiero.otter.fixtures.internal.logging.InMemoryAppender;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.validator.ValidatorImpl;
 
 /**
@@ -82,6 +84,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
             final ConstructableRegistry registry = ConstructableRegistry.getInstance();
             registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds");
+            registerMerkleStateRootClassIds();
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
@@ -94,13 +97,12 @@ public class TurtleTestEnvironment implements TestEnvironment {
                 FileUtils.deleteDirectory(rootOutputDirectory);
             }
         } catch (IOException ex) {
-            log.warn("Failed to delete directory: " + rootOutputDirectory, ex);
+            log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
-        network = new TurtleNetwork(
-                randotron, timeManager, rootOutputDirectory, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+        network = new TurtleNetwork(randotron, timeManager, rootOutputDirectory);
 
         generator = new TurtleTransactionGenerator(network, randotron);
 

@@ -2,10 +2,10 @@
 package com.swirlds.platform.gui.hashgraph.internal;
 
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Metadata that is calculated based on a {@link AddressBook} that is used to aid in drawing a hashgraph

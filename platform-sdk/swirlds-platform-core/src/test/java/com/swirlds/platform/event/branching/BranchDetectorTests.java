@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -19,6 +18,7 @@ import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.Test;
 
 class BranchDetectorTests {

@@ -10,6 +10,7 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
@@ -26,20 +27,18 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.test.fixtures.turtle.runner.TurtleTestingToolState;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
@@ -49,17 +48,27 @@ import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 
 /**
  * A node in the turtle network.
  *
  * <p>This class implements the {@link Node} interface and provides methods to control the state of the node.
  */
+@SuppressWarnings("removal")
 public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
+
+    private static final SemanticVersion DEFAULT_VERSION =
+            SemanticVersion.newBuilder().major(1).build();
 
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
     private static final Logger log = LogManager.getLogger(TurtleNode.class);
@@ -79,6 +88,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private final KeysAndCerts privateKeys;
     private final SimulatedNetwork network;
     private final TurtleNodeConfiguration nodeConfiguration;
+    private final NodeResultsCollector resultsCollector;
 
     private final PlatformStatusChangeListener platformStatusChangeListener =
             data -> TurtleNode.this.platformStatus = data.getNewStatus();
@@ -108,6 +118,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             this.privateKeys = requireNonNull(privateKeys);
             this.network = requireNonNull(network);
             this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
+            this.resultsCollector = new NodeResultsCollector(selfId);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -121,6 +132,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     PlatformStatus platformStatus() {
         return platformStatus;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public NodeId getSelfId() {
+        return selfId;
     }
 
     /**
@@ -199,6 +219,12 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @NonNull
     public NodeConfiguration getConfiguration() {
         return nodeConfiguration;
+    }
+
+    @NonNull
+    @Override
+    public SingleNodeConsensusResult getConsensusResult() {
+        return resultsCollector.getConsensusResult();
     }
 
     /**
@@ -294,7 +320,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
-        final SemanticVersion version = SemanticVersion.newBuilder().major(1).build();
+        final SemanticVersion version = currentConfiguration.getValue(
+                TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class, DEFAULT_VERSION);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
@@ -314,6 +341,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
 
+        final State state = initialState.get().getState();
+        final long round = platformStateFacade.roundOf(state);
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,
@@ -322,14 +351,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                         TurtleApp.INSTANCE,
                         selfId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, selfId),
-                        RosterUtils.buildRosterHistory(initialState.get().getState(), platformStateFacade),
+                        RosterUtils.buildRosterHistory(state, round),
                         platformStateFacade)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
                 .withKeysAndCerts(privateKeys)
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
-                .withSystemTransactionEncoderCallback(TurtleApp::encodeSystemTransaction);
+                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
+                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()));
 
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
         final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
@@ -340,6 +370,10 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(selfId));
 
         platformWiring = platformBuildingBlocks.platformWiring();
+
+        platformWiring
+                .getConsensusEngineOutputWire()
+                .solderTo("nodeResultCollector", "consensusRounds", resultsCollector::addConsensusRounds);
 
         platform = platformComponentBuilder.build();
         platformStatus = PlatformStatus.STARTING_UP;

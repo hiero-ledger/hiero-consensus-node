@@ -58,7 +58,7 @@ public record FullResult(
                 null);
     }
 
-    public static FullResult revertResult(@NonNull Bytes reason, final long gasRequirement) {
+    public static FullResult revertResult(@NonNull final Bytes reason, final long gasRequirement) {
         requireNonNull(reason);
         return new FullResult(PrecompiledContract.PrecompileContractResult.revert(reason), gasRequirement, null);
     }
@@ -111,6 +111,11 @@ public record FullResult(
                 PrecompiledContract.PrecompileContractResult.success(Bytes.wrap(encoded.array())),
                 gasRequirement,
                 null);
+    }
+
+    public static FullResult successResult(@NonNull final Bytes encoded, final long gasRequirement) {
+        requireNonNull(encoded);
+        return new FullResult(PrecompiledContract.PrecompileContractResult.success(encoded), gasRequirement, null);
     }
 
     public static FullResult haltResult(final long gasRequirement) {

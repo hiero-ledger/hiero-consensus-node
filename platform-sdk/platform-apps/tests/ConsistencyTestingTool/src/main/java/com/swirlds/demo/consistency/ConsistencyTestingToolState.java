@@ -7,7 +7,6 @@ import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.singleton.StringLeaf;
@@ -20,6 +19,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.utility.NonCryptographicHashing;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;

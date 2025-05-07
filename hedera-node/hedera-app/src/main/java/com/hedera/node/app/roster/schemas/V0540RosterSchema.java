@@ -5,11 +5,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -24,6 +22,9 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Initial {@link com.hedera.node.app.roster.RosterService} schema that registers two states,
@@ -97,14 +98,20 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
                         RosterUtils.rosterFrom(startupNetworks.genesisNetworkOrThrow(ctx.platformConfig())), 0L);
             } else if (rosterStore.getActiveRoster() == null) {
                 // (FUTURE) Once there are no production states without a roster, we can remove this branch
-                final var previousRoster = requireNonNull(
-                        RosterRetriever.retrieveActiveOrGenesisRoster(stateSupplier.get(), platformStateFacade));
+                final State state = stateSupplier.get();
+                final long round = platformStateFacade.roundOf(state);
+                final var previousRoster = requireNonNull(RosterRetriever.retrieveActive(state, round));
                 rosterStore.putActiveRoster(previousRoster, 0);
                 final var currentRoster =
                         RosterUtils.rosterFrom(startupNetworks.migrationNetworkOrThrow(ctx.platformConfig()));
                 rosterStore.putActiveRoster(currentRoster, activeRoundNumber);
-            } else if (ctx.isUpgrade(
-                    ctx.appConfig().getConfigData(VersionConfig.class).servicesVersion())) {
+            } else if (ctx.isUpgrade(ctx.appConfig()
+                    .getConfigData(VersionConfig.class)
+                    .servicesVersion()
+                    .copyBuilder()
+                    .build(""
+                            + ctx.appConfig().getConfigData(HederaConfig.class).configVersion())
+                    .build())) {
                 final var candidateRoster = rosterStore.getCandidateRoster();
                 if (candidateRoster == null) {
                     log.info("No candidate roster to adopt in round {}", activeRoundNumber);

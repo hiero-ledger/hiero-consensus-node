@@ -2,13 +2,13 @@
 package com.swirlds.platform.network.topology;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.ConnectionTracker;
 import com.swirlds.platform.network.InboundConnectionManager;
 import com.swirlds.platform.network.OutboundConnectionManager;
 import com.swirlds.platform.network.PeerInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
