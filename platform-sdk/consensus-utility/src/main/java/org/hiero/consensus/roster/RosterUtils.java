@@ -295,9 +295,9 @@ public final class RosterUtils {
      */
     @NonNull
     public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
-        final var roundRosterPairs = rosterStore.getRosterHistory();
+        final List<RoundRosterPair> roundRosterPairs = rosterStore.getRosterHistory();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
-        for (final var pair : roundRosterPairs) {
+        for (final RoundRosterPair pair : roundRosterPairs) {
             rosterMap.put(pair.activeRosterHash(), Objects.requireNonNull(rosterStore.get(pair.activeRosterHash())));
         }
         return new RosterHistory(roundRosterPairs, rosterMap);
