@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
@@ -139,6 +140,8 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             timing.setTimePoint(1);
 
             syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow());
+
+            logger.info(RECONNECT.getMarker(), "OLD: Received sync data {}, my data is {}", theirTipsAndEventWindow.eventWindow(), myWindow);
 
             if (fallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())) {
                 // aborting the sync since someone has fallen behind
