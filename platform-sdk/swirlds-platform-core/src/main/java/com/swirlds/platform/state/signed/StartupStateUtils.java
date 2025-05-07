@@ -372,7 +372,7 @@ public final class StartupStateUtils {
     }
 
     /**
-     * Get the initial state to be used by this node. May return a state loaded from disk, or may return a genesis state
+     * Get the initial state to be used by a node. May return a state loaded from disk, or may return a genesis state
      * if no valid state is found on disk.
      *
      * @param recycleBin          the recycle bin to use

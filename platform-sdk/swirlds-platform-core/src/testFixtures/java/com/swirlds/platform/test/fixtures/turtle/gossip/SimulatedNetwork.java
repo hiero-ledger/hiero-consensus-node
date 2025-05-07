@@ -74,7 +74,11 @@ public class SimulatedNetwork {
             @NonNull final Roster roster,
             @NonNull final Duration averageDelay,
             @NonNull final Duration standardDeviationDelay) {
-        this(random, roster.rosterEntries().stream().map(NodeId::of).toList(), averageDelay, standardDeviationDelay);
+        this(
+                random,
+                roster.rosterEntries().stream().map(NodeId::of).sorted().toList(),
+                averageDelay,
+                standardDeviationDelay);
     }
 
     /**
@@ -92,14 +96,7 @@ public class SimulatedNetwork {
             @NonNull final Duration standardDeviationDelay) {
         this(random, addressBook.getNodeIdSet().stream().sorted().toList(), averageDelay, standardDeviationDelay);
     }
-    /**
-     * Constructor.
-     *
-     * @param random                 the random number generator to use for simulating network delays
-     * @param nodeIds                the nodeIds of the network
-     * @param averageDelay           the average delay for events to travel between nodes
-     * @param standardDeviationDelay the standard deviation of the delay for events to travel between nodes
-     */
+
     private SimulatedNetwork(
             @NonNull final Random random,
             @NonNull final List<NodeId> nodeIds,
