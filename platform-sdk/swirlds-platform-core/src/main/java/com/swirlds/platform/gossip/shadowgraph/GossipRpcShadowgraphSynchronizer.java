@@ -92,10 +92,12 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
     @Override
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
         super.addEvent(platformEvent);
-        if (selfId.equals(platformEvent.getCreatorId())) {
-            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
-            allConversations.forEach(conversation -> conversation.broadcastEvent(gossipEvent));
-        }
+
+        // broadcast event to other nodes as part of simplistic chatter
+        //        if (selfId.equals(platformEvent.getCreatorId())) {
+        //            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
+        //            allConversations.forEach(conversation -> conversation.broadcastEvent(gossipEvent));
+        //        }
     }
 
     public class SyncConversation implements GossipRpcReceiver {
