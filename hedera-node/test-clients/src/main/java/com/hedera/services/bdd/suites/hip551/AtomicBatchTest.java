@@ -91,7 +91,6 @@ public class AtomicBatchTest {
                 newKeyNamed("adminKey"),
                 newKeyNamed("submitKey"),
                 newKeyNamed("feeScheduleKey"),
-
                 cryptoCreate("batchOperator").balance(ONE_HBAR),
                 cryptoCreate("alice").balance(2 * ONE_HBAR),
                 cryptoCreate("bob").balance(4 * ONE_HBAR),
@@ -101,12 +100,9 @@ public class AtomicBatchTest {
                         .submitKeyName("submitKey")
                         .feeScheduleKeyName("feeScheduleKey")
                         .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, "collector")),
-
                 usableTxnIdNamed("innerTxnId").payerId("alice"),
                 usableTxnIdNamed("innerTxnId2").payerId("bob"),
-
                 atomicBatch(innerTxn1, innerTxn2).payingWith("batchOperator").via("batchTxn"),
-
                 validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 validateInnerTxnChargedUsd("innerTxnId", "batchTxn", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5),
                 validateInnerTxnChargedUsd("innerTxnId2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5));
