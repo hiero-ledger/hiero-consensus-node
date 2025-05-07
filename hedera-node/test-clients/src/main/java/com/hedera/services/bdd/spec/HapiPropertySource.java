@@ -169,6 +169,18 @@ public interface HapiPropertySource {
                 .orElse((long) shard);
     }
 
+    static long getConfigShard() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
+                .map(Long::parseLong)
+                .orElse((long) SHARD);
+    }
+
+    static long getConfigRealm() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
+                .map(Long::parseLong)
+                .orElse(REALM);
+    }
+
     default TimeUnit getTimeUnit(String property) {
         return TimeUnit.valueOf(get(property));
     }
@@ -276,6 +288,10 @@ public interface HapiPropertySource {
                 .setRealmNum(realm)
                 .setAccountNum(num)
                 .build();
+    }
+
+    static ContractID asContract(String shard, String realm, String num) {
+        return asContract(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
     }
 
     static ContractID asContract(Long shard, Long realm, Long num) {

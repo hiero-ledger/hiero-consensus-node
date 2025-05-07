@@ -3,8 +3,8 @@ package com.hedera.services.bdd.junit;
 
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.getConfigRealm;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.getConfigShard;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
