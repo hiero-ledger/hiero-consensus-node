@@ -378,8 +378,7 @@ public class SystemTransactions {
         if (autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
             dispatch.stack().commitFullStack();
         }
-        // (FUTURE) Remove this 0.61-specific code initiating all system node accounts to decline rewards
-        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+        // (FUTURE) Remove this 0.61 and 0.62 -specific code initiating all system node accounts to decline rewards
         final var nodeStore = dispatch.handleContext().storeFactory().readableStore(ReadableNodeStore.class);
         for (int i = 0; i < nodeStore.sizeOfState(); i++) {
             final var node = nodeStore.get(i);
