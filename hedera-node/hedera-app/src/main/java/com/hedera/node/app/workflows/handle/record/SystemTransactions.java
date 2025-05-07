@@ -80,6 +80,7 @@ import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -96,6 +97,7 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -118,7 +120,8 @@ public class SystemTransactions {
 
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
-    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {};
+    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {
+    };
 
     private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
@@ -182,7 +185,7 @@ public class SystemTransactions {
     /**
      * Sets up genesis state for the system.
      *
-     * @param now   the current time
+     * @param now the current time
      * @param state the state to set up
      */
     public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
@@ -297,7 +300,6 @@ public class SystemTransactions {
                 }
             });
             systemContext.dispatchAdmin(b -> {
-                final var isSystemAccount = nodeInfo.nodeId() <= ledgerConfig.numSystemAccounts();
                 final var nodeCreate = NodeCreateTransactionBody.newBuilder()
                         .adminKey(adminKey)
                         .accountId(nodeInfo.accountId())
@@ -305,7 +307,7 @@ public class SystemTransactions {
                         .gossipEndpoint(nodeInfo.gossipEndpoints())
                         .gossipCaCertificate(nodeInfo.sigCertBytes())
                         .serviceEndpoint(hapiEndpoints)
-                        .declineReward(isSystemAccount)
+                        .declineReward(true)
                         .build();
                 b.nodeCreate(nodeCreate);
             });
@@ -386,17 +388,14 @@ public class SystemTransactions {
             final var node = nodeStore.get(i);
             final var nodeInfo = networkInfo.nodeInfo(i);
             if (nodeInfo != null && node != null && !node.deleted()) {
-                final var declineReward = nodeInfo.accountId().accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
-                if (declineReward) {
-                    log.info(
-                            "Updating node{} with system node account {} to decline rewards",
-                            nodeInfo.nodeId(),
-                            nodeInfo.accountId());
-                    systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
-                            .nodeId(nodeInfo.nodeId())
-                            .declineReward(true)
-                            .build()));
-                }
+                log.info(
+                        "Updating node{} with system node account {} to decline rewards",
+                        nodeInfo.nodeId(),
+                        nodeInfo.accountId());
+                systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
+                        .nodeId(nodeInfo.nodeId())
+                        .declineReward(true)
+                        .build()));
             }
         }
         dispatch.stack().commitFullStack();
@@ -407,14 +406,14 @@ public class SystemTransactions {
      * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
      * reward.
      *
-     * @param state                The state.
-     * @param now                  The current time.
-     * @param activeNodeIds        The list of active node ids.
-     * @param perNodeReward        The per node reward.
+     * @param state The state.
+     * @param now The current time.
+     * @param activeNodeIds The list of active node ids.
+     * @param perNodeReward The per node reward.
      * @param nodeRewardsAccountId The node rewards account id.
      * @param rewardAccountBalance The reward account balance.
-     * @param minNodeReward        The minimum node reward.
-     * @param rosterEntries        The list of roster entries.
+     * @param minNodeReward The minimum node reward.
+     * @param rosterEntries The list of roster entries.
      */
     public void dispatchNodeRewards(
             @NonNull final State state,
@@ -429,7 +428,8 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(now, state, dispatch -> {
+        }, false);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -501,8 +501,8 @@ public class SystemTransactions {
      * using the given {@link AutoUpdate} function.
      *
      * @param updateFileName the name of the upgrade file
-     * @param updateParser   the function to parse the upgrade file
-     * @param <T>            the type of the update representation
+     * @param updateParser the function to parse the upgrade file
+     * @param <T> the type of the update representation
      */
     private record AutoEntityUpdate<T>(
             @NonNull AutoUpdate<T> autoUpdate,
@@ -660,13 +660,13 @@ public class SystemTransactions {
      * scheduled transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result, and
      * no other side effects.
      *
-     * @param state         the state to execute the transaction against
-     * @param now           the time to execute the transaction at
-     * @param creatorInfo   the node info of the creator of the transaction
-     * @param payerId       the payer of the transaction
-     * @param body          the transaction to execute
+     * @param state the state to execute the transaction against
+     * @param now the time to execute the transaction at
+     * @param creatorInfo the node info of the creator of the transaction
+     * @param payerId the payer of the transaction
+     * @param body the transaction to execute
      * @param nextEntityNum if not zero, the next entity number to use for the transaction
-     * @param onSuccess     the action to take after the transaction is successfully dispatched
+     * @param onSuccess the action to take after the transaction is successfully dispatched
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSystem(
@@ -690,8 +690,8 @@ public class SystemTransactions {
         try {
             final var controlledNum = (nextEntityNum != 0)
                     ? dispatch.stack()
-                            .getWritableStates(EntityIdService.NAME)
-                            .<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY)
+                    .getWritableStates(EntityIdService.NAME)
+                    .<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY)
                     : null;
             if (controlledNum != null) {
                 controlledNum.put(new EntityNumber(nextEntityNum - 1));

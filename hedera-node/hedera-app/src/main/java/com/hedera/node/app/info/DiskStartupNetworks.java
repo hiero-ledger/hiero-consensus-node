@@ -251,8 +251,6 @@ public class DiskStartupNetworks implements StartupNetworks {
                             final var legacyGossipEndpoints = List.of(
                                     rosterEntry.gossipEndpoint().getLast(),
                                     rosterEntry.gossipEndpoint().getFirst());
-                            final var declineReward =
-                                    nodeAccountId.accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
                             return NodeMetadata.newBuilder()
                                     .rosterEntry(rosterEntry)
                                     .node(Node.newBuilder()
@@ -265,7 +263,7 @@ public class DiskStartupNetworks implements StartupNetworks {
                                             .grpcCertificateHash(Bytes.EMPTY)
                                             .weight(rosterEntry.weight())
                                             .deleted(false)
-                                            .declineReward(declineReward)
+                                            .declineReward(true)
                                             .adminKey(Key.DEFAULT)
                                             .build())
                                     .build();
