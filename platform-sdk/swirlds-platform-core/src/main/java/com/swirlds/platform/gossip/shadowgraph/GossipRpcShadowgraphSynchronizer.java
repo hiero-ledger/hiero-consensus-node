@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
@@ -21,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -31,17 +34,17 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * The goal of the GossipRpcShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both sides have
- * the same events in the graph. This process is called a sync.
+ * The goal of the GossipRpcShadowgraphSynchronizer is to compare graphs with a remote node, and update them so both
+ * sides have the same events in the graph. This process is called a sync.
  * <p>
- * This class is designed to use message based protocol (as a precursor to RPC communication) instead of stealing
- * entire socket (unlike {@link ShadowgraphSynchronizer}
+ * This class is designed to use message based protocol (as a precursor to RPC communication) instead of stealing entire
+ * socket (unlike {@link ShadowgraphSynchronizer}
  */
 public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
     private static final Logger logger = LogManager.getLogger(GossipRpcShadowgraphSynchronizer.class);
 
-    private final List<SyncConversation> allConversations = new ArrayList<>();
+    private final List<SyncConversation> allConversations = new CopyOnWriteArrayList<>();
     private final NodeId selfId;
     private final Duration syncPeriod;
 
@@ -83,7 +86,6 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
 
     public SyncConversation synchronize(
             @NonNull final GossipRpcSender sender, @NonNull final NodeId selfId, @NonNull final NodeId otherNodeId) {
-        // TODO: Cleanup of conversations if they are recreated
         final SyncConversation conversation = new SyncConversation(sender, selfId, otherNodeId, syncPeriod);
         allConversations.add(conversation);
         return conversation;
@@ -142,6 +144,7 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
 
             this.remoteSyncData = syncMessage;
 
+            logger.info(RECONNECT.getMarker(), "Received sync data {}, my data is {}", remoteSyncData.eventWindow(), mySyncData.eventWindow());
             syncMetrics.eventWindow(mySyncData.eventWindow(), remoteSyncData.eventWindow());
 
             if (fallenBehind(mySyncData.eventWindow(), remoteSyncData.eventWindow(), otherNodeId)) {
@@ -299,6 +302,14 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
             // logger.info(SYNC_INFO.getMarker(), "Broadcasting event from creator {} as {}",
             //        gossipEvent.eventCore().creatorNodeId(), selfId);
             sender.sendEvents(Collections.singletonList(gossipEvent));
+        }
+
+        /**
+         * Clean all resources and deregister itself
+         */
+        public void cleanup() {
+            clear();
+            GossipRpcShadowgraphSynchronizer.this.allConversations.remove(this);
         }
     }
 }

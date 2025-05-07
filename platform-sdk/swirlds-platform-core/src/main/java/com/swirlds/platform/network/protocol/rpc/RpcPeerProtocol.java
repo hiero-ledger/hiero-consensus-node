@@ -257,4 +257,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         });
         return future;
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void cleanup() {
+        this.syncConversation.cleanup();
+    }
 }

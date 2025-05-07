@@ -11,8 +11,8 @@ import com.swirlds.platform.network.Connection;
 public interface PeerProtocol extends ProtocolRunnable {
 
     /**
-     * Used to ask the protocol if we should initiate it. If this method returns true, one of two things will
-     * always subsequently happen:
+     * Used to ask the protocol if we should initiate it. If this method returns true, one of two things will always
+     * subsequently happen:
      * <ul>
      *     <li>The initiate will be successful and {@link #runProtocol(Connection)} will be called</li>
      *     <li>The initiate will fail and {@link #initiateFailed()} will be called</li>
@@ -31,8 +31,8 @@ public interface PeerProtocol extends ProtocolRunnable {
     }
 
     /**
-     * Our peer initiated this protocol, should we accept? If this method returns true, one of two things will
-     * always subsequently happen:
+     * Our peer initiated this protocol, should we accept? If this method returns true, one of two things will always
+     * subsequently happen:
      *
      * <ul>
      *     <li>The initiate will be successful and {@link #runProtocol(Connection)} will be called</li>
@@ -63,6 +63,12 @@ public interface PeerProtocol extends ProtocolRunnable {
      * @return true if we should run, false otherwise
      */
     boolean acceptOnSimultaneousInitiate();
+
+    /**
+     * Will be called after connection is broken, to clean up possible internal resources if needed. Default
+     * implementation is no-op
+     */
+    default void cleanup() {}
 
     /** @return a string name representing this protocol */
     default String getProtocolName() {
