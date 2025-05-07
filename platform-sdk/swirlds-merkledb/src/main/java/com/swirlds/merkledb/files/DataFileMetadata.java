@@ -54,8 +54,6 @@ public final class DataFileMetadata {
     /** The creation date of this file */
     private final Instant creationDate;
 
-    private final int fieldsSizeInBytes;
-
     /**
      * The number of data items the file contains. When metadata is loaded from a file, the number
      * of items is read directly from there. When metadata is created by {@link DataFileWriter} for
@@ -87,9 +85,6 @@ public final class DataFileMetadata {
         this.index = index;
         this.creationDate = creationDate;
         this.compactionLevel = (byte) compactionLevel;
-
-        // since metadata is immutable except items count that is fixed 64bit long, we can calculate all fields
-        fieldsSizeInBytes = calculateFieldsSizeInBytes();
     }
 
     /**
@@ -164,7 +159,7 @@ public final class DataFileMetadata {
     }
 
     void writeTo(final BufferedData out) {
-        ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_METADATA, fieldsSizeInBytes, this::writeFields);
+        ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_METADATA, calculateFieldsSizeInBytes(), this::writeFields);
     }
 
     /**
@@ -223,11 +218,9 @@ public final class DataFileMetadata {
         return creationDate;
     }
 
-    // For testing purposes. In low-level data file tests, skip this number of bytes from the
-    // beginning of the file before reading data items, assuming file metadata is always written
-    // first, then data items
+    // For testing purposes
     int metadataSizeInBytes() {
-        return ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_METADATA, fieldsSizeInBytes);
+        return ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_METADATA, calculateFieldsSizeInBytes());
     }
 
     private int calculateFieldsSizeInBytes() {
