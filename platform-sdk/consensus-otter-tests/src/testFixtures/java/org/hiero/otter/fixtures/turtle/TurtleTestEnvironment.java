@@ -14,11 +14,15 @@ import java.time.Duration;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.appender.FileAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.filter.MarkerFilter;
+import org.apache.logging.log4j.core.filter.NoMarkerFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -55,29 +59,6 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * Constructor for the {@link TurtleTestEnvironment} class.
      */
     public TurtleTestEnvironment() {
-        final LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
-        final Configuration loggerContextConfig = loggerContext.getConfiguration();
-
-        if (loggerContextConfig.getAppender("InMemory") == null) {
-            final InMemoryAppender inMemoryAppender = InMemoryAppender.createAppender("InMemory");
-            inMemoryAppender.start();
-            loggerContextConfig.addAppender(inMemoryAppender);
-
-            final LoggerConfig rootLoggerConfig = loggerContextConfig.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
-            rootLoggerConfig.addAppender(inMemoryAppender, null, null);
-            rootLoggerConfig.setLevel(org.apache.logging.log4j.Level.ALL);
-
-            final Layout<?> layout = PatternLayout.newBuilder()
-                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%X] [%t] %-5level %logger{36} - %msg %n")
-                    .withConfiguration(loggerContextConfig)
-                    .build();
-
-            final ConsoleAppender consoleAppender = ConsoleAppender.createDefaultAppenderForLayout(layout);
-            rootLoggerConfig.addAppender(consoleAppender, Level.INFO, null);
-
-            loggerContext.updateLoggers();
-        }
-
         final Randotron randotron = Randotron.create();
 
         try {
@@ -98,6 +79,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
         } catch (IOException ex) {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
+        initLogging();
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
@@ -107,6 +89,55 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         timeManager.addTimeTickReceiver(network);
         timeManager.addTimeTickReceiver(generator);
+    }
+
+    private static void initLogging() {
+        final LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
+        final Configuration loggerContextConfig = loggerContext.getConfiguration();
+
+        if (loggerContextConfig.getAppender("InMemory") == null) {
+            final InMemoryAppender inMemoryAppender = InMemoryAppender.createAppender("InMemory");
+            inMemoryAppender.start();
+            loggerContextConfig.addAppender(inMemoryAppender);
+
+            final LoggerConfig rootLoggerConfig = loggerContextConfig.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
+            rootLoggerConfig.addAppender(inMemoryAppender, null, null);
+            rootLoggerConfig.setLevel(Level.ALL);
+
+            final Layout<?> layout = PatternLayout.newBuilder()
+                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%X] [%t] [%marker] %-5level %logger{36} - %msg %n")
+                    .withConfiguration(loggerContextConfig)
+                    .build();
+
+            final ConsoleAppender consoleAppender = ConsoleAppender.newBuilder()
+                    .setName("ConsoleMarker")
+                    .setLayout(layout)
+                    .setTarget(ConsoleAppender.Target.SYSTEM_OUT)
+                    .build();
+
+            final NoMarkerFilter markerExistsFilter = NoMarkerFilter.newBuilder()
+                    .setOnMatch(Result.DENY)
+                    .setOnMismatch(Result.ACCEPT)
+                    .build();
+            consoleAppender.addFilter(markerExistsFilter);
+
+            final MarkerFilter stateHashFilter = MarkerFilter.createFilter("STATE_HASH", Result.DENY, Result.NEUTRAL);
+            consoleAppender.addFilter(stateHashFilter);
+
+            consoleAppender.start();
+            rootLoggerConfig.addAppender(consoleAppender, Level.INFO, null);
+
+            final FileAppender fileAppender = FileAppender.newBuilder()
+                    .setName("FileLogger")
+                    .setLayout(layout)
+                    .withFileName("build/turtle/otter.log")
+                    .withAppend(true)
+                    .build();
+            fileAppender.start();
+            rootLoggerConfig.addAppender(fileAppender, Level.DEBUG, null);
+
+            loggerContext.updateLoggers();
+        }
     }
 
     /**
