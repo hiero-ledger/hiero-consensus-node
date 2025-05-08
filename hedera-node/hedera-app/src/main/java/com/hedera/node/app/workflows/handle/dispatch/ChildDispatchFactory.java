@@ -188,8 +188,11 @@ public class ChildDispatchFactory {
                         .transactionID(stack.nextPresetTxnId(isLastAllowedPreset))
                         .build();
         final var childTxnInfo = overridePreHandleResult != null
-                ? overridePreHandleResult.txInfo()
-                : getTxnInfoFrom(options.payerId(), body);
+                ? getTxnInfoFrom(
+                        options.payerId(),
+                        body,
+                        overridePreHandleResult.txInfo().signatureMap())
+                : getTxnInfoFrom(options.payerId(), body, SignatureMap.DEFAULT);
         final var streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
         final var childStack = SavepointStackImpl.newChildStack(
                 stack, options.reversingBehavior(), options.category(), options.transactionCustomizer(), streamMode);
@@ -479,7 +482,7 @@ public class ChildDispatchFactory {
      * @return the transaction information
      */
     public static TransactionInfo getTxnInfoFrom(
-            @NonNull final AccountID payerId, @NonNull final TransactionBody txBody) {
+            @NonNull final AccountID payerId, @NonNull final TransactionBody txBody, SignatureMap signatureMap) {
         requireNonNull(payerId);
         requireNonNull(txBody);
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txBody);
@@ -494,7 +497,7 @@ public class ChildDispatchFactory {
                 txBody,
                 txBody.transactionIDOrElse(TransactionID.DEFAULT),
                 payerId,
-                SignatureMap.DEFAULT,
+                signatureMap,
                 signedTransactionBytes,
                 functionOfTxn(txBody),
                 null);
