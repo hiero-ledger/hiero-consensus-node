@@ -72,12 +72,65 @@ jobs:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.access-token }}
 
-      - name: Setup NodeJS Environment
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
-          node-version: 20
+          distribution: temurin
+          java-version: 21.0.6
+
+      - name: Setup NodeJS Environment
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
 
       - name: Install NodeJS Dependencies
         run: |
           npm install --prefer-offline --no-audit --progress=false
           npm cache clean --force
+        working-directory: platform-sdk/regression
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244 # v4.3.1
+
+      - name: Install Local Node
+        run: npm install -g @hashgraph/hedera-local
+        working-directory: platform-sdk/regression
+
+      - name: Build SDK
+        run: ./gradlew assemble
+
+      - name: Pull JS TCK Server
+        run: |
+          docker pull ivaylogarnev/js-tck-server-amd:latest
+
+      - name: Pull TCK Client
+        run: |
+          docker pull ivaylogarnev/tck-client:latest
+
+      - name: Start Local Node
+        run: |
+          npx @hashgraph/hedera-local start -d --network local --network-tag=0.61.1
+          sleep 30 # Wait for the local node to start
+
+      # had to modify the docker compose file to run locally on mac.
+      - name: Start tck-server
+        run: |
+          TEST=${{ inputs.test-path }} docker compose -f ./docker-compose.yml up -d tck-server
+        working-directory: platform-sdk/regression # required
+
+      - name: Wait for TCK server
+        run: |
+          echo "Waiting for TCK server on port 8544..."
+          until bash -c 'exec 3>/dev/tcp/localhost/8544'; do
+            echo "Still waiting..."
+            sleep 1
+          done
+          echo "TCK server is ready!"
+        working-directory: platform-sdk/regression
+
+      - name: Run TCK tests
+        run: |
+          docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/tck-client
+
+      - name: Stop the local node
+        run: npx @hashgraph/hedera-local stop
