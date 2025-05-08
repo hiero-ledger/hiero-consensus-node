@@ -8,6 +8,7 @@ on:
         required: false
         type: string
   workflow_call:
+    INTENTIONALLY BREAKING WORKFLOW
     inputs:
       ref:
         description: "The branch, tag or SHA to checkout:"
