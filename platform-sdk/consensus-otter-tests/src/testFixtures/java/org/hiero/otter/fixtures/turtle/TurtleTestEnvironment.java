@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Filter.Result;
-import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.FileAppender;
@@ -104,7 +103,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
             rootLoggerConfig.addAppender(inMemoryAppender, null, null);
             rootLoggerConfig.setLevel(Level.ALL);
 
-            final Layout<?> layout = PatternLayout.newBuilder()
+            final PatternLayout layout = PatternLayout.newBuilder()
                     .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%X] [%t] [%marker] %-5level %logger{36} - %msg %n")
                     .withConfiguration(loggerContextConfig)
                     .build();
