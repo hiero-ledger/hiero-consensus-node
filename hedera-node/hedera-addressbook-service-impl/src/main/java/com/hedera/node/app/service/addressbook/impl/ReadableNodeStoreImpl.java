@@ -18,7 +18,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -47,7 +47,8 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     @Override
-    public Roster snapshotOfFutureRoster(Function<Long, Long> weightFunction) {
+    public Roster snapshotOfFutureRoster(@NonNull final LongUnaryOperator weightFunction) {
+        requireNonNull(weightFunction);
         return constructFromNodesStateWithStakingInfoWeight(this, weightFunction);
     }
 
@@ -91,7 +92,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     private Roster constructFromNodesStateWithStakingInfoWeight(
-            @NonNull final ReadableNodeStoreImpl nodeStore, @NonNull final Function<Long, Long> weightProvider) {
+            @NonNull final ReadableNodeStoreImpl nodeStore, @NonNull final LongUnaryOperator weightFunction) {
         final var rosterEntries = new ArrayList<RosterEntry>();
         for (final var nodeNumber : nodeStore.keys()) {
             final var node = requireNonNull(nodeStore.get(nodeNumber.number()));
@@ -104,7 +105,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
             if (!node.deleted()) {
                 final var entry = RosterEntry.newBuilder()
                         .nodeId(node.nodeId())
-                        .weight(weightProvider.apply(node.nodeId()))
+                        .weight(weightFunction.applyAsLong(node.nodeId()))
                         .gossipCaCertificate(node.gossipCaCertificate())
                         .gossipEndpoint(nodeEndpoints)
                         .build();

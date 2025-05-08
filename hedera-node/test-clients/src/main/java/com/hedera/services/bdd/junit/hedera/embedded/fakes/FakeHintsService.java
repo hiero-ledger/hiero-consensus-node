@@ -7,6 +7,7 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
+import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -16,6 +17,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -42,6 +44,11 @@ public class FakeHintsService implements HintsService {
     @Override
     public @NonNull Bytes activeVerificationKeyOrThrow() {
         return delegate.activeVerificationKeyOrThrow();
+    }
+
+    @Override
+    public void onFinishedConstruction(@Nullable final OnHintsFinished cb) {
+        delegate.onFinishedConstruction(cb);
     }
 
     @Override
@@ -96,12 +103,12 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public long activeSchemeId() {
-        return delegate.activeSchemeId();
+    public long schemeId() {
+        return delegate.schemeId();
     }
 
     @Override
-    public Bytes activeVerificationKey() {
-        return delegate.activeVerificationKey();
+    public Bytes verificationKey() {
+        return delegate.verificationKey();
     }
 }

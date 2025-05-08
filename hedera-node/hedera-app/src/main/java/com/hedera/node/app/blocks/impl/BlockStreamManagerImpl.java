@@ -445,7 +445,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 // In case the id of the next hinTS construction changed since a block ended
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
-                final var schemeId = blockHashSigner.activeSchemeId();
+                final var schemeId = blockHashSigner.schemeId();
                 blockHashSigner
                         .signFuture(blockHash)
                         .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature, schemeId));

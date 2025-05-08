@@ -2,6 +2,7 @@
 package com.hedera.node.app.history;
 
 import com.hedera.node.app.history.handlers.HistoryHandlers;
+import com.hedera.node.app.history.impl.OnProofFinished;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.config.data.TssConfig;
@@ -42,6 +43,12 @@ public interface HistoryService extends Service {
      * Returns the handlers for the {@link HistoryService}.
      */
     HistoryHandlers handlers();
+
+    /**
+     * Sets the callback for when a proof construction is finished. Only one callback is active at a time.
+     * @param cb the callback to set
+     */
+    void onFinishedConstruction(@Nullable OnProofFinished cb);
 
     /**
      * Whether this service is ready to provide metadata-enriched proofs.

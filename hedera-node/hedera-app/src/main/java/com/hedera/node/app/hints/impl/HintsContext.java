@@ -32,7 +32,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
- * complete construction, if there is one. See {@link #setConstructions(HintsConstruction)}
+ * complete construction, if there is one. See {@link #setConstruction(HintsConstruction)}
  * for the ways the context can have a construction set.
  */
 @Singleton
@@ -44,6 +44,9 @@ public class HintsContext {
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
+
+    @Nullable
+    private Bytes crs;
 
     @Nullable
     private HintsConstruction construction;
@@ -59,28 +62,37 @@ public class HintsContext {
     }
 
     /**
+     * Set the CRS in use for this signing context.
+     * @param crs the CRS to use
+     */
+    public void setCrs(@NonNull final Bytes crs) {
+        this.crs = requireNonNull(crs);
+    }
+
+    /**
      * Sets the active hinTS construction as the signing context. Called in three places,
      * <ol>
      *     <li>In the startup phase, when restarting from a state whose active hinTS
      *     construction (and possibly next construction) had complete schemes.</li>
-     *     <li>In the bootstrap runtime phase, on finishing the preprocessing work for
-     *     the genesis hinTS construction.</li>
+     *     <li>In the runtime phase, on finishing the preprocessing work for a hinTS
+     *     construction (either the bootstrap construction or for a roster with
+     *     rebalanced weights after a stake period boundary).</li>
      *     <li>In the restart runtime phase, when swapping in a newly adopted roster's
      *     hinTS construction and purging votes for the previous construction.</li>
      * </ol>
      *
-     * @param activeConstruction the active construction
+     * @param construction the construction to start using for signing
      * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
-    public void setConstructions(@NonNull final HintsConstruction activeConstruction) {
-        requireNonNull(activeConstruction);
-        if (!activeConstruction.hasHintsScheme()) {
+    public void setConstruction(@NonNull final HintsConstruction construction) {
+        requireNonNull(construction);
+        if (!construction.hasHintsScheme()) {
             throw new IllegalArgumentException(
-                    "Active construction #" + activeConstruction.constructionId() + " has no hinTS scheme");
+                    "Given construction #" + construction.constructionId() + " has no hinTS scheme");
         }
-        construction = requireNonNull(activeConstruction);
-        nodePartyIds = asNodePartyIds(activeConstruction.hintsSchemeOrThrow().nodePartyIds());
-        schemeId = construction.constructionId();
+        this.construction = requireNonNull(construction);
+        nodePartyIds = asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds());
+        schemeId = this.construction.constructionId();
     }
 
     /**

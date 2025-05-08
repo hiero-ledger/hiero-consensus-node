@@ -45,7 +45,9 @@ public class StakingRewardsDistributor {
 
     /**
      * Pays out rewards to the possible reward receivers by updating the receiver's balance.
+     *
      * @param possibleRewardReceivers The accounts that are possible reward receivers.
+     * @param fundingAccountId The staking reward funding account
      * @param writableStore The store to update the receiver's balance in.
      * @param stakingRewardsStore The store to update the staking rewards in.
      * @param stakingInfoStore The store to update the staking info in.
@@ -55,6 +57,7 @@ public class StakingRewardsDistributor {
      */
     public Map<AccountID, Long> payRewardsIfPending(
             @NonNull final Set<AccountID> possibleRewardReceivers,
+            @NonNull final AccountID fundingAccountId,
             @NonNull final WritableAccountStore writableStore,
             @NonNull final WritableNetworkStakingRewardsStore stakingRewardsStore,
             @NonNull final WritableStakingInfoStore stakingInfoStore,
@@ -63,13 +66,14 @@ public class StakingRewardsDistributor {
         requireNonNull(possibleRewardReceivers);
 
         final Map<AccountID, Long> rewardsPaid = new HashMap<>();
+        long payableRewards = -1;
         for (final var receiver : possibleRewardReceivers) {
             final var originalAccount = writableStore.getOriginalValue(receiver);
             if (originalAccount == null) {
                 continue;
             }
             final var modifiedAccount = writableStore.get(receiver);
-            final var reward = rewardCalculator.computePendingReward(
+            long reward = rewardCalculator.computePendingReward(
                     originalAccount, stakingInfoStore, stakingRewardsStore, consensusNow);
 
             var receiverId = receiver;
@@ -79,26 +83,33 @@ public class StakingRewardsDistributor {
             // It is important to know that if the reward is zero because of its zero stake in last period.
             // This is needed to update stakePeriodStart for the account.
             if (reward > 0) {
-                stakingRewardHelper.decreasePendingRewardsBy(
-                        stakingInfoStore, stakingRewardsStore, reward, originalAccount.stakedNodeIdOrThrow());
+                if (payableRewards == -1) {
+                    payableRewards =
+                            requireNonNull(writableStore.get(fundingAccountId)).tinybarBalance();
+                }
+                reward = Math.min(reward, payableRewards);
+                if (reward > 0) {
+                    stakingRewardHelper.decreasePendingRewardsBy(
+                            stakingInfoStore, stakingRewardsStore, reward, originalAccount.stakedNodeIdOrThrow());
 
-                // We cannot reward a deleted account, so keep redirecting to the beneficiaries of deleted
-                // accounts until we find a non-deleted account to try to reward (it may still decline)
-                if (modifiedAccount.deleted()) {
-                    final var maxRedirects = recordBuilder.getNumberOfDeletedAccounts();
-                    var curRedirects = 1;
-                    do {
-                        if (curRedirects++ > maxRedirects) {
-                            log.error(
-                                    "With {} accounts deleted, last redirect in modifications led to deleted"
-                                            + " beneficiary {}",
-                                    maxRedirects,
-                                    receiverId);
-                            throw new IllegalStateException("Had to redirect reward to a deleted beneficiary");
-                        }
-                        receiverId = recordBuilder.getDeletedAccountBeneficiaryFor(receiverId);
-                        beneficiary = writableStore.getOriginalValue(receiverId);
-                    } while (beneficiary.deleted());
+                    // We cannot reward a deleted account, so keep redirecting to the beneficiaries of deleted
+                    // accounts until we find a non-deleted account to try to reward (it may still decline)
+                    if (modifiedAccount.deleted()) {
+                        final var maxRedirects = recordBuilder.getNumberOfDeletedAccounts();
+                        var curRedirects = 1;
+                        do {
+                            if (curRedirects++ > maxRedirects) {
+                                log.error(
+                                        "With {} accounts deleted, last redirect in modifications led to deleted"
+                                                + " beneficiary {}",
+                                        maxRedirects,
+                                        receiverId);
+                                throw new IllegalStateException("Had to redirect reward to a deleted beneficiary");
+                            }
+                            receiverId = recordBuilder.getDeletedAccountBeneficiaryFor(receiverId);
+                            beneficiary = writableStore.getOriginalValue(receiverId);
+                        } while (beneficiary.deleted());
+                    }
                 }
             }
             // Even if the account has declineReward set or if reward is 0, it should still
@@ -111,6 +122,8 @@ public class StakingRewardsDistributor {
             // even if reward is zero it will be added to rewardsPaid
             if (finalReward > 0) {
                 applyReward(finalReward, mutableBeneficiary, writableStore);
+                // Ensure we never pay more than the available balance
+                payableRewards -= finalReward;
             }
             rewardsPaid.merge(receiverId, finalReward, Long::sum);
         }
