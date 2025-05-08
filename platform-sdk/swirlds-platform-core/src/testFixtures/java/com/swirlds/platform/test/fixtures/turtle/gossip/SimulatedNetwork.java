@@ -16,6 +16,7 @@ import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.
@@ -76,7 +77,10 @@ public class SimulatedNetwork {
             @NonNull final Duration standardDeviationDelay) {
         this(
                 random,
-                roster.rosterEntries().stream().map(NodeId::of).sorted().toList(),
+                roster.rosterEntries().stream()
+                        .map(RosterUtils::getNodeId)
+                        .sorted()
+                        .toList(),
                 averageDelay,
                 standardDeviationDelay);
     }

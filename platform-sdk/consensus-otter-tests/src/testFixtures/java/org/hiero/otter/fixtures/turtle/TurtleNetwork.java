@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -100,7 +101,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
                 new SimulatedNetwork(randotron, roster, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
         final List<TurtleNode> nodeList = roster.rosterEntries().stream()
-                .map(NodeId::of)
+                .map(RosterUtils::getNodeId)
                 .sorted()
                 .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();

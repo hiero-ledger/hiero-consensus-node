@@ -229,7 +229,7 @@ public final class RosterUtils {
      * @param rosterEntry a {@code RosterEntry}
      * @return a NodeId instance
      */
-    public static NodeId of(@NonNull final RosterEntry rosterEntry) {
+    public static NodeId getNodeId(@NonNull final RosterEntry rosterEntry) {
         return NodeId.of(rosterEntry.nodeId());
     }
 
