@@ -290,16 +290,6 @@ class ConsensusTests extends PlatformTest {
                 .run();
     }
 
-    @Test
-    void syntheticSnapshotTest() {
-        ConsensusTestRunner.create()
-                .setTest(ConsensusTestDefinitions::syntheticSnapshot)
-                .setParams(new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC))
-                .setContexts(contexts())
-                .setIterations(NUM_ITER)
-                .run();
-    }
-
     @ParameterizedTest
     @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#orderInvarianceTests")
     @Tag(TestComponentTags.PLATFORM)

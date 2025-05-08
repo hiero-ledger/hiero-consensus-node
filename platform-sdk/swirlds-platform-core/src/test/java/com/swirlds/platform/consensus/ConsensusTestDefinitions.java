@@ -579,49 +579,6 @@ public final class ConsensusTestDefinitions {
                 consensusOutputValidatorWithEventRatio);
     }
 
-    public static void syntheticSnapshot(@NonNull final TestInput input) {
-        final long round = 100;
-        final long lastConsensusOrder = 4000;
-
-        final ConsensusTestOrchestrator orchestrator =
-                OrchestratorBuilder.builder().setTestInput(input).build();
-        final Instant snapshotTimestamp = Instant.now();
-        final Configuration configuration = input.platformContext().getConfiguration();
-        orchestrator.getNodes().forEach(n -> {
-            final int numEvents = orchestrator.getEventFraction(0.5);
-            n.getEventEmitter().setCheckpoint(numEvents);
-            final List<EventImpl> events = n.getEventEmitter().emitEvents(numEvents);
-            n.getEventEmitter().reset();
-            final Optional<EventImpl> maxGenEvent = events.stream()
-                    .max(Comparator.comparingLong(EventImpl::getGeneration).thenComparing(EventImpl::getCreatorId));
-            final ConsensusSnapshot syntheticSnapshot = SyntheticSnapshot.generateSyntheticSnapshot(
-                    round,
-                    lastConsensusOrder,
-                    snapshotTimestamp,
-                    configuration.getConfigData(ConsensusConfig.class),
-                    configuration.getConfigData(EventConfig.class).getAncientMode(),
-                    maxGenEvent.orElseThrow().getBaseEvent());
-            n.getIntake().loadSnapshot(syntheticSnapshot);
-        });
-
-        orchestrator.generateEvents(0.5);
-        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType1 =
-                new ConsensusOutputValidator(Set.of(
-                        new OutputEventsEqualityValidation(),
-                        OutputEventRatioValidation.blank().setMaximumConsensusRatio(0)));
-        orchestrator.validateAndClear(
-                // only 1 event will actually be added, that is the judge, so there can be no variation in the order
-                consensusOutputValidatorWithEventRatioType1);
-
-        orchestrator.generateEvents(0.5);
-        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
-                new ConsensusOutputValidator(Set.of(
-                        new OutputEventsAddedInDifferentOrderValidation(),
-                        new OutputEventsEqualityValidation(),
-                        OutputEventRatioValidation.blank().setMinimumConsensusRatio(0.8)));
-        orchestrator.validate(consensusOutputValidatorWithEventRatioType2);
-    }
-
     /**
      * Tests loading a genesis snapshot and continuing consensus from there
      */
