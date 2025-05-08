@@ -115,7 +115,7 @@ public class ChildFeeContextImpl implements FeeContext {
 
     @Override
     public int numTxnSignatures() {
-        return verifier.numSignaturesVerified();
+        return verifier == null ? 0 : verifier.numSignaturesVerified();
     }
 
     @Override

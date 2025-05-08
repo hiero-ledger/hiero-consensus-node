@@ -60,7 +60,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class DefaultKeyVerifierTest {
-    private static final int LEGACY_FEE_CALC_NETWORK_VPT = 13;
     private static final Key ECDSA_X1 = FAKE_ECDSA_KEY_INFOS[1].publicKey();
     private static final Key ECDSA_X2 = FAKE_ECDSA_KEY_INFOS[2].publicKey();
     private static final Key ED25519_X1 = FAKE_ED25519_KEY_INFOS[1].publicKey();
@@ -94,9 +93,12 @@ class DefaultKeyVerifierTest {
     }
 
     @Test
-    void reportsLegacyVptAsNumSigsVerified() {
-        final var verifier = createVerifier(emptyMap());
-        assertThat(verifier.numSignaturesVerified()).isEqualTo(LEGACY_FEE_CALC_NETWORK_VPT);
+    void reportsNumSignsVerified() {
+        final Map<Key, SignatureVerificationFuture> keyVerifications = new HashMap<>();
+        final var key = ALICE.keyInfo().publicKey();
+        keyVerifications.put(key, goodFuture(key));
+        final var verifier = createVerifier(keyVerifications);
+        assertThat(verifier.numSignaturesVerified()).isEqualTo(1);
     }
 
     /**

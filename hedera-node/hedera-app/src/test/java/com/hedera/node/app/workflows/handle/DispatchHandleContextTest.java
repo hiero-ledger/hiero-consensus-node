@@ -389,7 +389,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             feeAccumulator,
             EMPTY_METADATA,
             transactionChecker,
-            List.of(result)
+            List.of(result),
+            USER
         };
 
         final var constructor = DispatchHandleContext.class.getConstructors()[0];

@@ -97,7 +97,6 @@ public class AtomicBatchTest {
                 cryptoCreate("collector").balance(0L),
                 createTopic("topic")
                         .adminKeyName("adminKey")
-                        .submitKeyName("submitKey")
                         .feeScheduleKeyName("feeScheduleKey")
                         .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, "collector")),
                 usableTxnIdNamed("innerTxnId").payerId("alice"),
