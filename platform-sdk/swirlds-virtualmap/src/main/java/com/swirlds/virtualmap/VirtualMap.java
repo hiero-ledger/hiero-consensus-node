@@ -1623,6 +1623,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         final Path outputFile = outputDirectory.resolve(outputFileName);
         try (SerializableDataOutputStream serout =
                 new SerializableDataOutputStream(new BufferedOutputStream(new FileOutputStream(outputFile.toFile())))) {
+            // FUTURE WORK: get rid of the label once we migrate to Virtual Mega Map
             serout.writeNormalisedString(state.getLabel());
             pipeline.pausePipelineAndRun("detach", () -> {
                 snapshot(outputDirectory);
@@ -1678,7 +1679,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                     }
 
                     if (virtualRootNodePresent) {
-                        loadFromFilePreV5(inputFile, stream);
+                        loadFromFilePreV5(inputFile, stream, virtualMapStateRef);
                     } else {
                         loadFromFileV5(inputFile, stream, virtualMapStateRef);
                     }
@@ -1700,17 +1701,28 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
     }
 
-    private void loadFromFilePreV5(Path inputFile, MerkleDataInputStream stream) throws IOException {
+    private void loadFromFilePreV5(
+            Path inputFile, MerkleDataInputStream stream, ValueReference<VirtualMapState> virtualMapStateRef)
+            throws IOException {
         final int version = stream.readInt();
+        // Prior to V5 the label was serialized twice - as VirtualMap metadata and as VirtualRootNode metadata
         final String label = stream.readNormalisedString(MAX_LABEL_LENGTH);
+        VirtualMapState externalState = virtualMapStateRef.getValue();
+        if (!externalState.getLabel().equals(label)) {
+            throw new IllegalStateException("Label of the VirtualRootNode is not equal to the label of the VirtualMap");
+        }
         dataSourceBuilder = stream.readSerializable();
         dataSource = dataSourceBuilder.restore(label, inputFile.getParent());
 
         VirtualLeafBytes virtualLeafBytes = dataSource.loadLeafRecord(VM_STATE_KEY);
+        // if the snapshot is created in V4, there will be metadata in the leaf (unless this snapshot is empty
         if (virtualLeafBytes != null) {
             state = new VirtualMapState(virtualLeafBytes.valueBytes());
         } else {
-            state = new VirtualMapState(label);
+            // in this case we either get an instance of `VirtualMapState` with just a label
+            // or, if the snapshot was created by V3, we get an instance created from deserialized
+            // `ExternalVirtualMapState`
+            state = externalState;
         }
         if (version < VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
             throw new UnsupportedOperationException("Version " + version + " is not supported");
@@ -1718,7 +1730,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         if (version < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
             // FUTURE WORK: clean up all serializers, once all states are of version 4+
             stream.readSerializable(); // skip key serializer
-            stream.readSerializable(); // skip value serializer
+            stream.readSerializable(); // skip externalState serializer
         }
         cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
     }
