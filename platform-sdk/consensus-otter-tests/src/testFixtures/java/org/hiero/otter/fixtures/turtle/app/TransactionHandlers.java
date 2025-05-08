@@ -6,7 +6,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
-import com.swirlds.platform.test.fixtures.turtle.runner.TurtleTestingToolState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
@@ -29,7 +28,7 @@ public class TransactionHandlers {
      * @param callback the callback to invoke with the new ScopedSystemTransaction
      */
     public static void handleTransaction(
-            @NonNull final TurtleTestingToolState state,
+            @NonNull final TurtleAppState state,
             @NonNull final Event event,
             @NonNull final TurtleTransaction transaction,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
@@ -37,6 +36,9 @@ public class TransactionHandlers {
             case FREEZETRANSACTION -> handleFreeze(state, transaction.getFreezeTransaction());
             case STATESIGNATURETRANSACTION ->
                 handleStateSignature(event, transaction.getStateSignatureTransaction(), callback);
+            case EMPTYTRANSACTION, DATA_NOT_SET -> {
+                // No action needed for empty transactions
+            }
         }
     }
 
@@ -47,7 +49,7 @@ public class TransactionHandlers {
      * @param freezeTransaction the freeze transaction to handle
      */
     public static void handleFreeze(
-            @NonNull final TurtleTestingToolState state, @NonNull final TurtleFreezeTransaction freezeTransaction) {
+            @NonNull final TurtleAppState state, @NonNull final TurtleFreezeTransaction freezeTransaction) {
         final Timestamp freezeTime = CommonPbjConverters.toPbj(freezeTransaction.getFreezeTime());
         WritablePlatformStateStore store =
                 new WritablePlatformStateStore(state.getWritableStates("PlatformStateService"));

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.createTestEvent;
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.distributeEvent;
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.registerEvent;
-import static com.swirlds.platform.event.tipset.TipsetEventCreatorTestUtils.validateNewEvent;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.calculateNewEventCreationTime;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEvent;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -22,6 +23,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -906,5 +908,36 @@ class TipsetEventCreatorTests {
         assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
         assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
+    }
+
+    @Test
+    @DisplayName("calculateNewEventCreationTime Test()")
+    void calculateNewEventCreationTimeTest() {
+        final Instant parentTime = Instant.now();
+
+        // now is after minimum time, no transactions
+        final Instant now1 = parentTime.plusNanos(10);
+        final Instant calculatedTime1 = calculateNewEventCreationTime(now1, parentTime, 0);
+        assertEquals(now1, calculatedTime1);
+
+        // now is after minimum time with transactions
+        final Instant now2 = parentTime.plusNanos(10);
+        final Instant calculatedTime2 = calculateNewEventCreationTime(now2, parentTime, 5);
+        assertEquals(now2, calculatedTime2);
+
+        // now is before minimum time, no transactions
+        final Instant now3 = parentTime.minusNanos(10);
+        final Instant calculatedTime3 = calculateNewEventCreationTime(now3, parentTime, 0);
+        assertEquals(parentTime.plusNanos(1), calculatedTime3);
+
+        // now is before minimum time because of transactions
+        final Instant now4 = parentTime.plusNanos(10);
+        final Instant calculatedTime4 = calculateNewEventCreationTime(now4, parentTime, 20);
+        assertEquals(parentTime.plusNanos(20), calculatedTime4);
+
+        // exact time no transactions
+        final Instant now5 = parentTime;
+        final Instant calculatedTime5 = calculateNewEventCreationTime(now5, parentTime, 0);
+        assertEquals(parentTime.plusNanos(1), calculatedTime5);
     }
 }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.hashing;
+package org.hiero.consensus.crypto;
 
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -15,7 +14,6 @@ public interface EventHasher {
      * @param event the event to hash
      * @return the hashed event
      */
-    @InputWireLabel("unhashed event")
     @NonNull
     PlatformEvent hashEvent(@NonNull PlatformEvent event);
 }

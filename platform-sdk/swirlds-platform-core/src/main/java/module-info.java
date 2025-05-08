@@ -97,13 +97,8 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip.shadowgraph;
     exports com.swirlds.platform.recovery.emergencyfile;
     exports com.swirlds.platform.event;
-    exports com.swirlds.platform.event.creation.tipset to
-            com.hedera.node.test.clients,
-            com.swirlds.common,
-            com.swirlds.config.impl;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.event.hashing;
     exports com.swirlds.platform.event.orphan;
     exports com.swirlds.platform.publisher;
     exports com.swirlds.platform.components.consensus;
