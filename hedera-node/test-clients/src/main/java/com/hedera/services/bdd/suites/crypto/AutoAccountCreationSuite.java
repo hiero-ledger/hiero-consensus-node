@@ -790,7 +790,7 @@ public class AutoAccountCreationSuite {
                                 final var funding = spec.registry().getAccountID(FUNDING);
                                 b.setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(aaWith(sponsorId, -ONE_HUNDRED_HBARS))
-                                        .addAccountAmounts(aaWith(evmAddress, +ONE_HUNDRED_HBARS))
+                                        .addAccountAmounts(aaWith(spec, evmAddress, +ONE_HUNDRED_HBARS))
                                         .addAccountAmounts(aaWith(underfundedId, -ONE_HUNDRED_HBARS))
                                         .addAccountAmounts(aaWith(funding, +ONE_HUNDRED_HBARS))
                                         .build());
@@ -1242,8 +1242,8 @@ public class AutoAccountCreationSuite {
                 }),
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(aaWith(spec, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(aaWith(spec, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
@@ -1354,8 +1354,8 @@ public class AutoAccountCreationSuite {
                     final var cryptoTransferWithLazyCreate = cryptoTransfer(
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(ftId.get())
-                                            .addTransfers(aaWith(partyAlias.get(), -500))
-                                            .addTransfers(aaWith(counterAlias.get(), +500))))
+                                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
+                                            .addTransfers(aaWith(spec, counterAlias.get(), +500))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(FT_XFER);
 
@@ -1452,7 +1452,9 @@ public class AutoAccountCreationSuite {
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(nftId.get())
                                             .addNftTransfers(ocWith(
-                                                    accountId(partyAlias.get()), accountId(counterAlias.get()), 1L))))
+                                                    accountId(spec, partyAlias.get()),
+                                                    accountId(spec, counterAlias.get()),
+                                                    1L))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(NFT_XFER);
 

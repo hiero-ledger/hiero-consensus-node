@@ -21,8 +21,8 @@ val bouncycastle = "1.80"
 val dagger = "2.56.1"
 val eclipseCollections = "11.1.0"
 val grpc = "1.72.0"
-val hederaCryptography = "0.2.2-SNAPSHOT"
-val helidon = "4.2.0"
+val hederaCryptography = "0.2.3-SNAPSHOT"
+val helidon = "4.2.1"
 val jackson = "2.18.3"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
@@ -73,7 +73,7 @@ dependencies.constraints {
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
-    api("com.esaulpaugh:headlong:13.2.0") { because("com.esaulpaugh.headlong") }
+    api("com.esaulpaugh:headlong:13.2.2") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.6") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
