@@ -1166,11 +1166,12 @@ public class PlatformTestingToolConsensusStateEventHandler
     }
 
     /**
-     * For every 3 consensus rounds, seal the consensus round.
+     * For every 3 consensus rounds, seal the consensus round. If it's a freeze round, seal it regardless of the round
+     * number.
      *
      * @param round the current consensus round
      * @param state the current state of the platform testing tool
-     * @return {@code true} every 3 consensus rounds
+     * @return {@code true} when the round should be sealed, {@code false} otherwise
      */
     @Override
     public boolean onSealConsensusRound(@NonNull Round round, @NonNull PlatformTestingToolState state) {
