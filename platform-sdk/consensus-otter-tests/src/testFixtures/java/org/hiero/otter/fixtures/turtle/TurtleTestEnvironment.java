@@ -121,8 +121,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
                     .build();
             consoleAppender.addFilter(markerExistsFilter);
 
-            final MarkerFilter stateHashFilter = MarkerFilter.createFilter("STATE_HASH", Result.DENY, Result.NEUTRAL);
-            consoleAppender.addFilter(stateHashFilter);
+            final MarkerFilter noStateHashFilter = MarkerFilter.createFilter("STATE_HASH", Result.DENY, Result.NEUTRAL);
+            consoleAppender.addFilter(noStateHashFilter);
 
             consoleAppender.start();
             rootLoggerConfig.addAppender(consoleAppender, Level.INFO, null);
@@ -133,8 +133,24 @@ public class TurtleTestEnvironment implements TestEnvironment {
                     .withFileName("build/turtle/otter.log")
                     .withAppend(true)
                     .build();
+            fileAppender.addFilter(noStateHashFilter);
             fileAppender.start();
             rootLoggerConfig.addAppender(fileAppender, Level.DEBUG, null);
+
+            final FileAppender stateHashFileAppender = FileAppender.newBuilder()
+                    .setName("StateHashFileLogger")
+                    .setLayout(layout)
+                    .withFileName("build/turtle/otter-state-hash.log")
+                    .withAppend(true)
+                    .build();
+
+            // Accept only logs with marker STATE_HASH
+            final MarkerFilter onlyStateHashFilter =
+                    MarkerFilter.createFilter("STATE_HASH", Result.ACCEPT, Result.DENY);
+            stateHashFileAppender.addFilter(onlyStateHashFilter);
+
+            stateHashFileAppender.start();
+            rootLoggerConfig.addAppender(stateHashFileAppender, Level.DEBUG, null);
 
             loggerContext.updateLoggers();
         }
