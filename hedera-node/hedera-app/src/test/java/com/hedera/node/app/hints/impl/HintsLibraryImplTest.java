@@ -55,7 +55,7 @@ class HintsLibraryImplTest {
 
     @Test
     void computesAndValidateHints() {
-        final var crs = subject.newCrs(1024);
+        final var crs = subject.newCrs(256);
         final var blsPrivateKey = subject.newBlsPrivateKey();
         final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
