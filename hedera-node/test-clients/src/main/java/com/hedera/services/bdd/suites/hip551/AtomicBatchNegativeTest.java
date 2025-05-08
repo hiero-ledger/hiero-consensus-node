@@ -55,7 +55,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -72,7 +71,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -483,7 +481,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Resubmit batch after INSUFFICIENT_PAYER_BALANCE")
-        @Disabled // Failed log validation: "Non-duplicate {} not cached for either payer or submitting node {}"
         // BATCH_53
         public Stream<DynamicTest> resubmitAfterInsufficientPayerBalance() {
             return hapiTest(
@@ -494,7 +491,7 @@ public class AtomicBatchNegativeTest {
                     // batch will fail due to insufficient balance
                     atomicBatch(
                                     cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
-                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
+                                    cryptoCreate("foo").txnId("innerTxn2").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice")
                             .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
@@ -504,7 +501,7 @@ public class AtomicBatchNegativeTest {
                     // resubmit the batch
                     atomicBatch(
                                     cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
-                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
+                                    cryptoCreate("foo").txnId("innerTxn2").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice"));
         }
@@ -550,7 +547,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Submit non batch inner transaction with invalid batch key should fail")
-        @Disabled // TODO: Enable this test when we have global batch key validation
         //  BATCH_55
         public Stream<DynamicTest> nonInnerTxnWithInvalidBatchKey() {
             return hapiTest(withOpContext((spec, opLog) -> {
@@ -560,8 +556,10 @@ public class AtomicBatchNegativeTest {
                         .build();
                 // save invalid key in registry
                 spec.registry().saveKey("invalidKey", invalidKey);
-                // submit op with invalid batch key
-                final var op = cryptoCreate("foo").batchKey("invalidKey").hasPrecheck(NOT_SUPPORTED);
+                // submit op with an invalid batch key
+                final var op = cryptoCreate("foo")
+                        .batchKey("invalidKey")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
                 allRunFor(spec, op);
             }));
         }
