@@ -99,3 +99,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+
+  sdk-tck-regression-panel:
+    name: SDK TCK Regression Panel
+    uses: ./.github/workflows/zxc-tck-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
+    secrets:
+      access-token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }}
