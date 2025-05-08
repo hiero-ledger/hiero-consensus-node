@@ -106,9 +106,9 @@ public class WrappedWritableStates implements WritableStates {
         for (WrappedWritableQueueState<?> queueState : writableQueueStateMap.values()) {
             queueState.commit();
         }
-        for (WrappedWritableSingletonState<?> singletonState : writableSingletonStateMap.values()) {
-            singletonState.commit();
-        }
+        //        for (WrappedWritableSingletonState<?> singletonState : writableSingletonStateMap.values()) {
+        //            singletonState.commit();
+        //        }
 
         if (delegate instanceof CommittableWritableStates terminalStates) {
             terminalStates.commit();

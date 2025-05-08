@@ -9,6 +9,7 @@ import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
+import static com.hedera.node.app.workflows.standalone.TransactionExecutors.NO_OP_METRICS;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
@@ -39,7 +40,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
-import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -375,7 +375,7 @@ public class TransactionExecutorsTest {
                 UNAVAILABLE_GOSSIP,
                 () -> config,
                 () -> DEFAULT_NODE_INFO,
-                () -> AppTestBase.NO_OP_METRICS,
+                () -> NO_OP_METRICS,
                 new AppThrottleFactory(
                         () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> NOOP_FEE_CHARGING,
@@ -390,7 +390,6 @@ public class TransactionExecutorsTest {
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
-                AppTestBase.NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
@@ -464,7 +463,7 @@ public class TransactionExecutorsTest {
         Set.of(
                         new EntityIdService(),
                         new ConsensusServiceImpl(),
-                        new ContractServiceImpl(appContext, AppTestBase.NO_OP_METRICS),
+                        new ContractServiceImpl(appContext, NO_OP_METRICS),
                         new FileServiceImpl(),
                         new FreezeServiceImpl(),
                         new ScheduleServiceImpl(appContext),

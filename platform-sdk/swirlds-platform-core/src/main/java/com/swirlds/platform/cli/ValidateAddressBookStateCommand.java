@@ -59,8 +59,14 @@ public class ValidateAddressBookStateCommand extends AbstractCommand {
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         System.out.printf("Reading state from %s %n", statePath.toAbsolutePath());
-        final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext);
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+                statePath,
+                (virtualMap) -> {
+                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                    throw new UnsupportedOperationException();
+                },
+                DEFAULT_PLATFORM_STATE_FACADE,
+                platformContext);
 
         System.out.printf("Reading address book from %s %n", addressBookPath.toAbsolutePath());
         final String addressBookString = Files.readString(addressBookPath);

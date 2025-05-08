@@ -146,7 +146,8 @@ public class TurtleNode {
         final var reservedState = getInitialState(
                 recycleBin,
                 version,
-                TurtleTestingToolState::getStateRootNode,
+                () -> TurtleTestingToolState.getStateRootNode(metrics),
+                TurtleTestingToolState::new,
                 "foo",
                 "bar",
                 nodeId,
@@ -166,7 +167,8 @@ public class TurtleNode {
                         nodeId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
                         RosterUtils.buildRosterHistory(initialState.get().getState(), round),
-                        platformStateFacade)
+                        platformStateFacade,
+                        TurtleTestingToolState::new)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
                 .withKeysAndCerts(privateKeys)

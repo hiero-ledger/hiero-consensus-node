@@ -7,33 +7,48 @@ import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+import static com.swirlds.state.merkle.StateUtils.decomposeLabel;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
+import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
+import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.fcqueue.FCQueue;
 import com.swirlds.merkle.map.MerkleMap;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.MerkleDbTableConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
-import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
+import com.swirlds.state.merkle.disk.BackedReadableKVState;
+import com.swirlds.state.merkle.disk.BackedWritableKVState;
 import com.swirlds.state.merkle.memory.InMemoryReadableKVState;
 import com.swirlds.state.merkle.memory.InMemoryWritableKVState;
+import com.swirlds.state.merkle.queue.BackedReadableQueueState;
+import com.swirlds.state.merkle.queue.BackedWritableQueueState;
 import com.swirlds.state.merkle.queue.QueueNode;
-import com.swirlds.state.merkle.queue.ReadableQueueStateImpl;
-import com.swirlds.state.merkle.queue.WritableQueueStateImpl;
-import com.swirlds.state.merkle.singleton.ReadableSingletonStateImpl;
+import com.swirlds.state.merkle.queue.QueueState;
+import com.swirlds.state.merkle.queue.QueueStateCodec;
+import com.swirlds.state.merkle.singleton.BackedReadableSingletonState;
+import com.swirlds.state.merkle.singleton.BackedWritableSingletonState;
 import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
+import com.swirlds.state.merkle.singleton.StringLeaf;
+import com.swirlds.state.merkle.singleton.ValueLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -42,7 +57,6 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.SingletonChangeListener;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.state.spi.WritableQueueState;
@@ -51,24 +65,30 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapMigration;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * An implementation of {@link State}.
@@ -84,7 +104,11 @@ import org.hiero.base.constructable.ConstructableIgnored;
  * properly. In particular, a wide n-ary number of children is less than ideal, since the hash of
  * each child must be part of the state proof. It would be better to have a binary tree. We should
  * consider nesting service nodes in a MerkleMap, or some other such approach to get a binary tree.
+ *
+ * @deprecated This class exists solely for migrating states into a single {@link VirtualMap}.
+ * Once the migration is complete and any test dependencies have been removed, this class will be removed.
  */
+@Deprecated
 @ConstructableIgnored
 public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends PartialNaryMerkleInternal
         implements MerkleInternal, State {
@@ -92,8 +116,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private static final Logger logger = LogManager.getLogger(MerkleStateRoot.class);
 
     private static final long CLASS_ID = 0x8e300b0dfdafbb1bL;
+
     // Migrates from `PlatformState` to State API singleton
-    public static final int CURRENT_VERSION = 31;
+    public static final int MINIMUM_SUPPORTED_VERSION = 31;
+
+    // Migrates to "Mega Map"
+    public static final int CURRENT_VERSION = 32;
 
     // This is a temporary fix to deal with the inefficient implementation of findNodeIndex(). It caches looked up
     // indices globally, assuming these indices do not change that often. We need to re-think index lookup,
@@ -107,6 +135,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     public Map<String, Map<String, StateMetadata<?, ?>>> getServices() {
         return services;
     }
+
+    private Configuration configuration;
 
     private Metrics metrics;
 
@@ -133,7 +163,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     /**
      * Listeners to be notified of state changes on {@link MerkleWritableStates#commit()} calls for any service.
      */
-    private final List<StateChangeListener> listeners = new ArrayList<>();
+    private final Set<StateChangeListener> listeners = new HashSet<>();
 
     /**
      * Used to track the lifespan of this state.
@@ -148,7 +178,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
     }
 
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            Time time,
+            Configuration configuration,
+            Metrics metrics,
+            MerkleCryptography merkleCryptography,
+            LongSupplier roundSupplier) {
         this.time = time;
         this.metrics = metrics;
         this.merkleCryptography = merkleCryptography;
@@ -182,27 +217,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 setChild(childIndex, childToCopy.copy());
             }
         }
-
-        // If the source state was deferring commits for queues and singletons, merge
-        // those in-progress base states into our writable states map
-        if (listeners.stream().anyMatch(StateChangeListener::deferCommits)) {
-            for (final var entry : from.writableStatesMap.entrySet()) {
-                final var serviceName = entry.getKey();
-                final var writableStates = getWritableStates(serviceName);
-                final var metadata = services.get(serviceName);
-                metadata.forEach((stateKey, m) -> {
-                    if (m.stateDefinition().queue()) {
-                        final var fromQueue =
-                                (WritableQueueStateBase) entry.getValue().getQueue(stateKey);
-                        fromQueue.recreateIn((WritableQueueStateBase) writableStates.getQueue(stateKey));
-                    } else if (m.stateDefinition().singleton()) {
-                        final var singletonState = writableStates.getSingleton(stateKey);
-                        singletonState.put(
-                                entry.getValue().getSingleton(stateKey).get());
-                    }
-                });
-            }
-        }
     }
 
     @Override
@@ -217,7 +231,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
     @Override
     public int getMinimumSupportedVersion() {
-        return CURRENT_VERSION;
+        return MINIMUM_SUPPORTED_VERSION;
     }
 
     /**
@@ -288,6 +302,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         requireNonNull(listener);
         listeners.remove(listener);
     }
+
     /**
      * {@inheritDoc}
      */
@@ -306,15 +321,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      */
     protected abstract T copyingConstructor();
 
-    @Override
-    public MerkleNode migrate(int version) {
-        if (version < getMinimumSupportedVersion()) {
-            throw new UnsupportedOperationException("State migration from version " + version + " is not supported."
-                    + " The minimum supported version is " + getMinimumSupportedVersion());
-        }
-        return this;
-    }
-
     /**
      * Puts the defined service state and its associated node into the merkle tree. The precondition
      * for calling this method is that node MUST be a {@link MerkleMap} or {@link VirtualMap} and
@@ -332,8 +338,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             @NonNull final Supplier<T> nodeSupplier,
             @NonNull final Consumer<T> nodeInitializer) {
 
-        logger.info(STARTUP.getMarker(), "Putting states... ", md.serviceName());
-
         // Validate the inputs
         throwIfImmutable();
         requireNonNull(md);
@@ -350,8 +354,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         // it isn't stale or incomplete (e.g. in a genesis case)
         readableStatesMap.put(serviceName, new MerkleReadableStates(stateMetadata));
         writableStatesMap.put(serviceName, new MerkleWritableStates(serviceName, stateMetadata));
-
-        logger.info(STARTUP.getMarker(), "Put states! Service name: {} ", md.serviceName());
 
         // Look for a node, and if we don't find it, then insert the one we were given
         // If there is not a node there, then set it. I don't want to overwrite the existing node,
@@ -382,21 +384,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                         "A label must be computed based on the same " + "service name and state key in the metadata!");
             }
 
-            logger.info(
-                    STARTUP.getMarker(),
-                    "Setting child.. Service name: {} / Number of children: {} / node: {}",
-                    md.serviceName(),
-                    getNumberOfChildren(),
-                    node);
             setChild(getNumberOfChildren(), node);
         } else {
-            logger.info(
-                    STARTUP.getMarker(),
-                    "Getting child.. Service name: {} / Number of children: {} / node: {}",
-                    md.serviceName(),
-                    getNumberOfChildren(),
-                    nodeIndex);
-
             node = getChild(nodeIndex);
         }
         nodeInitializer.accept(node);
@@ -661,7 +650,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(
                 @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
-            return new OnDiskReadableKVState<>(
+            return new BackedReadableKVState<>(
+                    md.serviceName(),
                     extractStateKey(md),
                     Objects.requireNonNull(md.stateDefinition().keyCodec()),
                     md.stateDefinition().valueCodec(),
@@ -672,20 +662,20 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(
                 @NonNull final StateMetadata md, @NonNull final MerkleMap m) {
-            return new InMemoryReadableKVState<>(extractStateKey(md), m);
+            return new InMemoryReadableKVState<>(md.serviceName(), extractStateKey(md), m);
         }
 
         @Override
         @NonNull
         protected ReadableSingletonState<?> createReadableSingletonState(
                 @NonNull final StateMetadata md, @NonNull final SingletonNode<?> s) {
-            return new ReadableSingletonStateImpl<>(extractStateKey(md), s);
+            return new BackedReadableSingletonState<>(md.serviceName(), extractStateKey(md), s);
         }
 
         @NonNull
         @Override
         protected ReadableQueueState createReadableQueueState(@NonNull StateMetadata md, @NonNull QueueNode<?> q) {
-            return new ReadableQueueStateImpl(extractStateKey(md), q);
+            return new BackedReadableQueueState<>(md.serviceName(), extractStateKey(md), q);
         }
     }
 
@@ -747,7 +737,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @NonNull
         protected WritableKVState<?, ?> createReadableKVState(
                 @NonNull final StateMetadata md, @NonNull final VirtualMap v) {
-            final var state = new OnDiskWritableKVState<>(
+            final var state = new BackedWritableKVState<>(
+                    serviceName,
                     extractStateKey(md),
                     Objects.requireNonNull(md.stateDefinition().keyCodec()),
                     md.stateDefinition().valueCodec(),
@@ -765,6 +756,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         protected WritableKVState<?, ?> createReadableKVState(
                 @NonNull final StateMetadata md, @NonNull final MerkleMap m) {
             final var state = new InMemoryWritableKVState<>(
+                    md.serviceName(),
                     extractStateKey(md),
                     md.inMemoryValueClassId(),
                     md.stateDefinition().keyCodec(),
@@ -782,7 +774,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @NonNull
         protected WritableSingletonState<?> createReadableSingletonState(
                 @NonNull final StateMetadata md, @NonNull final SingletonNode<?> s) {
-            final var state = new WritableSingletonStateImpl<>(extractStateKey(md), s);
+            final var state = new BackedWritableSingletonState<>(md.serviceName(), extractStateKey(md), s);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(SINGLETON)) {
                     registerSingletonListener(serviceName, state, listener);
@@ -795,7 +787,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         @Override
         protected WritableQueueState<?> createReadableQueueState(
                 @NonNull final StateMetadata md, @NonNull final QueueNode<?> q) {
-            final var state = new WritableQueueStateImpl<>(extractStateKey(md), q);
+            final var state = new BackedWritableQueueState<>(md.serviceName(), extractStateKey(md), q);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(QUEUE)) {
                     registerQueueListener(serviceName, state, listener);
@@ -809,9 +801,9 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             for (final ReadableKVState kv : kvInstances.values()) {
                 ((WritableKVStateBase) kv).commit();
             }
-            for (final ReadableSingletonState s : singletonInstances.values()) {
-                ((WritableSingletonStateBase) s).commit();
-            }
+            //            for (final ReadableSingletonState s : singletonInstances.values()) {
+            //                ((WritableSingletonStateBase) s).commit();
+            //            }
             for (final ReadableQueueState q : queueInstances.values()) {
                 ((WritableQueueStateBase) q).commit();
             }
@@ -837,51 +829,24 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 @NonNull final String serviceName,
                 @NonNull final WritableSingletonStateBase<V> singletonState,
                 @NonNull final StateChangeListener listener) {
-            final var stateKey = singletonState.getStateKey();
-            final var stateId = listener.stateIdFor(serviceName, stateKey);
-            singletonState.registerListener(new SingletonChangeListener<V>() {
-                @Override
-                public void singletonUpdateChange(@NonNull V value) {
-                    listener.singletonUpdateChange(stateId, serviceName, stateKey, value);
-                }
-
-                @Override
-                public boolean deferCommits() {
-                    return listener.deferCommits();
-                }
-
-                @Override
-                public void commitDeferred() {
-                    listener.commitDeferredFor(serviceName);
-                }
-            });
+            final var stateId = listener.stateIdFor(serviceName, singletonState.getStateKey());
+            singletonState.registerListener(value -> listener.singletonUpdateChange(stateId, value));
         }
 
         private <V> void registerQueueListener(
                 @NonNull final String serviceName,
                 @NonNull final WritableQueueStateBase<V> queueState,
                 @NonNull final StateChangeListener listener) {
-            final var stateKey = queueState.getStateKey();
-            final var stateId = listener.stateIdFor(serviceName, stateKey);
+            final var stateId = listener.stateIdFor(serviceName, queueState.getStateKey());
             queueState.registerListener(new QueueChangeListener<>() {
                 @Override
                 public void queuePushChange(@NonNull final V value) {
-                    listener.queuePushChange(stateId, serviceName, stateKey, value);
+                    listener.queuePushChange(stateId, value);
                 }
 
                 @Override
                 public void queuePopChange() {
-                    listener.queuePopChange(stateId, serviceName, stateKey);
-                }
-
-                @Override
-                public boolean deferCommits() {
-                    return listener.deferCommits();
-                }
-
-                @Override
-                public void commitDeferred() {
-                    listener.commitDeferredFor(serviceName);
+                    listener.queuePopChange(stateId);
                 }
             });
         }
@@ -951,6 +916,326 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @SuppressWarnings("unchecked")
     @Override
     public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
+        return (T) MerkleTreeSnapshotReader.readStateFileData(configuration, targetPath)
+                .stateRoot();
+    }
+
+    // MIGRATION TO MEGA MAP
+
+    // Migration process config (TODO: discuss if should be moved to config as this is temp code)
+    // Threads which iterate over the given Virtual Map, perform some operation and write into its own output
+    // queue/buffer
+    private static final int THREAD_COUNT = 1;
+    private static final int DATA_PER_COPY = 10_213;
+    private static final boolean VALIDATE_MIGRATION_FF = true;
+
+    @Override
+    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+        if (version < 32) {
+
+            // Create Virtual Map
+
+            final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+            final var tableConfig = new MerkleDbTableConfig(
+                    (short) 1,
+                    DigestType.SHA_384,
+                    // FUTURE WORK: drop StateDefinition.maxKeysHint and load VM size
+                    // from VirtualMapConfig.size instead
+                    merkleDbConfig.maxNumOfKeys(),
+                    merkleDbConfig.hashesRamToDiskThreshold());
+            final var virtualMapLabel = "VirtualMap"; // TODO: discuss how it should be renamed
+            final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+            final var virtualMap = new VirtualMap(virtualMapLabel, dsBuilder, configuration);
+
+            // Initialize migration metrics
+
+            AtomicLong totalMigratedObjects = new AtomicLong(0);
+            AtomicLong totalMigrationTimeMs = new AtomicLong(0);
+            AtomicLong totalValidationTimeMs = new AtomicLong(0);
+
+            // Migration
+
+            logger.info(
+                    STARTUP.getMarker(),
+                    "Migrating all of the states (Singleton, KV and Queue) to the one Virtual Map...");
+
+            migrateSingletonStates(virtualMap, totalMigratedObjects, totalMigrationTimeMs, totalValidationTimeMs);
+
+            final AtomicReference<VirtualMap> virtualMapRef = new AtomicReference<>(virtualMap);
+            migrateQueueStates(virtualMapRef, totalMigratedObjects, totalMigrationTimeMs, totalValidationTimeMs);
+            migrateKVStates(virtualMapRef, totalMigratedObjects, totalMigrationTimeMs, totalValidationTimeMs);
+
+            logger.info(STARTUP.getMarker(), "Total migration time {} ms", totalMigrationTimeMs.get());
+
+            // Validate all states migrated to the Virtual Map
+            if (VALIDATE_MIGRATION_FF) {
+                // The `+1` accounts for the `VirtualMapState`, which is expected to already exist in the VirtualMap
+                // before the migration begins.
+                assert virtualMapRef.get().size() == totalMigratedObjects.get() + 1;
+                logger.info(STARTUP.getMarker(), "Total validation time {} ms", totalValidationTimeMs.get());
+            }
+
+            return virtualMapRef.get();
+        }
+
+        return this;
+    }
+
+    private void migrateSingletonStates(
+            VirtualMap virtualMap,
+            AtomicLong totalMigratedObjects,
+            AtomicLong totalMigrationTimeMs,
+            AtomicLong totalValidationTimeMs) {
+        logger.info(STARTUP.getMarker(), "Migrating Singleton states to the one Virtual Map...");
+
+        final AtomicLong singletonMigrationTimeMs = new AtomicLong(0);
+        IntStream.range(0, getNumberOfChildren())
+                .mapToObj(this::getChild)
+                .filter(child -> child instanceof SingletonNode<?>)
+                .map(child -> (SingletonNode<?>) child)
+                .forEach(singletonNode -> {
+                    final StringLeaf originalLabeled = singletonNode.getLeft();
+                    final String singletonStateLabel = originalLabeled.getLabel();
+                    final var labelPair = decomposeLabel(singletonStateLabel);
+                    final var serviceName = labelPair.key();
+                    final var stateKey = labelPair.value();
+                    final ValueLeaf originalStore = singletonNode.getRight();
+
+                    logger.info(STARTUP.getMarker(), "\nMigrating {}...", singletonStateLabel);
+                    long migrationStartTime = System.currentTimeMillis();
+
+                    final var codec = originalStore.getCodec();
+                    final var value =
+                            Objects.requireNonNull(originalStore.getValue(), "Null value is not expected here");
+                    virtualMap.put(getVirtualMapKey(serviceName, stateKey), value, codec);
+
+                    long migrationTimeMs = System.currentTimeMillis() - migrationStartTime;
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Migration complete for {} took {} ms",
+                            singletonStateLabel,
+                            migrationTimeMs);
+                    logger.info(STARTUP.getMarker(), "New Virtual Map size: {}", virtualMap.size());
+                    singletonMigrationTimeMs.addAndGet(migrationTimeMs);
+                    totalMigrationTimeMs.addAndGet(migrationTimeMs);
+                    totalMigratedObjects.addAndGet(1);
+
+                    if (VALIDATE_MIGRATION_FF) {
+                        long validationStartTime = System.currentTimeMillis();
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Validating the new Virtual Map contains all data from the Singleton State {}",
+                                singletonStateLabel);
+
+                        validateSingletonStateMigrated(virtualMap, serviceName, stateKey);
+
+                        final long validationTimeMs = System.currentTimeMillis() - validationStartTime;
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Validation complete for the Singleton State {} took {} ms",
+                                singletonStateLabel,
+                                validationTimeMs);
+                        totalValidationTimeMs.addAndGet(validationTimeMs);
+                    }
+                });
+
+        logger.info(
+                STARTUP.getMarker(), "Migration complete for Singleton states, took {} ms", singletonMigrationTimeMs);
+    }
+
+    private static void validateSingletonStateMigrated(VirtualMap virtualMap, String serviceName, String stateKey) {
+        assert virtualMap.containsKey(getVirtualMapKey(serviceName, stateKey));
+    }
+
+    private void migrateQueueStates(
+            final AtomicReference<VirtualMap> virtualMapRef,
+            AtomicLong totalMigratedObjects,
+            AtomicLong totalMigrationTimeMs,
+            AtomicLong totalValidationTimeMs) {
+        logger.info(STARTUP.getMarker(), "Migrating Queue states to the one Virtual Map...");
+
+        final AtomicLong queueMigrationStartTime = new AtomicLong(0);
+        IntStream.range(0, getNumberOfChildren())
+                .mapToObj(this::getChild)
+                .filter(child -> child instanceof QueueNode<?>)
+                .map(child -> (QueueNode<?>) child)
+                .forEach(queueNode -> {
+                    final var queueNodeLabel = queueNode.getLabel();
+                    final var labelPair = decomposeLabel(queueNodeLabel);
+                    final var serviceName = labelPair.key();
+                    final var stateKey = labelPair.value();
+                    final FCQueue<ValueLeaf> originalStore = queueNode.getRight();
+
+                    logger.info(
+                            STARTUP.getMarker(), "\nMigrating {} (size: {})...", queueNodeLabel, originalStore.size());
+                    long migrationStartTime = System.currentTimeMillis();
+
+                    // Migrate data
+                    final long head = 1;
+                    long tail = 1;
+
+                    for (ValueLeaf leaf : originalStore) {
+                        final var codec = leaf.getCodec();
+                        final var value = Objects.requireNonNull(leaf.getValue(), "Null value is not expected here");
+
+                        VirtualMap currentMap = virtualMapRef.get();
+                        if (currentMap.size() % DATA_PER_COPY == 0) {
+                            VirtualMap older = currentMap;
+                            currentMap = currentMap.copy();
+                            older.release();
+                            virtualMapRef.set(currentMap);
+                        }
+                        virtualMapRef.get().put(getVirtualMapKey(serviceName, stateKey, tail++), value, codec);
+                    }
+
+                    final var queueState = new QueueState(head, tail);
+                    virtualMapRef
+                            .get()
+                            .put(getVirtualMapKey(serviceName, stateKey), queueState, QueueStateCodec.INSTANCE);
+
+                    long migrationTimeMs = System.currentTimeMillis() - migrationStartTime;
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Migration complete for {} took {} ms",
+                            queueNodeLabel,
+                            migrationTimeMs);
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "New Virtual Map size: {}",
+                            virtualMapRef.get().size());
+                    queueMigrationStartTime.addAndGet(migrationTimeMs);
+                    totalMigrationTimeMs.addAndGet(migrationTimeMs);
+                    totalMigratedObjects.addAndGet(originalStore.size());
+
+                    if (VALIDATE_MIGRATION_FF) {
+                        long validationStartTime = System.currentTimeMillis();
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Validating the new Virtual Map contains all data from the Queue State {}",
+                                queueNodeLabel);
+
+                        validateQueueStateMigrated(virtualMapRef.get(), queueNodeLabel, serviceName, head, tail);
+
+                        long validationTimeMs = System.currentTimeMillis() - validationStartTime;
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Validation complete for the Queue State {} took {} ms",
+                                queueNodeLabel,
+                                validationTimeMs);
+                        totalValidationTimeMs.addAndGet(validationTimeMs);
+                    }
+                });
+
+        logger.info(
+                STARTUP.getMarker(), "Migration complete for Queue states, took {} ms", queueMigrationStartTime.get());
+    }
+
+    private static void validateQueueStateMigrated(
+            VirtualMap virtualMap, String serviceName, String stateKey, long head, long tail) {
+        // Validate Queue State object
+        assert virtualMap.containsKey(getVirtualMapKey(serviceName, stateKey));
+
+        // Validate Queue State values
+        for (long i = head; i < tail; i++) {
+            assert virtualMap.containsKey(getVirtualMapKey(serviceName, stateKey, i));
+        }
+    }
+
+    private void migrateKVStates(
+            final AtomicReference<VirtualMap> virtualMapRef,
+            AtomicLong totalMigratedObjects,
+            AtomicLong totalMigrationTimeMs,
+            AtomicLong totalValidationTimeMs) {
+        logger.info(STARTUP.getMarker(), "Migrating KV states to the one Virtual Map...");
+
+        final AtomicLong kvMigrationStartTime = new AtomicLong(0);
+        IntStream.range(0, getNumberOfChildren())
+                .mapToObj(this::getChild)
+                .filter(child -> child instanceof VirtualMap)
+                .map(child -> (VirtualMap) child)
+                .forEach(virtualMapToMigrate -> {
+                    final var virtualMapLabel = virtualMapToMigrate.getLabel();
+                    final var labelPair = decomposeLabel(virtualMapToMigrate.getLabel());
+                    final var serviceName = labelPair.key();
+                    final var stateKey = labelPair.value();
+                    final var stateIdBytes = getVirtualMapKey(serviceName, stateKey);
+
+                    // TODO: discuss if optimization is needed here
+                    InterruptableConsumer<Pair<Bytes, Bytes>> handler = (pair) -> {
+                        VirtualMap currentMap = virtualMapRef.get();
+                        if (currentMap.size() % DATA_PER_COPY == 0) {
+                            VirtualMap older = currentMap;
+                            currentMap = currentMap.copy();
+                            older.release();
+                            virtualMapRef.set(currentMap);
+                        }
+                        virtualMapRef.get().putBytes(stateIdBytes.append(pair.key()), pair.value());
+                    };
+
+                    try {
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "\nMigrating {} (size: {})...",
+                                virtualMapLabel,
+                                virtualMapToMigrate.size());
+                        long migrationStartTime = System.currentTimeMillis();
+
+                        // TODO: discuss which method from VirtualMapMigration to use
+                        VirtualMapMigration.extractVirtualMapData(
+                                AdHocThreadManager.getStaticThreadManager(),
+                                virtualMapToMigrate,
+                                handler,
+                                THREAD_COUNT);
+
+                        long migrationTimeMs = System.currentTimeMillis() - migrationStartTime;
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Migration complete for {} took {} ms",
+                                virtualMapLabel,
+                                migrationTimeMs);
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "New Virtual Map size: {}",
+                                virtualMapRef.get().size());
+                        kvMigrationStartTime.addAndGet(migrationTimeMs);
+                        totalMigrationTimeMs.addAndGet(migrationTimeMs);
+                        totalMigratedObjects.addAndGet(virtualMapToMigrate.size());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Virtual Map migration process was interrupted", e);
+                    }
+
+                    if (VALIDATE_MIGRATION_FF) {
+                        long validationStartTime = System.currentTimeMillis();
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Validating the new Virtual Map contains all data from the KV State {}",
+                                virtualMapToMigrate.getLabel());
+
+                        validateKVStateMigrated(virtualMapRef.get(), virtualMapToMigrate);
+
+                        long validationTimeMs = System.currentTimeMillis() - validationStartTime;
+                        logger.info(
+                                STARTUP.getMarker(),
+                                "Validation complete for the KV State {} took {} ms",
+                                virtualMapToMigrate.getLabel(),
+                                validationTimeMs);
+                        totalValidationTimeMs.addAndGet(validationTimeMs);
+                    }
+                });
+
+        logger.info(STARTUP.getMarker(), "Migration complete for KV states, took {} ms", kvMigrationStartTime.get());
+    }
+
+    // TODO: discuss this validation (seems by size would be a viable option)
+    private static void validateKVStateMigrated(VirtualMap virtualMap, VirtualMap virtualMapToMigrate) {
+        MerkleIterator<MerkleNode> merkleNodeMerkleIterator = virtualMapToMigrate.treeIterator();
+
+        while (merkleNodeMerkleIterator.hasNext()) {
+            MerkleNode next = merkleNodeMerkleIterator.next();
+            if (next instanceof VirtualLeafBytes leafBytes) {
+                assert virtualMap.containsKey(leafBytes.keyBytes());
+            }
+        }
     }
 }

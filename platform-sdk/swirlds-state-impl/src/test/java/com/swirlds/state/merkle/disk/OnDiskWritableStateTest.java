@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import java.util.Spliterators;
 import java.util.stream.StreamSupport;
@@ -24,10 +26,20 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("You must specify the metadata")
-        void nullMetadataThrows() {
+        @DisplayName("You must specify the serviceName")
+        void nullServiceNameThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new OnDiskWritableKVState<>(null, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
+            assertThatThrownBy(() -> new OnDiskWritableKVState<>(
+                            null, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("You must specify the stateKey")
+        void nullStateKeyThrows() {
+            //noinspection DataFlowIssue
+            assertThatThrownBy(() -> new OnDiskWritableKVState<>(
+                            FRUIT_SERVICE_NAME, null, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -35,20 +47,30 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @DisplayName("You must specify the virtual map")
         void nullMerkleMapThrows() {
             //noinspection DataFlowIssue
-            assertThatThrownBy(() -> new OnDiskWritableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, null))
+            assertThatThrownBy(() -> new OnDiskWritableKVState<>(
+                            FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, null))
                     .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("The serviceName matches that supplied by the metadata")
+        void serviceName() {
+            final var state = new OnDiskWritableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            assertThat(state.getServiceName()).isEqualTo(FRUIT_SERVICE_NAME);
         }
 
         @Test
         @DisplayName("The stateKey matches that supplied by the metadata")
         void stateKey() {
-            final var state = new OnDiskWritableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            final var state = new OnDiskWritableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
             assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
         }
     }
 
-    private void add(String key, String value) {
-        add(fruitVirtualMap, STRING_CODEC, STRING_CODEC, key, value);
+    private void add(String serviceName, String stateKey, String key, String value) {
+        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, STRING_CODEC, key, value);
     }
 
     @Nested
@@ -59,10 +81,11 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @BeforeEach
         void setUp() {
             setupFruitVirtualMap();
-            state = new OnDiskWritableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
-            add(A_KEY, APPLE);
-            add(B_KEY, BANANA);
-            add(C_KEY, CHERRY);
+            state = new OnDiskWritableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, APPLE);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, B_KEY, BANANA);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, C_KEY, CHERRY);
         }
 
         @Test
@@ -80,8 +103,8 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @Test
         @DisplayName("Iteration includes both mutations and committed state")
         void iterateIncludesMutations() {
-            add(A_KEY, "Apple");
-            add(B_KEY, "Banana");
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, "Apple");
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, B_KEY, "Banana");
             state.put(C_KEY, "Cherry");
             final var actual = StreamSupport.stream(Spliterators.spliterator(state.keys(), 3, 0), false)
                     .toList();
@@ -97,17 +120,20 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         @BeforeEach
         void setUp() {
             setupFruitVirtualMap();
-            state = new OnDiskWritableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
-            add(A_KEY, APPLE);
-            add(B_KEY, BANANA);
+            state = new OnDiskWritableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, APPLE);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, B_KEY, BANANA);
         }
 
         boolean merkleMapContainsKey(String key) {
-            return fruitVirtualMap.containsKey(STRING_CODEC.toBytes(key));
+            final Bytes keyBytes = StateUtils.getVirtualMapKey(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key, STRING_CODEC);
+            return fruitVirtualMap.containsKey(keyBytes);
         }
 
-        String readValueFromMerkleMap(String key) throws ParseException {
-            return fruitVirtualMap.get(STRING_CODEC.toBytes(key), STRING_CODEC);
+        String readValueFromMerkleMap(String key) {
+            final Bytes keyBytes = StateUtils.getVirtualMapKey(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key, STRING_CODEC);
+            return fruitVirtualMap.get(keyBytes, STRING_CODEC);
         }
 
         @Test
@@ -215,7 +241,8 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             // modifications and reads. And then let's throw them all away and make
             // sure the virtual map hasn't changed.
             fruitVirtualMap = fruitVirtualMap.copy();
-            state = new OnDiskWritableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            state = new OnDiskWritableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
             assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             state.remove(B_KEY);
             assertThat(state.get(C_KEY)).isEqualTo(CHERRY);

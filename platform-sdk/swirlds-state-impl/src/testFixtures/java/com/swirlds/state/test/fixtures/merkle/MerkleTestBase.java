@@ -2,7 +2,11 @@
 package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.config.StateCommonConfig;
@@ -21,6 +25,7 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.memory.InMemoryKey;
 import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.merkle.queue.QueueNode;
@@ -39,9 +44,12 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.DigestType;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.provider.Arguments;
+import org.mockito.MockedStatic;
 
 /**
  * This base class provides helpful methods and defaults for simplifying the other merkle related
@@ -133,6 +141,56 @@ public class MerkleTestBase extends StateTestBase {
     // The "COUNTRY" singleton is part of FIRST_SERVICE
     protected String countryLabel;
     protected SingletonNode<String> countrySingleton;
+
+    /**
+     * This static mock instance will override calls to the static methods in StateUtils
+     * (specifically {@code #stateIdFor} method for now).
+     */
+    private static MockedStatic<StateUtils> stateUtilsMock;
+
+    /**
+     * Sets up a static mock for {@code StateUtils} before all tests, partially mocking
+     * the {@code stateIdFor(String, String)} method. Real method calls are allowed unless
+     * explicitly stubbed, ensuring the original behavior is retained where possible.
+     *
+     * <p>
+     * If the real method fails, predefined mappings return specific IDs for known
+     * test cases (e.g., "fruit" -> {@code FRUIT_STATE_ID}), while unmatched inputs
+     * return {@code 65000}. This prevents errors when using test-specific names or keys.
+     * </p>
+     */
+    @BeforeAll
+    static void init() {
+        stateUtilsMock = mockStatic(StateUtils.class, CALLS_REAL_METHODS);
+        stateUtilsMock
+                .when(() -> StateUtils.stateIdFor(anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    try {
+                        // First, try calling the real method.
+                        return invocation.callRealMethod();
+                    } catch (Exception e) {
+                        // The real method couldn't find a valid mapping.
+                        final String serviceName = invocation.getArgument(0);
+                        final String stateKey = invocation.getArgument(1);
+
+                        // Check for test-specific "made up" states.
+                        if (FRUIT_SERVICE_NAME.equals(serviceName) || FRUIT_STATE_KEY.equals(stateKey)) {
+                            return FRUIT_STATE_ID;
+                        } else if (ANIMAL_SERVICE_NAME.equals(serviceName) || ANIMAL_STATE_KEY.equals(stateKey)) {
+                            return ANIMAL_STATE_ID;
+                        } else if (SPACE_SERVICE_NAME.equals(serviceName) || SPACE_STATE_KEY.equals(stateKey)) {
+                            return SPACE_STATE_ID;
+                        } else if (STEAM_SERVICE_NAME.equals(serviceName) || STEAM_STATE_KEY.equals(stateKey)) {
+                            return STEAM_STATE_ID;
+                        } else if (COUNTRY_SERVICE_NAME.equals(serviceName) || COUNTRY_STATE_KEY.equals(stateKey)) {
+                            return COUNTRY_STATE_ID;
+                        } else {
+                            // Neither the real method nor any test mappings applied.
+                            return 65000;
+                        }
+                    }
+                });
+    }
 
     /** Sets up the "Fruit" merkle map, label, and metadata. */
     protected void setupFruitMerkleMap() {
@@ -246,8 +304,15 @@ public class MerkleTestBase extends StateTestBase {
     }
 
     /** A convenience method for adding a k/v pair to a virtual map */
-    protected void add(VirtualMap map, Codec<String> keyCodec, Codec<String> valueCodec, String key, String value) {
-        map.put(keyCodec.toBytes(key), value, valueCodec);
+    protected void add(
+            VirtualMap map,
+            String serviceName,
+            String stateKey,
+            Codec<String> keyCodec,
+            Codec<String> valueCodec,
+            String key,
+            String value) {
+        map.put(getVirtualMapKey(serviceName, stateKey, key, keyCodec), value, valueCodec);
     }
 
     /** A convenience method used to serialize a merkle tree */
@@ -266,7 +331,7 @@ public class MerkleTestBase extends StateTestBase {
         MerkleDb.resetDefaultInstancePath();
         final var byteInputStream = new ByteArrayInputStream(state);
         try (final var in = new MerkleDataInputStream(byteInputStream)) {
-            return in.readMerkleTree(tempDir, 100);
+            return in.readMerkleTree(CONFIGURATION, tempDir, 100);
         }
     }
 
@@ -281,5 +346,10 @@ public class MerkleTestBase extends StateTestBase {
     @AfterEach
     void cleanUp() {
         MerkleDb.resetDefaultInstancePath();
+    }
+
+    @AfterAll
+    static void cleanUpStaticMocks() {
+        stateUtilsMock.close();
     }
 }

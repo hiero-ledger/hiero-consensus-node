@@ -240,7 +240,7 @@ class VirtualMapSerializationTests {
 
         final MerkleDataInputStream in = new MerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 
-        final VirtualMap deserializedMap = in.readMerkleTree(savedStateDirectory, Integer.MAX_VALUE);
+        final VirtualMap deserializedMap = in.readMerkleTree(CONFIGURATION, savedStateDirectory, Integer.MAX_VALUE);
 
         assertMapsAreEqual(map, deserializedMap);
 

@@ -88,6 +88,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
         final PlatformContext platformContext = platform.getContext();
         super.init(
                 platformContext.getTime(),
+                platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));

@@ -79,6 +79,7 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.InstantSource;
@@ -87,6 +88,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -155,6 +157,15 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     @Override
     public @NonNull MerkleNodeState newStateRoot() {
         return hederaOrThrow().newStateRoot();
+    }
+
+    /**
+     * {@inheritDoc}
+     * Specifically, {@link HederaNewStateRoot}.
+     */
+    @Override
+    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap() {
+        return hederaOrThrow().stateRootFromVirtualMap();
     }
 
     /**
@@ -275,7 +286,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         setupGlobalMetrics(platformConfig);
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        hedera = newHedera(metrics, platformStateFacade);
+        hedera = newHedera(metrics, platformStateFacade, platformConfig);
         final var version = hedera.getSemanticVersion();
         final AtomicReference<Network> genesisNetwork = new AtomicReference<>();
         logger.info("Starting node {} with version {}", selfId, version);
@@ -314,6 +325,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                     hedera.initializeStatesApi(genesisState, GENESIS, platformConfig);
                     return genesisState;
                 },
+                hedera.stateRootFromVirtualMap(),
                 Hedera.APP_NAME,
                 Hedera.SWIRLD_NAME,
                 selfId,
@@ -353,7 +365,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 // Otherwise derive if from the node's id in state or
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
-                        platformStateFacade)
+                        platformStateFacade,
+                        hedera.stateRootFromVirtualMap())
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -423,10 +436,13 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *
      * @param metrics  the metrics
      * @param platformStateFacade an object to access the platform state
+     * @param platformConfig an object to access the platform config
      * @return the {@link Hedera} instance
      */
     public static Hedera newHedera(
-            @NonNull final Metrics metrics, @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final Metrics metrics,
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Configuration platformConfig) {
         requireNonNull(metrics);
         return new Hedera(
                 ConstructableRegistry.getInstance(),
@@ -444,7 +460,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
                 metrics,
-                platformStateFacade);
+                platformStateFacade,
+                platformConfig);
     }
 
     /**
@@ -522,6 +539,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * @param configuration      the configuration for this node
      * @param softwareVersion     the software version of the app
      * @param stateRootSupplier a supplier that can build a genesis state
+     * @param stateRootFunction   a function to instantiate the state root object from a Virtual Map
      * @param mainClassName       the name of the app's SwirldMain class
      * @param swirldName          the name of this swirld
      * @param selfId              the node id of this node
@@ -534,13 +552,21 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
+            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext) {
         final var loadedState = StartupStateUtils.loadStateFile(
-                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformStateFacade, platformContext);
+                recycleBin,
+                selfId,
+                mainClassName,
+                swirldName,
+                stateRootFunction,
+                softwareVersion,
+                platformStateFacade,
+                platformContext);
         try (loadedState) {
             if (loadedState.isNotNull()) {
                 logger.info(

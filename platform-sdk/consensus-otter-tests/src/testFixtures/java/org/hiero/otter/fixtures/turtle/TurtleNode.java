@@ -313,7 +313,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final HashedReservedSignedState reservedState = getInitialState(
                 recycleBin,
                 version,
-                TurtleTestingToolState::getStateRootNode,
+                () -> TurtleTestingToolState.getStateRootNode(metrics),
+                TurtleTestingToolState::new,
                 APP_NAME,
                 SWIRLD_NAME,
                 selfId,
@@ -333,7 +334,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                         selfId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, selfId),
                         RosterUtils.buildRosterHistory(state, round),
-                        platformStateFacade)
+                        platformStateFacade,
+                        TurtleTestingToolState::new)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
                 .withKeysAndCerts(privateKeys)

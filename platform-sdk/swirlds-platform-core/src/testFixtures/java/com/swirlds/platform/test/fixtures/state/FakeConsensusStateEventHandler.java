@@ -13,11 +13,14 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -32,6 +35,7 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.NewStateRoot;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -45,6 +49,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -61,6 +66,7 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
             .withConfigDataType(AddressBookConfig.class)
             .withConfigDataType(BasicConfig.class)
             .withConfigDataType(MerkleDbConfig.class)
+            .withSource(new SimpleConfigSource().withValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, "" + 20000L))
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
@@ -74,8 +80,6 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     public static void registerMerkleStateRootClassIds() {
         try {
             ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.registerConstructable(
-                    new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
             registry.registerConstructable(new ClassConstructorPair(SingletonNode.class, SingletonNode::new));
             registry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
             registry.registerConstructable(new ClassConstructorPair(
@@ -114,7 +118,8 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
                 .forEach(def -> {
                     final var md = new StateMetadata<>(PlatformStateService.NAME, schema, def);
                     if (def.singleton()) {
-                        state.putServiceStateIfAbsent(
+                        initializeServiceState(
+                                state,
                                 md,
                                 () -> new SingletonNode<>(
                                         md.serviceName(),
@@ -135,8 +140,8 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     }
 
     public List<StateChanges.Builder> initRosterState(@NonNull final MerkleNodeState state) {
-        if (!(state instanceof MerkleStateRoot<?> merkleStateRoot)) {
-            throw new IllegalArgumentException("Can only be used with MerkleStateRoot instances");
+        if (!(state instanceof MerkleStateRoot<?>) && !(state instanceof NewStateRoot<?>)) {
+            throw new IllegalArgumentException("Can only be used with MerkleStateRoot or NewStateRoot instances");
         }
         final var schema = new V0540RosterBaseSchema();
         schema.statesToCreate().stream()
@@ -144,7 +149,8 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
                 .forEach(def -> {
                     final var md = new StateMetadata<>(RosterStateId.NAME, schema, def);
                     if (def.singleton()) {
-                        state.putServiceStateIfAbsent(
+                        initializeServiceState(
+                                state,
                                 md,
                                 () -> new SingletonNode<>(
                                         md.serviceName(),
@@ -153,7 +159,7 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
                                         md.stateDefinition().valueCodec(),
                                         null));
                     } else if (def.onDisk()) {
-                        state.putServiceStateIfAbsent(md, () -> {
+                        initializeServiceState(state, md, () -> {
                             final var tableConfig =
                                     new MerkleDbTableConfig((short) 1, DigestType.SHA_384, def.maxKeysHint(), 16);
                             final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
@@ -215,5 +221,19 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     @Override
     public void onNewRecoveredState(@NonNull MerkleNodeState recoveredState) {
         // no-op
+    }
+
+    // Should be removed once the MerkleStateRoot is removed along with putServiceStateIfAbsent in
+    // MerkleNodeState interface
+    @Deprecated
+    private static void initializeServiceState(
+            MerkleNodeState state, StateMetadata<?, ?> md, Supplier<? extends MerkleNode> nodeSupplier) {
+        switch (state) {
+            case MerkleStateRoot<?> merkle -> state.putServiceStateIfAbsent(md, nodeSupplier);
+            case NewStateRoot<?> newRoot -> state.initializeState(md);
+            default ->
+                throw new IllegalStateException(
+                        "Expecting MerkleStateRoot or NewStateRoot instance to be used for state initialization");
+        }
     }
 }

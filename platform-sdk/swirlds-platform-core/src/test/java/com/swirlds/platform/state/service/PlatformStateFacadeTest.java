@@ -18,7 +18,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestNewMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
@@ -37,9 +37,13 @@ class PlatformStateFacadeTest {
 
     @BeforeAll
     static void beforeAll() {
-        state = new TestMerkleStateRoot();
+        final String virtualMapLabelForState =
+                "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        state = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabelForState);
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
-        emptyState = new TestMerkleStateRoot();
+        final String virtualMapLabelForEmptyState =
+                "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        emptyState = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabelForEmptyState);
         platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
     }
@@ -93,7 +97,10 @@ class PlatformStateFacadeTest {
 
     @Test
     void testPlatformStateOf_noPlatformState() {
-        final TestMerkleStateRoot noPlatformState = new TestMerkleStateRoot();
+        final var virtualMapLabel =
+                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final TestNewMerkleStateRoot noPlatformState =
+                TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabel);
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
     }
@@ -183,7 +190,9 @@ class PlatformStateFacadeTest {
 
     @Test
     void testSetSnapshotTo() {
-        TestMerkleStateRoot randomState = new TestMerkleStateRoot();
+        final String virtualMapLabel =
+                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        TestNewMerkleStateRoot randomState = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabel);
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
@@ -223,9 +232,6 @@ class PlatformStateFacadeTest {
                 .contains("Root hash:")
                 .contains("First BR Version:")
                 .contains("Last round before BR:")
-                .contains("Lowest Judge Gen before BR")
-                .contains("Lowest Judge Gen before BR")
-                .contains("SingletonNode")
-                .contains("PlatformStateService.PLATFORM_STATE");
+                .contains("Lowest Judge Gen before BR");
     }
 }

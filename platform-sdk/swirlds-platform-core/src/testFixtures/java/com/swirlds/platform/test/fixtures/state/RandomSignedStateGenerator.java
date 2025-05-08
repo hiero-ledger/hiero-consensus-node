@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.registerMerkleStateRootClassIds;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
@@ -150,10 +151,13 @@ public class RandomSignedStateGenerator {
             if (useBlockingState) {
                 stateInstance = new BlockingState(platformStateFacade);
             } else {
-                stateInstance = new TestMerkleStateRoot();
+                final String virtualMapLabel =
+                        "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                stateInstance = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabel);
             }
             stateInstance.init(
                     Time.getCurrent(),
+                    CONFIGURATION,
                     new NoOpMetrics(),
                     TestMerkleCryptoFactory.getInstance(),
                     () -> platformStateFacade.roundOf(stateInstance));

@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.HederaNewStateRoot;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -37,7 +38,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestNewMerkleStateRoot;
 import com.swirlds.state.State;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -129,7 +130,7 @@ class SignedStateFileReadWriteTest {
 
         State state = signedState.getState();
         state.copy();
-        TestMerkleCryptoFactory.getInstance().digestTreeSync(((TestMerkleStateRoot) state).getRoot());
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(((TestNewMerkleStateRoot) state).getRoot());
         state.createSnapshot(testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
@@ -139,8 +140,8 @@ class SignedStateFileReadWriteTest {
         MerkleDb.resetDefaultInstancePath();
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
-        final DeserializedSignedState deserializedSignedState =
-                readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                stateFile, HederaNewStateRoot::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(deserializedSignedState
                         .reservedSignedState()

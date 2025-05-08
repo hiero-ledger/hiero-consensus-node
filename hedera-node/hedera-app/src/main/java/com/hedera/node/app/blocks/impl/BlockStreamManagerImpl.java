@@ -52,8 +52,12 @@ import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.merkle.NewStateRoot;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
@@ -374,8 +378,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
+            commitAllSingletons(state);
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(boundaryStateChangeListener.summarizeCommittedChanges());
+            worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
             final var inputHash = inputTreeHasher.rootHash().join();
@@ -410,7 +415,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     asTimestamp(lastHandleTime)));
             ((CommittableWritableStates) writableState).commit();
 
-            worker.addItem(boundaryStateChangeListener.summarizeCommittedChanges());
+            worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
             final var outputHash = outputTreeHasher.rootHash().join();
@@ -481,6 +486,25 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             requireNonNull(fatalShutdownFuture).complete(null);
         }
         return closesBlock;
+    }
+
+    private void commitAllSingletons(@NonNull final State state) {
+        // FUTURE WORK: this functionality may become a part of the State API
+        if (state instanceof NewStateRoot<?> newStateRoot) {
+            Map<String, Map<String, StateMetadata<?, ?>>> services = newStateRoot.getServices();
+            for (String serviceKey : services.keySet()) {
+                final var service = services.get(serviceKey);
+                for (String stateKey : service.keySet()) {
+                    StateMetadata<?, ?> stateMetadata = service.get(serviceKey);
+                    if (stateMetadata.stateDefinition().singleton()) {
+                        WritableStates writableStates = requireNonNull(state.getWritableStates(serviceKey));
+                        final var writableSingleton =
+                                (WritableSingletonStateBase<?>) writableStates.getSingleton(stateKey);
+                        writableSingleton.commit();
+                    }
+                }
+            }
+        }
     }
 
     @Override

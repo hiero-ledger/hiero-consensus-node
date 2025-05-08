@@ -31,9 +31,11 @@ import com.swirlds.platform.Browser;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
@@ -242,6 +244,17 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         final StressTestingToolState state = new StressTestingToolState();
         FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
         return state;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+     * </p>
+     */
+    @Override
+    public Function<VirtualMap, StressTestingToolState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

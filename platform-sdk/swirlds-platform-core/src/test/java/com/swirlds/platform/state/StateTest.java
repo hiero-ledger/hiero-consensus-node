@@ -7,14 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.Reservable;
-import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestNewMerkleStateRoot;
 import java.util.Random;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
@@ -41,8 +39,8 @@ class StateTest {
 
         assertEquals(state.getHash(), copy.getHash(), "copy should be equal to the original");
         assertFalse(state.isDestroyed(), "copy should not have been deleted");
-        assertEquals(0, ((Reservable) copy).getReservationCount(), "copy should have no references");
-        assertSame(((HasMerkleRoute) state).getRoute(), ((HasMerkleRoute) copy).getRoute(), "route should be recycled");
+        assertEquals(0, copy.getRoot().getReservationCount(), "copy should have no references");
+        assertSame(state.getRoot().getRoute(), copy.getRoot().getRoute(), "route should be recycled");
     }
 
     /**
@@ -70,7 +68,8 @@ class StateTest {
 
     private static SignedState randomSignedState() {
         Random random = new Random(0);
-        MerkleNodeState merkleStateRoot = new TestMerkleStateRoot();
+        final String virtualMapLabel = "vm-" + StateTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        MerkleNodeState merkleStateRoot = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabel);
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),
