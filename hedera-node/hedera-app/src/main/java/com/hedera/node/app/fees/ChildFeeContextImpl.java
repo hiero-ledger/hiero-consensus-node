@@ -80,7 +80,7 @@ public class ChildFeeContextImpl implements FeeContext {
                     body,
                     Key.DEFAULT,
                     functionOf(body),
-                    verifier == null ? 0 : verifier.numSignaturesVerified(),
+                    numTxnSignatures(),
                     signatureMapSize,
                     consensusNow,
                     subType,
