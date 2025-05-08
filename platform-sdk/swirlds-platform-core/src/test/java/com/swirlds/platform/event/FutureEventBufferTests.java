@@ -283,7 +283,8 @@ class FutureEventBufferTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, "true")
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create().withConfiguration(configuration)
+        final PlatformContext platformContext = TestPlatformContextBuilder.create()
+                .withConfiguration(configuration)
                 .build();
         return new DefaultFutureEventBuffer(platformContext);
     }
