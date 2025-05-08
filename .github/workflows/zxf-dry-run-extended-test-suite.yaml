@@ -27,7 +27,7 @@ jobs:
     name: Execute eXtended Test Suite
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
-      custom-job-label: Execute eXtended Test Suite
+      custom-job-label: "Dry-Run: Execute eXtended Test Suite"
       enable-timing-sensitive-tests: true
       enable-time-consuming-tests: true
       enable-hammer-tests: true
@@ -43,7 +43,7 @@ jobs:
     name: JRS Panel
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
-      custom-job-name: "Platform SDK"
+      custom-job-name: "Dry-Run: Platform SDK"
       panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
       ref: ${{ inputs.commit_sha }}
       branch-name: ${{ inputs.branch_name }}
@@ -67,7 +67,7 @@ jobs:
     name: Hedera Node JRS Panel
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
-      custom-job-name: "Abbrev Update Test"
+      custom-job-name: "Dry-Run: Abbrev Update Test"
       ref: ${{ inputs.commit_sha }}
       branch-name: ${{ inputs.branch_name }}
       hedera-tests-enabled: true
@@ -90,5 +90,6 @@ jobs:
     uses: ./.github/workflows/zxc-tck-regression.yaml
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "Dry-Run: SDK TCK Regression"
     secrets:
       access-token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }}
