@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -26,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -52,6 +55,7 @@ import com.hedera.hapi.node.token.CryptoAddLiveHashTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
+import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
@@ -451,6 +455,62 @@ class IngestCheckerTest extends AppTestBase {
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("shouldThrottle exception");
+            verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
+        @DisplayName("ATOMIC_BATCH with all inner transactions unthrottled should pass")
+        void atomicBatchWithNoThrottlingPasses() throws PreCheckException {
+            final var innerTxnBytes1 = Bytes.wrap("innerTxn1".getBytes());
+            final var innerTxnBytes2 = Bytes.wrap("innerTxn2".getBytes());
+
+            final var batchBody = AtomicBatchTransactionBody.newBuilder()
+                    .transactions(innerTxnBytes1, innerTxnBytes2)
+                    .build();
+
+            final var atomicBatchTxBody = TransactionBody.newBuilder()
+                    .atomicBatch(batchBody)
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, atomicBatchTxBody))
+                    .build();
+
+            final var atomicBatchTx = Transaction.newBuilder()
+                    .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
+                    .build();
+
+            final var serializedAtomicBatchTx = Transaction.PROTOBUF.toBytes(atomicBatchTx);
+
+            final var atomicBatchTransactionInfo = new TransactionInfo(
+                    atomicBatchTx,
+                    atomicBatchTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    atomicBatchTx.signedTransactionBytes(),
+                    ATOMIC_BATCH,
+                    serializedAtomicBatchTx);
+
+            when(transactionChecker.parseAndCheck(serializedAtomicBatchTx, maxBytes))
+                    .thenReturn(atomicBatchTransactionInfo);
+
+            // Mock parsed inner transactions
+            final var innerTxnInfo1 = mock(TransactionInfo.class);
+            final var innerTxnInfo2 = mock(TransactionInfo.class);
+            when(innerTxnInfo1.functionality()).thenReturn(CRYPTO_TRANSFER);
+            when(innerTxnInfo2.functionality()).thenReturn(CRYPTO_TRANSFER);
+
+            when(transactionChecker.parseAndCheck(eq(innerTxnBytes1), anyInt())).thenReturn(innerTxnInfo1);
+            when(transactionChecker.parseAndCheck(eq(innerTxnBytes2), anyInt())).thenReturn(innerTxnInfo2);
+            when(synchronizedThrottleAccumulator.shouldThrottle(any(), eq(state)))
+                    .thenReturn(false);
+
+            subject.runAllChecks(state, serializedAtomicBatchTx, configuration);
+
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
     }

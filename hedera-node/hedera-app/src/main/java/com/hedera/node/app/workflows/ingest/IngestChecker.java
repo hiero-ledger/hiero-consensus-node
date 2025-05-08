@@ -226,6 +226,19 @@ public final class IngestChecker {
             workflowMetrics.incrementThrottled(functionality);
             throw new PreCheckException(BUSY);
         }
+        // If the transaction is a batch transaction, we need to check the throttling for each inner transaction
+        if (functionality == HederaFunctionality.ATOMIC_BATCH) {
+            for (Bytes innerTxnBytes : requireNonNull(txBody.atomicBatch()).transactions()) {
+                final var innerTxn =
+                        transactionChecker.parseSignedAndCheck(innerTxnBytes, maxIngestParseSize(configuration));
+                assertThrottlingPreconditions(innerTxn, configuration);
+                final var innerFunctionality = innerTxn.functionality();
+                if (synchronizedThrottleAccumulator.shouldThrottle(innerTxn, state)) {
+                    workflowMetrics.incrementThrottled(innerFunctionality);
+                    throw new PreCheckException(BUSY);
+                }
+            }
+        }
 
         // 4a. Run pure checks
         final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);

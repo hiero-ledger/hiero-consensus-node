@@ -47,6 +47,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CON
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -400,7 +401,8 @@ public class AtomicBatchNegativeTest {
                                     contractCall(contract, function, payload)
                                             .payingWith(payer)
                                             .batchKey(batchOperator))
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED)
+                            // Should throttle at ingest
+                            .hasPrecheck(BUSY)
                             .signedByPayerAnd(batchOperator)
                             .payingWith(payer));
         }
