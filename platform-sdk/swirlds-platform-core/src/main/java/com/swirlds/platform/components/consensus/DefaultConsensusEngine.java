@@ -19,8 +19,10 @@ import com.swirlds.platform.metrics.AddedEventMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -41,6 +43,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     /** Buffers events until needed by the consensus algorithm based on their birth round */
     private final FutureEventBuffer futureEventBuffer;
+
+    private final Queue<EventWindow> eventWindowQueue;
 
     /**
      * Executes the hashgraph consensus algorithm.
@@ -69,6 +73,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         linker = new ConsensusLinker(platformContext, selfId);
         futureEventBuffer = new DefaultFutureEventBuffer(platformContext);
+        eventWindowQueue = new LinkedList<>();
         ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
@@ -102,7 +107,19 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         if (consensusRelevantEvent == null) {
             return List.of();
         }
-        return addToConsensusAlgorithm(consensusRelevantEvent);
+        final List<ConsensusRound> consensusRounds = addToConsensusAlgorithm(consensusRelevantEvent);
+
+        // If any rounds reached consensus, we need to process the event windows and add any events released
+        // by the future event buffer to the consensus algorithm. This may cause more rounds to reach consensus,
+        // so we need to keep processing until no more rounds reach consensus (i.e. the event window queue is empty).
+        while (!eventWindowQueue.isEmpty()) {
+            final EventWindow eventWindow = eventWindowQueue.poll();
+            linker.setEventWindow(eventWindow);
+            for (final PlatformEvent releasedEvent : futureEventBuffer.updateEventWindow(eventWindow)) {
+                consensusRounds.addAll(addToConsensusAlgorithm(releasedEvent));
+            }
+        }
+        return consensusRounds;
     }
 
     private List<ConsensusRound> addToConsensusAlgorithm(@NonNull final PlatformEvent event) {
@@ -116,17 +133,10 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         eventAddedMetrics.eventAdded(linkedEvent);
 
         if (!consensusRounds.isEmpty()) {
-            // If multiple rounds reach consensus at the same moment there is no need to pass in
-            // each event window. The latest event window is sufficient to keep event storage clean.
-            final EventWindow eventWindow = consensusRounds.getLast().getEventWindow();
-            linker.setEventWindow(eventWindow);
-
-            // Make a recursive call, adding any events that become unbuffered as a result of the event window shift.
-            // This recursive call is safe because after a couple calls, no more rounds will be able to reach
-            // consensus with the events that are in the future event buffer
-            futureEventBuffer
-                    .updateEventWindow(eventWindow)
-                    .forEach(e -> consensusRounds.addAll(addToConsensusAlgorithm(e)));
+            // If multiple rounds reach consensus at the same moment there is no need to keep every event window.
+            // The latest event window is sufficient to keep event storage clean and release all events from the
+            // future events buffer with a birth round less than or equal to the pending round.
+            eventWindowQueue.add(consensusRounds.getLast().getEventWindow());
         }
 
         return consensusRounds;
