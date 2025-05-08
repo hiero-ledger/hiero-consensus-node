@@ -98,7 +98,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.ValueReference;
 import org.hiero.base.constructable.ConstructableClass;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
@@ -202,8 +201,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         public static final int ORIGINAL = 1;
         public static final int MERKLE_SERIALIZATION_CLEANUP = 2;
         public static final int REHASH_LEAVES = 3;
-        public static final int MIGRATE_VM_STATE = 4;
-        public static final int NO_VIRTUAL_ROOT_NODE = 5;
+        public static final int NO_VIRTUAL_ROOT_NODE = 4;
     }
 
     public static final int MAX_LABEL_CHARS = 512;
@@ -1645,12 +1643,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             throw new UnsupportedOperationException("Version must be at least ClassVersion.REHASH_LEAVES");
         }
 
-        boolean vmStateExternal = version < ClassVersion.MIGRATE_VM_STATE;
-        boolean virtualRootNodePresent = version < ClassVersion.NO_VIRTUAL_ROOT_NODE;
+        boolean vmStateExternal = version < ClassVersion.NO_VIRTUAL_ROOT_NODE;
         final int fileNameLengthInBytes = in.readInt();
         final String inputFileName = in.readNormalisedString(fileNameLengthInBytes);
         final Path inputFile = inputDirectory.resolve(inputFileName);
-        loadFromFile(inputFile, vmStateExternal, virtualRootNodePresent);
+        loadFromFile(inputFile, vmStateExternal);
     }
 
     /**
@@ -1659,75 +1656,57 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      *
      * @param inputFile              The input .vmap file. Cannot be null.
      * @param vmStateExternal        true for versions prior to version 4, the state is not a leaf for the VirtualMap
-     * @param virtualRootNodePresent true, if the map still has an instance of {@link VirtualRootNode} as a child
      * @throws IOException For problems.
      */
-    public void loadFromFile(final Path inputFile, boolean vmStateExternal, boolean virtualRootNodePresent)
-            throws IOException {
-        final ValueReference<VirtualMapState> virtualMapStateRef = new ValueReference<>();
-
+    public void loadFromFile(final Path inputFile, boolean vmStateExternal) throws IOException {
         deserializeAndDebugOnFailure(
                 () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
                     if (vmStateExternal) {
-                        final ExternalVirtualMapState value = stream.readSerializable();
-                        virtualMapStateRef.setValue(new VirtualMapState(value));
+                        loadFromFilePreV4(
+                                inputFile,
+                                stream,
+                                new VirtualMapState(stream.<ExternalVirtualMapState>readSerializable()));
                     } else {
                         // This instance of `VirtualMapState` will have a label only,
                         // it's necessary to initialize a datasource in `VirtualRootNode
-                        virtualMapStateRef.setValue(new VirtualMapState(stream.readNormalisedString(MAX_LABEL_CHARS)));
+                        loadFromFileV4(inputFile, stream, stream.readNormalisedString(MAX_LABEL_CHARS));
                     }
-
-                    if (virtualRootNodePresent) {
-                        loadFromFilePreV5(inputFile, stream, virtualMapStateRef);
-                    } else {
-                        loadFromFileV5(inputFile, stream, virtualMapStateRef);
-                    }
-
                     return null;
                 });
 
-        // Will be non-null value in case of migration from the previous version
-        // Otherwise, the assumption is that VirtualMapState is a leaf of the VM
-        VirtualMapState state = virtualMapStateRef.getValue();
         postInit(state);
     }
 
-    private void loadFromFileV5(
-            Path inputFile, MerkleDataInputStream stream, ValueReference<VirtualMapState> virtualMapStateRef)
-            throws IOException {
+    private void loadFromFileV4(Path inputFile, MerkleDataInputStream stream, String label) throws IOException {
+
         dataSourceBuilder = stream.readSerializable();
-        dataSource = dataSourceBuilder.restore(virtualMapStateRef.getValue().getLabel(), inputFile.getParent());
+        dataSource = dataSourceBuilder.restore(label, inputFile.getParent());
         cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
+        VirtualLeafBytes virtualLeafBytes = dataSource.loadLeafRecord(VM_STATE_KEY);
+        if (virtualLeafBytes != null) {
+            state = new VirtualMapState(virtualLeafBytes.valueBytes());
+        } else {
+            // in this case the datasource must be empty
+            state = new VirtualMapState(label);
+        }
     }
 
-    private void loadFromFilePreV5(
-            Path inputFile, MerkleDataInputStream stream, ValueReference<VirtualMapState> virtualMapStateRef)
+    private void loadFromFilePreV4(Path inputFile, MerkleDataInputStream stream, VirtualMapState externalState)
             throws IOException {
-        final int version = stream.readInt();
-        // Prior to V5 the label was serialized twice - as VirtualMap metadata and as VirtualRootNode metadata
+        final int virtualRootVersion = stream.readInt();
+        // Prior to V4 the label was serialized twice - as VirtualMap metadata and as VirtualRootNode metadata
         final String label = stream.readNormalisedString(MAX_LABEL_LENGTH);
-        VirtualMapState externalState = virtualMapStateRef.getValue();
         if (!externalState.getLabel().equals(label)) {
             throw new IllegalStateException("Label of the VirtualRootNode is not equal to the label of the VirtualMap");
         }
         dataSourceBuilder = stream.readSerializable();
         dataSource = dataSourceBuilder.restore(label, inputFile.getParent());
-
-        VirtualLeafBytes virtualLeafBytes = dataSource.loadLeafRecord(VM_STATE_KEY);
-        // if the snapshot is created in V4, there will be metadata in the leaf (unless this snapshot is empty
-        if (virtualLeafBytes != null) {
-            state = new VirtualMapState(virtualLeafBytes.valueBytes());
-        } else {
-            // in this case we either get an instance of `VirtualMapState` with just a label
-            // or, if the snapshot was created by V3, we get an instance created from deserialized
-            // `ExternalVirtualMapState`
-            state = externalState;
+        state = externalState;
+        if (virtualRootVersion < VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
+            throw new UnsupportedOperationException("Version " + virtualRootVersion + " is not supported");
         }
-        if (version < VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
-            throw new UnsupportedOperationException("Version " + version + " is not supported");
-        }
-        if (version < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
+        if (virtualRootVersion < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
             // FUTURE WORK: clean up all serializers, once all states are of version 4+
             stream.readSerializable(); // skip key serializer
             stream.readSerializable(); // skip externalState serializer
