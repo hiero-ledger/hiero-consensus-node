@@ -289,7 +289,7 @@ public class HapiGetFileContents extends HapiQueryOp<HapiGetFileContents> {
 
         FileGetContentsQuery query = FileGetContentsQuery.newBuilder()
                 .setHeader(costOnly ? answerCostHeader(payment) : answerHeader(payment))
-                .setFileID(TxnUtils.asFileId(fileName, spec))
+                .setFileID(fileId)
                 .build();
         return Query.newBuilder().setFileGetContents(query).build();
     }

@@ -86,6 +86,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ConsensusSubmitMessageHandler implements TransactionHandler {
+    private static final int MESSAGE_OVERHEAD_BYTES = 475;
+    private static final int BASE_UNIT_BYTES = 500;
     /**
      * Running hash version
      */
@@ -504,11 +506,23 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var op = feeContext.body().consensusSubmitMessageOrThrow();
+        final var calculatorFactory = feeContext.feeCalculatorFactory();
+        final var totalBytes = BASIC_ENTITY_ID_SIZE + op.message().length();
 
-        return feeContext
-                .feeCalculatorFactory()
+        final var topic =
+                feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
+        if (topic != null && !topic.customFees().isEmpty()) {
+            final var calculator = calculatorFactory.feeCalculator(SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES);
+            calculator.resetUsage();
+            return calculator
+                    .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
+                    .addBytesPerTransaction((totalBytes + MESSAGE_OVERHEAD_BYTES) / BASE_UNIT_BYTES)
+                    .calculate();
+        }
+
+        return calculatorFactory
                 .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + op.message().length())
+                .addBytesPerTransaction(totalBytes)
                 .addNetworkRamByteSeconds((LONG_SIZE + TX_HASH_SIZE) * RECEIPT_STORAGE_TIME_SEC)
                 .calculate();
     }

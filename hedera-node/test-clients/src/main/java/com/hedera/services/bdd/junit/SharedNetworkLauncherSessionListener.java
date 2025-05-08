@@ -3,8 +3,8 @@ package com.hedera.services.bdd.junit;
 
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
@@ -35,8 +35,8 @@ import org.junit.platform.launcher.TestPlan;
  * plan execution finishes.
  */
 public class SharedNetworkLauncherSessionListener implements LauncherSessionListener {
-    public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
     private static final Logger log = LogManager.getLogger(SharedNetworkLauncherSessionListener.class);
+    public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
 
     @Override
     public void launcherSessionOpened(@NonNull final LauncherSession session) {
@@ -122,13 +122,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     .map(Integer::parseInt)
                     .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
 
-            final long shard = Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
-                    .map(Long::parseLong)
-                    .orElse((long) SHARD);
-            final long realm = Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
-                    .map(Long::parseLong)
-                    .orElse(REALM);
-
             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
             if (!initialPortProperty.isBlank()) {
                 final var initialPort = Integer.parseInt(initialPortProperty);
@@ -146,8 +139,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     HapiSpec.doDelayedPrepareUpgrades(offsets);
                 }
             }
-            SubProcessNetwork subProcessNetwork =
-                    (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize, shard, realm);
+            SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
+                    SubProcessNetwork.newSharedNetwork(networkSize, getConfigShard(), getConfigRealm());
 
             // Check for the blocknode mode system property
             String blockNodeModeProperty = System.getProperty("hapi.spec.blocknode.mode");

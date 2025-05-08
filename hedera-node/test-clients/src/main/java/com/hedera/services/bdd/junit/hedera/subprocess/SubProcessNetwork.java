@@ -106,6 +106,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private long maxNodeId;
     private String configTxt;
     private final String genesisConfigTxt;
+    private final long shard;
+    private final long realm;
 
     private final List<BlockNodeContainer> blockNodeContainers = new ArrayList<>();
     private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
@@ -215,8 +217,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
     }
 
-    private SubProcessNetwork(@NonNull final String networkName, @NonNull final List<SubProcessNode> nodes) {
+    private SubProcessNetwork(
+            @NonNull final String networkName, @NonNull final List<SubProcessNode> nodes, long shard, long realm) {
         super(networkName, nodes.stream().map(node -> (HederaNode) node).toList());
+        this.shard = shard;
+        this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
         this.configTxt = configTxtForLocal(name(), nodes(), nextInternalGossipPort, nextExternalGossipPort);
@@ -613,12 +618,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         SHARED_NETWORK_NAME.equals(name()) ? null : name(),
                         nextGrpcPort + (int) nodeId * 2,
                         nextNodeOperatorPort + (int) nodeId,
-                        true,
                         nextInternalGossipPort + (int) nodeId * 2,
                         nextExternalGossipPort + (int) nodeId * 2,
                         nextPrometheusPort + (int) nodeId,
-                        shardFrom(nodes),
-                        realmFrom(nodes)),
+                        shard,
+                        realm),
                 GRPC_PINGER,
                 PROMETHEUS_CLIENT);
         final var accountId = pendingNodeAccounts.remove(nodeId);
@@ -685,7 +689,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         SHARED_NETWORK_NAME.equals(name) ? null : name,
                                         nextGrpcPort,
                                         nextNodeOperatorPort,
-                                        true,
                                         nextInternalGossipPort,
                                         nextExternalGossipPort,
                                         nextPrometheusPort,
@@ -693,7 +696,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         realm),
                                 GRPC_PINGER,
                                 PROMETHEUS_CLIENT))
-                        .toList());
+                        .toList(),
+                shard,
+                realm);
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;
     }
@@ -850,11 +855,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         throw new RuntimeException("Could not find available port after 100 attempts");
     }
 
-    public static long shardFrom(final List<HederaNode> nodes) {
-        return requireNonNull(nodes.getFirst()).getAccountId().shardNum();
+    @Override
+    public long shard() {
+        return shard;
     }
 
-    public static long realmFrom(final List<HederaNode> nodes) {
-        return requireNonNull(nodes.getFirst()).getAccountId().realmNum();
+    @Override
+    public long realm() {
+        return realm;
     }
 }

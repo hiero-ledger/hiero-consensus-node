@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -104,8 +105,13 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
                 final var currentRoster =
                         RosterUtils.rosterFrom(startupNetworks.migrationNetworkOrThrow(ctx.platformConfig()));
                 rosterStore.putActiveRoster(currentRoster, activeRoundNumber);
-            } else if (ctx.isUpgrade(
-                    ctx.appConfig().getConfigData(VersionConfig.class).servicesVersion())) {
+            } else if (ctx.isUpgrade(ctx.appConfig()
+                    .getConfigData(VersionConfig.class)
+                    .servicesVersion()
+                    .copyBuilder()
+                    .build(""
+                            + ctx.appConfig().getConfigData(HederaConfig.class).configVersion())
+                    .build())) {
                 final var candidateRoster = rosterStore.getCandidateRoster();
                 if (candidateRoster == null) {
                     log.info("No candidate roster to adopt in round {}", activeRoundNumber);

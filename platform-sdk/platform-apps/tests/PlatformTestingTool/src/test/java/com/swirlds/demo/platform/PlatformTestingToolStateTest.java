@@ -19,7 +19,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.internal.MerkleCryptoEngine;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
@@ -35,8 +35,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.InitTrigger;
@@ -55,11 +54,13 @@ import java.util.Random;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -113,8 +114,8 @@ class PlatformTestingToolStateTest {
 
         final Randotron randotron = Randotron.create();
 
-        final KeysAndCerts keysAndCerts =
-                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+        final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(
+                NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final PlatformSigner signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();
@@ -356,7 +357,7 @@ class PlatformTestingToolStateTest {
 
     private void givenPlatform(final Platform platform, final PlatformContext platformContext, final NodeId nodeId) {
         final Future<Hash> futureHash = mock(Future.class);
-        final MerkleCryptoEngine cryptography = mock(MerkleCryptoEngine.class);
+        final MerkleCryptography cryptography = mock(MerkleCryptography.class);
         when(cryptography.digestTreeAsync(any())).thenReturn(futureHash);
         final NotificationEngine notificationEngine = mock(NotificationEngine.class);
 

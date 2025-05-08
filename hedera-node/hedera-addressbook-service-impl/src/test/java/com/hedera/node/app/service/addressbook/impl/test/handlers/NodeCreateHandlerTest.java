@@ -514,6 +514,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withValue("nodes.maxGossipEndpoint", 2)
                 .withValue("nodes.maxServiceEndpoint", 2)
                 .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.attributeValidator()).willReturn(validator);
@@ -542,6 +543,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
                 .withValue("nodes.maxGossipEndpoint", 4)
                 .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);

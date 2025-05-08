@@ -3,7 +3,6 @@ package com.hedera.services.yahcli.output;
 
 import com.hedera.services.bdd.spec.queries.QueryUtils;
 import com.hedera.services.yahcli.config.ConfigManager;
-import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.Utils;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Response;
@@ -21,8 +20,7 @@ public enum CommonMessages {
     }
 
     public void printGlobalInfo(ConfigManager config) {
-        var msg = String.format(
-                "Targeting %s, paying with %s", config.getTargetName(), ConfigUtils.asId(config.getDefaultPayer()));
+        var msg = String.format("Targeting %s, paying with %s", config.getTargetName(), config.getDefaultPayer());
         System.out.println(msg);
     }
 
@@ -68,9 +66,5 @@ public enum CommonMessages {
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
-    }
-
-    public String fq(Integer num) {
-        return "0.0." + num;
     }
 }

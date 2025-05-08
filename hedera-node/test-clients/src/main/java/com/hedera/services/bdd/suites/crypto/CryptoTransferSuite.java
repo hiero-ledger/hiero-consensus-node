@@ -355,8 +355,10 @@ public class CryptoTransferSuite {
                 }),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(nftId.get())
-                                        .addNftTransfers(
-                                                ocWith(accountId(partyAlias.get()), accountId(counterAlias.get()), 1L)))
+                                        .addNftTransfers(ocWith(
+                                                accountId(spec, partyAlias.get()),
+                                                accountId(spec, counterAlias.get()),
+                                                1L)))
                                 .setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(aaWith(partyId.get(), +2))
                                         .addAccountAmounts(aaWith(otherAccountId.get(), -2))))
@@ -423,44 +425,44 @@ public class CryptoTransferSuite {
                     counterAlias.set(ByteString.copyFrom(asSolidityAddress(counterId.get())));
                 }),
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAlias.get(), -1))
+                                .addAccountAmounts(aaWith(spec, partyAlias.get(), -1))
                                 .addAccountAmounts(aaWith(partyId.get(), -1))
                                 .addAccountAmounts(aaWith(counterId.get(), +2))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS),
                 // Check signing requirements aren't distorted by aliases
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAlias.get(), -2))
+                                .addAccountAmounts(aaWith(spec, partyAlias.get(), -2))
                                 .addAccountAmounts(aaWith(counterId.get(), +2))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(ocWith(accountId(partyAlias.get()), counterId.get(), 1L))))
+                                .addNftTransfers(ocWith(accountId(spec, partyAlias.get()), counterId.get(), 1L))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAlias.get(), -500))
-                                .addTransfers(aaWith(counterAlias.get(), +500))))
+                                .addTransfers(aaWith(spec, partyAlias.get(), -500))
+                                .addTransfers(aaWith(spec, counterAlias.get(), +500))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // Now do the actual transfers
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAlias.get(), -2))
-                                .addAccountAmounts(aaWith(counterAlias.get(), +2))))
+                                .addAccountAmounts(aaWith(spec, partyAlias.get(), -2))
+                                .addAccountAmounts(aaWith(spec, counterAlias.get(), +2))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .via(HBAR_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(
-                                        ocWith(accountId(partyAlias.get()), accountId(counterAlias.get()), 1L))))
+                                .addNftTransfers(ocWith(
+                                        accountId(spec, partyAlias.get()), accountId(spec, counterAlias.get()), 1L))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .via(NFT_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAlias.get(), -500))
-                                .addTransfers(aaWith(counterAlias.get(), +500))))
+                                .addTransfers(aaWith(spec, partyAlias.get(), -500))
+                                .addTransfers(aaWith(spec, counterAlias.get(), +500))))
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .via(FT_XFER),
                 getTxnRecord(HBAR_XFER),
@@ -1750,8 +1752,8 @@ public class CryptoTransferSuite {
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(tokenIdA.get())
                                         .addNftTransfers(ocWith(
-                                                accountId(treasuryAlias.get()),
-                                                accountId(hollowAccountAlias.get()),
+                                                accountId(spec, treasuryAlias.get()),
+                                                accountId(spec, hollowAccountAlias.get()),
                                                 1L))))
                                 .payingWith(TREASURY)
                                 .signedBy(TREASURY)
