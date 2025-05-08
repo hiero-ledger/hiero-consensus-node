@@ -222,6 +222,18 @@ public final class RosterUtils {
     }
 
     /**
+     * Return a potentially cached NodeId instance for a given {@link RosterEntry}.
+     * The caller MUST NOT mutate the returned object even though the NodeId class is technically mutable.
+     * If the caller needs to mutate the instance, then it must use the regular NodeId(long) constructor instead.
+     *
+     * @param rosterEntry a {@code RosterEntry}
+     * @return a NodeId instance
+     */
+    public static NodeId of(@NonNull final RosterEntry rosterEntry) {
+        return NodeId.of(rosterEntry.nodeId());
+    }
+
+    /**
      * Retrieves the roster entry that matches the specified node ID, returning null if one does not exist.
      * <p>
      * Useful for one-off look-ups. If code needs to look up multiple entries by NodeId, then the code should use the

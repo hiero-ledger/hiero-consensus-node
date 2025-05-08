@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.node;
 
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -49,18 +48,6 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
      */
     public static NodeId of(final long id) {
         return NodeIdCache.getOrCreate(id);
-    }
-
-    /**
-     * Return a potentially cached NodeId instance for a given {@link RosterEntry}.
-     * The caller MUST NOT mutate the returned object even though the NodeId class is technically mutable.
-     * If the caller needs to mutate the instance, then it must use the regular NodeId(long) constructor instead.
-     *
-     * @param rosterEntry a {@code RosterEntry}
-     * @return a NodeId instance
-     */
-    public static NodeId of(@NonNull final RosterEntry rosterEntry) {
-        return NodeId.of(rosterEntry.nodeId());
     }
 
     /**

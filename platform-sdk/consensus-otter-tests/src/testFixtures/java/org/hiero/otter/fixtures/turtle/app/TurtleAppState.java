@@ -23,6 +23,9 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
     /**
      * Creates an initialized {@code TurtleAppState}.
      *
+     * @param configuration the configuration used during initialization
+     * @param roster the initial roster stored in the state
+     * @param version the software version to set in the state
      * @return merkle tree root
      */
     @NonNull
