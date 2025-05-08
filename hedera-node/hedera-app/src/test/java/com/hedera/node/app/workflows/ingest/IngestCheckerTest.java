@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.ingest;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
@@ -49,7 +48,6 @@ import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoAddLiveHashTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -407,39 +405,6 @@ class IngestCheckerTest extends AppTestBase {
                     .thenReturn(cryptoAddLiveHashTransactionInfo);
 
             assertThatThrownBy(() -> subject.runAllChecks(state, serializedCryptoAddLiveHashTx, configuration))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
-        }
-
-        @Test
-        @DisplayName("Privileged transaction functionality should throw NOT_SUPPORTED for non-privileged accounts")
-        void privilegedTransactionFunctionality() throws PreCheckException {
-            final TransactionBody freezeTxBody = TransactionBody.newBuilder()
-                    .freeze(FreezeTransactionBody.newBuilder().build())
-                    .transactionID(TransactionID.newBuilder()
-                            .accountID(ALICE.accountID()) // a non-privileged account
-                            .transactionValidStart(
-                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
-                    .nodeAccountID(nodeSelfAccountId)
-                    .build();
-            final var signedTx = SignedTransaction.newBuilder()
-                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, freezeTxBody))
-                    .build();
-            final var freezeTx = Transaction.newBuilder()
-                    .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
-                    .build();
-            final var serializedFreezeTx = Transaction.PROTOBUF.toBytes(freezeTx);
-
-            final var freezeTransactionInfo = new TransactionInfo(
-                    freezeTx,
-                    freezeTxBody,
-                    MOCK_SIGNATURE_MAP,
-                    freezeTx.signedTransactionBytes(),
-                    FREEZE,
-                    serializedFreezeTx);
-            when(transactionChecker.parseAndCheck(serializedFreezeTx, maxBytes)).thenReturn(freezeTransactionInfo);
-
-            assertThatThrownBy(() -> subject.runAllChecks(state, serializedFreezeTx, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
         }

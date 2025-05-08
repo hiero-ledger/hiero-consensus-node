@@ -274,9 +274,8 @@ public final class IngestChecker {
             throws PreCheckException {
         assertThrottlingPreconditions(txn, configuration);
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        final var innerFunctionality = txn.functionality();
         if (hederaConfig.ingestThrottleEnabled() && synchronizedThrottleAccumulator.shouldThrottle(txn, state)) {
-            workflowMetrics.incrementThrottled(innerFunctionality);
+            workflowMetrics.incrementThrottled(txn.functionality());
             throw new PreCheckException(BUSY);
         }
     }
