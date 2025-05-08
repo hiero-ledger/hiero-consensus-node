@@ -68,7 +68,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        long starTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
         boolean bufferExpanded = false;
         try {
@@ -82,7 +82,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
             GossipEvent.PROTOBUF.write(event, writableSequentialData);
             flipWriteClear();
         } finally {
-            stats.updateWriteStats(starTime, System.currentTimeMillis(), size, bufferExpanded);
+            stats.updateWriteStats(startTime, System.currentTimeMillis(), size, bufferExpanded);
         }
     }
 

@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.extension.Extension;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
@@ -55,7 +56,7 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
 
         final List<String> paramNames = getParameterNames(testMethod);
         final List<List<Object>> valueLists = new ArrayList<>();
-        for (String name : paramNames) {
+        for (final String name : paramNames) {
             final ParamSource source = getParamSource(name, useSources, testMethod);
             valueLists.add(invokeSourceMethod(context, source.method()));
         }
@@ -68,7 +69,7 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
     private static ParamSource getParamSource(
             final String name, final UseParameterSources useSources, final Method testMethod) {
         ParamSource source = null;
-        for (ParamSource s : useSources.value()) {
+        for (final ParamSource s : useSources.value()) {
             if (name.equals(s.param())) {
                 source = s;
                 break;
@@ -86,17 +87,15 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
     private List<Object> invokeSourceMethod(final @NonNull ExtensionContext context, final @NonNull String methodName) {
         final Method testMethod = context.getRequiredTestMethod();
         try {
-            Method source = testMethod.getDeclaringClass().getDeclaredMethod(methodName);
+            final Method source = testMethod.getDeclaringClass().getDeclaredMethod(methodName);
             source.setAccessible(true);
-            Object result = source.invoke(null);
-            if (result instanceof Stream stream) {
+            final Object result = source.invoke(null);
+            if (result instanceof final Stream stream) {
                 return stream.toList();
-            } else if (result instanceof Collection collection) {
+            } else if (result instanceof final Collection collection) {
                 return collection.stream().toList();
-            } else if (result instanceof Iterable iterable) {
-                final var list = new ArrayList<>();
-                iterable.forEach(list::add);
-                return List.copyOf(list);
+            } else if (result instanceof final Iterable iterable) {
+                return StreamSupport.stream(iterable.spliterator(), false).toList();
             }
             throw new IllegalStateException("Source method must return Stream, Collection or Iterable");
         } catch (NoSuchMethodException e) {
@@ -111,7 +110,7 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
     private List<String> getParameterNames(final @NonNull Method testMethod) {
         return Arrays.stream(testMethod.getParameters())
                 .map(p -> {
-                    ParamName annotation = p.getAnnotation(ParamName.class);
+                    final ParamName annotation = p.getAnnotation(ParamName.class);
                     if (annotation == null) {
                         throw new RuntimeException("All parameters must be annotated with" + ParamName.class.getName());
                     }
@@ -146,9 +145,9 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
 
                 @Override
                 public Object resolveParameter(final @NonNull ParameterContext pc, final @NonNull ExtensionContext ec) {
-                    String paramName =
+                    final String paramName =
                             pc.getParameter().getAnnotation(ParamName.class).value();
-                    int index = paramNames.indexOf(paramName);
+                    final int index = paramNames.indexOf(paramName);
                     return values.get(index);
                 }
             });

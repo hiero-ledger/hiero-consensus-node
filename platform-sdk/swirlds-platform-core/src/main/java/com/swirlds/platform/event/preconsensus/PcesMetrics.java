@@ -181,7 +181,7 @@ public class PcesMetrics {
     /**
      * Updates the metrics with the stats reported by the writer
      */
-    public void updateMetricsWithPcesFileWritingStats(final PcesFileWriterStats stats) {
+    public void updateMetricsWithPcesFileWritingStats(@NonNull final PcesFileWriterStats stats) {
         metrics.getOrCreate(PcesMetrics.AVG_EVENT_SIZE).update(stats.averageEventSize());
         metrics.getOrCreate(PcesMetrics.PCES_AVG_SYNC_DURATION).update(stats.averageSyncDuration());
         metrics.getOrCreate(PcesMetrics.PCES_AVG_WRITE_DURATION).update(stats.averageWriteDuration());

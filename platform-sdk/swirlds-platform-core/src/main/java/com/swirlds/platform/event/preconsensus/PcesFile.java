@@ -385,7 +385,7 @@ public final class PcesFile implements Comparable<PcesFile> {
      * @param pcesFileWriterType the type of writer to use
      */
     @NonNull
-    public PcesMutableFile getMutableFile(final PcesFileWriterType pcesFileWriterType) throws IOException {
+    public PcesMutableFile getMutableFile(@NonNull final PcesFileWriterType pcesFileWriterType) throws IOException {
         return new PcesMutableFile(this, pcesFileWriterType);
     }
 
