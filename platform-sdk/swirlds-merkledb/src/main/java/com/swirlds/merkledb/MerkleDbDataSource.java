@@ -365,50 +365,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Stats
         statisticsUpdater = new MerkleDbStatisticsUpdater(merkleDbConfig, tableName);
-        final Runnable updateTotalStatsFunction = () -> {
-            statisticsUpdater.updateStoreFileStats(this);
-            statisticsUpdater.updateOffHeapStats(this);
-        };
 
-        // Compactors
-        final DataFileCompactor hashStoreDiskFileCompactor;
-        if (hasDiskStoreForHashes) {
-            hashStoreDiskFileCompactor = new DataFileCompactor(
-                    merkleDbConfig,
-                    hashStoreDiskStoreName,
-                    hashStoreDisk.getFileCollection(),
-                    pathToDiskLocationInternalNodes,
-                    statisticsUpdater::setHashesStoreCompactionTimeMs,
-                    statisticsUpdater::setHashesStoreCompactionSavedSpaceMb,
-                    statisticsUpdater::setHashesStoreFileSizeByLevelMb,
-                    updateTotalStatsFunction);
-        } else {
-            hashStoreDiskFileCompactor = null;
-        }
-        final DataFileCompactor pathToKeyValueFileCompactor = new DataFileCompactor(
-                merkleDbConfig,
-                pathToKeyValueStoreName,
-                pathToKeyValue.getFileCollection(),
-                pathToDiskLocationLeafNodes,
-                statisticsUpdater::setLeavesStoreCompactionTimeMs,
-                statisticsUpdater::setLeavesStoreCompactionSavedSpaceMb,
-                statisticsUpdater::setLeavesStoreFileSizeByLevelMb,
-                updateTotalStatsFunction);
-        final DataFileCompactor keyToPathFileCompactor = new DataFileCompactor(
-                merkleDbConfig,
-                keyToPathStoreName,
-                keyToPath.getFileCollection(),
-                keyToPath.getBucketIndexToBucketLocation(),
-                statisticsUpdater::setLeafKeysStoreCompactionTimeMs,
-                statisticsUpdater::setLeafKeysStoreCompactionSavedSpaceMb,
-                statisticsUpdater::setLeafKeysStoreFileSizeByLevelMb,
-                updateTotalStatsFunction);
-        compactionCoordinator = new MerkleDbCompactionCoordinator(
-                tableName,
-                keyToPathFileCompactor,
-                hashStoreDiskFileCompactor,
-                pathToKeyValueFileCompactor,
-                merkleDbConfig);
+        // File compactions
+        compactionCoordinator = new MerkleDbCompactionCoordinator(tableName, merkleDbConfig);
         if (compactionEnabled) {
             enableBackgroundCompaction();
         }
@@ -1152,7 +1111,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (hasDiskStoreForHashes) {
             final DataFileReader newHashesFile = hashStoreDisk.endWriting();
             statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
-            compactionCoordinator.compactDiskStoreForHashesAsync();
+            compactionCoordinator.compactIfNotRunningYet(
+                    DataFileCompactor.HASH_STORE_DISK, newHashStoreDiskCompactor());
         }
     }
 
@@ -1239,10 +1199,64 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // end writing
         final DataFileReader pathToKeyValueReader = pathToKeyValue.endWriting();
         statisticsUpdater.setFlushLeavesStoreFileSize(pathToKeyValueReader);
-        compactionCoordinator.compactPathToKeyValueAsync();
+        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.PATH_TO_KEY_VALUE, newPathToKeyValueCompactor());
         final DataFileReader keyToPathReader = keyToPath.endWriting();
         statisticsUpdater.setFlushLeafKeysStoreFileSize(keyToPathReader);
-        compactionCoordinator.compactDiskStoreForKeyToPathAsync();
+        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.OBJECT_KEY_TO_PATH, newKeyToPathCompactor());
+    }
+
+    /**
+     * Creates a new data file compactor for hashStoreDisk file collection.
+     */
+    DataFileCompactor newHashStoreDiskCompactor() {
+        return new DataFileCompactor(
+                database.getConfiguration().getConfigData(MerkleDbConfig.class),
+                tableName + "_" + DataFileCompactor.HASH_STORE_DISK,
+                hashStoreDisk.getFileCollection(),
+                pathToDiskLocationInternalNodes,
+                statisticsUpdater::setHashesStoreCompactionTimeMs,
+                statisticsUpdater::setHashesStoreCompactionSavedSpaceMb,
+                statisticsUpdater::setHashesStoreFileSizeByLevelMb,
+                () -> {
+                    statisticsUpdater.updateStoreFileStats(this);
+                    statisticsUpdater.updateOffHeapStats(this);
+                });
+    }
+
+    /**
+     * Creates a new data file compactor for pathToKeyValue file collection.
+     */
+    DataFileCompactor newPathToKeyValueCompactor() {
+        return new DataFileCompactor(
+                database.getConfiguration().getConfigData(MerkleDbConfig.class),
+                tableName + "_" + DataFileCompactor.PATH_TO_KEY_VALUE,
+                pathToKeyValue.getFileCollection(),
+                pathToDiskLocationLeafNodes,
+                statisticsUpdater::setLeavesStoreCompactionTimeMs,
+                statisticsUpdater::setLeavesStoreCompactionSavedSpaceMb,
+                statisticsUpdater::setLeavesStoreFileSizeByLevelMb,
+                () -> {
+                    statisticsUpdater.updateStoreFileStats(this);
+                    statisticsUpdater.updateOffHeapStats(this);
+                });
+    }
+
+    /**
+     * Creates a new data file compactor for keyToPath file collection.
+     */
+    DataFileCompactor newKeyToPathCompactor() {
+        return new DataFileCompactor(
+                database.getConfiguration().getConfigData(MerkleDbConfig.class),
+                tableName + "_" + DataFileCompactor.OBJECT_KEY_TO_PATH,
+                keyToPath.getFileCollection(),
+                keyToPath.getBucketIndexToBucketLocation(),
+                statisticsUpdater::setLeafKeysStoreCompactionTimeMs,
+                statisticsUpdater::setLeafKeysStoreCompactionSavedSpaceMb,
+                statisticsUpdater::setLeafKeysStoreFileSizeByLevelMb,
+                () -> {
+                    statisticsUpdater.updateStoreFileStats(this);
+                    statisticsUpdater.updateOffHeapStats(this);
+                });
     }
 
     /**

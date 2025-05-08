@@ -4,8 +4,6 @@
 
 - Raise the limit on the size of Ethereum call data to 128KB, and the limit on the total size of Ethereum transactions from 6KB to 130KB.
 - Introduce a new throttle bucket that represents the max bytes-per-second for accepting "jumbo" transactions larger than 6KB on the network.
-- Introduce non-linear pricing for transactions larger than 6KB to incentivize smaller sized transactions where possible.
-  **Note:** Fees are still in discussion and not yet finalized.
 
 ## Prerequisite reading
 
@@ -106,7 +104,7 @@ private void validateHevmTransaction(HederaEvmTransaction hevmTransaction) {
 ### Throttles
 
 Implement a **byte limit throttle** using a similar structure like the`GasLimitBucketThrottle`e.g.:
-- Rename `GasLimitButcketThrottle` to more generic `LeakyBucketDeterministicThrottle.java` so it can be used for both gas and bytes.
+- Rename `GasLimitBucketThrottle` to more generic `LeakyBucketDeterministicThrottle.java` so it can be used for both gas and bytes.
 
 ```java
 public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
