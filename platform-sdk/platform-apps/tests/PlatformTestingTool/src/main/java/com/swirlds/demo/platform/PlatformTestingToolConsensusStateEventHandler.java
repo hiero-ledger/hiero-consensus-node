@@ -7,6 +7,7 @@ import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.Body
 import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.STATESIGNATURETRANSACTION;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.STORAGE_DIRECTORY;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
@@ -322,6 +323,7 @@ public class PlatformTestingToolConsensusStateEventHandler
         if (state.getConfig().getDelayCfg() != null) {
             final int delay = state.getConfig().getDelayCfg().getRandomDelay();
             try {
+                logger.info(LOGM_DEMO_INFO, "Will sleep for {}ms on normal delay", delay);
                 Thread.sleep(delay);
             } catch (final InterruptedException e) {
                 logger.info(LOGM_DEMO_INFO, "", e);
