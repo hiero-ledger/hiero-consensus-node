@@ -8,7 +8,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_DELET
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.hedera.services.bdd.junit.support.validators.utils.AccountClassifier;
-import com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
@@ -24,24 +23,15 @@ public class BalanceValidation extends HapiSuite {
 
     private final Map<Long, Long> expectedBalances;
     private final AccountClassifier accountClassifier;
-    private final long shard;
-    private final long realm;
 
-    public BalanceValidation(
-            final Map<Long, Long> expectedBalances, final AccountClassifier accountClassifier, long shard, long realm) {
+    public BalanceValidation(final Map<Long, Long> expectedBalances, final AccountClassifier accountClassifier) {
         this.expectedBalances = expectedBalances;
         this.accountClassifier = accountClassifier;
-        this.shard = shard;
-        this.realm = realm;
     }
 
     public static void main(String... args) {
         // Treasury starts with 50B hbar
-        new BalanceValidation(
-                        Map.of(2L, 50_000_000_000L * TINY_PARTS_PER_WHOLE),
-                        new AccountClassifier(),
-                        HapiPropertySourceStaticInitializer.SHARD,
-                        HapiPropertySourceStaticInitializer.REALM)
+        new BalanceValidation(Map.of(2L, 50_000_000_000L * TINY_PARTS_PER_WHOLE), new AccountClassifier())
                 .runSuiteSync();
     }
 
@@ -66,7 +56,7 @@ public class BalanceValidation extends HapiSuite {
                                 .map(entry -> {
                                     final var accountNum = entry.getKey();
                                     return QueryVerbs.getAccountBalance(
-                                                    String.format("%d.%d.%d", shard, realm, accountNum),
+                                                    String.valueOf(accountNum),
                                                     accountClassifier.isContract(accountNum))
                                             .hasAnswerOnlyPrecheckFrom(CONTRACT_DELETED, ACCOUNT_DELETED, OK)
                                             .hasTinyBars(entry.getValue());

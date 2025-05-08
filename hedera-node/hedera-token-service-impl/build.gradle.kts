@@ -22,4 +22,6 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
     requires("com.google.protobuf")
+
+    opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
 }

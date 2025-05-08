@@ -78,6 +78,22 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.node.state.entity;
 
+    // for testing against Google protobuf
+    opens com.hedera.hapi.block.stream.input.protoc;
+    opens com.hedera.hapi.node.state.tss.legacy;
+    opens com.hedera.hapi.platform.state.legacy;
+    opens com.hedera.hapi.services.auxiliary.hints.legacy;
+    opens com.hedera.hapi.services.auxiliary.history.legacy;
+    opens com.hedera.node.internal.network.legacy;
+
+    // for reflective access when asserting object equality
+    opens com.hedera.hapi.platform.state to
+            org.assertj.core;
+    opens com.hedera.hapi.node.state.schedule to
+            org.assertj.core;
+    opens com.hedera.hapi.node.token to
+            org.assertj.core;
+
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;

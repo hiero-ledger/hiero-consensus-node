@@ -295,9 +295,9 @@ public class Utils {
                 .build();
     }
 
-    public static AccountAmount aaWith(final ByteString evmAddress, final long amount) {
+    public static AccountAmount aaWith(HapiSpec spec, final ByteString evmAddress, final long amount) {
         return AccountAmount.newBuilder()
-                .setAccountID(accountId(evmAddress))
+                .setAccountID(accountId(spec, evmAddress))
                 .setAmount(amount)
                 .build();
     }
@@ -325,10 +325,10 @@ public class Utils {
                 .build();
     }
 
-    public static AccountID accountId(final ByteString evmAddress) {
+    public static AccountID accountId(HapiSpec spec, final ByteString evmAddress) {
         return AccountID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setAlias(evmAddress)
                 .build();
     }

@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.turtle.runner;
+package org.hiero.otter.fixtures.turtle.app;
 
-import com.swirlds.platform.state.*;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
-/**
- * A simple testing application intended for use with TURTLE.
- * <pre>
- *   _______    ֥  ֖       ֥  ֖    _______
- * 〈 Tᴜʀᴛʟᴇ ᐳ﹙⚬◡°﹚   ﹙°◡⚬﹚ᐸ ᴇʟᴛʀᴜT 〉
- *   ﹉∏﹉∏﹉                   ﹉∏﹉∏﹉
- * </pre>
- */
-public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolState> implements MerkleNodeState {
+public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements MerkleNodeState {
 
-    private static final long CLASS_ID = 0xa49b3822a4136ac6L;
+    private static final long CLASS_ID = 0x107F552E92071390L;
 
     private static final class ClassVersion {
 
@@ -25,7 +18,7 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
 
     long state;
 
-    public TurtleTestingToolState() {
+    public TurtleAppState() {
         // empty
     }
 
@@ -34,7 +27,7 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
      *
      * @param from the object to copy
      */
-    private TurtleTestingToolState(@NonNull final TurtleTestingToolState from) {
+    private TurtleAppState(@NonNull final TurtleAppState from) {
         super(from);
         this.state = from.state;
     }
@@ -60,15 +53,15 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
      */
     @NonNull
     @Override
-    public TurtleTestingToolState copy() {
+    public TurtleAppState copy() {
         throwIfImmutable();
         setImmutable(true);
-        return new TurtleTestingToolState(this);
+        return new TurtleAppState(this);
     }
 
     @Override
-    protected TurtleTestingToolState copyingConstructor() {
-        return new TurtleTestingToolState(this);
+    protected TurtleAppState copyingConstructor() {
+        return new TurtleAppState(this);
     }
 
     /**
@@ -77,11 +70,10 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
      * @return merkle tree root
      */
     @NonNull
-    public static MerkleNodeState getStateRootNode() {
-        final MerkleNodeState state = new TurtleTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
-        TestingAppStateInitializer.DEFAULT.initRosterState(state);
-
+    public static MerkleNodeState getStateRootNode(@NonNull final Configuration configuration) {
+        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
+        final MerkleNodeState state = new TurtleAppState();
+        initializer.initStates(state);
         return state;
     }
 

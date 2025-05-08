@@ -35,7 +35,6 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
-import com.swirlds.platform.test.fixtures.turtle.runner.TurtleTestingToolState;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
@@ -58,6 +57,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
+import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
 /**
  * A node in the turtle network.
@@ -322,6 +322,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 .build();
         final SemanticVersion version = currentConfiguration.getValue(
                 TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class, DEFAULT_VERSION);
+        assert version != null; // not really needed as DEFAULT_VERSION is not null, but the API causes a warning
+
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
@@ -332,7 +334,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final HashedReservedSignedState reservedState = getInitialState(
                 recycleBin,
                 version,
-                TurtleTestingToolState::getStateRootNode,
+                () -> TurtleAppState.getStateRootNode(currentConfiguration),
                 APP_NAME,
                 SWIRLD_NAME,
                 selfId,

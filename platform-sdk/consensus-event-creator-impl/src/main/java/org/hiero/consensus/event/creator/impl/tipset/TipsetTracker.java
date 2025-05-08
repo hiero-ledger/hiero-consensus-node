@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.creation.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.event.creation.tipset.Tipset.merge;
+import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;

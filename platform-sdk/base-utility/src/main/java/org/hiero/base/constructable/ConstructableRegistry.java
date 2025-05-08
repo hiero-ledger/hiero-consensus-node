@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.constructable;
 
-import java.util.function.Supplier;
-
 /**
  * A central registry of constructors for {@link RuntimeConstructable} classes. This central registry has a set of
  * sub-registries based on the constructor type of the class.
@@ -38,7 +36,7 @@ public interface ConstructableRegistry {
      * 		and then {@link ConstructorRegistry#getConstructor(long)}
      */
     @Deprecated(forRemoval = true)
-    Supplier<RuntimeConstructable> getConstructor(final long classId);
+    NoArgsConstructor getConstructor(final long classId);
 
     /**
      * Instantiates an object of a class defined by the supplied {@code classId}. If no object is registered with this

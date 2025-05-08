@@ -11,7 +11,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.turtle.runner.TurtleTestingToolState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -26,7 +25,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * Simple application that can process all transactions required to run tests on Turtle
  */
 @SuppressWarnings("removal")
-public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolState> {
+public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
     INSTANCE;
 
     /**
@@ -35,7 +34,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolSta
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final TurtleTestingToolState state,
+            @NonNull final TurtleAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         // No pre-handling required yet
     }
@@ -46,7 +45,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolSta
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final TurtleTestingToolState state,
+            @NonNull final TurtleAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final ConsensusEvent event : round) {
             event.forEachTransaction(txn -> {
@@ -65,7 +64,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolSta
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final TurtleTestingToolState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final TurtleAppState state) {
         return false;
     }
 
@@ -74,7 +73,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolSta
      */
     @Override
     public void onStateInitialized(
-            @NonNull final TurtleTestingToolState state,
+            @NonNull final TurtleAppState state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -86,7 +85,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolSta
      */
     @Override
     public void onUpdateWeight(
-            @NonNull final TurtleTestingToolState state,
+            @NonNull final TurtleAppState state,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext context) {
         // No weight update required yet
@@ -96,7 +95,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleTestingToolSta
      * {@inheritDoc}
      */
     @Override
-    public void onNewRecoveredState(@NonNull final TurtleTestingToolState recoveredState) {
+    public void onNewRecoveredState(@NonNull final TurtleAppState recoveredState) {
         // No new recovered state required yet
     }
 }

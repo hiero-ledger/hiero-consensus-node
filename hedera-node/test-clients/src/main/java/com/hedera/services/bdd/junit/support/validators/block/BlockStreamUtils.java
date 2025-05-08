@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
-
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 
 public class BlockStreamUtils {
     private static final String UPGRADE_DATA_FILE_NUM_FORMAT =
             "FileService.UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
 
-    public static String stateNameOf(final int stateId) {
+    public static String stateNameOf(final int stateId, final long shard, final long realm) {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";

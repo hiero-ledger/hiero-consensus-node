@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
-import com.swirlds.platform.event.creation.tipset.TipsetTracker;
-import com.swirlds.platform.event.creation.tipset.TipsetWeightCalculator;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.creator.impl.EventCreator;

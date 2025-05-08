@@ -1005,8 +1005,8 @@ public class EthereumSuite {
                         .exposingCreatedIdTo(tokenNum::set),
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
@@ -1049,8 +1049,8 @@ public class EthereumSuite {
                 // try to create a new account with the same alias
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .hasKnownStatus(SUCCESS);
 

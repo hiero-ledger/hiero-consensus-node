@@ -4,7 +4,6 @@ package org.hiero.base.constructable.internal;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -23,14 +22,14 @@ public class DefaultConstructableRegistry implements ConstructableRegistry {
     }
 
     @Override
-    public Supplier<RuntimeConstructable> getConstructor(final long classId) {
+    public NoArgsConstructor getConstructor(final long classId) {
         return getOrCreate(NoArgsConstructor.class).getConstructor(classId);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public <T extends RuntimeConstructable> T createObject(final long classId) {
-        final Supplier<RuntimeConstructable> c = getConstructor(classId);
+        final NoArgsConstructor c = getConstructor(classId);
         if (c == null) {
             return null;
         }

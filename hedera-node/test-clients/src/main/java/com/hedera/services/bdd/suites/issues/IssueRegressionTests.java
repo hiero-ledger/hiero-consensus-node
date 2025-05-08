@@ -221,9 +221,9 @@ public class IssueRegressionTests {
     @HapiTest
     final Stream<DynamicTest> duplicatedTxnsDifferentTypesDifferentNodesDetected() {
         return hapiTest(
-                cryptoCreate("acct4").via("txnId4").setNode(asEntityString(3)),
+                cryptoCreate("acct4").via("txnId4").setNode("3"),
                 newKeyNamed("key2"),
-                createTopic("topic2").setNode(asEntityString(5)).submitKeyName("key2"),
+                createTopic("topic2").setNode("5").submitKeyName("key2"),
                 submitMessageTo("topic2")
                         .message("Hello world")
                         .payingWith("acct4")
