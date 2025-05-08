@@ -259,6 +259,9 @@ public class TxnUtils {
                     .setAlias(asLiteralEvmAddress(s))
                     .build();
         }
+        if (isNumericLiteral(s)) {
+            return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
         return isIdLiteral(s)
                 ? asAccount(s)
                 : (lookupSpec.registry().hasAccountId(s)
@@ -279,7 +282,13 @@ public class TxnUtils {
     }
 
     public static TokenID asTokenId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asToken(s) : lookupSpec.registry().getTokenID(s);
+        if (isIdLiteral(s)) {
+            return asToken(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asToken(String.valueOf(lookupSpec.shard()), String.valueOf(lookupSpec.realm()), s);
+        }
+        return lookupSpec.registry().getTokenID(s);
     }
 
     public static ScheduleID asScheduleId(final String s, final HapiSpec lookupSpec) {
@@ -325,7 +334,13 @@ public class TxnUtils {
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effS)))
                     .build();
         }
-        return isIdLiteral(s) ? asContract(s) : lookupSpec.registry().getContractId(s);
+        if (isIdLiteral(s)) {
+            return asContract(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asContract(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getContractId(s);
     }
 
     public static String txnToString(final Transaction txn) {
