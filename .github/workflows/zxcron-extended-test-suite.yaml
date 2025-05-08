@@ -190,6 +190,16 @@ jobs:
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
 
+  sdk-tck-regression-panel:
+    name: SDK TCK Regression Panel
+    uses: ./.github/workflows/zxc-tck-regression.yaml
+    needs: fetch-xts-candidate
+    if:
+      ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' &&
+      !github.event.workflow_dispatch.repository.fork }}
+    with:
+      access-token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }}
+
   tag-for-promotion:
     name: Tag as XTS-Passing
     runs-on: hiero-network-node-linux-medium

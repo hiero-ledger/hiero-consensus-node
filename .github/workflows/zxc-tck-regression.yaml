@@ -1,34 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: TCK Regression"
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      panel-config:
-        description: "The relative local path to the TCK panel configuration file:"
-        required: true
-        type: string
       ref:
         description: "The branch, tag or SHA to checkout:"
         required: false
         type: string
-      base-branch-name:
-        description: "The base branch of the pull request (if applicable):"
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout:"
         required: false
         type: string
-      test-path:
-        description: "Path to the TCK tests to run:"
-        required: false
-        type: string
-        default: "/"
     secrets:
       access-token:
         description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
-        required: true
-      gradle-cache-username:
-        description: "The username used to authenticate with the Gradle Build Cache Node."
-        required: true
-      gradle-cache-password:
-        description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
 
 env:
@@ -61,16 +48,26 @@ jobs:
       - name: Checkout Platform Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref || inputs.branch-name || '' }}
+          ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
       - name: Checkout Regression Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: ${{ github.event_name == 'workflow_call' }}
         with:
           path: platform-sdk/regression
           repository: hiero-ledger/hiero-sdk-tck
-          ref: ${{ inputs.ref }}
           token: ${{ secrets.access-token }}
+          fetch-depth: "1"
+
+      - name: Checkout Regression Code (dispatch)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        with:
+          path: platform-sdk/regression
+          repository: hiero-ledger/hiero-sdk-tck
+          token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }}
+          fetch-depth: "1"
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -92,12 +89,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244 # v4.3.1
 
-      - name: Install Local Node
-        run: npm install -g @hashgraph/hedera-local
-        working-directory: platform-sdk/regression
-
-      - name: Build SDK
+      - name: Build hiero-consensus-node
         run: ./gradlew assemble
+
+      - name: Set up CLI from consensus node
+        run: npm install && npm install -g
+        working-directory: platform-sdk/regression
 
       - name: Pull JS TCK Server
         run: |
@@ -115,7 +112,7 @@ jobs:
       # had to modify the docker compose file to run locally on mac.
       - name: Start tck-server
         run: |
-          TEST=${{ inputs.test-path }} docker compose -f ./docker-compose.yml up -d tck-server
+          TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
         working-directory: platform-sdk/regression # required
 
       - name: Wait for TCK server
@@ -126,7 +123,6 @@ jobs:
             sleep 1
           done
           echo "TCK server is ready!"
-        working-directory: platform-sdk/regression
 
       - name: Run TCK tests
         run: |
