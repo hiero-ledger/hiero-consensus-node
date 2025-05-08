@@ -54,4 +54,4 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
         @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
-        @ConfigProperty(defaultValue = "1s") Duration syncPeriod) {}
+        @ConfigProperty(defaultValue = "10ms") Duration syncPeriod) {}

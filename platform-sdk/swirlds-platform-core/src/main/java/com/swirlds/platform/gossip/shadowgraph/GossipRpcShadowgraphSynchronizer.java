@@ -2,7 +2,6 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
@@ -96,10 +95,10 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         super.addEvent(platformEvent);
 
         // broadcast event to other nodes as part of simplistic chatter
-        //        if (selfId.equals(platformEvent.getCreatorId())) {
-        //            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
-        //            allConversations.forEach(conversation -> conversation.broadcastEvent(gossipEvent));
-        //        }
+        if (false && selfId.equals(platformEvent.getCreatorId())) {
+            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
+            allConversations.forEach(conversation -> conversation.broadcastEvent(gossipEvent));
+        }
     }
 
     public class SyncConversation implements GossipRpcReceiver {
@@ -144,7 +143,8 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
 
             this.remoteSyncData = syncMessage;
 
-            logger.info(RECONNECT.getMarker(), "Received sync data {}, my data is {}", remoteSyncData.eventWindow(), mySyncData.eventWindow());
+            logger.info(RECONNECT.getMarker(), "Received sync data {}, my data is {}", remoteSyncData.eventWindow(),
+                    mySyncData.eventWindow());
             syncMetrics.eventWindow(mySyncData.eventWindow(), remoteSyncData.eventWindow());
 
             if (fallenBehind(mySyncData.eventWindow(), remoteSyncData.eventWindow(), otherNodeId)) {
