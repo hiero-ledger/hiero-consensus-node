@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import org.hiero.consensus.crypto.PbjStreamHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -25,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
@@ -145,7 +145,8 @@ public class TipsetEventCreator implements EventCreator {
 
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
         this.eventHasher = new PbjStreamHasher();
-        this.futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
+        this.futureEventBuffer =
+                new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
     }
 
     /**

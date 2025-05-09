@@ -13,12 +13,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
-import org.hiero.consensus.config.EventConfig;
 
 /**
  * Buffers events from the future (i.e. events with a birth round that is greater than the round that consensus is
@@ -46,11 +46,10 @@ public class FutureEventBuffer {
 
     /**
      * Constructor.
-     *
-     * @param platformContext the platform context
      */
     public FutureEventBuffer(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        final AncientMode ancientMode = configuration.getConfigData(EventConfig.class).getAncientMode();
+        final AncientMode ancientMode =
+                configuration.getConfigData(EventConfig.class).getAncientMode();
 
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
 
