@@ -8,8 +8,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -1130,15 +1128,14 @@ public class Evm46ValidationSuite {
                 uploadInitCode(MAKE_CALLS_CONTRACT),
                 contractCreate(MAKE_CALLS_CONTRACT).gas(400_000L),
                 balanceSnapshot("initialBalance", MAKE_CALLS_CONTRACT),
-                contractCall(
-                                MAKE_CALLS_CONTRACT,
-                                withAmount,
-                                idAsHeadlongAddress(AccountID.newBuilder()
-                                        .setShardNum(shard)
-                                        .setRealmNum(realm)
-                                        .setAccountNum(357)
-                                        .build()),
-                                new byte[] {"system account".getBytes()[0]})
+                contractCall(MAKE_CALLS_CONTRACT, withAmount, (spec) -> List.of(
+                                        idAsHeadlongAddress(AccountID.newBuilder()
+                                                .setShardNum(spec.shard())
+                                                .setRealmNum(spec.realm())
+                                                .setAccountNum(357)
+                                                .build()),
+                                        new byte[] {"system account".getBytes()[0]})
+                                .toArray())
                         .gas(GAS_LIMIT_FOR_CALL * 4)
                         .sending(2L)
                         .via(INNER_TXN)
@@ -1385,7 +1382,8 @@ public class Evm46ValidationSuite {
                 withOpContext((spec, opLog) -> spec.registry()
                         .saveContractId(
                                 "contract",
-                                asContractIdWithEvmAddress(ByteString.copyFrom(asSolidityAddress(shard, realm, 629))))),
+                                asContractIdWithEvmAddress(ByteString.copyFrom(
+                                        asSolidityAddress((int) spec.shard(), spec.realm(), 629))))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi("contract", getABIFor(FUNCTION, NAME, ERC_721_ABI))

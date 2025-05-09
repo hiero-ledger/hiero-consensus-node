@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.jrs;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ED_25519_KEY;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.initializeSettings;
 
@@ -38,11 +39,13 @@ public class NodeOpsForUpgrade extends HapiSuite {
                         overridingTwo("nodes.enableDAB", "true", "nodes.updateAccountIdAllowed", "true"),
                         newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                         nodeDelete("3").payingWith(GENESIS).signedBy(GENESIS),
-                        nodeUpdate("2")
-                                .description("UpdatedNode0")
-                                .accountId(SHARD + "." + REALM + "." + "100")
-                                .payingWith(GENESIS)
-                                .signedBy(GENESIS))
+                        withOpContext((spec, log) -> allRunFor(
+                                spec,
+                                nodeUpdate("2")
+                                        .description("UpdatedNode0")
+                                        .accountId(asEntityString(spec.shard(), spec.realm(), 100))
+                                        .payingWith(GENESIS)
+                                        .signedBy(GENESIS))))
                 .then(overridingTwo("nodes.enableDAB", "true", "nodes.updateAccountIdAllowed", "false"));
     }
 

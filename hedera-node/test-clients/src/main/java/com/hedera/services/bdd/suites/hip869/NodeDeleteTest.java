@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -76,7 +75,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 // Submit to a different node so ingest check is skipped
                 nodeDelete("node100")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .payingWith("payer")
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("failedDeletion"),
@@ -86,7 +85,7 @@ public class NodeDeleteTest {
 
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")
                         .hasKnownStatus(INVALID_SIGNATURE)
@@ -111,7 +110,7 @@ public class NodeDeleteTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 // Submit to a different node so ingest check is skipped
                 nodeDelete("node100")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .fee(1)
                         .payingWith("payer")
                         .hasKnownStatus(INSUFFICIENT_TX_FEE)
@@ -119,7 +118,7 @@ public class NodeDeleteTest {
                 getTxnRecord("failedDeletion").logged(),
                 // Submit with several signatures and the price should increase
                 nodeDelete("node100")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .fee(ONE_HBAR)
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")

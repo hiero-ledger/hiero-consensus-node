@@ -793,6 +793,11 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
+    public T setNode(long accountNum) {
+        nodeNum = Optional.of(Long.toString(accountNum));
+        return self();
+    }
+
     public T setNodeFrom(Supplier<String> accountSupplier) {
         nodeSupplier = Optional.of(() -> HapiPropertySource.asAccount(accountSupplier.get()));
         return self();

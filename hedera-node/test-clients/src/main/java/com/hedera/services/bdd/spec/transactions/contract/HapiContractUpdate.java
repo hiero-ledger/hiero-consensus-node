@@ -4,7 +4,7 @@ package com.hedera.services.bdd.spec.transactions.contract;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.expiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.HEXED_EVM_ADDRESS_LEN;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCreate.DEPRECATED_CID_ADMIN_KEY;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCreate.DEPRECATED_CID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -173,7 +173,11 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
                             }
                             newProxy.ifPresent(p -> b.setProxyAccountID(asId(p, spec)));
                             if (useDeprecatedAdminKey) {
-                                b.setAdminKey(DEPRECATED_CID_ADMIN_KEY);
+                                b.setAdminKey(Key.newBuilder()
+                                        .setContractID(DEPRECATED_CID
+                                                .setShardNum(spec.shard())
+                                                .setRealmNum(spec.realm()))
+                                        .build());
                             } else if (wipeToThresholdKey) {
                                 b.setAdminKey(TxnUtils.EMPTY_THRESHOLD_KEY);
                             } else if (useEmptyAdminKeyList) {

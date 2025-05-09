@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.spec.transactions.contract;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.equivAccount;
@@ -51,12 +49,7 @@ import java.util.function.Supplier;
 import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreate> {
-    static final Key DEPRECATED_CID_ADMIN_KEY = Key.newBuilder()
-            .setContractID(ContractID.newBuilder()
-                    .setShardNum(shard)
-                    .setRealmNum(realm)
-                    .setContractNum(1_234L))
-            .build();
+    static final ContractID.Builder DEPRECATED_CID = ContractID.newBuilder().setContractNum(1_234L);
 
     public HapiContractCreate(String contract) {
         super(contract);
@@ -350,7 +343,11 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                 .<ContractCreateTransactionBody, ContractCreateTransactionBody.Builder>body(
                         ContractCreateTransactionBody.class, b -> {
                             if (useDeprecatedAdminKey) {
-                                b.setAdminKey(DEPRECATED_CID_ADMIN_KEY);
+                                b.setAdminKey(Key.newBuilder()
+                                        .setContractID(DEPRECATED_CID
+                                                .setShardNum(spec.shard())
+                                                .setRealmNum(spec.realm()))
+                                        .build());
                             } else if (omitAdminKey) {
                                 if (makeImmutable) {
                                     b.setAdminKey(Key.newBuilder().setKeyList(KeyList.getDefaultInstance()));
@@ -377,8 +374,10 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                             }
                             b.setDeclineReward(isDeclinedReward);
 
-                            b.setRealmID(RealmID.newBuilder().setShardNum(shard).setRealmNum(realm));
-                            b.setShardID(ShardID.newBuilder().setShardNum(shard));
+                            b.setRealmID(RealmID.newBuilder()
+                                    .setShardNum(spec.shard())
+                                    .setRealmNum(spec.realm()));
+                            b.setShardID(ShardID.newBuilder().setShardNum(spec.shard()));
                         });
         return b -> b.setContractCreateInstance(opBody);
     }

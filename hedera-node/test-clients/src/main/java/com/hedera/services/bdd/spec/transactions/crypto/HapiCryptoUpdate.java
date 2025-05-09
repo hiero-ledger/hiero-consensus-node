@@ -132,6 +132,10 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
         return this;
     }
 
+    public HapiCryptoUpdate newStakedAccountId(long stakee) {
+        return newStakedAccountId(String.valueOf(stakee));
+    }
+
     public HapiCryptoUpdate newStakedAccountId(String stakee) {
         newStakee = Optional.of(stakee);
         return this;

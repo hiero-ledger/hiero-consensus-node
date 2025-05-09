@@ -5,7 +5,7 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -3988,7 +3988,7 @@ public class TraceabilitySuite {
                     final var childId = ContractID.newBuilder()
                             .setContractNum(parentId.getContractNum() + 1L)
                             .build();
-                    mirrorLiteralId.set(SHARD_AND_REALM + childId.getContractNum());
+                    mirrorLiteralId.set(asEntityString(spec.shard(), spec.realm(), childId.getContractNum()));
                     final var topLevelCallTxnRecord =
                             getTxnRecord(CREATE_2_TXN).andAllChildRecords().logged();
                     final var hapiGetContractBytecode =

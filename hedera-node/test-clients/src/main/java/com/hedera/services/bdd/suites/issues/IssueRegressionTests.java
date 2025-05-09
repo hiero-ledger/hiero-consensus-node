@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.issues;
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
@@ -200,16 +199,16 @@ public class IssueRegressionTests {
     final Stream<DynamicTest> duplicatedTxnsSameTypeDifferentNodesDetected() {
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
-                cryptoCreate("acct3").setNode(asEntityString(3)).via("txnId1"),
+                cryptoCreate("acct3").setNode(3).via("txnId1"),
                 sleepFor(2000),
                 cryptoCreate("acctWithDuplicateTxnId")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .txnId("txnId1")
                         .hasPrecheck(DUPLICATE_TRANSACTION),
                 uncheckedSubmit(cryptoCreate("acctWithDuplicateTxnId")
-                                .setNode(asEntityString(5))
+                                .setNode(5)
                                 .txnId("txnId1"))
-                        .setNode(asEntityString(5)),
+                        .setNode(5),
                 sleepFor(2000),
                 getTxnRecord("txnId1")
                         .andAnyDuplicates()

@@ -433,8 +433,8 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
         return self();
     }
 
-    public T setNode(String account) {
-        node = Optional.of(HapiPropertySource.asAccount(account));
+    public T setNode(String accountNum) {
+        nodeNum = Optional.of(accountNum);
         return self();
     }
 
