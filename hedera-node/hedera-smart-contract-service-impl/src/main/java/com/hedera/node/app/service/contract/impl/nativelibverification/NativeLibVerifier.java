@@ -38,7 +38,9 @@ public final class NativeLibVerifier {
                 .findAny()
                 .ifPresent(lib -> {
                     if (nodeHaltEnabled) {
-                        LOGGER.error("Native library {} is not present with halt mode enabled! Shutting down node.", lib.name());
+                        LOGGER.error(
+                                "Native library {} is not present with halt mode enabled! Shutting down node.",
+                                lib.name());
                         throw new IllegalStateException("Native libraries are not present with halt mode enabled");
                     }
                 });
