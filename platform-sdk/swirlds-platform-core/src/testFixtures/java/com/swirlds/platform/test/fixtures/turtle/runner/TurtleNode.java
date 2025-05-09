@@ -26,11 +26,14 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.signed.HashedReservedSignedState;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder;
@@ -41,8 +44,10 @@ import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -70,6 +75,7 @@ public class TurtleNode {
     private final DeterministicWiringModel model;
     private final Platform platform;
     private final ConsensusRoundsHolder consensusRoundsHolder;
+    private final List<VirtualMap<?, ?>> virtualMapsCollector = new ArrayList<>();
 
     @NonNull
     private static Configuration createBasicConfiguration(final @NonNull Path outputDirectory) {
@@ -136,24 +142,24 @@ public class TurtleNode {
         final SemanticVersion softwareVersion =
                 SemanticVersion.newBuilder().major(1).build();
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-        final var version = SemanticVersion.newBuilder().major(1).build();
+        final SemanticVersion version = SemanticVersion.newBuilder().major(1).build();
         MerkleDb.resetDefaultInstancePath();
-        final var metrics = getMetricsProvider().createPlatformMetrics(nodeId);
-        final var fileSystemManager = FileSystemManager.create(configuration);
-        final var recycleBin =
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(nodeId);
+        final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
+        final RecycleBin recycleBin =
                 RecycleBin.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, nodeId);
 
-        final var reservedState = getInitialState(
+        final HashedReservedSignedState reservedState = getInitialState(
                 recycleBin,
                 version,
-                TurtleTestingToolState::getStateRootNode,
+                () -> TurtleTestingToolState.getStateRootNode(virtualMapsCollector),
                 "foo",
                 "bar",
                 nodeId,
                 addressBook,
                 platformStateFacade,
                 platformContext);
-        final var initialState = reservedState.state();
+        final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
         final long round = platformStateFacade.roundOf(state);
@@ -245,5 +251,8 @@ public class TurtleNode {
      */
     public void destroy() throws InterruptedException {
         getMetricsProvider().removePlatformMetrics(platform.getSelfId());
+        platform.destroy();
+        virtualMapsCollector.forEach(VirtualMap::destroyVirtualRoot);
+        virtualMapsCollector.clear();
     }
 }

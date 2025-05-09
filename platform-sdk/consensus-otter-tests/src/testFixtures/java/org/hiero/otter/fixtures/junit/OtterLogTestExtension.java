@@ -125,7 +125,7 @@ public class OtterLogTestExtension implements InvocationInterceptor, ParameterRe
         if (testEnvironment != null) {
             try {
                 testEnvironment.destroy();
-            } catch (InterruptedException e) {
+            } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }

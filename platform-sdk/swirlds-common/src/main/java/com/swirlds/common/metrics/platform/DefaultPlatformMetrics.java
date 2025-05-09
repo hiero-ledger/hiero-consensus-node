@@ -286,11 +286,9 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
     }
 
     /**
-     * Shuts down the service
-     *
-     * @return {@code true} if the shutdown finished on time, {@code false} if the call ran into a timeout
-     * @throws InterruptedException if the current thread was interrupted while waiting
+     * {@inheritDoc}
      */
+    @Override
     public boolean shutdown() throws InterruptedException {
         metricMap.entrySet().stream()
                 .filter(entry -> !globalMetricKeys.containsKey(entry.getKey()))

@@ -186,6 +186,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
             if (prometheusEndpoint != null) {
                 prometheusEndpoint.close();
             }
+            platformMetrics.clear();
             lifecyclePhase = LifecyclePhase.STOPPED;
         }
     }

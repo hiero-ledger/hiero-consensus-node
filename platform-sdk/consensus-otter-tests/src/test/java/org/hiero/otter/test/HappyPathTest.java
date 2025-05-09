@@ -23,7 +23,6 @@ public class HappyPathTest {
         // Setup simulation
         network.addNodes(4);
         network.start(Duration.ofMinutes(1L));
-        env.generator().start();
 
         // Wait for two minutes
         timeManager.waitFor(Duration.ofMinutes(2L));
@@ -31,7 +30,7 @@ public class HappyPathTest {
         // Validations
         env.validator()
                 .assertLogs(
-                        LogFilter.maxLogLevel(Level.INFO),
+                        LogFilter.maxLogLevel(Level.WARN),
                         LogFilter.ignoreMarkers(LogMarker.STARTUP),
                         LogFilter.ignoreNodes(network.getNodes().getFirst()))
                 .validateRemaining(Profile.DEFAULT);

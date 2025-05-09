@@ -112,12 +112,28 @@ public class TestingAppStateInitializer {
      * platform and roster states.
      *
      * @param state the state to initialize
+     * @param virtualMapsCollector list that collects virtual maps that are created during initialization
+     * @return a list of builders for the states that were initialized. Currently, returns an empty list.
+     */
+    public List<Builder> initStates(
+            @NonNull final MerkleNodeState state, @NonNull final List<VirtualMap<?, ?>> virtualMapsCollector) {
+        List<Builder> list = new ArrayList<>();
+        list.addAll(initPlatformState(state));
+        list.addAll(initRosterState(state, virtualMapsCollector));
+        return list;
+    }
+
+    /**
+     * Initialize the states for the given {@link MerkleNodeState}. This method will initialize both the
+     * platform and roster states.
+     *
+     * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
     public List<Builder> initStates(@NonNull final MerkleNodeState state) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
-        list.addAll(initRosterState(state));
+        list.addAll(initRosterState(state, new ArrayList<>()));
         return list;
     }
 
@@ -161,9 +177,11 @@ public class TestingAppStateInitializer {
      * states used by the {@code RosterService}.
      *
      * @param state the state to initialize
+     * @param virtualMapsCollector list that collects virtual maps that are created during initialization
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initRosterState(@NonNull final MerkleNodeState state) {
+    public List<Builder> initRosterState(
+            @NonNull final MerkleNodeState state, @NonNull final List<VirtualMap<?, ?>> virtualMapsCollector) {
         if (!(state instanceof MerkleStateRoot<?>)) {
             throw new IllegalArgumentException("Can only be used with MerkleStateRoot instances");
         }
@@ -197,6 +215,7 @@ public class TestingAppStateInitializer {
                             final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
                             final var virtualMap =
                                     new VirtualMap<>(label, keySerializer, valueSerializer, dsBuilder, configuration);
+                            virtualMapsCollector.add(virtualMap);
                             return virtualMap;
                         });
                     } else {

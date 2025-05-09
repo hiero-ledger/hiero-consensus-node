@@ -214,7 +214,7 @@ public class RandomSignedStateGenerator {
             v.setConsensusTimestamp(consensusTimestampInstance);
         });
 
-        TestingAppStateInitializer.DEFAULT.initRosterState(stateInstance);
+        TestingAppStateInitializer.DEFAULT.initRosterState(stateInstance, new ArrayList<>());
         RosterUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
 
         if (signatureVerifier == null) {

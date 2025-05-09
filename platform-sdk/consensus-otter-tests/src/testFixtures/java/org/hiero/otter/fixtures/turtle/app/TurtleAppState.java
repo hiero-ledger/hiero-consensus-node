@@ -9,7 +9,9 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.hiero.consensus.roster.RosterUtils;
 
 public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements MerkleNodeState {
@@ -32,10 +34,11 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
     public static TurtleAppState createGenesisState(
             @NonNull final Configuration configuration,
             @NonNull final Roster roster,
-            @NonNull final SemanticVersion version) {
+            @NonNull final SemanticVersion version,
+            @NonNull final List<VirtualMap<?, ?>> virtualMapsCollector) {
         final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
         final TurtleAppState state = new TurtleAppState();
-        initializer.initStates(state);
+        initializer.initStates(state, virtualMapsCollector);
         RosterUtils.setActiveRoster(state, roster, 0L);
         DEFAULT_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(state, version);
         return state;

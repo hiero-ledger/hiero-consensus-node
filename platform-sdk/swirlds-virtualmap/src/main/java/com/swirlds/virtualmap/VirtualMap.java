@@ -489,4 +489,12 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
     public void warm(final K key) {
         root.warm(key);
     }
+
+    /**
+     * Terminate the pipeline of the virtual root node, so that resources are released.
+     */
+    public void destroyVirtualRoot() {
+        final VirtualRootNode<?, ?> child = getChild(ChildIndices.VIRTUAL_ROOT_CHILD_INDEX);
+        child.getPipeline().terminate();
+    }
 }

@@ -38,12 +38,15 @@ import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -98,6 +101,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private LifeCycle lifeCycle = LifeCycle.INIT;
 
     private PlatformStatus platformStatus;
+    private final List<VirtualMap<?, ?>> virtualMapsCollector = new ArrayList<>();
 
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -164,10 +168,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     public void shutdownGracefully(@NonNull final Duration timeout) throws InterruptedException {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
-
-            platformWiring.flushIntakePipeline();
             doShutdownNode();
-
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
@@ -279,7 +280,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
             doShutdownNode();
             lifeCycle = LifeCycle.DESTROYED;
-
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
@@ -293,14 +293,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private void doShutdownNode() throws InterruptedException {
         if (lifeCycle == LifeCycle.STARTED) {
-            // TODO: Release all resources
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
-            platformWiring.stop();
-            platform.getNotificationEngine().unregisterAll();
+            platform.destroy();
             platformStatus = null;
             platform = null;
             platformWiring = null;
             model = null;
+
+            virtualMapsCollector.forEach(VirtualMap::destroyVirtualRoot);
+            virtualMapsCollector.clear();
         }
         lifeCycle = LifeCycle.SHUTDOWN;
     }
@@ -333,7 +334,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(currentConfiguration, roster, version),
+                () -> TurtleAppState.createGenesisState(currentConfiguration, roster, version, virtualMapsCollector),
                 APP_NAME,
                 SWIRLD_NAME,
                 selfId,

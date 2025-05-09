@@ -257,7 +257,7 @@ public class SwirldsPlatform implements Platform {
         /**
          * Handles all interaction with {@link ConsensusStateEventHandler}
          */
-        SwirldStateManager swirldStateManager = blocks.swirldStateManager();
+        final SwirldStateManager swirldStateManager = blocks.swirldStateManager();
         swirldStateManager.setInitialState(initialState.getState());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
@@ -410,6 +410,21 @@ public class SwirldsPlatform implements Platform {
 
         replayPreconsensusEvents();
         platformWiring.startGossip();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() throws InterruptedException {
+        platformContext.getRecycleBin().stop();
+
+        platformWiring.stop();
+
+        notificationEngine.unregisterAll();
+        notificationEngine.shutdown();
+
+        platformContext.getMetrics().shutdown();
     }
 
     /**

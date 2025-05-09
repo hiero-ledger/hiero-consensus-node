@@ -104,6 +104,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
         network = new TurtleNetwork(randotron, timeManager, rootOutputDirectory);
 
         generator = new TurtleTransactionGenerator(network, randotron);
+        generator.start();
 
         timeManager.addTimeTickReceiver(network);
         timeManager.addTimeTickReceiver(generator);
@@ -153,5 +154,6 @@ public class TurtleTestEnvironment implements TestEnvironment {
     public void destroy() throws InterruptedException {
         generator.stop();
         network.destroy();
+        InMemoryAppender.clearLogs();
     }
 }
