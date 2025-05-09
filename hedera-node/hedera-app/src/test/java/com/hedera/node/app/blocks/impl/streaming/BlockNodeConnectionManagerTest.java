@@ -4,7 +4,9 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,7 +32,6 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -116,32 +117,6 @@ class BlockNodeConnectionManagerTest {
     }
 
     @Test
-    @Disabled
-    void testRetrySuccessOnFirstAttempt() {
-        blockNodeConnectionManager.scheduleRetry(mockConnection, INITIAL_DELAY);
-        when(mockSupplier.get()).thenReturn(null);
-
-        verify(mockSupplier, times(1)).get();
-
-        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
-    }
-
-    @Test
-    @Disabled
-    void testRetrySuccessOnRetry() {
-        when(mockSupplier.get())
-                .thenThrow(new RuntimeException("First attempt failed"))
-                .thenReturn(null);
-
-        // blockNodeConnectionManager.retry(mockSupplier, INITIAL_DELAY);
-
-        verify(mockSupplier, times(2)).get();
-        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
-        assertThat(logCaptor.debugLogs())
-                .containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY.multipliedBy(2)));
-    }
-
-    @Test
     void testScheduleRetry_WithPriority() throws InterruptedException {
         when(mockConnection.getNodeConfig())
                 .thenReturn(BlockNodeConfig.newBuilder()
@@ -206,68 +181,65 @@ class BlockNodeConnectionManagerTest {
     void handleConnectionError_shouldScheduleRetryAndChooseHigherPriorityConnection() throws InterruptedException {
         // Given established connection
         blockNodeConnectionManager.selectBlockNodeForStreaming();
-        //
-        //        final var activeConnection =
-        //                blockNodeConnectionManager.getActiveConnection().orElseThrow();
-        //        lenient().doReturn(TEST_BLOCK_NUMBER).when(spy(activeConnection)).getCurrentBlockNumber();
-        //
-        //        assertThat(activeConnection.getNodeConfig().priority()).isEqualTo(1L);
-        //
-        // assertThat(activeConnection.getConnectionState()).isEqualTo(BlockNodeConnection.ConnectionState.ACTIVE);
-        //
-        //        lenient().doReturn(mockBlockState).when(mockStateManager).getBlockState(TEST_BLOCK_NUMBER);
-        //
-        //        // When connection error occurs
-        //        blockNodeConnectionManager.handleConnectionFailure(activeConnection);
-        //
-        //        final var newActiveConnection =
-        //                blockNodeConnectionManager.getActiveConnection().get();
-        //
-        //        assertThat(newActiveConnection.getNodeConfig().priority()).isEqualTo(2L);
-        //
-        // assertThat(newActiveConnection.getConnectionState()).isEqualTo(BlockNodeConnection.ConnectionState.ACTIVE);
-        //
-        //        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
-        //
-        //
-        // assertThat(activeConnection.getConnectionState()).isEqualTo(BlockNodeConnection.ConnectionState.UNINITIALIZED);
-        //
-        //        // Verify that the first connection is with higher priority than
-        //        // the new connection, and it is ready connection
-        //        assertThat(blockNodeConnectionManager.getHighestPriorityReadyConnection())
-        //                .isEqualTo(activeConnection);
-        //
-        //        assertThat(blockNodeConnectionManager.isHigherPriorityReady(newActiveConnection))
-        //                .isTrue();
-        //
-        //        // Verify that the initial connection is scheduled for retry
-        //        assertThat(logCaptor.debugLogs())
-        //
-        // .containsAnyElementsOf(generateExpectedRetryLogs((BlockNodeConnectionManager.INITIAL_RETRY_DELAY)));
-        //
-        //        // Verify that we successfully connected to the fallback node
-        //        assertThat(logCaptor.infoLogs())
-        //                .contains(
-        //                        "Connecting to block node localhost:8081",
-        //                        "Successfully connected to block node localhost:8081");
-        //
-        //        // There is higher priority ready connection, so we close the current active
-        //
-        // assertThat(newActiveConnection.getConnectionState()).isEqualTo(BlockNodeConnection.ConnectionState.CLOSED);
-        //
-        //        // Wait some time to see if we schedule it for retry
-        //        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(5000));
-        //
-        //        // Check if it is correctly scheduled for retry
-        //
-        // assertThat(newActiveConnection.getConnectionState()).isEqualTo(BlockNodeConnection.ConnectionState.RETRYING);
-        //
-        //        // Get the current active, which is our first established connection from the scenario
-        //        final var currentActiveConnection =
-        //                blockNodeConnectionManager.getActiveConnection().get();
-        //        assertThat(currentActiveConnection.getNodeConfig().priority()).isEqualTo(1L);
-        //
-        // assertThat(currentActiveConnection.getConnectionState()).isEqualTo(BlockNodeConnection.ConnectionState.ACTIVE);
+
+        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
+
+        final var activeConnection = blockNodeConnectionManager.getActiveConnection();
+        lenient().doReturn(TEST_BLOCK_NUMBER).when(spy(activeConnection)).getCurrentBlockNumber();
+        assertThat(activeConnection.getNodeConfig().priority()).isEqualTo(1L);
+        assertThat(activeConnection.getState()).isEqualTo(BlockNodeConnection.ConnectionState.ACTIVE);
+
+        lenient().doReturn(mockBlockState).when(mockStateManager).getBlockState(TEST_BLOCK_NUMBER);
+
+        List<String> infoLogs = logCaptor.infoLogs();
+        assertThat(infoLogs.get(0)).contains("Establishing connection to block node based on priorities");
+        assertThat(infoLogs.get(1)).contains("Scheduling connection attempt for block node localhost:8080");
+        assertThat(infoLogs.get(2)).contains("Scheduling connection task for block node localhost:8080 in 0 ms");
+
+        // When connection error occurs
+        blockNodeConnectionManager.handleConnectionError(activeConnection);
+
+        infoLogs = logCaptor.infoLogs();
+        assertThat(infoLogs.get(3)).contains("Scheduling connection task for block node localhost:8080 in 1000 ms");
+
+        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
+
+        final var newActiveConnection = blockNodeConnectionManager.getActiveConnection();
+        assertThat(newActiveConnection.getNodeConfig().priority()).isEqualTo(2L);
+        assertThat(newActiveConnection.getState()).isEqualTo(BlockNodeConnection.ConnectionState.ACTIVE);
+
+        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
+
+        assertThat(activeConnection.getState()).isEqualTo(BlockNodeConnection.ConnectionState.PENDING);
+
+        // Verify that the first connection is with higher priority than
+        // the new connection, and it is ready connection
+        assertThat(blockNodeConnectionManager.getHighestPriorityPendingConnection(newActiveConnection))
+                .isEqualTo(activeConnection);
+
+        assertThat(blockNodeConnectionManager.higherPriorityStarted(newActiveConnection))
+                .isTrue();
+
+        infoLogs = logCaptor.infoLogs();
+        // Verify that we establish connection to the fallback node with priority 2
+        assertThat(infoLogs.get(4)).contains("Establishing connection to block node based on priorities");
+        assertThat(infoLogs.get(5)).contains("Scheduling connection attempt for block node localhost:8081");
+        assertThat(infoLogs.get(6)).contains("Scheduling connection task for block node localhost:8081 in 0 ms");
+
+        // There is higher priority ready connection, so we close the current active
+        assertThat(newActiveConnection.getState()).isEqualTo(BlockNodeConnection.ConnectionState.UNINITIALIZED);
+
+        // Wait some time to see if we schedule it for retry
+        Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(5000));
+
+        // Check if it is correctly scheduled for retry
+        assertThat(newActiveConnection.getState()).isEqualTo(BlockNodeConnection.ConnectionState.UNINITIALIZED);
+
+        // Get the current active, which is our first established connection from the scenario
+        final var currentActiveConnection = blockNodeConnectionManager.getActiveConnection();
+        assertThat(currentActiveConnection.getNodeConfig().priority()).isEqualTo(1L);
+
+        assertThat(currentActiveConnection.getState()).isEqualTo(BlockNodeConnection.ConnectionState.ACTIVE);
     }
 
     private List<String> generateExpectedRetryLogs(Duration delay) {

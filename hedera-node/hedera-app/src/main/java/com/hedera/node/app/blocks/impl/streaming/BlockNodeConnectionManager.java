@@ -215,7 +215,7 @@ public class BlockNodeConnectionManager {
                 Thread.sleep(1000);
                 remainingSeconds -= 1L;
                 connectionNotActive = connections.values().stream()
-                        .noneMatch(connection -> connection.getConnectionState().equals(ConnectionState.ACTIVE));
+                        .noneMatch(connection -> connection.getState().equals(ConnectionState.ACTIVE));
                 logger.info(
                         "Waiting for Block Node connection to become ACTIVE... Remaining time: {} seconds",
                         remainingSeconds);
@@ -234,10 +234,7 @@ public class BlockNodeConnectionManager {
     }
 
     public void openBlock(long blockNumber) {
-        final BlockNodeConnection connection = connections.values().stream()
-                .filter(i -> i.getConnectionState().equals(ConnectionState.ACTIVE))
-                .findFirst()
-                .orElse(null);
+        final BlockNodeConnection connection = getActiveConnection();
         if (connection == null) {
             logger.warn(
                     "[{}] No active connections available for streaming block {}",
@@ -255,10 +252,7 @@ public class BlockNodeConnectionManager {
     }
 
     public void notifyConnectionsOfNewRequest() {
-        final BlockNodeConnection connection = connections.values().stream()
-                .filter(i -> i.getConnectionState().equals(ConnectionState.ACTIVE))
-                .findFirst()
-                .orElse(null);
+        final BlockNodeConnection connection = getActiveConnection();
         if (connection == null) {
             return;
         }
@@ -319,8 +313,8 @@ public class BlockNodeConnectionManager {
                     .filter(node -> !connections.containsKey(node)
                             || !connections
                                     .get(node)
-                                    .getConnectionState()
-                                    .equals(ConnectionState.UNINITIALIZED)) // Check if node is marked for retry
+                                    .getState()
+                                    .equals(ConnectionState.PENDING)) // Check if node is marked for retry
                     .toList();
 
             if (!nextPriorityGroup.isEmpty()) {
@@ -350,11 +344,19 @@ public class BlockNodeConnectionManager {
     private int getCurrentMinPriority() {
         // Find the current lowest priority which is the priority of the active connection
         return connections.values().stream()
-                .filter(connection -> connection.getConnectionState().equals(ConnectionState.ACTIVE))
+                .filter(connection -> connection.getState().equals(ConnectionState.ACTIVE))
                 .map(BlockNodeConnection::getNodeConfig)
                 .map(BlockNodeConfig::priority)
                 .min(Integer::compareTo)
                 .orElse(Integer.MAX_VALUE);
+    }
+
+    @VisibleForTesting
+    BlockNodeConnection getActiveConnection() {
+        return connections.values().stream()
+                .filter(connection -> connection.getState().equals(ConnectionState.ACTIVE))
+                .findFirst()
+                .orElse(null);
     }
 
     /**
@@ -399,23 +401,39 @@ public class BlockNodeConnectionManager {
         return connections.containsKey(config);
     }
 
-    public boolean higherPriorityStarted(BlockNodeConnection blockNodeConnection) {
-        synchronized (connections) {
-            // Find a pending connection with the highest priority greater than the current connection
-            BlockNodeConnection highestPri = null;
-            for (BlockNodeConnection connection : this.connections.values()) {
-                if (connection.getConnectionState().equals(ConnectionState.PENDING)
-                        && connection.getNodeConfig().priority()
-                                < blockNodeConnection.getNodeConfig().priority()) {
-                    if (highestPri == null
-                            || connection.getNodeConfig().priority()
-                                    < highestPri.getNodeConfig().priority()) {
-                        // If no connection is found or the current one has a higher priority, update the reference
-                        highestPri = connection;
-                    }
+    /**
+     * Find a pending connection with the highest priority greater than the current connection
+     *
+     * @param blockNodeConnection the current connection to compare with
+     * @return the highest priority pending connection, or null if none found
+     */
+    public BlockNodeConnection getHighestPriorityPendingConnection(
+            @NonNull final BlockNodeConnection blockNodeConnection) {
+        BlockNodeConnection highestPri = null;
+        for (BlockNodeConnection connection : this.connections.values()) {
+            if (connection.getState().equals(ConnectionState.PENDING)
+                    && connection.getNodeConfig().priority()
+                            < blockNodeConnection.getNodeConfig().priority()) {
+                if (highestPri == null
+                        || connection.getNodeConfig().priority()
+                                < highestPri.getNodeConfig().priority()) {
+                    // If no connection is found or the current one has a higher priority, update the reference
+                    highestPri = connection;
                 }
             }
+        }
 
+        return highestPri;
+    }
+
+    /**
+     * @param blockNodeConnection the current connection to compare with
+     * @return whether we should switch to a higher priority connection
+     */
+    public boolean higherPriorityStarted(@NonNull final BlockNodeConnection blockNodeConnection) {
+        synchronized (connections) {
+            // Find a pending connection with the highest priority greater than the current connection
+            BlockNodeConnection highestPri = getHighestPriorityPendingConnection(blockNodeConnection);
             if (highestPri != null) {
                 // Found a higher priority pending connection,
                 highestPri.updateConnectionState(ConnectionState.ACTIVE);
@@ -556,6 +574,12 @@ public class BlockNodeConnectionManager {
             this.connection = requireNonNull(connection);
             // Ensure initial delay is non-negative for backoff calculation
             this.currentBackoffDelay = initialDelay.isNegative() ? Duration.ZERO : initialDelay;
+
+            // if the connection is scheduled for retry, we need to set the state to PENDING
+            // and filter out those connection in getNextPriorityBlockNode()
+            if (!initialDelay.isZero()) {
+                connection.updateConnectionState(ConnectionState.PENDING);
+            }
         }
 
         @Override
@@ -567,23 +591,23 @@ public class BlockNodeConnectionManager {
                             "[{}] Running connection task for block node {} ConnectionState: {}",
                             Thread.currentThread().getName(),
                             blockNodeName(nodeConfig),
-                            connection.getConnectionState());
+                            connection.getState());
 
                     // Check if the connection is already active
-                    if (connection.getConnectionState().equals(ConnectionState.ACTIVE)) {
+                    if (connection.getState().equals(ConnectionState.ACTIVE)) {
                         logger.debug(
                                 "[{}] Connection task for block node {} is already active",
                                 Thread.currentThread().getName(),
                                 blockNodeName(nodeConfig));
                     } else if (connections.values().stream()
-                            .anyMatch(c -> c.getConnectionState().equals(ConnectionState.ACTIVE)
+                            .anyMatch(c -> c.getState().equals(ConnectionState.ACTIVE)
                                     && c.getNodeConfig().priority() <= nodeConfig.priority())) {
                         // If we have an active connection, and this task is of lower priority, stop rescheduling.
                         logger.debug(
                                 "[{}] Connection task for block node {} is stopping due to active connection with higher priority",
                                 Thread.currentThread().getName(),
                                 blockNodeName(nodeConfig));
-                    } else if (connection.getConnectionState().equals(ConnectionState.UNINITIALIZED)) {
+                    } else if (connection.getState().equals(ConnectionState.UNINITIALIZED)) {
                         // This is either the first connection attempt ever or the connection was closed and needs
                         // to be re-established
                         connection.createRequestObserver(); // This may throw an exception if the connection fails
@@ -592,9 +616,9 @@ public class BlockNodeConnectionManager {
                                 "[{}] Connection task for block node {} ConnectionState: {}",
                                 Thread.currentThread().getName(),
                                 blockNodeName(nodeConfig),
-                                connection.getConnectionState());
+                                connection.getState());
                         transitionActiveIfNoConnectionsAreActive(nodeConfig);
-                    } else if (connection.getConnectionState().equals(ConnectionState.PENDING)) {
+                    } else if (connection.getState().equals(ConnectionState.PENDING)) {
                         transitionActiveIfNoConnectionsAreActive(nodeConfig);
                     }
                 }
@@ -656,7 +680,7 @@ public class BlockNodeConnectionManager {
                         "[{}] Connection task for block node {} ConnectionState: {}",
                         Thread.currentThread().getName(),
                         blockNodeName(nodeConfig),
-                        connection.getConnectionState());
+                        connection.getState());
             }
         }
     }
