@@ -137,6 +137,11 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
     }
 
     @Override
+    public void trackRefundedNodeFee(final long amount) {
+        nodeFeesCollected -= amount;
+    }
+
+    @Override
     public long getNodeFeesCollected() {
         return nodeFeesCollected;
     }

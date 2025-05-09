@@ -21,9 +21,9 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_6_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static java.lang.System.exit;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -34,10 +34,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.constructable.ClassConstructorPair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.constructable.NoArgsConstructor;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
@@ -74,16 +70,14 @@ import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
-import com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -110,8 +104,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It
@@ -151,7 +150,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
                             .getConstructor(PlatformTestingToolState.CLASS_ID)
                             .get()
                             .getClassId());
-            FakeConsensusStateEventHandler.registerMerkleStateRootClassIds();
+            registerMerkleStateRootClassIds();
         } catch (final ConstructableRegistryException e) {
             logger.error(STARTUP.getMarker(), "Failed to register PlatformTestingToolState", e);
             throw new RuntimeException(e);
@@ -303,7 +302,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     /** defines how many queries should be sent in each second for querying a leaf in the latest signed state */
     private long queriesSentPerSec = -1;
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -863,7 +861,7 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
     @NonNull
     public PlatformTestingToolState newStateRoot() {
         final PlatformTestingToolState state = new PlatformTestingToolState();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
     }
 
@@ -891,14 +889,6 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
         }
 
         logger.info(LOGM_STARTUP, "Platform Status Change {} ", newStatus);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
     }
 
     /**

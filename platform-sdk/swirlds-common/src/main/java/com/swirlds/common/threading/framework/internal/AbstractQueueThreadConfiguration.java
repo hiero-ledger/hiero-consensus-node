@@ -11,8 +11,8 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.hiero.consensus.model.utility.interrupt.InterruptableConsumer;
-import org.hiero.consensus.model.utility.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 
 /**
  * Boilerplate getters, setters, and configuration for queue thread configuration.

@@ -12,13 +12,12 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.internal.MerkleCryptoEngine;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PublicStores;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.system.InitTrigger;
@@ -31,7 +30,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -76,8 +76,8 @@ class StressTestingToolStateTest {
 
         final Randotron randotron = Randotron.create();
 
-        final var keysAndCerts =
-                KeysAndCerts.generate(NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+        final var keysAndCerts = KeysAndCertsGenerator.generate(
+                NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
 
         final var signer = new PlatformSigner(keysAndCerts);
         final Hash stateHash = randotron.nextHash();
@@ -97,7 +97,7 @@ class StressTestingToolStateTest {
                 .withConfigDataType(StressTestingToolConfig.class)
                 .build();
         final var metrics = mock(DefaultPlatformMetrics.class);
-        final var cryptography = mock(MerkleCryptoEngine.class);
+        final var cryptography = mock(MerkleCryptography.class);
         when(platform.getContext()).thenReturn(platformContext);
         when(platformContext.getConfiguration()).thenReturn(config);
         when(platformContext.getMetrics()).thenReturn(metrics);

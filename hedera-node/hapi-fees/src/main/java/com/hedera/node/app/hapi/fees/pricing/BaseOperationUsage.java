@@ -588,7 +588,7 @@ public class BaseOperationUsage {
     }
 
     UsageAccumulator submitMessage() {
-        final var opMeta = new SubmitMessageMeta(100);
+        final var opMeta = new SubmitMessageMeta(100, 0);
         final var into = new UsageAccumulator();
         CONSENSUS_OPS_USAGE.submitMessageUsage(SINGLE_SIG_USAGE, opMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
         return into;

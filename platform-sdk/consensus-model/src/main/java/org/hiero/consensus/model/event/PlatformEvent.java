@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -17,14 +17,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
+import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.consensus.model.utility.TypedIterator;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.
@@ -61,13 +61,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
 
     /**
-     * The non-deterministic generation calculated locally by each node. NGen is calculated for every event added to the
-     * hashgraph. The value can differ between nodes for the same event and must only ever be used for determining one
-     * of the several valid topological orderings, or determining which event is higher in the hashgraph than another (a
-     * higher number indicates the event is higher in the hashgraph). NGen will be
-     * {@link EventConstants#GENERATION_UNDEFINED} until set at the appropriate point in the pipeline.
+     * The non-deterministic generation. For more info, see {@link NonDeterministicGeneration}
      */
-    private long nGen = EventConstants.GENERATION_UNDEFINED;
+    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -191,18 +187,28 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Get the non-deterministic generation of the event.
+     * The non-deterministic generation of this event.
      *
-     * @return the non-deterministic generation of the event
+     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
+     * none has been set yet.
      */
     public long getNGen() {
         return nGen;
     }
 
     /**
-     * Set the non-deterministic generation of the event.
+     * Checks if the non-deterministic generation for this event has been set.
      *
-     * @param nGen the nGen value to set
+     * @return {@code true} if the nGen has been set, {@code false} otherwise
+     */
+    public boolean hasNGen() {
+        return nGen != NonDeterministicGeneration.GENERATION_UNDEFINED;
+    }
+
+    /**
+     * Sets the non-deterministic generation of this event.
+     *
+     * @param nGen the non-deterministic generation value to set
      */
     public void setNGen(final long nGen) {
         this.nGen = nGen;
@@ -386,6 +392,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getOtherParents();
     }
 
+    /**
+     * Check if the event has other parents.
+     *
+     * @return true if the event has other parents
+     */
+    public boolean hasOtherParents() {
+        return metadata.hasOtherParents();
+    }
+
     /** @return a list of all parents, self parent (if any), + all other parents */
     @NonNull
     public List<EventDescriptorWrapper> getAllParents() {
@@ -465,6 +480,12 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public Hash getHash() {
         return metadata.getHash();
+    }
+
+    @NonNull
+    @Override
+    public Iterator<EventDescriptorWrapper> allParentsIterator() {
+        return new TypedIterator<>(metadata.getAllParents().iterator());
     }
 
     @Override

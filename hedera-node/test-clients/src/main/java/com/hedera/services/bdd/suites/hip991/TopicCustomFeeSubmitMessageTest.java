@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -68,6 +69,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -105,7 +107,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         // TOPIC_FEE_105
         final Stream<DynamicTest> messageSubmitToPublicTopicWithFee1token(
                 @FungibleToken(name = "fungibleToken", initialSupply = 123456) SpecFungibleToken ft,
-                @Contract(contract = "TokenTransferContract", creationGas = 1_000_000L) SpecContract contract) {
+                @Contract(contract = "TokenTransferContract", creationGas = 4_000_000L) SpecContract contract) {
             final var collector = "collector";
             final var fee = fixedConsensusHtsFee(1, BASE_TOKEN, collector);
             return hapiTest(
@@ -1461,7 +1463,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
 
             return hapiTest(
                     cryptoCreate(collector).balance(0L),
-                    cryptoCreate("submitter").balance(ONE_HBAR),
+                    cryptoCreate("submitter").balance(10 * ONE_HBAR),
                     tokenAssociate("submitter", BASE_TOKEN),
                     tokenAssociate(collector, BASE_TOKEN),
                     createTopic(TOPIC).withConsensusCustomFee(tokenFee).withConsensusCustomFee(hbarFee),
@@ -1776,7 +1778,28 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         allRunFor(spec, record);
                     }),
                     // assert topic fee collector balance
-                    getAccountBalance("collector").hasTinyBars(10)));
+                    getAccountBalance("collector").hasTinyBars(10),
+                    validateChargedUsdWithin("submit", 0.05, 0.1)));
+        }
+
+        @HapiTest
+        @DisplayName("Submit a large message to topic with customFees and validate the fee")
+        final Stream<DynamicTest> submitLargeMessageToTopicWithFee() {
+            final byte[] messageBytes = new byte[501];
+            Arrays.fill(messageBytes, (byte) 0b1);
+
+            return hapiTest(flattened(
+                    cryptoCreate("collector").balance(0L),
+                    // create topic with hbar fees
+                    createTopic(TOPIC).withConsensusCustomFee(fixedConsensusHbarFee(10, "collector")),
+                    // submit message
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes)
+                            .payingWith(SUBMITTER)
+                            .via("submit"),
+                    // assert topic fee collector balance
+                    getAccountBalance("collector").hasTinyBars(10),
+                    validateChargedUsdWithin("submit", 0.10, 0.1)));
         }
 
         @HapiTest
@@ -1805,6 +1828,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                 .logged();
                         allRunFor(spec, record);
                     }),
+                    validateChargedUsdWithin("submit", 0.05, 0.1),
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10).hasTokenBalance("token", 1)));
         }

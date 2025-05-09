@@ -100,7 +100,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 @SuppressWarnings("java:S1192")
@@ -301,7 +301,7 @@ public class FileUpdateSuite {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "100"),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(100_000L),
+                contractCreate(CONTRACT).gas(600_000L),
                 contractCall(CONTRACT, CREATE_TXN).gas(1_000_000L),
                 contractCallLocal(CONTRACT, INDIRECT_GET_ABI)
                         .gas(300_000L)

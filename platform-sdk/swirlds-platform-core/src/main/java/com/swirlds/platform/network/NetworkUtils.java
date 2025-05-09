@@ -7,11 +7,9 @@ import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
 import com.swirlds.platform.network.connectivity.SocketFactory;
 import com.swirlds.platform.network.connectivity.TlsFactory;
-import com.swirlds.platform.system.PlatformConstructionException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
 import java.io.IOException;
@@ -25,6 +23,8 @@ import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.exceptions.PlatformConstructionException;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 public final class NetworkUtils {

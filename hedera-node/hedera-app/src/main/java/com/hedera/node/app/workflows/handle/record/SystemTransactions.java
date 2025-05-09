@@ -18,9 +18,9 @@ import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.roster.RosterUtils.formatNodeName;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
 
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
@@ -75,7 +75,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -119,6 +118,7 @@ public class SystemTransactions {
 
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
+    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {};
 
     private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
@@ -133,7 +133,7 @@ public class SystemTransactions {
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
-    private final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory;
+    private final SemanticVersion softwareVersionFactory;
 
     private int nextDispatchNonce = 1;
 
@@ -153,7 +153,7 @@ public class SystemTransactions {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> softwareVersionFactory) {
+            @NonNull final SemanticVersion softwareVersionFactory) {
         this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -182,13 +182,13 @@ public class SystemTransactions {
     /**
      * Sets up genesis state for the system.
      *
-     * @param now   the current time
+     * @param now the current time
      * @param state the state to set up
      */
     public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
         requireNonNull(now);
         requireNonNull(state);
-        final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(dispatch -> {});
+        final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext =
                 newSystemContext(now, state, dispatch -> onSuccess.get().accept(dispatch), true);
 
@@ -213,9 +213,6 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
-        // For a slightly more intuitive stream, now create the system files (which come next numerically)
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
-        fileService.createSystemEntities(systemContext, nodeStore);
         // Create the treasury clones
         for (long i : LongStream.rangeClosed(FIRST_POST_SYSTEM_FILE_ENTITY, ledgerConfig.numReservedSystemEntities())
                 .filter(j -> j < FIRST_RESERVED_SYSTEM_CONTRACT || j > LAST_RESERVED_SYSTEM_CONTRACT)
@@ -279,25 +276,27 @@ public class SystemTransactions {
                     nodeInfo.hapiEndpoints().isEmpty() ? UNKNOWN_HAPI_ENDPOINT : nodeInfo.hapiEndpoints();
             onSuccess.set(dispatch -> {
                 final var stack = dispatch.stack();
-                final var writableNodeStore = new WritableStakingInfoStore(
+                final var writableStakingInfoStore = new WritableStakingInfoStore(
                         stack.getWritableStates(TokenService.NAME),
                         new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
-                final var rewardSumHistory = new Long[numStoredPeriods + 1];
-                Arrays.fill(rewardSumHistory, 0L);
-                writableNodeStore.putAndIncrementCount(
-                        nodeInfo.nodeId(),
-                        StakingNodeInfo.newBuilder()
-                                .nodeNumber(nodeInfo.nodeId())
-                                .maxStake(stakingConfig.maxStake())
-                                .minStake(stakingConfig.minStake())
-                                .rewardSumHistory(Arrays.asList(rewardSumHistory))
-                                .weight(DEFAULT_GENESIS_WEIGHT)
-                                .build());
-                stack.commitFullStack();
+                // Writing genesis staking info to state after the node create dispatch is only necessary if the created
+                // node's staking info isn't already present in state
+                if (writableStakingInfoStore.get(nodeInfo.nodeId()) == null) {
+                    final var rewardSumHistory = new Long[numStoredPeriods + 1];
+                    Arrays.fill(rewardSumHistory, 0L);
+                    writableStakingInfoStore.putAndIncrementCount(
+                            nodeInfo.nodeId(),
+                            StakingNodeInfo.newBuilder()
+                                    .nodeNumber(nodeInfo.nodeId())
+                                    .maxStake(stakingConfig.maxStake())
+                                    .minStake(stakingConfig.minStake())
+                                    .rewardSumHistory(Arrays.asList(rewardSumHistory))
+                                    .weight(DEFAULT_GENESIS_WEIGHT)
+                                    .build());
+                    stack.commitFullStack();
+                }
             });
             systemContext.dispatchAdmin(b -> {
-                final var isSystemAccount =
-                        nodeInfo.accountId().accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
                 final var nodeCreate = NodeCreateTransactionBody.newBuilder()
                         .adminKey(adminKey)
                         .accountId(nodeInfo.accountId())
@@ -305,13 +304,21 @@ public class SystemTransactions {
                         .gossipEndpoint(nodeInfo.gossipEndpoints())
                         .gossipCaCertificate(nodeInfo.sigCertBytes())
                         .serviceEndpoint(hapiEndpoints)
-                        .declineReward(isSystemAccount)
+                        .declineReward(true)
                         .build();
                 log.info("Creating node{} via {}", nodeInfo.nodeId(), nodeCreate);
                 b.nodeCreate(nodeCreate);
             });
         }
         networkInfo.updateFrom(state);
+
+        // Now that the onSuccess callback has executed for all the node create transactions, set the callback back to
+        // its benign, do-nothing default
+        onSuccess.set(DEFAULT_DISPATCH_ON_SUCCESS);
+
+        // Now that the node metadata is correct, create the system files
+        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        fileService.createSystemEntities(systemContext, nodeStore);
     }
 
     /**
@@ -372,24 +379,20 @@ public class SystemTransactions {
         if (autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
             dispatch.stack().commitFullStack();
         }
-        // (FUTURE) Remove this 0.61-specific code initiating all system node accounts to decline rewards
-        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+        // (FUTURE) Remove this 0.61 and 0.62 -specific code initiating all system node accounts to decline rewards
         final var nodeStore = dispatch.handleContext().storeFactory().readableStore(ReadableNodeStore.class);
         for (int i = 0; i < nodeStore.sizeOfState(); i++) {
             final var node = nodeStore.get(i);
             final var nodeInfo = networkInfo.nodeInfo(i);
             if (nodeInfo != null && node != null && !node.deleted()) {
-                final var declineReward = nodeInfo.accountId().accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
-                if (declineReward) {
-                    log.info(
-                            "Updating node{} with system node account {} to decline rewards",
-                            nodeInfo.nodeId(),
-                            nodeInfo.accountId());
-                    systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
-                            .nodeId(nodeInfo.nodeId())
-                            .declineReward(true)
-                            .build()));
-                }
+                log.info(
+                        "Updating node{} with system node account {} to decline rewards",
+                        nodeInfo.nodeId(),
+                        nodeInfo.accountId());
+                systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
+                        .nodeId(nodeInfo.nodeId())
+                        .declineReward(true)
+                        .build()));
             }
         }
         dispatch.stack().commitFullStack();
@@ -400,14 +403,14 @@ public class SystemTransactions {
      * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
      * reward.
      *
-     * @param state                The state.
-     * @param now                  The current time.
-     * @param activeNodeIds        The list of active node ids.
-     * @param perNodeReward        The per node reward.
+     * @param state The state.
+     * @param now The current time.
+     * @param activeNodeIds The list of active node ids.
+     * @param perNodeReward The per node reward.
      * @param nodeRewardsAccountId The node rewards account id.
      * @param rewardAccountBalance The reward account balance.
-     * @param minNodeReward        The minimum node reward.
-     * @param rosterEntries        The list of roster entries.
+     * @param minNodeReward The minimum node reward.
+     * @param rosterEntries The list of roster entries.
      */
     public void dispatchNodeRewards(
             @NonNull final State state,
@@ -498,8 +501,8 @@ public class SystemTransactions {
      * using the given {@link AutoUpdate} function.
      *
      * @param updateFileName the name of the upgrade file
-     * @param updateParser   the function to parse the upgrade file
-     * @param <T>            the type of the update representation
+     * @param updateParser the function to parse the upgrade file
+     * @param <T> the type of the update representation
      */
     private record AutoEntityUpdate<T>(
             @NonNull AutoUpdate<T> autoUpdate,
@@ -657,13 +660,13 @@ public class SystemTransactions {
      * scheduled transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result, and
      * no other side effects.
      *
-     * @param state         the state to execute the transaction against
-     * @param now           the time to execute the transaction at
-     * @param creatorInfo   the node info of the creator of the transaction
-     * @param payerId       the payer of the transaction
-     * @param body          the transaction to execute
+     * @param state the state to execute the transaction against
+     * @param now the time to execute the transaction at
+     * @param creatorInfo the node info of the creator of the transaction
+     * @param payerId the payer of the transaction
+     * @param body the transaction to execute
      * @param nextEntityNum if not zero, the next entity number to use for the transaction
-     * @param onSuccess     the action to take after the transaction is successfully dispatched
+     * @param onSuccess the action to take after the transaction is successfully dispatched
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSystem(

@@ -17,7 +17,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StartupNetworks;
@@ -28,6 +27,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -117,6 +117,7 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
@@ -130,7 +131,8 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(ctx.isUpgrade(any(), any())).willReturn(true);
+        given(ctx.isUpgrade(any())).willReturn(true);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
@@ -145,9 +147,10 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(ctx.isUpgrade(any(), any())).willReturn(true);
+        given(ctx.isUpgrade(any())).willReturn(true);
         given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
         given(canAdopt.test(ROSTER)).willReturn(false);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 
@@ -162,10 +165,11 @@ class V0540RosterSchemaTest {
         given(ctx.startupNetworks()).willReturn(startupNetworks);
         given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
         given(rosterStore.getActiveRoster()).willReturn(ROSTER);
-        given(ctx.isUpgrade(any(), any())).willReturn(true);
+        given(ctx.isUpgrade(any())).willReturn(true);
         given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
         given(canAdopt.test(ROSTER)).willReturn(true);
         given(ctx.roundNumber()).willReturn(ROUND_NO);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
 
         subject.restart(ctx);
 

@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.junit.support;
 
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isRecordFile;
-import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isSidecarFile;
+import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isSidecarMarkerFile;
 import static com.hedera.services.bdd.junit.support.BlockStreamAccess.isBlockMarkerFile;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -121,7 +121,14 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
     }
 
     private void exposeSidecars(final File file) {
-        final var contents = StreamFileAccess.ensurePresentSidecarFile(file.getAbsolutePath());
+        // Get Sidecar file path using marker file path
+        final var markerPath = file.toPath();
+        final var baseName = file.getName().replace(".mf", "");
+        final var gzPath = markerPath.resolveSibling(baseName + ".rcd.gz");
+        final var plainPath = markerPath.resolveSibling(baseName + ".rcd");
+        final var sidecarPath = Files.exists(gzPath) ? gzPath : plainPath;
+
+        final var contents = StreamFileAccess.ensurePresentSidecarFile(sidecarPath.toString());
         contents.getSidecarRecordsList().forEach(sidecar -> listeners.forEach(l -> l.onNewSidecar(sidecar)));
     }
 
@@ -138,12 +145,12 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
         // Ignore empty files, which are likely to be in the process of being written
         if (isBlockMarkerFile(file)) {
             return FileType.BLOCK_FILE;
+        } else if (isSidecarMarkerFile(file.getName())) {
+            return FileType.SIDE_CAR_FILE;
         } else if (file.length() == 0L) {
             return FileType.OTHER;
         } else if (isRecordFile(file.getName())) {
             return FileType.RECORD_STREAM_FILE;
-        } else if (isSidecarFile(file.getName())) {
-            return FileType.SIDE_CAR_FILE;
         } else {
             return FileType.OTHER;
         }

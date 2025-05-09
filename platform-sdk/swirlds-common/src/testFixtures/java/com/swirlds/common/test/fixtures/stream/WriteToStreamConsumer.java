@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.RunningHash;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Is used for testing {@link SingleStreamIterator}

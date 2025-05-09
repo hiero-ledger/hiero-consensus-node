@@ -21,9 +21,7 @@ import com.hedera.node.app.state.SingleTransactionRecord.TransactionOutputs;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.stream.Signer;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PublicStores;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,8 +32,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signer;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -79,7 +79,7 @@ public class RecordTestData {
     static {
         try {
             // generate node keys and signer
-            final var keysAndCerts = KeysAndCerts.generate(
+            final var keysAndCerts = KeysAndCertsGenerator.generate(
                     NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
             // get public key that was generated for the user
             USER_PUBLIC_KEY = keysAndCerts.sigKeyPair().getPublic();

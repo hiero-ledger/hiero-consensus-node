@@ -3,6 +3,7 @@ package org.hiero.consensus.model.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ReachedConsensus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
@@ -23,4 +24,21 @@ public interface ConsensusEvent extends Event, ReachedConsensus {
      */
     @NonNull
     Iterator<ConsensusTransaction> consensusTransactionIterator();
+
+    /**
+     * Returns the hash of this event.
+     *
+     * @return the hash of the metadata of this event
+     */
+    @NonNull
+    Hash getHash();
+
+    /**
+     * Returns an iterator over all the parents of this event (selfParent + otherParents). Each
+     * invocation returns a new iterator over the same all parents of this event. This method is thread safe.
+     *
+     * @return a consensus transaction iterator
+     */
+    @NonNull
+    Iterator<EventDescriptorWrapper> allParentsIterator();
 }

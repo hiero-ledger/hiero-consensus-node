@@ -16,8 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -42,6 +40,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -182,12 +182,15 @@ class MerkleDbDataSourceSnapshotMergeTest {
                         e.printStackTrace();
                     }
                 } else { // thread 1 initiates compaction and waits for its completion
-                    dataSource.compactionCoordinator.compactPathToKeyValueAsync();
-                    dataSource.compactionCoordinator.compactDiskStoreForKeyToPathAsync();
-                    dataSource.compactionCoordinator.compactPathToKeyValueAsync();
+                    dataSource.compactionCoordinator.compactIfNotRunningYet(
+                            "hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+                    dataSource.compactionCoordinator.compactIfNotRunningYet(
+                            "objectKeyToPath", dataSource.newKeyToPathCompactor());
+                    dataSource.compactionCoordinator.compactIfNotRunningYet(
+                            "pathToKeyValue", dataSource.newPathToKeyValueCompactor());
 
                     assertEventuallyTrue(
-                            dataSource.compactionCoordinator.compactionFuturesByName::isEmpty,
+                            dataSource.compactionCoordinator.futuresByName::isEmpty,
                             Duration.ofSeconds(1),
                             "compaction tasks should have been completed");
 

@@ -3,12 +3,16 @@ module com.hedera.node.app.spi {
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+
+    // for test assertions that use reflection
+    opens com.hedera.node.app.spi.workflows to
+            org.assertj.core;
 
     exports com.hedera.node.app.spi;
     exports com.hedera.node.app.spi.fees;

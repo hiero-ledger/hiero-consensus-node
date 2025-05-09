@@ -11,7 +11,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.io.streams.SerializableDataOutputStreamImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -24,9 +23,9 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.zip.GZIPInputStream;
-import org.hiero.consensus.model.crypto.DigestType;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A Record File Version 6 Reader that can be used in tests to read record files and validate then and return the contents
@@ -46,9 +45,9 @@ public class BlockRecordReaderV6 {
     static {
         try {
             // compute Hash object header, the hash header is not the usual SelfSerializable Hash object.
-            // @see com.swirlds.common.crypto.engine.RunningHashProvider.updateForHash
-            // @see com.swirlds.common.crypto.HashBuilder.update(long)
-            // @see com.swirlds.common.crypto.HashBuilder.update(int)
+            // @see org.hiero.base.crypto.engine.RunningHashProvider.updateForHash
+            // @see org.hiero.base.crypto.HashBuilder.update(long)
+            // @see org.hiero.base.crypto.HashBuilder.update(int)
             ByteBuffer buf = ByteBuffer.allocate(Long.BYTES + Integer.BYTES);
             buf.order(ByteOrder.LITTLE_ENDIAN);
             buf.putLong(Hash.CLASS_ID);
@@ -59,7 +58,7 @@ public class BlockRecordReaderV6 {
             }
             // compute RecordStreamObject header
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
-            SerializableDataOutputStream sout = new SerializableDataOutputStreamImpl(bout);
+            SerializableDataOutputStream sout = new SerializableDataOutputStream(bout);
             bout.reset();
             sout.writeLong(RECORD_STREAM_OBJECT_CLASS_ID);
             sout.writeInt(RECORD_STREAM_OBJECT_CLASS_VERSION);

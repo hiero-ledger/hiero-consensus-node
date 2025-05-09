@@ -56,7 +56,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1122,7 +1122,7 @@ public class Evm46ValidationSuite {
         final var withAmount = "makeCallWithAmount";
         return hapiTest(
                 uploadInitCode(MAKE_CALLS_CONTRACT),
-                contractCreate(MAKE_CALLS_CONTRACT).gas(GAS_LIMIT_FOR_CALL * 4),
+                contractCreate(MAKE_CALLS_CONTRACT).gas(400_000L),
                 balanceSnapshot("initialBalance", MAKE_CALLS_CONTRACT),
                 contractCall(
                                 MAKE_CALLS_CONTRACT,
@@ -1145,7 +1145,7 @@ public class Evm46ValidationSuite {
         final var withoutAmount = "makeCallWithoutAmount";
         return hapiTest(
                 uploadInitCode(MAKE_CALLS_CONTRACT),
-                contractCreate(MAKE_CALLS_CONTRACT).gas(GAS_LIMIT_FOR_CALL * 4),
+                contractCreate(MAKE_CALLS_CONTRACT).gas(400_000L),
                 balanceSnapshot("initialBalance", MAKE_CALLS_CONTRACT),
                 contractCall(
                                 MAKE_CALLS_CONTRACT,

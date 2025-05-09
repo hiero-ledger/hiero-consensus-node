@@ -23,7 +23,9 @@ import java.util.Objects;
  * @param <V> The value type
  */
 public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
-    /** Represents the backing storage for this state */
+    /**
+     * Represents the backing storage for this state
+     */
     private final Map<K, V> backingStore;
 
     /**
@@ -40,7 +42,7 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * pre-populate the map, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
-     * @param stateKey The state key for this state
+     * @param stateKey     The state key for this state
      * @param backingStore The backing store to use
      */
     public MapWritableKVState(@NonNull final String stateKey, @NonNull final Map<K, V> backingStore) {
@@ -69,7 +71,18 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
         backingStore.remove(key);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Get the backing store for this state. This is only for testing purposes added to {@link MapWritableKVState}
+     *
+     * @return The backing store for this state
+     */
+    public Map<K, V> getBackingStore() {
+        return backingStore;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public long sizeOfDataSource() {
@@ -86,9 +99,9 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * convenience methods for pre-populating the map.
      *
      * @param stateKey The state key
+     * @param <K>      The key type
+     * @param <V>      The value type
      * @return A {@link Builder} to be used for creating a {@link MapWritableKVState}.
-     * @param <K> The key type
-     * @param <V> The value type
      */
     public static <K, V> Builder<K, V> builder(@NonNull final String stateKey) {
         return new Builder<>(stateKey);
@@ -110,7 +123,7 @@ public class MapWritableKVState<K, V> extends WritableKVStateBase<K, V> {
          * Add a key/value pair to the state's backing map. This is used to pre-initialize the
          * backing map. The created state will be "clean" with no modifications.
          *
-         * @param key The key
+         * @param key   The key
          * @param value The value
          * @return a reference to this builder
          */

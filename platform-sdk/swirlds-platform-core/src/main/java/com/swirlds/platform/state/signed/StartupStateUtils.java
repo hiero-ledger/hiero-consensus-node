@@ -18,14 +18,11 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,8 +34,11 @@ import java.util.List;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Utilities for loading and manipulating state files at startup time.
@@ -141,9 +141,8 @@ public final class StartupStateUtils {
             return createNullReservation();
         }
 
-        final ReservedSignedState state = loadLatestState(
+        return loadLatestState(
                 recycleBin, currentSoftwareVersion, savedStateFiles, platformStateFacade, platformContext);
-        return state;
     }
 
     /**
@@ -370,5 +369,57 @@ public final class StartupStateUtils {
         });
 
         RosterUtils.setActiveRoster(state, RosterRetriever.buildRoster(addressBook), round);
+    }
+
+    /**
+     * Get the initial state to be used by a node. May return a state loaded from disk, or may return a genesis state
+     * if no valid state is found on disk.
+     *
+     * @param recycleBin          the recycle bin to use
+     * @param softwareVersion     the software version of the app
+     * @param stateRootSupplier   a supplier that can build a genesis state
+     * @param mainClassName       the name of the app's SwirldMain class
+     * @param swirldName          the name of this swirld
+     * @param selfId              the node id of this node
+     * @param platformStateFacade an object to access the platform state
+     * @param platformContext     the platform context
+     * @return the initial state to be used by this node
+     */
+    @NonNull
+    public static HashedReservedSignedState loadInitialState(
+            @NonNull final RecycleBin recycleBin,
+            @NonNull final SemanticVersion softwareVersion,
+            @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
+            @NonNull final String mainClassName,
+            @NonNull final String swirldName,
+            @NonNull final NodeId selfId,
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final PlatformContext platformContext) {
+        final var loadedState = loadStateFile(
+                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformStateFacade, platformContext);
+        try (loadedState) {
+            if (loadedState.isNotNull()) {
+                logger.info(
+                        STARTUP.getMarker(),
+                        new SavedStateLoadedPayload(
+                                loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
+                return copyInitialSignedState(loadedState.get(), platformStateFacade, platformContext);
+            }
+        }
+        final var stateRoot = stateRootSupplier.get();
+        final var signedState = new SignedState(
+                platformContext.getConfiguration(),
+                CryptoStatic::verifySignature,
+                stateRoot,
+                "genesis state",
+                false,
+                false,
+                false,
+                platformStateFacade);
+        signedState.init(platformContext);
+        final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
+        try (reservedSignedState) {
+            return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);
+        }
     }
 }

@@ -3,11 +3,11 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
 
-import com.swirlds.common.threading.locks.AutoClosableLock;
-import com.swirlds.common.threading.locks.Locks;
-import com.swirlds.common.threading.locks.locked.Locked;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.base.concurrent.locks.locked.Locked;
 
 /**
  * Similar to an {@link java.util.concurrent.atomic.AtomicReference AtomicReference&lt;SignedState&gt;}, but with the

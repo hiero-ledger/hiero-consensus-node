@@ -12,7 +12,7 @@ import java.util.SortedMap;
  * <p>
  * The relationship between the hinTS algorithms and these operations are as follows:
  * <ul>
- *   <li><b>CRS creation</b> ({@code Setup}) - Implemented by using {@link HintsLibrary#newCrs(int)},
+ *   <li><b>CRS creation</b> ({@code Setup}) - Implemented by using {@link HintsLibrary#newCrs(short)},
  *   {@link HintsLibrary#updateCrs(Bytes, Bytes)}, and {@link HintsLibrary#verifyCrsUpdate(Bytes, Bytes, Bytes)}.</li>
  *   <li><b>Key generation</b> ({@code KGen}) - Implemented by {@link HintsLibrary#newBlsPrivateKey()}.</li>
  *   <li><b>Hint generation</b> ({@code HintGen}) - Implemented by {@link HintsLibrary#computeHints(Bytes, Bytes, int, int)}.</li>
@@ -33,7 +33,7 @@ public interface HintsLibrary {
      * @param n the number of parties
      * @return the CRS
      */
-    Bytes newCrs(int n);
+    Bytes newCrs(short n);
 
     /**
      * Updates the given CRS with the given 256 bits of entropy and returns the concatenation of the

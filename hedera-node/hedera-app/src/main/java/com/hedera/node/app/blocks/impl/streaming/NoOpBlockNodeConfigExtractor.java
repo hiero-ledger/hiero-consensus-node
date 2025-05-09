@@ -11,9 +11,4 @@ public class NoOpBlockNodeConfigExtractor implements BlockNodeConfigExtractor {
     public List<BlockNodeConfig> getAllNodes() {
         return List.of();
     }
-
-    @Override
-    public int getBlockItemBatchSize() {
-        return 0;
-    }
 }

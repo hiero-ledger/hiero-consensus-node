@@ -18,7 +18,6 @@ import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
-import com.swirlds.platform.roster.RosterEntryNotFoundException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -35,6 +34,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterEntryNotFoundException;
 
 /**
  * Creates outbound connections to the requested peers

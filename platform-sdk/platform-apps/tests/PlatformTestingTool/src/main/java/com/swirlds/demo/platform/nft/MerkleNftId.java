@@ -2,13 +2,13 @@
 package com.swirlds.demo.platform.nft;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import java.io.IOException;
 import java.util.Objects;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.exceptions.InvalidVersionException;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A unique identifier for an {@link Nft}.
