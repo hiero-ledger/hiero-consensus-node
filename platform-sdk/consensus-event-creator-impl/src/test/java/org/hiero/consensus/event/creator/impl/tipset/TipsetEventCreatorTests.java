@@ -871,7 +871,7 @@ class TipsetEventCreatorTests {
         final List<PlatformEvent> pcesEvents = new ArrayList<>();
         PlatformEvent eventWithHighestNGen = null;
         for (int i = 0; i < numEvents; i++) {
-            final PlatformEvent event = createTestEvent(random, selfId, i++, ROUND_FIRST);
+            final PlatformEvent event = createTestEvent(random, selfId, i + 1, ROUND_FIRST);
             if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
                 eventWithHighestNGen = event;
             }
