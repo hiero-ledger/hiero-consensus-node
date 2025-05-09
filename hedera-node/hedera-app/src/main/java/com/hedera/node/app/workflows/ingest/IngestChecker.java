@@ -220,11 +220,14 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        assertThrottlingPreconditions(txInfo, configuration);
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        if (hederaConfig.ingestThrottleEnabled() && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state)) {
-            workflowMetrics.incrementThrottled(functionality);
-            throw new PreCheckException(BUSY);
+        checkThrottles(state, configuration, txInfo);
+        // If the transaction is a batch transaction, we need to check the throttling for each inner transaction
+        if (functionality == HederaFunctionality.ATOMIC_BATCH) {
+            for (Bytes innerTxnBytes : requireNonNull(txBody.atomicBatch()).transactions()) {
+                final var innerTxn =
+                        transactionChecker.parseSignedAndCheck(innerTxnBytes, maxIngestParseSize(configuration));
+                checkThrottles(state, configuration, innerTxn);
+            }
         }
 
         // 4a. Run pure checks
@@ -264,6 +267,17 @@ public final class IngestChecker {
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 
         return txInfo;
+    }
+
+    private void checkThrottles(
+            @NonNull final State state, @NonNull final Configuration configuration, final TransactionInfo txn)
+            throws PreCheckException {
+        assertThrottlingPreconditions(txn, configuration);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        if (hederaConfig.ingestThrottleEnabled() && synchronizedThrottleAccumulator.shouldThrottle(txn, state)) {
+            workflowMetrics.incrementThrottled(txn.functionality());
+            throw new PreCheckException(BUSY);
+        }
     }
 
     private static int maxIngestParseSize(Configuration configuration) {

@@ -61,6 +61,7 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -231,26 +232,11 @@ public class AtomicBatchTest {
                     uploadInitCode(contract),
                     contractCreate(contract),
                     overridingThrottles("testSystemFiles/artificial-limits.json"),
-                    // create batch with 6 contract calls
-                    atomicBatch(
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator))
+                    // create a batch with 1 contract calls (the TPS limit is 3),
+                    // and after the frontend scale we can send only 1 per second
+                    atomicBatch(contractCall(contract, function, payload)
+                                    .payingWith(payer)
+                                    .batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator)
                             .payingWith(payer));
         }
@@ -344,6 +330,7 @@ public class AtomicBatchTest {
                             .signedBy(payer, aliceKey));
         }
 
+        @Disabled // No longer relevant, after implementing ingest throttle for the inner transactions
         @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
         @DisplayName("Update throttles should take effect to following inner txns")
         //  BATCH_08
