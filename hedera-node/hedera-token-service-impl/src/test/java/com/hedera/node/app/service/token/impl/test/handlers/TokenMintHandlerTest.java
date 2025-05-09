@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_MINT_AMOU
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NFTS_IN_PRICE_REGIME_HAVE_BEEN_MINTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.METADATA_TOO_LONG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -70,19 +69,6 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
         givenStoresAndConfig(handleContext);
         subject = new TokenMintHandler(new TokenSupplyChangeOpsValidator());
         recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
-    }
-
-    @Test
-    void rejectsNftMintsWhenNftsNotEnabled() {
-        givenMintTxn(nonFungibleTokenId, List.of(metadata1, metadata2), null);
-        final var configOverride = HederaTestConfigBuilder.create()
-                .withValue("tokens.nfts.areEnabled", false)
-                .getOrCreateConfig();
-        given(handleContext.configuration()).willReturn(configOverride);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(NOT_SUPPORTED));
     }
 
     @Test

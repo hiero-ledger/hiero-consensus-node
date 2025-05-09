@@ -10,6 +10,10 @@ module com.hedera.node.app.spi {
     requires transitive org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
+    // for test assertions that use reflection
+    opens com.hedera.node.app.spi.workflows to
+            org.assertj.core;
+
     exports com.hedera.node.app.spi;
     exports com.hedera.node.app.spi.fees;
     exports com.hedera.node.app.spi.api;

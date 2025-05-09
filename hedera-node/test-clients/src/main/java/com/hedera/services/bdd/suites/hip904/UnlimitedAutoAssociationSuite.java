@@ -215,7 +215,7 @@ public class UnlimitedAutoAssociationSuite {
 
     @HapiTest
     @DisplayName("auto-association through HTS system contract does not charge dispatch payer")
-    final Stream<DynamicTest> autoAssociationThroughSystemContractChangesGasCost(
+    final Stream<DynamicTest> autoAssociationThroughSystemContractDoesNotChargeDispatchPayer(
             @Contract(contract = "HTSCalls", creationGas = 4_000_000) SpecContract htsCallsContract,
             @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken token,
             @Account(maxAutoAssociations = 1) SpecAccount autoAssociated) {
@@ -274,12 +274,12 @@ public class UnlimitedAutoAssociationSuite {
                 // Create hollow account with 2 token transfers
                 cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(tokenIdA.get())
-                                        .addTransfers(aaWith(treasuryAlias.get(), -1))
-                                        .addTransfers(aaWith(hollowAccountAlias.get(), +1)))
+                                        .addTransfers(aaWith(s, treasuryAlias.get(), -1))
+                                        .addTransfers(aaWith(s, hollowAccountAlias.get(), +1)))
                                 .addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(tokenIdB.get())
-                                        .addTransfers(aaWith(treasuryAlias.get(), -1))
-                                        .addTransfers(aaWith(hollowAccountAlias.get(), +1))))
+                                        .addTransfers(aaWith(s, treasuryAlias.get(), -1))
+                                        .addTransfers(aaWith(s, hollowAccountAlias.get(), +1))))
                         .payingWith(TREASURY)
                         .signedBy(TREASURY)
                         .via(hollowAccountTxn),
@@ -372,14 +372,14 @@ public class UnlimitedAutoAssociationSuite {
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdA.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountId(treasuryAlias.get()),
-                                                        accountId(hollowAccountAlias.get()),
+                                                        accountId(s, treasuryAlias.get()),
+                                                        accountId(s, hollowAccountAlias.get()),
                                                         1L)))
                                         .addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdB.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountId(treasuryAlias.get()),
-                                                        accountId(hollowAccountAlias.get()),
+                                                        accountId(s, treasuryAlias.get()),
+                                                        accountId(s, hollowAccountAlias.get()),
                                                         1L))))
                                 .payingWith(TREASURY)
                                 .signedBy(TREASURY)
@@ -454,13 +454,13 @@ public class UnlimitedAutoAssociationSuite {
                         // Transfer both tokens to hollow account with different senders.
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdA.get())
-                                                .addTransfers(aaWith(aliceAlias.get(), -1))
-                                                .addTransfers(aaWith(carolHollowAccountAlias.get(), +1)))
+                                                .addTransfers(aaWith(s, aliceAlias.get(), -1))
+                                                .addTransfers(aaWith(s, carolHollowAccountAlias.get(), +1)))
                                         .addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdB.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountId(bobAlias.get()),
-                                                        accountId(carolHollowAccountAlias.get()),
+                                                        accountId(s, bobAlias.get()),
+                                                        accountId(s, carolHollowAccountAlias.get()),
                                                         1L))))
                                 .payingWith(ALICE)
                                 .signedBy(ALICE, BOB)

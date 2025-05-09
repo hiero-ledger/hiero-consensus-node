@@ -140,9 +140,5 @@ public interface LongList extends CASableLongIndex, Closeable {
 
     /** {@inheritDoc} */
     @Override
-    <T extends Throwable> void forEach(LongAction<T> action) throws InterruptedException, T;
-
-    /** {@inheritDoc} */
-    @Override
     void close();
 }

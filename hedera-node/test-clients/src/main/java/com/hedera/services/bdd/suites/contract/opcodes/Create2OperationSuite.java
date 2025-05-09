@@ -110,6 +110,7 @@ import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
@@ -1395,8 +1396,8 @@ public class Create2OperationSuite {
                 cryptoTransfer((spec, b) -> {
                             b.addTokenTransfers(TokenTransferList.newBuilder()
                                     .setToken(nftId.get())
-                                    .addAllNftTransfers(
-                                            buildNftTransfers(nftTransfersSize, partyAlias, expectedCreate2Address)));
+                                    .addAllNftTransfers(buildNftTransfers(
+                                            spec, nftTransfersSize, partyAlias, expectedCreate2Address)));
                         })
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .fee(ONE_HBAR)
@@ -1516,14 +1517,15 @@ public class Create2OperationSuite {
     }
 
     private Iterable<NftTransfer> buildNftTransfers(
+            final HapiSpec spec,
             final int nftTransfersSize,
             AtomicReference<ByteString> partyAlias,
             AtomicReference<String> expectedCreate2Address) {
         NftTransfer[] nftTransfers = new NftTransfer[nftTransfersSize];
         for (int i = 0; i < nftTransfersSize; i++) {
             nftTransfers[i] = ocWith(
-                    accountId(partyAlias.get()),
-                    accountId(ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                    accountId(spec, partyAlias.get()),
+                    accountId(spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                     i + 1);
         }
         return Arrays.asList(nftTransfers);
@@ -1537,9 +1539,9 @@ public class Create2OperationSuite {
         return cryptoTransfer((spec, b) -> {
                     b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(ftId.get())
-                            .addTransfers(aaWith(partyAlias.get(), -500))
+                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
                             .addTransfers(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
+                                    spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)
                 .fee(ONE_HBAR)
@@ -1567,22 +1569,27 @@ public class Create2OperationSuite {
                     final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                     var transferListBuilder = TransferList.newBuilder()
                             .addAccountAmounts(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +ONE_HBAR))
+                                    spec,
+                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                    +ONE_HBAR))
                             .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR));
 
                     b.setTransfers(transferListBuilder);
 
                     ftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
-                            .addTransfers(aaWith(partyAlias.get(), -500))
+                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
                             .addTransfers(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500))));
+                                    spec,
+                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                    +500))));
 
                     nftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
                             .addNftTransfers(ocWith(
-                                    accountId(partyAlias.get()),
-                                    accountId(ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                                    accountId(spec, partyAlias.get()),
+                                    accountId(
+                                            spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                                     1L))));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)

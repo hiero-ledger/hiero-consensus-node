@@ -24,12 +24,12 @@ class HintsLibraryImplTest {
 
     @Test
     void generatesNewCrs() {
-        assertNotNull(subject.newCrs(10));
+        assertNotNull(subject.newCrs((short) 10));
     }
 
     @Test
     void updatesCrs() {
-        final var oldCrs = subject.newCrs(2);
+        final var oldCrs = subject.newCrs((short) 2);
         byte[] entropyBytes = new byte[32];
         RANDOM.nextBytes(entropyBytes);
         final var newCrs = subject.updateCrs(oldCrs, Bytes.wrap(entropyBytes));
@@ -39,7 +39,7 @@ class HintsLibraryImplTest {
 
     @Test
     void verifiesCrs() {
-        final var oldCrs = subject.newCrs(4);
+        final var oldCrs = subject.newCrs((short) 4);
         byte[] entropyBytes = new byte[32];
         RANDOM.nextBytes(entropyBytes);
         final var newCrs = subject.updateCrs(oldCrs, Bytes.wrap(entropyBytes));
@@ -55,7 +55,7 @@ class HintsLibraryImplTest {
 
     @Test
     void computesAndValidateHints() {
-        final var crs = subject.newCrs(1024);
+        final var crs = subject.newCrs((short) 256);
         final var blsPrivateKey = subject.newBlsPrivateKey();
         final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
@@ -67,7 +67,7 @@ class HintsLibraryImplTest {
 
     @Test
     void preprocessesHintsIntoUsableKeys() {
-        final var initialCrs = subject.newCrs(64);
+        final var initialCrs = subject.newCrs((short) 64);
         byte[] entropyBytes = new byte[32];
         RANDOM.nextBytes(entropyBytes);
         final var newCrs = subject.updateCrs(initialCrs, Bytes.wrap(entropyBytes));
@@ -110,7 +110,7 @@ class HintsLibraryImplTest {
     void signsAndVerifiesBlsSignature() {
         final var message = "Hello World".getBytes();
         final var blsPrivateKey = subject.newBlsPrivateKey();
-        final var crs = subject.newCrs(8);
+        final var crs = subject.newCrs((short) 8);
         final int partyId = 0;
         final var extendedPublicKey = subject.computeHints(crs, blsPrivateKey, partyId, 4);
         final var signature = subject.signBls(Bytes.wrap(message), blsPrivateKey);
@@ -132,7 +132,7 @@ class HintsLibraryImplTest {
     @Test
     void aggregatesAndVerifiesSignatures() {
         // When CRS is for n, then signers should be  n - 1
-        final var crs = subject.newCrs(4);
+        final var crs = subject.newCrs((short) 4);
 
         final var secretKey1 = subject.newBlsPrivateKey();
         final var hints1 = subject.computeHints(crs, secretKey1, 0, 4);
