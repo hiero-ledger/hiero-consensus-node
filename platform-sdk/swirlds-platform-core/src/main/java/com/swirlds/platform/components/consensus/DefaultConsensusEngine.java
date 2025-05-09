@@ -158,22 +158,20 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         eventAddedMetrics.eventAdded(linkedEvent);
 
         if (!consensusRounds.isEmpty()) {
+            // if multiple rounds reach consensus at the same time and multiple rounds are in the freeze period,
+            // we need to freeze on the first one. this means discarding the rest of the rounds and not releasing
+            // any more events from the future event buffer
+            if (filterFreezeRounds(consensusRounds)) {
+                // If the consensus time has reached the freeze period, we will not process any more events
+                frozen = true;
+                return consensusRounds;
+            }
+
             // If multiple rounds reach consensus at the same moment there is no need to keep every event window.
             // The latest event window is sufficient to keep event storage clean and release all events from the
             // future events buffer with a birth round less than or equal to the pending round.
             eventWindowQueue.add(consensusRounds.getLast().getEventWindow());
         }
-
-        // if multiple rounds reach consensus at the same time and multiple rounds are in the freeze period,
-        // we need to freeze on the first one. this means discarding the rest of the rounds
-        if (filterFreezeRounds(consensusRounds)) {
-            // If the consensus time has reached the freeze period, we will not process any more events
-            frozen = true;
-        }
-
-        // If multiple rounds reach consensus at the same moment there is no need to pass in
-        // each event window. The latest event window is sufficient to keep event storage clean.
-        linker.setEventWindow(consensusRounds.getLast().getEventWindow());
 
         return consensusRounds;
     }
