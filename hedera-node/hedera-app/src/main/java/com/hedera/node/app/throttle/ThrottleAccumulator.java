@@ -906,10 +906,9 @@ public class ThrottleAccumulator {
         }
         opsDurationThrottle =
                 new LeakyBucketDeterministicThrottle(maxOpsDuration, "OpsDuration", DEFAULT_BURST_SECONDS);
-        // TODO: luke do we need metrics for backend throttles?
-        //        if (throttleMetrics != null) {
-        //            throttleMetrics.setupBytesThrottleMetric(bytesThrottle, configuration);
-        //        }
+        if (throttleMetrics != null) {
+            throttleMetrics.setupOpsDurationMetric(opsDurationThrottle, configuration);
+        }
         if (verbose == Verbose.YES) {
             log.info(
                     "Resolved {} bytes throttle -\n {} bytes/sec (throttling {})",
