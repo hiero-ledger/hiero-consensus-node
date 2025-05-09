@@ -77,6 +77,7 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
                 .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory)
                 .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory)
                 .withValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
-                .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
+                .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
+                .withValue(SOFTWARE_VERSION, "1.0.0");
     }
 }

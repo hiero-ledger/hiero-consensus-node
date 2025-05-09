@@ -82,26 +82,6 @@ public final class DataFileCommon {
     static final FieldDefinition FIELD_DATAFILE_ITEMS =
             new FieldDefinition("items", FieldType.MESSAGE, true, true, false, 11);
 
-    // Data file metadata protobuf fields
-    static final FieldDefinition FIELD_DATAFILEMETADATA_INDEX =
-            new FieldDefinition("index", FieldType.UINT32, false, true, false, 1);
-    static final FieldDefinition FIELD_DATAFILEMETADATA_CREATION_SECONDS =
-            new FieldDefinition("creationDateSeconds", FieldType.UINT64, false, false, false, 2);
-    static final FieldDefinition FIELD_DATAFILEMETADATA_CREATION_NANOS =
-            new FieldDefinition("creationDateNanos", FieldType.UINT32, false, false, false, 3);
-    static final FieldDefinition FIELD_DATAFILEMETADATA_ITEMS_COUNT =
-            new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
-
-    @Deprecated
-    static final FieldDefinition FIELD_DATAFILEMETADATA_ITEM_VERSION =
-            new FieldDefinition("itemsVersion", FieldType.UINT64, false, true, false, 5);
-
-    static final FieldDefinition FIELD_DATAFILEMETADATA_COMPACTION_LEVEL =
-            new FieldDefinition("compactionLevel", FieldType.UINT32, false, true, false, 6);
-
-    static final String ERROR_DATAITEM_TOO_LARGE =
-            "Data item is too large to write to a data file. Increase data file mapped byte buffer size";
-
     private DataFileCommon() {
         throw new IllegalStateException("Utility class; should not be instantiated.");
     }

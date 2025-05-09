@@ -2,10 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -445,7 +442,7 @@ public class ERCPrecompileSuite {
                             spec.registry().getContractInfo(ERC_20_CONTRACT).getContractID();
                     final var receiver =
                             spec.registry().getAccountInfo(RECIPIENT).getAccountID();
-                    final var idOfToken = asEntityString(
+                    final var idOfToken = String.valueOf(
                             spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(TRANSFER_TXN)
                             .hasPriority(recordWith()
@@ -1456,8 +1453,8 @@ public class ERCPrecompileSuite {
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
                 tokenAssociate(B_CIVILIAN, NF_TOKEN),
                 withOpContext((spec, opLog) -> zCivilianMirrorAddr.set(asHexedSolidityAddress(AccountID.newBuilder()
-                        .setShardNum(shard)
-                        .setRealmNum(realm)
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
                         .setAccountNum(666_666_666L)
                         .build()))),
                 // --- Negative cases for approve ---
@@ -2707,7 +2704,7 @@ public class ERCPrecompileSuite {
                     final var sender = spec.registry().getAccountInfo(OWNER).getAccountID();
                     final var receiver =
                             spec.registry().getAccountInfo(RECIPIENT).getAccountID();
-                    final var idOfToken = asEntityString(
+                    final var idOfToken = String.valueOf(
                             spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(TRANSFER_FROM_ACCOUNT_TXN)
                             .hasPriority(recordWith()

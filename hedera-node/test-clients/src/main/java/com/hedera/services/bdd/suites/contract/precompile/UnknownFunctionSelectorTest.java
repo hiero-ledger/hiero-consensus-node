@@ -60,7 +60,7 @@ public class UnknownFunctionSelectorTest {
                         contractCall(
                                         contract.name(),
                                         "callScheduleServiceWithFakeSelector",
-                                        mirrorAddrWith(scheduleID.get().getScheduleNum()))
+                                        mirrorAddrWith(spec, scheduleID.get().getScheduleNum()))
                                 .payingWith(account.name())
                                 .hasKnownStatus(SUCCESS)
                                 .gas(1_000_000)

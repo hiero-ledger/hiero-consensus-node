@@ -22,12 +22,14 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hederahashgraph.api.proto.java.AccountID;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -57,27 +59,22 @@ public class HbarAllowanceApprovalTest {
 
     @HapiTest
     final Stream<DynamicTest> hrc632AllowanceFromEOA() {
-        final AtomicReference<Address> accountNum = new AtomicReference<>();
+        final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         final AtomicReference<Address> spenderNum = new AtomicReference<>();
 
         return hapiTest(
-                cryptoCreate(ACCOUNT)
-                        .balance(100 * ONE_HUNDRED_HBARS)
-                        .exposingCreatedIdTo(id -> accountNum.set(idAsHeadlongAddress(id))),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS).exposingCreatedIdTo(accountNum::set),
                 cryptoCreate(SPENDER).exposingCreatedIdTo(id -> spenderNum.set(idAsHeadlongAddress(id))),
                 cryptoApproveAllowance().payingWith(ACCOUNT).addCryptoAllowance(ACCOUNT, SPENDER, 1_000_000),
                 withOpContext((spec, opLog) -> {
-                    var accountAddress = asEntityString(accountNum.get().value().longValue());
+                    var accountAddress = String.valueOf(accountNum.get().getAccountNum());
                     var spenderAddress = spenderNum.get();
                     allRunFor(
                             spec,
                             // call hbarAllowance from EOA
                             contractCallWithFunctionAbi(
                                             accountAddress,
-                                            getABIFor(
-                                                    com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
-                                                    HBAR_ALLOWANCE,
-                                                    IHRC632),
+                                            getABIFor(FUNCTION, HBAR_ALLOWANCE, IHRC632),
                                             spenderAddress)
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
@@ -89,11 +86,7 @@ public class HbarAllowanceApprovalTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(
-                                                        com.hedera.services.bdd.suites.contract.Utils.FunctionType
-                                                                .FUNCTION,
-                                                        HBAR_ALLOWANCE,
-                                                        IHRC632),
+                                                getABIFor(FUNCTION, HBAR_ALLOWANCE, IHRC632),
                                                 isLiteralResult(
                                                         new Object[] {Long.valueOf(22), BigInteger.valueOf(1_000_000L)
                                                         })))));
@@ -101,26 +94,20 @@ public class HbarAllowanceApprovalTest {
 
     @HapiTest
     final Stream<DynamicTest> hrc632ApproveFromEOA() {
-        final AtomicReference<Address> accountNum = new AtomicReference<>();
+        final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         final AtomicReference<Address> spenderNum = new AtomicReference<>();
-
         return hapiTest(
-                cryptoCreate(ACCOUNT)
-                        .balance(100 * ONE_HUNDRED_HBARS)
-                        .exposingCreatedIdTo(id -> accountNum.set(idAsHeadlongAddress(id))),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS).exposingCreatedIdTo(accountNum::set),
                 cryptoCreate(SPENDER).exposingCreatedIdTo(id -> spenderNum.set(idAsHeadlongAddress(id))),
                 withOpContext((spec, opLog) -> {
-                    var accountAddress = asEntityString(accountNum.get().value().longValue());
+                    var accountAddress = String.valueOf(accountNum.get().getAccountNum());
                     var spenderAddress = spenderNum.get();
                     allRunFor(
                             spec,
                             // call hbarApprove from EOA
                             contractCallWithFunctionAbi(
                                             accountAddress,
-                                            getABIFor(
-                                                    com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
-                                                    HBAR_APPROVE,
-                                                    IHRC632),
+                                            getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
                                             spenderAddress,
                                             BigInteger.valueOf(1_000_000L))
                                     .payingWith(ACCOUNT)
@@ -133,11 +120,7 @@ public class HbarAllowanceApprovalTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(
-                                                        com.hedera.services.bdd.suites.contract.Utils.FunctionType
-                                                                .FUNCTION,
-                                                        HBAR_APPROVE,
-                                                        IHRC632),
+                                                getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
                                                 isLiteralResult(new Object[] {Long.valueOf(22)})))));
     }
 
@@ -173,11 +156,7 @@ public class HbarAllowanceApprovalTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(
-                                                        com.hedera.services.bdd.suites.contract.Utils.FunctionType
-                                                                .FUNCTION,
-                                                        HBAR_ALLOWANCE_CALL,
-                                                        HRC632_CONTRACT),
+                                                getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
                                                 isLiteralResult(
                                                         new Object[] {Long.valueOf(22), BigInteger.valueOf(1_000_000L)
                                                         })))));
@@ -225,11 +204,7 @@ public class HbarAllowanceApprovalTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(
-                                                        com.hedera.services.bdd.suites.contract.Utils.FunctionType
-                                                                .FUNCTION,
-                                                        HBAR_APPROVE_CALL,
-                                                        HRC632_CONTRACT),
+                                                getABIFor(FUNCTION, HBAR_APPROVE_CALL, HRC632_CONTRACT),
                                                 isLiteralResult(new Object[] {Long.valueOf(22)})))),
                 getTxnRecord(HBAR_ALLOWANCE_TXN)
                         .logged()
@@ -237,11 +212,7 @@ public class HbarAllowanceApprovalTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(
-                                                        com.hedera.services.bdd.suites.contract.Utils.FunctionType
-                                                                .FUNCTION,
-                                                        HBAR_ALLOWANCE_CALL,
-                                                        HRC632_CONTRACT),
+                                                getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
                                                 isLiteralResult(
                                                         new Object[] {Long.valueOf(22), BigInteger.valueOf(1_000_000L)
                                                         })))));
@@ -259,17 +230,15 @@ public class HbarAllowanceApprovalTest {
                         .exposingCreatedIdTo(id -> accountNum.set(idAsHeadlongAddress(id))),
                 cryptoCreate(SPENDER).exposingCreatedIdTo(id -> spenderNum.set(idAsHeadlongAddress(id))),
                 withOpContext((spec, opLog) -> {
-                    var accountAddress = asEntityString(accountNum.get().value().longValue());
+                    var accountAddress = asEntityString(
+                            spec.shard(), spec.realm(), accountNum.get().value().longValue());
                     var spenderAddress = spenderNum.get();
                     allRunFor(
                             spec,
                             // call hbarApprove from EOA with wrong payer.  should fail
                             contractCallWithFunctionAbi(
                                             accountAddress,
-                                            getABIFor(
-                                                    com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION,
-                                                    HBAR_APPROVE,
-                                                    IHRC632),
+                                            getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
                                             spenderAddress,
                                             BigInteger.valueOf(1_000_000L))
                                     .payingWith(SIGNER)
@@ -324,11 +293,7 @@ public class HbarAllowanceApprovalTest {
                                 .status(SUCCESS)
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
-                                                getABIFor(
-                                                        com.hedera.services.bdd.suites.contract.Utils.FunctionType
-                                                                .FUNCTION,
-                                                        HBAR_ALLOWANCE_CALL,
-                                                        HRC632_CONTRACT),
+                                                getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
                                                 isLiteralResult(
                                                         new Object[] {Long.valueOf(22), BigInteger.valueOf(0)})))));
     }

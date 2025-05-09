@@ -16,17 +16,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
- * Iterator class for iterating over data items in a DataFile. It is designed to be used in a while(iter.next()){...}
- * loop and you can then read the data items info for current item with getDataItemsKey, getDataItemsDataLocation and
- * getDataItemData.
+ * Iterator class for iterating over data items in a data file created by {@link  DataFileWriter}.
+ * It is designed to be used in a <code>while(iter.next()){...}</code>
+ * loop, where you can then read the data items info for current item with {@link #getDataItemData()} and {@link #getDataItemDataLocation()}.
  *
  * <p>It is designed to be used from a single thread.
  *
- * @see DataFileReader for definition of file structure
+ * @see DataFileReader
  */
 public final class DataFileIterator implements AutoCloseable {
+
+    private static final Logger logger = LogManager.getLogger(DataFileIterator.class);
 
     /** Input stream this iterator is reading from */
     private final BufferedInputStream inputStream;
@@ -111,6 +115,10 @@ public final class DataFileIterator implements AutoCloseable {
 
         // Have we reached the end?
         if (currentDataItem >= metadata.getDataItemCount() - 1) {
+            if (in.hasRemaining()) {
+                logger.warn(
+                        "Data file has more data than expected items={}. {}", metadata.getDataItemCount(), toString());
+            }
             dataItemBuffer = null;
             return false;
         }
@@ -207,7 +215,7 @@ public final class DataFileIterator implements AutoCloseable {
 
         // Create or resize the buffer if necessary
         if (dataItemBuffer == null || dataItemBuffer.capacity() < bytesToRead) {
-            resizeBuffer(bytesToRead);
+            dataItemBuffer = BufferedData.allocate(bytesToRead);
         }
 
         dataItemBuffer.position(0);
@@ -220,16 +228,5 @@ public final class DataFileIterator implements AutoCloseable {
 
         dataItemBuffer.position(0);
         return dataItemBuffer;
-    }
-
-    /**
-     * Resizes the dataItemBuffer, or creates it if necessary, such that it is large enough
-     * to read the bytes provided.
-     *
-     * @param bytesToRead
-     * 		Number of bytes to be able to fit into the buffer.
-     */
-    private void resizeBuffer(int bytesToRead) {
-        dataItemBuffer = BufferedData.allocate(bytesToRead);
     }
 }

@@ -162,4 +162,11 @@ public class ConsensusTestArgs {
     public static Stream<ConsensusTestParams> nodeRemoveTestParams() {
         return Stream.of(new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC));
     }
+
+    public static Stream<ConsensusTestParams> threeNetworkTypes() {
+        return Stream.of(
+                new ConsensusTestParams(2, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(50, RANDOM, RANDOM_WEIGHT_DESC));
+    }
 }

@@ -213,7 +213,6 @@ public class AutoAccountCreationSuite {
         final AtomicReference<AccountID> counterId = new AtomicReference<>();
         final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
         final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
-
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 newKeyNamed(MULTI_KEY),
@@ -252,9 +251,9 @@ public class AutoAccountCreationSuite {
                     counterAlias.set(ByteString.copyFrom(asSolidityAddress(counterId.get())));
 
                     cryptoTransfer((x, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
-                                    .addTransfers(aaWith(SPONSOR, -1))
+                                    .addTransfers(aaWith(spec, SPONSOR, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))
-                                    .addTransfers(aaWith(TOKEN_TREASURY, -1))
+                                    .addTransfers(aaWith(spec, TOKEN_TREASURY, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))))
                             .signedBy(DEFAULT_PAYER, PARTY, SPONSOR)
                             .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);

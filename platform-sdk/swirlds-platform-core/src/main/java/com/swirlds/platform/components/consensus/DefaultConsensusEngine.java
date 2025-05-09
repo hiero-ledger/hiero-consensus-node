@@ -12,11 +12,13 @@ import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.InOrderLinker;
+import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.AddedEventMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -58,17 +60,24 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final AddedEventMetrics eventAddedMetrics;
 
+    /** Checks if consensus time has reached the freeze period */
+    private final FreezeCheckHolder freezeChecker;
+    /** When the consensus engine is frozen, it will not process any incoming events ever, so consensus will not advance */
+    private boolean frozen = false;
+
     /**
      * Constructor
      *
      * @param platformContext the platform context
      * @param roster          the current roster
      * @param selfId          the ID of the node
+     * @param freezeChecker   checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            @NonNull final FreezeCheckHolder freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
@@ -86,6 +95,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 .roundsNonAncient();
 
         eventAddedMetrics = new AddedEventMetrics(selfId, platformContext.getMetrics());
+        this.freezeChecker = Objects.requireNonNull(freezeChecker);
     }
 
     /**
@@ -103,6 +113,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     @NonNull
     public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
+
+        if (frozen) {
+            // If we are frozen, ignore all events
+            return List.of();
+        }
 
         final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
 
@@ -149,7 +164,41 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             eventWindowQueue.add(consensusRounds.getLast().getEventWindow());
         }
 
+        // if multiple rounds reach consensus at the same time and multiple rounds are in the freeze period,
+        // we need to freeze on the first one. this means discarding the rest of the rounds
+        if (filterFreezeRounds(consensusRounds)) {
+            // If the consensus time has reached the freeze period, we will not process any more events
+            frozen = true;
+        }
+
+        // If multiple rounds reach consensus at the same moment there is no need to pass in
+        // each event window. The latest event window is sufficient to keep event storage clean.
+        linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+
         return consensusRounds;
+    }
+
+    /**
+     * Checks all rounds to see if any are in the freeze period. If there are multiple rounds in the freeze period, only
+     * the first one will be kept and the rest will be removed from the list.
+     *
+     * @param consensusRounds the list of consensus rounds to check
+     * @return true if any rounds are in the freeze period, false otherwise
+     */
+    private boolean filterFreezeRounds(@NonNull final List<ConsensusRound> consensusRounds) {
+        boolean freezeRoundFound = false;
+        final Iterator<ConsensusRound> iterator = consensusRounds.iterator();
+        while (iterator.hasNext()) {
+            final ConsensusRound round = iterator.next();
+            if (freezeRoundFound) {
+                iterator.remove();
+                continue;
+            }
+            if (freezeChecker.test(round.getConsensusTimestamp())) {
+                freezeRoundFound = true;
+            }
+        }
+        return freezeRoundFound;
     }
 
     /**

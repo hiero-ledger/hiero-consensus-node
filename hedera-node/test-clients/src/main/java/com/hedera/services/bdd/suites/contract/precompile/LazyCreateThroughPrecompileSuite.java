@@ -30,7 +30,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
@@ -146,17 +145,20 @@ public class LazyCreateThroughPrecompileSuite {
                 cryptoApproveAllowance()
                         .payingWith(CIVILIAN)
                         .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
-                sourcing(() -> contractCall(
-                                AUTO_CREATION_MODES,
-                                "createSeveralDirectly",
-                                headlongFromHexed(nftMirrorAddr.get()),
-                                nCopiesOfSender(n, mirrorAddrWith(civilianId.get())),
-                                nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
-                                LongStream.iterate(1L, l -> l + 1).limit(n).toArray())
-                        .via(creationAttempt)
-                        .gas(GAS_TO_OFFER)
-                        .alsoSigningWithFullPrefix(CIVILIAN)
-                        .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, CONTRACT_REVERT_EXECUTED)),
+                withOpContext((spec, log) -> {
+                    final var callOp = contractCall(
+                                    AUTO_CREATION_MODES,
+                                    "createSeveralDirectly",
+                                    headlongFromHexed(nftMirrorAddr.get()),
+                                    nCopiesOfSender(n, mirrorAddrWith(spec, civilianId.get())),
+                                    nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
+                                    LongStream.iterate(1L, l -> l + 1).limit(n).toArray())
+                            .via(creationAttempt)
+                            .gas(GAS_TO_OFFER)
+                            .alsoSigningWithFullPrefix(CIVILIAN)
+                            .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, CONTRACT_REVERT_EXECUTED);
+                    allRunFor(spec, callOp);
+                }),
                 childRecordsCheck(
                         creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
     }
@@ -184,17 +186,21 @@ public class LazyCreateThroughPrecompileSuite {
                 cryptoApproveAllowance()
                         .payingWith(CIVILIAN)
                         .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
-                sourcing(() -> contractCall(
-                                AUTO_CREATION_MODES,
-                                CREATE_DIRECTLY,
-                                headlongFromHexed(nftMirrorAddr.get()),
-                                mirrorAddrWith(civilianId.get()),
-                                mirrorAddrWith(civilianId.get() + 1_000_001),
-                                1L,
-                                false)
-                        .via(creationAttempt)
-                        .gas(GAS_TO_OFFER)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                withOpContext((spec, logger) -> {
+                    final var callOp = contractCall(
+                                    AUTO_CREATION_MODES,
+                                    CREATE_DIRECTLY,
+                                    headlongFromHexed(nftMirrorAddr.get()),
+                                    mirrorAddrWith(spec, civilianId.get()),
+                                    mirrorAddrWith(spec, civilianId.get() + 1_000_001),
+                                    1L,
+                                    false)
+                            .via(creationAttempt)
+                            .gas(GAS_TO_OFFER)
+                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED);
+
+                    allRunFor(spec, callOp);
+                }),
                 childRecordsCheck(
                         creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ALIAS_KEY)));
     }

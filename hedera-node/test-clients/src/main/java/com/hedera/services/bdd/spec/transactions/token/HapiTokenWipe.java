@@ -114,7 +114,7 @@ public class HapiTokenWipe extends HapiTxnOp<HapiTokenWipe> {
         if (referenceType == ReferenceType.REGISTRY_NAME) {
             aId = TxnUtils.asId(account, spec);
         } else {
-            aId = spec.registry().keyAliasIdFor(alias);
+            aId = spec.registry().keyAliasIdFor(spec, alias);
             account = asAccountString(aId);
         }
         final TokenWipeAccountTransactionBody opBody = spec.txns()

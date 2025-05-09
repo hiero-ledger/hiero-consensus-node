@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.systemAccounts;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -90,13 +91,14 @@ public class ExtCodeCopyOperationSuite {
 
         for (int i = 0; i < systemAccounts.size(); i++) {
             // add contract call for all accounts in the list
-            opsArray[i] = contractCall(contract, codeCopyOf, mirrorAddrWith(systemAccounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(contract, codeCopyOf, mirrorAddrParamFunction(systemAccounts.get(index)))
                     .hasKnownStatus(SUCCESS);
 
             // add contract call local for all accounts in the list
             int finalI = i;
             opsArray[systemAccounts.size() + i] = withOpContext((spec, opLog) -> {
-                final var accountSolidityAddress = mirrorAddrWith(systemAccounts.get(finalI));
+                final var accountSolidityAddress = mirrorAddrWith(spec, systemAccounts.get(finalI));
 
                 final var accountCodeCallLocal = contractCallLocal(contract, codeCopyOf, accountSolidityAddress)
                         .saveResultTo("accountCode");

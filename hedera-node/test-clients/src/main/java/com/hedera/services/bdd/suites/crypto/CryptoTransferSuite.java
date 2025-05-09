@@ -6,10 +6,9 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.accountIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -91,6 +90,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.accountId;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.existingSystemAccounts;
@@ -534,47 +534,49 @@ public class CryptoTransferSuite {
                                 movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(TOKEN_TREASURY, partyLiteral.get()))
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY)),
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAliasAddr.get(), -1))
+                                .addAccountAmounts(aaWith(spec, partyAliasAddr.get(), -1))
                                 .addAccountAmounts(aaWith(partyId.get(), -1))
                                 .addAccountAmounts(aaWith(counterId.get(), +2))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS),
                 // Check signing requirements aren't distorted by aliases
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAliasAddr.get(), -2))
-                                .addAccountAmounts(aaWith(counterAliasAddr.get(), +2))))
+                                .addAccountAmounts(aaWith(spec, partyAliasAddr.get(), -2))
+                                .addAccountAmounts(aaWith(spec, counterAliasAddr.get(), +2))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
-                                .addNftTransfers(
-                                        ocWith(accountId(shard, realm, partyAliasAddr.get()), counterId.get(), 1L))))
+                                .addNftTransfers(ocWith(
+                                        accountId(spec.shard(), spec.realm(), partyAliasAddr.get()),
+                                        counterId.get(),
+                                        1L))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAliasAddr.get(), -500))
-                                .addTransfers(aaWith(counterAliasAddr.get(), +500))))
+                                .addTransfers(aaWith(spec, partyAliasAddr.get(), -500))
+                                .addTransfers(aaWith(spec, counterAliasAddr.get(), +500))))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // Now do the actual transfers
                 cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(aaWith(partyAliasAddr.get(), -2))
-                                .addAccountAmounts(aaWith(counterAliasAddr.get(), +2))))
+                                .addAccountAmounts(aaWith(spec, partyAliasAddr.get(), -2))
+                                .addAccountAmounts(aaWith(spec, counterAliasAddr.get(), +2))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(HBAR_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(nftId.get())
                                 .addNftTransfers(ocWith(
-                                        accountId(shard, realm, partyAliasAddr.get()),
-                                        accountId(shard, realm, counterAliasAddr.get()),
+                                        accountId(spec, partyAliasAddr.get()),
+                                        accountId(spec, counterAliasAddr.get()),
                                         1L))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(NFT_XFER),
                 cryptoTransfer((spec, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAliasAddr.get(), -500))
-                                .addTransfers(aaWith(counterAliasAddr.get(), +500))))
+                                .addTransfers(aaWith(spec, partyAliasAddr.get(), -500))
+                                .addTransfers(aaWith(spec, counterAliasAddr.get(), +500))))
                         .signedBy(DEFAULT_PAYER, MULTI_KEY)
                         .via(FT_XFER),
                 sourcing(() -> getTxnRecord(HBAR_XFER)
@@ -695,22 +697,22 @@ public class CryptoTransferSuite {
                             builder.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(AccountAmount.newBuilder()
                                             .setAccountID(AccountID.newBuilder()
-                                                    .setShardNum(shard)
-                                                    .setRealmNum(realm)
+                                                    .setShardNum(spec.shard())
+                                                    .setRealmNum(spec.realm())
                                                     .setAccountNum(2L)
                                                     .build())
                                             .setAmount(-2 * ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
                                             .setAccountID(AccountID.newBuilder()
-                                                    .setShardNum(shard)
-                                                    .setRealmNum(realm)
+                                                    .setShardNum(spec.shard())
+                                                    .setRealmNum(spec.realm())
                                                     .setAlias(evmAddress)
                                                     .build())
                                             .setAmount(+ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
                                             .setAccountID(AccountID.newBuilder()
-                                                    .setShardNum(shard)
-                                                    .setRealmNum(realm)
+                                                    .setShardNum(spec.shard())
+                                                    .setRealmNum(spec.realm())
                                                     .setAlias(keyAlias)
                                                     .build())
                                             .setAmount(+ONE_HBAR))
@@ -1238,8 +1240,11 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
-                .mapToObj(i -> getAccountBalance(String.format("%s.%s.%s", shard, realm, i))
-                        .logged())
+                .mapToObj(i -> withOpContext((spec, log) -> {
+                    final var balanceOp = getAccountBalance(asEntityString(spec.shard(), spec.realm(), i))
+                            .logged();
+                    allRunFor(spec, balanceOp);
+                }))
                 .toArray(HapiSpecOperation[]::new));
     }
 
@@ -1506,21 +1511,22 @@ public class CryptoTransferSuite {
         final var opsArray = new HapiSpecOperation[systemAccounts.size() * 3];
 
         for (int i = 0; i < systemAccounts.size(); i++) {
-            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrWith(systemAccounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrParamFunction(systemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[systemAccounts.size() + i] = contractCall(
-                            contract, "sendViaSend", mirrorAddrWith(systemAccounts.get(i)))
+                            contract, "sendViaSend", mirrorAddrParamFunction(systemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[systemAccounts.size() * 2 + i] = contractCall(
-                            contract, "sendViaCall", mirrorAddrWith(systemAccounts.get(i)))
+                            contract, "sendViaCall", mirrorAddrParamFunction(systemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
@@ -1540,21 +1546,24 @@ public class CryptoTransferSuite {
         final HapiSpecOperation[] opsArray = new HapiSpecOperation[existingSystemAccounts.size() * 3];
 
         for (int i = 0; i < existingSystemAccounts.size(); i++) {
-            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrWith(existingSystemAccounts.get(i)))
+            final var index = i;
+
+            opsArray[i] = contractCall(
+                            contract, "sendViaTransfer", mirrorAddrParamFunction(existingSystemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(SUCCESS);
 
             opsArray[existingSystemAccounts.size() + i] = contractCall(
-                            contract, "sendViaSend", mirrorAddrWith(existingSystemAccounts.get(i)))
+                            contract, "sendViaSend", mirrorAddrParamFunction(existingSystemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
                     .hasKnownStatus(SUCCESS);
 
             opsArray[existingSystemAccounts.size() * 2 + i] = contractCall(
-                            contract, "sendViaCall", mirrorAddrWith(existingSystemAccounts.get(i)))
+                            contract, "sendViaCall", mirrorAddrParamFunction(existingSystemAccounts.get(index)))
                     .payingWith(SENDER)
                     .sending(ONE_HBAR * 10)
                     .gas(100000)
@@ -1574,7 +1583,9 @@ public class CryptoTransferSuite {
         final HapiSpecOperation[] opsArray = new HapiSpecOperation[nonExistingSystemAccounts.size() * 3];
 
         for (int i = 0; i < nonExistingSystemAccounts.size(); i++) {
-            opsArray[i] = contractCall(contract, "sendViaTransfer", mirrorAddrWith(nonExistingSystemAccounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(
+                            contract, "sendViaTransfer", mirrorAddrParamFunction(nonExistingSystemAccounts.get(index)))
                     .payingWith("sender")
                     .sending(ONE_HBAR * 10)
                     .via("sendViaTransfer" + i)
@@ -1582,7 +1593,7 @@ public class CryptoTransferSuite {
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[nonExistingSystemAccounts.size() + i] = contractCall(
-                            contract, "sendViaSend", mirrorAddrWith(nonExistingSystemAccounts.get(i)))
+                            contract, "sendViaSend", mirrorAddrParamFunction(nonExistingSystemAccounts.get(index)))
                     .payingWith("sender")
                     .sending(ONE_HBAR * 10)
                     .via("sendViaSend" + i)
@@ -1590,7 +1601,7 @@ public class CryptoTransferSuite {
                     .hasKnownStatus(INVALID_CONTRACT_ID);
 
             opsArray[nonExistingSystemAccounts.size() * 2 + i] = contractCall(
-                            contract, "sendViaCall", mirrorAddrWith(nonExistingSystemAccounts.get(i)))
+                            contract, "sendViaCall", mirrorAddrParamFunction(nonExistingSystemAccounts.get(index)))
                     .payingWith("sender")
                     .sending(ONE_HBAR * 10)
                     .via("sendViaCall" + i)
@@ -1615,11 +1626,9 @@ public class CryptoTransferSuite {
                 contractCreate(transferContract).balance(ONE_HBAR),
                 uploadInitCode(balanceContract),
                 contractCreate(balanceContract),
-                contractCall(
-                                transferContract,
-                                "sendViaTransferWithAmount",
-                                mirrorAddrWith(359L),
-                                BigInteger.valueOf(15L))
+                contractCall(transferContract, "sendViaTransferWithAmount", spec -> List.of(
+                                        mirrorAddrWith(spec, 359L), BigInteger.valueOf(15L))
+                                .toArray())
                         .payingWith(senderAccount)
                         .hasKnownStatus(INVALID_CONTRACT_ID),
                 getAccountBalance(transferContract, true).hasTinyBars(ONE_HBAR));

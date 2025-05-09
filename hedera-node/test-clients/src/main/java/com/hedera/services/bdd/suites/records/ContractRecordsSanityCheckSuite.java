@@ -3,8 +3,6 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
@@ -114,8 +112,8 @@ public class ContractRecordsSanityCheckSuite {
                                         SET_NODES_ABI,
                                         spec -> Tuple.singleton(Stream.of(altruists)
                                                 .map(a -> new BigInteger(HapiPropertySource.asSolidityAddress(
-                                                        shard,
-                                                        realm,
+                                                        (int) spec.shard(),
+                                                        spec.realm(),
                                                         spec.registry()
                                                                 .getContractId(contractName + a)
                                                                 .getContractNum())))

@@ -23,14 +23,15 @@ import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
@@ -49,9 +50,11 @@ public class TestIntake {
     private final ComponentWiring<EventHasher, PlatformEvent> hasherWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
+    private final Queue<Throwable> componentExceptions = new LinkedList<>();
     private final WiringModel model;
     private final int roundsNonAncient;
     private final AncientMode ancientMode;
+    private final FreezeCheckHolder freezeCheckHolder;
 
     /**
      * @param platformContext the platform context used to configure this intake.
@@ -84,7 +87,10 @@ public class TestIntake {
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
-        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(platformContext, roster, selfId);
+        freezeCheckHolder = new FreezeCheckHolder();
+        freezeCheckHolder.setFreezeCheckRef(i -> false);
+        final ConsensusEngine consensusEngine =
+                new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, directScheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
@@ -124,6 +130,7 @@ public class TestIntake {
     public void addEvent(@NonNull final PlatformEvent event) {
         hasherWiring.getInputWire(EventHasher::hashEvent).put(event);
         output.eventAdded(event);
+        throwComponentExceptionsIfAny();
     }
 
     /**
@@ -131,10 +138,6 @@ public class TestIntake {
      */
     public @NonNull LinkedList<ConsensusRound> getConsensusRounds() {
         return output.getConsensusRounds();
-    }
-
-    public @Nullable ConsensusRound getLatestRound() {
-        return output.getConsensusRounds().getLast();
     }
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
@@ -148,10 +151,18 @@ public class TestIntake {
         consensusEngineWiring
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
                 .put(snapshot);
+        throwComponentExceptionsIfAny();
     }
 
     public @NonNull ConsensusOutput getOutput() {
         return output;
+    }
+
+    /**
+     * @return the freeze check holder
+     */
+    public @NonNull FreezeCheckHolder getFreezeCheckHolder() {
+        return freezeCheckHolder;
     }
 
     public void reset() {
@@ -159,12 +170,18 @@ public class TestIntake {
         output.clear();
     }
 
+    private void throwComponentExceptionsIfAny() {
+        componentExceptions.stream().findFirst().ifPresent(t -> {
+            throw new RuntimeException(t);
+        });
+    }
+
     public <X> TaskScheduler<X> directScheduler(final String name) {
         return model.<X>schedulerBuilder(name)
                 .withType(TaskSchedulerType.DIRECT)
-                .withUncaughtExceptionHandler((t, e) -> {
-                    throw new RuntimeException("Uncaught exception in task " + t, e);
-                })
+                // This is needed because of the catch in StandardOutputWire.forward()
+                // if we throw the exception, it will be caught by it and will not fail the test
+                .withUncaughtExceptionHandler((t, e) -> componentExceptions.add(e))
                 .build();
     }
 }

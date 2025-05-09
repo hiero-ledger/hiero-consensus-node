@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip583;
 
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -98,8 +96,8 @@ public class CreateWithAliasDisabledTest {
                                                 .getKey(ECDSA_KEY)
                                                 .getECDSASecp256K1()
                                                 .toByteArray(),
-                                        HapiParserUtil.asHeadlongAddress((byte[])
-                                                ArrayUtils.toPrimitive(Utils.asSolidityAddress(shard, realm, 15252L))),
+                                        HapiParserUtil.asHeadlongAddress((byte[]) ArrayUtils.toPrimitive(
+                                                Utils.asSolidityAddress((int) spec.shard(), spec.realm(), 15252L))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(EXISTING_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(

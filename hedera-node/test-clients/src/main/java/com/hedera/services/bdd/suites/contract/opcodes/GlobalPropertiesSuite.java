@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.specOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PROPS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
@@ -89,7 +88,7 @@ public class GlobalPropertiesSuite {
                 contractCreate(CONTRACT),
                 contractCall(CONTRACT, "getCoinbase").via("coinbase"),
                 withOpContext((spec, opLog) -> {
-                    final var fundingAccount = DEFAULT_PROPS.fundingAccount();
+                    final var fundingAccount = spec.setup().fundingAccount();
                     final var expectedCoinbase = parsedToByteString(
                             fundingAccount.getShardNum(), fundingAccount.getRealmNum(), fundingAccount.getAccountNum());
 

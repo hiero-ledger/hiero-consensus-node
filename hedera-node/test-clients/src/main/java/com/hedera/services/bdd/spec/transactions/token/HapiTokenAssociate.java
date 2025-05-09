@@ -147,7 +147,7 @@ public class HapiTokenAssociate extends HapiTxnOp<HapiTokenAssociate> {
         if (account != null && referenceType == ReferenceType.REGISTRY_NAME) {
             aId = TxnUtils.asId(account, spec);
         } else if (account != null) {
-            aId = spec.registry().keyAliasIdFor(alias);
+            aId = spec.registry().keyAliasIdFor(spec, alias);
             account = asAccountString(aId);
         }
         TokenAssociateTransactionBody opBody = spec.txns()

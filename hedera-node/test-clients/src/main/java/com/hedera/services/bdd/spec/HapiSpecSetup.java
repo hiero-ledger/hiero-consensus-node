@@ -22,10 +22,8 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.security.PrivateKey;
@@ -324,13 +322,6 @@ public class HapiSpecSetup {
         return props.get("default.payer.name");
     }
 
-    // (FUTURE) Don't distinguish between default and custom shard/realm in the public contract. Encapsulate each as an
-    // implementation detail instead
-    @Deprecated
-    public RealmID defaultRealm() {
-        return props.getRealm("default.realm");
-    }
-
     /**
      * Returns whether a {@link HapiSpec} should automatically take and fuzzy-match snapshots of the record stream.
      *
@@ -352,13 +343,6 @@ public class HapiSpecSetup {
 
     public boolean defaultReceiverSigRequired() {
         return props.getBoolean("default.receiverSigRequired");
-    }
-
-    // (FUTURE) Don't distinguish between default and custom shard/realm in the public contract. Encapsulate as an
-    // implementation detail instead
-    @Deprecated
-    public ShardID defaultShard() {
-        return props.getShard("default.shard");
     }
 
     public int defaultThresholdM() {
