@@ -107,7 +107,7 @@ public class DataFileWriterBenchmark {
 
     @TearDown(Level.Invocation)
     public void tearDown() throws IOException {
-        dataFileWriter.finishWriting();
+        dataFileWriter.close();
     }
 
     @Benchmark

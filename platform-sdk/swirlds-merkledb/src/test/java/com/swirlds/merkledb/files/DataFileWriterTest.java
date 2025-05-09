@@ -34,7 +34,7 @@ class DataFileWriterTest {
         BufferedData data = BufferedData.wrap("test".getBytes());
 
         dataFileWriter.storeDataItem(data);
-        dataFileWriter.finishWriting();
+        dataFileWriter.close();
 
         data.flip();
         assertThrows(
@@ -48,10 +48,9 @@ class DataFileWriterTest {
         BufferedData data = BufferedData.wrap("test".getBytes());
 
         dataFileWriter.storeDataItem(data);
-        dataFileWriter.finishWriting();
+        dataFileWriter.close();
 
-        assertThrows(
-                IllegalStateException.class, () -> dataFileWriter.finishWriting(), "Finish writing can be called once");
+        assertThrows(IllegalStateException.class, () -> dataFileWriter.close(), "Finish writing can be called once");
     }
 
     @ParameterizedTest
@@ -82,7 +81,7 @@ class DataFileWriterTest {
             data.flip();
         }
 
-        dataFileWriter.finishWriting();
+        dataFileWriter.close();
         verifyFileSize(dataLengthBytes * iterations);
     }
 
@@ -93,7 +92,7 @@ class DataFileWriterTest {
         BufferedData data = BufferedData.wrap(bytesData);
 
         dataFileWriter.storeDataItem(data);
-        dataFileWriter.finishWriting();
+        dataFileWriter.close();
 
         verifyFileSize(bytesData.length);
     }

@@ -27,7 +27,7 @@ import java.util.function.Consumer;
  * A data file contains a header containing {@link DataFileMetadata} followed by data items.
  * Each data item can be variable or fixed size and is considered as a black box.
  *
- * <p>{@link #finishWriting()} must be called after done wiring data using {@link #storeDataItem(BufferedData)} any number of times.
+ * <p>{@link #close()} must be called after done wiring data using {@link #storeDataItem(BufferedData)} any number of times.
  * The implementation doesn't control the file size.
  *
  * <p>Internally, the data items are written to a memory mapped file using {@link MappedByteBuffer} of fixed size, that could be provided in constructor.
@@ -37,7 +37,7 @@ import java.util.function.Consumer;
  *
  * <p>{@link DataFileReader} or {@link DataFileIterator} can be used to read file back and access data items.
  */
-public final class DataFileWriter {
+public final class DataFileWriter implements AutoCloseable {
 
     /**
      * Default buffer size for writing into the file is 64 Mb
@@ -217,12 +217,10 @@ public final class DataFileWriter {
     }
 
     /**
-     * When you finished append to a new file, call this to seal the file and make it read only for
-     * reading.
-     *
-     * @throws IOException if there was a problem sealing file or opening again as read only
+     * Release all the resources like mapped buffer and file channel.
      */
-    public synchronized void finishWriting() throws IOException {
+    @Override
+    public synchronized void close() throws IOException {
         if (closed) {
             throw new IllegalStateException("Data file is already closed");
         }
