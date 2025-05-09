@@ -5,7 +5,6 @@ import static java.lang.Math.toIntExact;
 import static java.nio.ByteBuffer.allocateDirect;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.utilities.MemoryUtils;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -16,6 +15,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLongArray;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * A {@link LongList} that stores its contents on-heap via a {@link CopyOnWriteArrayList} of {@link

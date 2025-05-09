@@ -7,7 +7,6 @@ import static com.swirlds.merkledb.files.DataFileCommon.createDataFilePath;
 
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.utilities.MemoryUtils;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.MappedByteBuffer;
@@ -18,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * Writer for creating a data file. A data file contains a number of data items. Each data item can
