@@ -13,7 +13,9 @@ module org.hiero.consensus.utility {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
+    requires com.swirlds.common;
     requires com.swirlds.logging;
     requires org.bouncycastle.provider;
+    requires transitive com.swirlds.metrics.api;
     requires static transitive com.github.spotbugs.annotations;
 }
