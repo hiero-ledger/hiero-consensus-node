@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -46,12 +45,12 @@ public class RecordCreationSuite {
     private static final String FUNDING_BEFORE = "fundingBefore";
     private static final String STAKING_REWARD1 = "stakingReward";
     private static final String NODE_REWARD1 = "nodeReward";
-    private static final String FOR_ACCOUNT_FUNDING = asEntityString(98);
-    private static final String FOR_ACCOUNT_STAKING_REWARDS = asEntityString(800);
-    private static final String FOR_ACCOUNT_NODE_REWARD = asEntityString(801);
+    private static final String FOR_ACCOUNT_FUNDING = "98";
+    private static final String FOR_ACCOUNT_STAKING_REWARDS = "800";
+    private static final String FOR_ACCOUNT_NODE_REWARD = "801";
     private static final String PAYER = "payer";
     private static final String THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER = "This is ok, it's fine, it's whatever.";
-    private static final String TO_ACCOUNT = asEntityString(3);
+    private static final String TO_ACCOUNT = "3";
     private static final String TXN_ID = "txnId";
 
     @BeforeAll
@@ -111,7 +110,6 @@ public class RecordCreationSuite {
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     final Stream<DynamicTest> submittingNodeChargedNetworkFeeForLackOfDueDiligence() {
-        final String comfortingMemo = THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER;
         final String disquietingMemo = "\u0000his is ok, it's fine, it's whatever.";
         final AtomicReference<FeeObject> feeObs = new AtomicReference<>();
 
@@ -119,7 +117,7 @@ public class RecordCreationSuite {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, TO_ACCOUNT, ONE_HBAR)).payingWith(GENESIS),
                 cryptoCreate(PAYER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
-                        .memo(comfortingMemo)
+                        .memo(THIS_IS_OK_IT_S_FINE_IT_S_WHATEVER)
                         .exposingFeesTo(feeObs)
                         .payingWith(PAYER),
                 usableTxnIdNamed(TXN_ID).payerId(PAYER),

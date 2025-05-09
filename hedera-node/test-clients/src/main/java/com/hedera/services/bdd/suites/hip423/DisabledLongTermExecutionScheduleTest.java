@@ -2,9 +2,7 @@
 package com.hedera.services.bdd.suites.hip423;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.PropertySource.asAccount;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -206,7 +204,7 @@ public class DisabledLongTermExecutionScheduleTest {
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountId(asAccount(asEntityString(100)))
+                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),
@@ -223,7 +221,7 @@ public class DisabledLongTermExecutionScheduleTest {
                         .gossipCaCertificate(
                                 generateX509Certificates(2).getFirst().getEncoded())
                         .grpcCertificateHash("hash".getBytes())
-                        .accountId(asAccount(asEntityString(100)))
+                        .accountNum(100)
                         .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                         .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
                         .adminKey(ED_25519_KEY),

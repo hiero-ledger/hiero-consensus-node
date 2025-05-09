@@ -359,13 +359,17 @@ public interface HapiPropertySource {
         }
     }
 
+    static TopicID asTopic(long shard, long realm, long num) {
+        return TopicID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setTopicNum(num)
+                .build();
+    }
+
     static TopicID asTopic(String v) {
         long[] nativeParts = asDotDelimitedLongArray(v);
-        return TopicID.newBuilder()
-                .setShardNum(nativeParts[0])
-                .setRealmNum(nativeParts[1])
-                .setTopicNum(nativeParts[2])
-                .build();
+        return asTopic(nativeParts[0], nativeParts[1], nativeParts[2]);
     }
 
     static String asTopicString(TopicID topic) {

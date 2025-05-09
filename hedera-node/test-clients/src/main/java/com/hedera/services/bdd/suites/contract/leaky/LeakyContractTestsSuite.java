@@ -873,7 +873,7 @@ public class LeakyContractTestsSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(6_000_000),
                             emptyChildRecordsCheck(mirrorTxn, CONTRACT_REVERT_EXECUTED),
-                            getAccountInfo(asEntityString(NONEXISTENT_CONTRACT_NUM))
+                            getAccountInfo(asEntityString(spec.shard(), spec.realm(), NONEXISTENT_CONTRACT_NUM))
                                     .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // given a reverting contract call, should also revert the hollow account creation
                             contractCall(LAZY_CREATE_CONTRACT, revertingCallLazyCreateFunction, address)

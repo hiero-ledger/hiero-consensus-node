@@ -25,7 +25,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_FILE_HA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_FILE_ID_DOES_NOT_MATCH_PREPARED;
 
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.suites.HapiSuite;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,8 +42,6 @@ import org.junit.jupiter.api.DynamicTest;
 public class UpgradeSuite extends HapiSuite {
     private static final Logger log = LogManager.getLogger(UpgradeSuite.class);
 
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
     public static final String pragmatism = "Think of the children!";
     public static final String poeticUpgradeLoc = "testfiles/poeticUpgrade.zip";
     public static final String heavyPoeticUpgradeLoc = "testfiles/heavyPoeticUpgrade.zip";
@@ -59,8 +56,8 @@ public class UpgradeSuite extends HapiSuite {
     private final byte[] heavyPoeticUpgradeHash;
     private final byte[] notEvenASha384Hash = "abcdefgh".getBytes(StandardCharsets.UTF_8);
 
-    public static final String standardUpdateFile = String.format("%s.%s.150", SHARD, REALM);
-    public static final String standardTelemetryFile = String.format("%s.%s.159", SHARD, REALM);
+    public static final String standardUpdateFile = "150";
+    public static final String standardTelemetryFile = "159";
 
     public UpgradeSuite() {
         try {
@@ -144,7 +141,7 @@ public class UpgradeSuite extends HapiSuite {
                         .payingWith(FREEZE_ADMIN),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
                 prepareUpgrade()
-                        .withUpdateFile("0.0.149")
+                        .withUpdateFile("149")
                         .havingHash(poeticUpgradeHash)
                         .hasPrecheck(FREEZE_UPDATE_FILE_DOES_NOT_EXIST),
                 prepareUpgrade()
@@ -203,7 +200,7 @@ public class UpgradeSuite extends HapiSuite {
                         .minutes()
                         .hasPrecheck(FREEZE_START_TIME_MUST_BE_FUTURE),
                 telemetryUpgrade()
-                        .withUpdateFile("0.0.149")
+                        .withUpdateFile("149")
                         .havingHash(poeticUpgradeHash)
                         .startingIn(3)
                         .minutes()
