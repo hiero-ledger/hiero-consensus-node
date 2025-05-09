@@ -56,6 +56,7 @@ public class AppThrottleFactory implements Throttle.Factory {
                 configSupplier, () -> capacitySplit, ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE);
         throttleAccumulator.applyGasConfig();
         throttleAccumulator.applyBytesConfig();
+        throttleAccumulator.applyDurationConfig();
         throttleAccumulator.rebuildFor(definitionsSupplier.get());
         if (initialUsageSnapshots != null) {
             final var tpsThrottles = throttleAccumulator.allActiveThrottles();
@@ -93,7 +94,8 @@ public class AppThrottleFactory implements Throttle.Factory {
                         throttleAccumulator.allActiveThrottles().stream()
                                 .map(DeterministicThrottle::usageSnapshot)
                                 .toList(),
-                        throttleAccumulator.gasLimitThrottle().usageSnapshot());
+                        throttleAccumulator.gasLimitThrottle().usageSnapshot(),
+                        throttleAccumulator.opsDurationThrottle().usageSnapshot());
             }
         };
     }

@@ -15,6 +15,8 @@ public record StatsConfig(
                                 "<GAS>,ThroughputLimits,OffHeapQueryLimits,CreationLimits,FreeQueryLimits,BalanceQueryLimits")
                 @NodeProperty
                 List<String> hapiThrottlesToSample,
+        @ConfigProperty(defaultValue = "<OPS_DURATION>,ThroughputLimits") @NodeProperty
+                List<String> opsDurationThrottlesToSample,
         @ConfigProperty(defaultValue = "0") @NodeProperty int executionTimesToTrack,
         @ConfigProperty(value = "entityUtils.gaugeUpdateIntervalMs", defaultValue = "3000") @NodeProperty
                 long entityUtilsGaugeUpdateIntervalMs,
