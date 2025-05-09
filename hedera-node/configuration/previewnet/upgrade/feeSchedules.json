@@ -1071,7 +1071,7 @@
               "subType": "SUBMIT_MESSAGE_WITH_CUSTOM_FEES",
               "nodedata": {
                 "constant": 0,
-                "bpt": 100000000000,
+                "bpt": 2000000000,
                 "vpt": 18283054670,
                 "rbh": 0,
                 "sbh": 0,
@@ -1083,7 +1083,7 @@
               },
               "networkdata": {
                 "constant": 0,
-                "bpt": 400000000000,
+                "bpt": 8000000000,
                 "vpt": 292528874720,
                 "rbh": 0,
                 "sbh": 0,
@@ -4940,7 +4940,7 @@
               "subType": "SUBMIT_MESSAGE_WITH_CUSTOM_FEES",
               "nodedata": {
                 "constant": 0,
-                "bpt": 100000000000,
+                "bpt": 2000000000,
                 "vpt": 18283054670,
                 "rbh": 0,
                 "sbh": 0,
@@ -4952,7 +4952,7 @@
               },
               "networkdata": {
                 "constant": 0,
-                "bpt": 400000000000,
+                "bpt": 8000000000,
                 "vpt": 292528874720,
                 "rbh": 0,
                 "sbh": 0,
