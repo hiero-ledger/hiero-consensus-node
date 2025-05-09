@@ -74,7 +74,7 @@ dependencies.constraints {
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
     api("com.esaulpaugh:headlong:13.2.2") { because("com.esaulpaugh.headlong") }
-    api("info.picocli:picocli:4.7.6") { because("info.picocli") }
+    api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
     api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
