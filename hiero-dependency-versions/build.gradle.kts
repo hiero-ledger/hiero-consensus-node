@@ -39,6 +39,9 @@ dependencies.constraints {
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
         because("io.helidon.webclient.grpc")
     }
+    api("com.lmax:disruptor:3.4.4") { because("com.lmax.disruptor") }
+    api("io.github.artsok:rerunner-jupiter:2.1.6") { because("artsok.rerunner.jupiter") }
+    api("io.github.java-diff-utils:java-diff-utils:4.12") { because("io.github.javadiffutils") }
     api("org.awaitility:awaitility:4.3.0") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")

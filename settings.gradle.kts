@@ -45,6 +45,8 @@ javaModules {
 
     // Platform-base demo applications
     directory("example-apps") { group = "com.swirlds" }
+    module("hedera-state-validator") { group = "com.swirlds" }
+
 
     // Platform demo applications
     directory("platform-sdk/platform-apps/demos") { group = "com.swirlds" }

@@ -465,7 +465,7 @@ public class DataFileCollection implements Snapshotable {
      * @throws ClosedChannelException In the very rare case merging closed the file between us
      *     checking if file is open and reading
      */
-    protected BufferedData readDataItem(final long dataLocation) throws IOException {
+    public BufferedData readDataItem(final long dataLocation) throws IOException {
         final DataFileReader file = readerForDataLocation(dataLocation);
         return (file != null) ? file.readDataItem(dataLocation) : null;
     }
