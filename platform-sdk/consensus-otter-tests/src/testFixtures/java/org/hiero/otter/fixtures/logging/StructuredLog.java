@@ -14,7 +14,7 @@ import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 /**
  * A structured representation of a log event captured with the {@link InMemoryAppender}
  *
- * @param
+ * @param timestamp   The timestamp of the log message.
  * @param level       The severity level of the log message.
  * @param message     The formatted log message.
  * @param loggerName  The name of the logger that produced the event.
