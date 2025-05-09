@@ -122,7 +122,6 @@ public class MemoryIndexDiskKeyValueStore implements AutoCloseable, Snapshotable
         final long currentMinValidKey = index.getMinValidIndex();
         final long currentMaxValidKey = index.getMaxValidIndex();
         final DataFileReader dataFileReader = fileCollection.endWriting(currentMinValidKey, currentMaxValidKey);
-        dataFileReader.setFileCompleted();
         logger.info(
                 MERKLE_DB.getMarker(),
                 "{} Ended writing, newFile={}, numOfFiles={}, minimumValidKey={}, maximumValidKey={}",
@@ -183,8 +182,9 @@ public class MemoryIndexDiskKeyValueStore implements AutoCloseable, Snapshotable
     /**
      * {@inheritDoc}
      */
+    @Override
     public LongSummaryStatistics getFilesSizeStatistics() {
-        return fileCollection.getAllCompletedFilesSizeStatistics();
+        return fileCollection.getFilesSizeStatistics();
     }
 
     public DataFileCollection getFileCollection() {
