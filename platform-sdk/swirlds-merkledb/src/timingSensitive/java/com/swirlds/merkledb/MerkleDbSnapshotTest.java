@@ -32,7 +32,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -106,12 +105,11 @@ class MerkleDbSnapshotTest {
     private void verify(final MerkleInternal stateRoot) {
         for (int i = 0; i < MAPS_COUNT; i++) {
             final VirtualMap vm = stateRoot.getChild(i);
-            final VirtualMapState state = new VirtualMapState(vm.getBytes(VirtualMapState.VM_STATE_KEY));
+            final VirtualMapState state = vm.getState();
             System.out.println("state.getFirstLeafPath() = " + state.getFirstLeafPath());
             System.out.println("state.getLastLeafPath() = " + state.getLastLeafPath());
-            final VirtualRootNode root = vm.getLeft();
             for (int path = 0; path <= state.getLastLeafPath(); path++) {
-                final Hash hash = root.getRecords().findHash(path);
+                final Hash hash = vm.getRecords().findHash(path);
                 Assertions.assertNotNull(hash);
             }
         }
@@ -138,8 +136,7 @@ class MerkleDbSnapshotTest {
             final MerkleInternal newStateRoot = stateRoot.copy();
             for (int i = 0; i < MAPS_COUNT; i++) {
                 final VirtualMap vm = newStateRoot.getChild(i);
-                final VirtualRootNode root = vm.getLeft();
-                root.enableFlush();
+                vm.enableFlush();
                 for (int k = 0; k < ROUND_CHANGES; k++) {
                     final Bytes key = ExampleLongKey.longToKey(keyId++);
                     final ExampleFixedValue value = new ExampleFixedValue(RANDOM.nextInt());
@@ -191,8 +188,7 @@ class MerkleDbSnapshotTest {
                         final MerkleInternal newStateRoot = stateRoot.copy();
                         for (int i = 0; i < MAPS_COUNT; i++) {
                             final VirtualMap vm = newStateRoot.getChild(i);
-                            final VirtualRootNode root = vm.getLeft();
-                            root.enableFlush();
+                            vm.enableFlush();
                             for (int k = 0; k < ROUND_CHANGES; k++) {
                                 final Bytes key = ExampleLongKey.longToKey(keyId++);
                                 final ExampleFixedValue value = new ExampleFixedValue(RANDOM.nextInt());

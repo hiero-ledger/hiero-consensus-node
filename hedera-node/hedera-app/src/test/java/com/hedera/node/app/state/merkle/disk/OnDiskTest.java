@@ -21,7 +21,6 @@ import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -86,11 +85,10 @@ class OnDiskTest extends MerkleTestBase {
         CRYPTO.digestTreeSync(map);
 
         // Flush to disk
-        final VirtualRootNode root = map.getChild(0);
-        root.enableFlush();
+        map.enableFlush();
         map.release();
         try {
-            root.waitUntilFlushed();
+            map.waitUntilFlushed();
         } catch (InterruptedException e) {
             System.err.println("Unable to complete the test, the root node never flushed!");
             throw new RuntimeException(e);

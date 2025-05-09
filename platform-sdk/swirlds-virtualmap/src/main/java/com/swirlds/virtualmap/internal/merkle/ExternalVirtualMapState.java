@@ -15,7 +15,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * Contains state for a {@link VirtualMap}. This state is stored in memory in the merkle tree as
  * the first (left) child of the VFCMap / {@link VirtualMap}.
- * This class exist only for backward compatibility with {@link VirtualMap} of versions prior to {@link ClassVersion#MIGRATE_VM_STATE}
+ * This class exist only for backward compatibility with {@link VirtualMap} of versions prior to {@link ClassVersion#NO_VIRTUAL_ROOT_NODE}
  *
  * Use {@link VirtualMapState} instead.
  */

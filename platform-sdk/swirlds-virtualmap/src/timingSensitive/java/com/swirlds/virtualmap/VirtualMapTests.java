@@ -7,8 +7,10 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEq
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,7 +25,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.merkle.MerkleInternal;
+import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
@@ -39,12 +41,17 @@ import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.config.VirtualMapConfig_;
+import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestObjectKey;
@@ -53,20 +60,27 @@ import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.base.crypto.Hash;
@@ -134,14 +148,13 @@ class VirtualMapTests extends VirtualTestBase {
     @DisplayName("The root node of an empty tree has no children")
     void emptyTreeRootHasOnlyStateAsChild() {
         final VirtualMap fcm = createMap();
-        final MerkleInternal root = fcm.getChild(0).asInternal();
-        assertEquals(2, root.getNumberOfChildren(), "Unexpected number of children");
-        VirtualLeafNode child = root.getChild(0);
+        assertEquals(2, fcm.getNumberOfChildren(), "Unexpected number of children");
+        VirtualLeafNode child = fcm.getChild(0);
         VirtualMapState virtualMapState = new VirtualMapState(child.getValue());
         assertEquals(-1, virtualMapState.getFirstLeafPath());
         assertEquals(-1, virtualMapState.getLastLeafPath());
 
-        assertNull(root.getChild(1), "Unexpected child of empty root");
+        assertNull(fcm.getChild(1), "Unexpected child of empty root");
         fcm.release();
     }
 
@@ -519,7 +532,7 @@ class VirtualMapTests extends VirtualTestBase {
         copy3.release();
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy4.release();
-        assertTrue(copy4.getRoot().getPipeline().awaitTermination(5, SECONDS), "Timed out");
+        assertTrue(copy4.getPipeline().awaitTermination(5, SECONDS), "Timed out");
         assertTrue(ds.isClosed(), "Should now be released");
     }
 
@@ -539,8 +552,8 @@ class VirtualMapTests extends VirtualTestBase {
         assertFalse(ds.isClosed(), "Should not be closed yet");
         copy1.release();
         assertFalse(ds.isClosed(), "Should not be closed yet");
-        copy2.getRoot().getPipeline().terminate();
-        assertTrue(copy2.getRoot().getPipeline().awaitTermination(5, SECONDS), "Timed out");
+        copy2.getPipeline().terminate();
+        assertTrue(copy2.getPipeline().awaitTermination(5, SECONDS), "Timed out");
         assertTrue(ds.isClosed(), "Should now be released");
     }
 
@@ -628,9 +641,7 @@ class VirtualMapTests extends VirtualTestBase {
         } finally {
             fcm.release();
             completed.release();
-
-            final VirtualRootNode root = fcm.getLeft();
-            assertTrue(root.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(fcm.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -731,18 +742,14 @@ class VirtualMapTests extends VirtualTestBase {
      * <pre>
      *                      VirtualMap
      *                         []
-     *                           \
-     *                            \
-     *                               Root
-     *                            [0]
-     *                             /     \
-     *                            /       \
-     *                        Internal     B
-     *                        [1, 0]     [1, 1]
-     *                        /   \
-     *                       /     \
-     *                      A       C
-     *               [1, 0, 0]    [1, 0, 1]
+     *                      /     \
+     *                     /       \
+     *                 Internal     B
+     *                 [1, 0]     [1, 1]
+     *                 /   \
+     *                /     \
+     *               A       C
+     *        [1, 0, 0]    [1, 0, 1]
      * </pre>
      */
     @Test
@@ -757,27 +764,13 @@ class VirtualMapTests extends VirtualTestBase {
             nodes.add(node);
         });
 
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0, 0), nodes.get(0).getRoute(), "VirtualMapState");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0, 1), nodes.get(1).getRoute(), "VirtualLeafNode A");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 0), nodes.get(2).getRoute(), "VirtualInternalNode");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 1, 0), nodes.get(3).getRoute(), "VirtualLeafNode C");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 1, 1), nodes.get(4).getRoute(), "VirtualLeafNode B");
-        assertEquals(MerkleRouteFactory.buildRoute(0, 1), nodes.get(5).getRoute(), "VirtualInternalNode");
-        assertEquals(MerkleRouteFactory.buildRoute(0), nodes.get(6).getRoute(), "VirtualInternalNode Root");
-        assertEquals(MerkleRouteFactory.buildRoute(), nodes.get(7).getRoute(), "VirtualMap");
-    }
-
-    @Test
-    void testMapConstructedWithDefaultConstructorIsInvalid() {
-        VirtualMap subject = new VirtualMap(CONFIGURATION);
-        assertFalse(subject.isValid());
-    }
-
-    @Test
-    void testFreshMapIsValid() {
-        final VirtualMap fcm = createMap();
-        assertTrue(fcm.isValid());
-        fcm.release();
+        assertEquals(MerkleRouteFactory.buildRoute(0, 0), nodes.get(0).getRoute(), "VirtualMapState");
+        assertEquals(MerkleRouteFactory.buildRoute(0, 1), nodes.get(1).getRoute(), "VirtualLeafNode A");
+        assertEquals(MerkleRouteFactory.buildRoute(0), nodes.get(2).getRoute(), "VirtualInternalNode");
+        assertEquals(MerkleRouteFactory.buildRoute(1, 0), nodes.get(3).getRoute(), "VirtualLeafNode C");
+        assertEquals(MerkleRouteFactory.buildRoute(1, 1), nodes.get(4).getRoute(), "VirtualLeafNode B");
+        assertEquals(MerkleRouteFactory.buildRoute(1), nodes.get(5).getRoute(), "VirtualInternalNode");
+        assertEquals(MerkleRouteFactory.buildRoute(), nodes.get(6).getRoute(), "VirtualMap");
     }
 
     /**
@@ -813,18 +806,18 @@ class VirtualMapTests extends VirtualTestBase {
 
         final VirtualMap map2 = map1.copy();
 
-        assertNotNull(map1.getRoot().getHash(), "Hash should have been produced for map1");
+        assertNotNull(map1.getHash(), "Hash should have been produced for map1");
 
         // Detach, and then make another copy which should cause it to flush.
-        map1.getRoot().enableFlush();
-        map1.getRoot().detach();
+        map1.enableFlush();
+        map1.detach();
         map0.release();
 
         map1.release();
         final CountDownLatch finishedFlushing = new CountDownLatch(1);
         final Thread th = new Thread(() -> {
             try {
-                map1.getRoot().waitUntilFlushed();
+                map1.waitUntilFlushed();
                 finishedFlushing.countDown();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -889,11 +882,11 @@ class VirtualMapTests extends VirtualTestBase {
 
         final long value = metricValue;
 
-        final VirtualRootNode lastRoot = map0.getLeft();
-        lastRoot.enableFlush();
+        final VirtualMap lastMap = map0;
+        lastMap.enableFlush();
         VirtualMap map1 = map0.copy();
         map0.release();
-        lastRoot.waitUntilFlushed();
+        lastMap.waitUntilFlushed();
         map1.release();
 
         assertEventuallyTrue(
@@ -929,29 +922,26 @@ class VirtualMapTests extends VirtualTestBase {
             VirtualMap map1 = map0.copy();
             map0.release();
             // shouldBeFlushed() can only be called on a released instance
-            VirtualRootNode root0 = map0.getLeft();
-            if (root0.shouldBeFlushed()) {
+            if (map0.shouldBeFlushed()) {
                 flushCount++;
             }
             map0 = map1;
 
-            VirtualRootNode root1 = map1.getLeft();
             // Make sure at least some maps need to be flushed, including the last one
             if ((i % 57 == 0) || (i == totalCount - 1)) {
-                root1.enableFlush();
+                map1.enableFlush();
             }
         }
 
         // Don't release the last map yet, as it would terminate the pipeline. Make a copy first,
         // release the map, then wait for the root to be flushed, then release the copy
-        VirtualRootNode lastRoot = map0.getLeft();
         VirtualMap map1 = map0.copy();
         map0.release();
         // shouldBeFlushed() can only be called on a released instance
-        if (lastRoot.shouldBeFlushed()) {
+        if (map0.shouldBeFlushed()) {
             flushCount++;
         }
-        lastRoot.waitUntilFlushed();
+        map0.waitUntilFlushed();
         map1.release();
 
         // createMap() creates a map labelled "Test"
@@ -990,7 +980,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         final VirtualMap map1 = map0.copy(); // this should make map0 immutable
         assertEquals(label, map1.getLabel());
-        assertNotNull(map0.getRoot().getHash(), "Hash should have been produced for map0");
+        assertNotNull(map0.getHash(), "Hash should have been produced for map0");
         assertTrue(map0.isImmutable(), "Copied VirtualMap should have been immutable");
         assertVirtualMapsEqual(map0, map1);
 
@@ -1075,7 +1065,7 @@ class VirtualMapTests extends VirtualTestBase {
         } finally {
             final VirtualRootNode root = map.getLeft();
             map.release();
-            assertTrue(root.getPipeline().awaitTermination(30, SECONDS), "Pipeline termination timed out");
+            assertTrue(map.getPipeline().awaitTermination(30, SECONDS), "Pipeline termination timed out");
         }
     }
 
@@ -1088,10 +1078,9 @@ class VirtualMapTests extends VirtualTestBase {
             map.put(TestObjectKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
 
-        VirtualRootNode rootNode = map.getLeft();
-        rootNode.enableFlush();
+        map.enableFlush();
 
-        RecordAccessor records = rootNode.getRecords();
+        RecordAccessor records = map.getRecords();
         // Check that key/value 0 is at path 7
         VirtualLeafBytes leaf = records.findLeafRecord(8);
         assertNotNull(leaf);
@@ -1102,7 +1091,7 @@ class VirtualMapTests extends VirtualTestBase {
         VirtualMap copy = map.copy();
         map.release();
         map = copy;
-        rootNode.waitUntilFlushed();
+        map.waitUntilFlushed();
 
         // Move key/value to a different path, then delete
         map.remove(TestObjectKey.longToKey(0));
@@ -1111,13 +1100,12 @@ class VirtualMapTests extends VirtualTestBase {
         map.put(TestObjectKey.longToKey(0), new TestValue(0), TestValueCodec.INSTANCE);
         map.remove(TestObjectKey.longToKey(0));
 
-        rootNode = map.getLeft();
-        rootNode.enableFlush();
+        map.enableFlush();
 
         copy = map.copy();
         map.release();
         map = copy;
-        rootNode.waitUntilFlushed();
+        map.waitUntilFlushed();
 
         // During this second flush, key/value 0 must be deleted from the map despite it's
         // path the virtual tree doesn't match the path in the data source
@@ -1126,6 +1114,444 @@ class VirtualMapTests extends VirtualTestBase {
         assertNull(map.getBytes(TestObjectKey.longToKey(0)));
 
         map.release();
+    }
+
+    @Test
+    void testEnableVirtualRootFlush() throws ExecutionException, InterruptedException {
+        VirtualMap fcm0 = createMap();
+        fcm0.postInit(new VirtualMapState(VM_LABEL));
+        assertFalse(fcm0.shouldBeFlushed(), "map should not yet be flushed");
+
+        VirtualMap fcm1 = fcm0.copy();
+        fcm1.postInit(new VirtualMapState(VM_LABEL));
+        assertFalse(fcm1.shouldBeFlushed(), "map should not yet be flushed");
+
+        VirtualMap fcm2 = fcm1.copy();
+        fcm2.postInit(new VirtualMapState(VM_LABEL));
+        assertFalse(fcm1.shouldBeFlushed(), "map should not yet be flushed");
+
+        VirtualMap fcm3 = fcm2.copy();
+        fcm3.postInit(new VirtualMapState(VM_LABEL));
+        fcm3.enableFlush();
+        assertTrue(fcm3.shouldBeFlushed(), "map should now be flushed");
+
+        fcm0.release();
+        fcm1.release();
+        fcm2.release();
+        fcm3.release();
+    }
+
+    @Test
+    @DisplayName("A new map with a datasource with a root hash reveals it")
+    void mapWithExistingHashedDataHasNonNullRootHash() throws ExecutionException, InterruptedException {
+        // The builder I will use with this map is unique in that each call to "build" returns THE SAME DATASOURCE.
+        final InMemoryDataSource ds = new InMemoryDataSource("mapWithExistingHashedDataHasNonNullRootHash");
+        final VirtualDataSourceBuilder builder = new InMemoryBuilder();
+
+        final VirtualMap fcm = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
+        fcm.enableFlush();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+
+        final VirtualMap copy = fcm.copy();
+
+        fcm.getHash();
+        final Hash expectedHash = fcm.getHash();
+        fcm.release();
+        fcm.waitUntilFlushed();
+
+        final VirtualMap fcm2 = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
+        fcm2.postInit(copy.getState());
+        assertEquals(expectedHash, fcm2.getHash(), "hash should match expected");
+
+        copy.release();
+        fcm2.release();
+    }
+
+    @Test
+    @DisplayName("Remove only element")
+    void removeOnlyElement() throws ExecutionException, InterruptedException {
+
+        final VirtualMap fcm = createMap();
+        fcm.enableFlush();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+
+        final VirtualMap copy = fcm.copy();
+        copy.postInit(fcm.getState());
+        fcm.release();
+        fcm.waitUntilFlushed();
+
+        final TestValue removed = copy.remove(A_KEY, TestValueCodec.INSTANCE);
+        assertEquals(APPLE, removed, "Wrong value");
+
+        // FUTURE WORK validate hashing works as expected
+
+        copy.release();
+    }
+
+    @Test
+    @DisplayName("Remove element twice")
+    void removeElementTwice() throws ExecutionException, InterruptedException {
+        final VirtualMap fcm = createMap();
+        fcm.enableFlush();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+
+        final VirtualMap copy = fcm.copy();
+        copy.postInit(fcm.getState());
+        fcm.release();
+        fcm.waitUntilFlushed();
+
+        final TestValue removed = copy.remove(B_KEY, TestValueCodec.INSTANCE);
+        final TestValue removed2 = copy.remove(B_KEY, TestValueCodec.INSTANCE);
+        assertEquals(BANANA, removed, "Wrong value");
+        assertNull(removed2, "Expected null");
+        copy.release();
+    }
+
+    @Test
+    @DisplayName("Remove elements in reverse order")
+    void removeInReverseOrder() throws ExecutionException, InterruptedException {
+        final VirtualMap fcm = createMap();
+        fcm.enableFlush();
+        fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        fcm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        fcm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        fcm.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        fcm.put(F_KEY, FIG, TestValueCodec.INSTANCE);
+        fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
+
+        final VirtualMap copy = fcm.copy();
+        copy.postInit(fcm.getState());
+        fcm.release();
+        fcm.waitUntilFlushed();
+
+        assertEquals(GRAPE, copy.remove(G_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        //        assertLeafOrder(fcm, A_KEY, E_KEY, C_KEY, F_KEY, B_KEY, D_KEY);
+        assertEquals(FIG, copy.remove(F_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        //        assertLeafOrder(fcm, A_KEY, E_KEY, C_KEY, B_KEY, D_KEY);
+        assertEquals(EGGPLANT, copy.remove(E_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        //        assertLeafOrder(fcm, A_KEY, C_KEY, B_KEY, D_KEY);
+        assertEquals(DATE, copy.remove(D_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        //        assertLeafOrder(fcm, A_KEY, C_KEY, B_KEY);
+        assertEquals(CHERRY, copy.remove(C_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        //        assertLeafOrder(fcm, A_KEY, B_KEY);
+        assertEquals(BANANA, copy.remove(B_KEY, TestValueCodec.INSTANCE), "Wrong value");
+        //        assertLeafOrder(fcm, A_KEY);
+        assertEquals(APPLE, copy.remove(A_KEY, TestValueCodec.INSTANCE), "Wrong value");
+
+        // FUTURE WORK validate hashing works as expected
+
+        copy.release();
+    }
+
+    /**
+     * This test deserializes a VirtualRootNode that was serialized with version 2 of the serialization format.
+     * This node contains 100 entries, but only 88 of them are valid. The other 12 are deleted.
+     */
+    @Test
+    void testSerializeDeserialize() throws IOException {
+        String fileName = "rootNode.bin";
+        serializeRoot(fileName);
+        deserializeRootNodeAndVerify(
+                new FileInputStream(testDirectory.resolve(fileName).toFile()),
+                VirtualMap.ClassVersion.NO_VIRTUAL_ROOT_NODE);
+    }
+
+    private void deserializeRootNodeAndVerify(InputStream resourceAsStream, int version) throws IOException {
+        final VirtualMap root = createMap();
+
+        try (SerializableDataInputStream input = new SerializableDataInputStream(resourceAsStream)) {
+            root.deserialize(input, testDirectory, version);
+            root.postInit(new VirtualMapState(VM_LABEL));
+            final VirtualNodeCache cache = root.getCache();
+            for (int i = 0; i < 100; i++) {
+                final Bytes key = TestKey.longToKey(i);
+                if (version >= VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
+                    // Cache must be empty, all values must be in the data source
+                    assertNull(cache.lookupLeafByKey(key));
+                }
+                if (i % 7 != 0) {
+                    assertEquals(new TestValue(i).toBytes(), root.getBytes(key));
+                    assertEquals(new TestValue(i), root.get(key, TestValueCodec.INSTANCE));
+                } else {
+                    assertNull(root.get(TestKey.longToKey(i), null));
+                }
+            }
+            root.release();
+        }
+    }
+
+    private void serializeRoot(String fileName) throws IOException {
+        try (FileOutputStream fileOutputStream =
+                        new FileOutputStream(testDirectory.resolve(fileName).toFile());
+                SerializableDataOutputStream out = new SerializableDataOutputStream(fileOutputStream)) {
+            VirtualMap testKeyTestValueVirtualRootNode = prepareRootForSerialization();
+            testKeyTestValueVirtualRootNode.serialize(out, testDirectory);
+            fileOutputStream.flush();
+            testKeyTestValueVirtualRootNode.release();
+        }
+    }
+
+    private static VirtualMap prepareRootForSerialization() {
+        final VirtualMap root = createMap();
+        root.enableFlush();
+
+        Set<Bytes> keysToRemove = new HashSet<>();
+        for (int i = 0; i < 1000; i++) {
+            root.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
+            if (i % 7 == 0) {
+                keysToRemove.add(TestKey.longToKey(i));
+            }
+        }
+
+        for (Bytes key : keysToRemove) {
+            root.remove(key, null);
+        }
+        root.computeHash();
+        root.setImmutable(true);
+        return root;
+    }
+
+    /**
+     * This is a preliminary example of how to move data from one VirtualMap
+     * to another.
+     *
+     * @throws InterruptedException
+     * 		if the thread is interrupted during sleep
+     */
+    @Test
+    @Tags({@Tag("VMAP-013")})
+    void moveDataAcrossMaps() throws InterruptedException {
+        final int totalSize = 1_000_000;
+        final VirtualMap root1 = createMap();
+        for (int index = 0; index < totalSize; index++) {
+            final Bytes key = TestKey.longToKey(index);
+            final TestValue value = new TestValue(index);
+            root1.put(key, value, TestValueCodec.INSTANCE);
+        }
+
+        final VirtualMap root2 = createMap();
+        final long firstLeafPath = root1.getState().getFirstLeafPath();
+        final long lastLeafPath = root1.getState().getLastLeafPath();
+        for (long index = firstLeafPath; index <= lastLeafPath; index++) {
+            final VirtualLeafBytes leaf = root1.getRecords().findLeafRecord(index);
+            final Bytes key = leaf.keyBytes().replicate();
+            final Bytes value = leaf.valueBytes().replicate();
+            root2.putBytes(key, value);
+        }
+
+        for (int index = 0; index < totalSize; index++) {
+            final Bytes key = TestKey.longToKey(index);
+            root1.remove(key, null);
+        }
+
+        assertTrue(root1.size() == 1, "All elements but VirtualMapState should have been removed");
+        root1.release();
+        TimeUnit.MILLISECONDS.sleep(100);
+        System.gc();
+        assertEquals(totalSize + 1, root2.size(), "New map is expected to have all data and VirtualMapState");
+        for (int index = 0; index < totalSize; index++) {
+            final Bytes key = TestKey.longToKey(index);
+            final TestValue expectedValue = new TestValue(index);
+            final TestValue value = root2.get(key, TestValueCodec.INSTANCE);
+            assertEquals(expectedValue, value, "Values have the same content");
+        }
+    }
+
+    @Test
+    @DisplayName("Snapshot Test")
+    void snapshotTest() throws IOException {
+        final List<Path> paths = new LinkedList<>();
+        paths.add(Path.of("asdf"));
+        for (final Path destination : paths) {
+            final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
+            final VirtualMap copy = original.copy();
+
+            original.getHash(); // forces copy to become hashed
+            original.getPipeline().pausePipelineAndRun("snapshot", () -> {
+                original.snapshot(destination);
+                return null;
+            });
+            assertTrue(original.isDetached(), "root should be detached");
+
+            original.release();
+            copy.release();
+        }
+    }
+
+    @Test
+    @DisplayName("Snapshot and restore")
+    void snapshotAndRestore() throws IOException {
+        final VirtualDataSourceBuilder dsBuilder = new InMemoryBuilder();
+        final List<VirtualMap> copies = new LinkedList<>();
+        final VirtualMap copy0 = new VirtualMap("test", dsBuilder, CONFIGURATION);
+        copies.add(copy0);
+        for (int i = 1; i <= 10; i++) {
+            final VirtualMap prevCopy = copies.get(i - 1);
+            final VirtualMap copy = prevCopy.copy();
+            // i-th copy contains TestKey(i)
+            copy.put(TestKey.longToKey(i), new TestValue(i + 100), TestValueCodec.INSTANCE);
+            copies.add(copy);
+        }
+        for (VirtualMap copy : copies) {
+            // Force virtual map / root node hashing
+            copy.getHash();
+        }
+        // Take a snapshot of copy 5
+        final VirtualMap copy5 = copies.get(5);
+        final Path snapshotPath =
+                LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAndRestore", CONFIGURATION);
+        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream();
+                final SerializableDataOutputStream out = new SerializableDataOutputStream(bout)) {
+            copy5.serialize(out, snapshotPath);
+            try (final ByteArrayInputStream bin = new ByteArrayInputStream(bout.toByteArray());
+                    final SerializableDataInputStream in = new SerializableDataInputStream(bin)) {
+                final VirtualMap restored = new VirtualMap(CONFIGURATION);
+                restored.deserialize(in, snapshotPath, copy0.getVersion());
+                // All keys 1 to 5 should be in the snapshot
+                for (int i = 1; i < 6; i++) {
+                    final Bytes key = TestKey.longToKey(i);
+                    assertTrue(restored.containsKey(key), "Key " + i + " not found");
+                    assertEquals(new TestValue(i + 100), restored.get(key, TestValueCodec.INSTANCE));
+                }
+                // All keys 6 to 10 should not be there
+                for (int i = 6; i < 10; i++) {
+                    final Bytes key = TestKey.longToKey(i);
+                    assertFalse(restored.containsKey(key), "Key " + i + " found");
+                    assertNull(restored.get(key, TestValueCodec.INSTANCE));
+                }
+            }
+        } finally {
+            copies.forEach(VirtualMap::release);
+        }
+    }
+
+    @Test
+    @DisplayName("Detach Test")
+    void detachTest() throws IOException {
+        final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
+        final VirtualMap copy = original.copy();
+
+        original.getHash(); // forces copy to become hashed
+        final RecordAccessor detachedCopy = original.getPipeline().pausePipelineAndRun("copy", original::detach);
+        assertTrue(original.isDetached(), "root should be detached");
+        assertNotNull(detachedCopy);
+
+        original.release();
+        copy.release();
+        detachedCopy.getDataSource().close();
+    }
+
+    @Test
+    @DisplayName("Default flush threshold not zero")
+    void defaultFlushThresholdTest() {
+        final VirtualMapConfig config =
+                new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
+        VirtualMap root = createMap();
+        assertEquals(config.copyFlushCandidateThreshold(), root.getFlushCandidateThreshold());
+        root.release();
+    }
+
+    @Test
+    @DisplayName("Flush interval is inherited by copies")
+    void flushIntervalInheritedTest() {
+        final long threshold = 12345678L;
+        final VirtualMapConfig config =
+                new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
+
+        final int flushInterval = config.flushInterval();
+        VirtualMap root = createMap();
+        root.setFlushCandidateThreshold(threshold);
+        for (int i = 0; i <= flushInterval; i++) {
+            assertEquals(threshold, root.getFlushCandidateThreshold());
+            VirtualMap copy = root.copy();
+            copy.postInit(root.getState());
+            root.release();
+            root = copy;
+        }
+        root.release();
+    }
+
+    @Test
+    @DisplayName("Zero flush threshold enables round based flushes")
+    void zeroFlushThresholdTest() {
+        final VirtualMapConfig config =
+                new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
+        final int flushInterval = config.flushInterval();
+        VirtualMap map = createMap();
+        map.setFlushCandidateThreshold(0);
+        assertFalse(map.shouldBeFlushed()); // the very first copy is never flushed
+        for (int i = 0; i < flushInterval; i++) {
+            VirtualMap copy = map.copy();
+            copy.postInit(map.getState());
+            map.release();
+            map = copy;
+        }
+        assertTrue(map.shouldBeFlushed());
+        map.release();
+    }
+
+    @Test
+    @DisplayName("Default zero flush threshold")
+    void defaultZeroFlushThresholdTest() {
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(VirtualMapConfig_.COPY_FLUSH_CANDIDATE_THRESHOLD, "0")
+                .getOrCreateConfig();
+
+        final VirtualDataSourceBuilder builder = new InMemoryBuilder();
+        VirtualMap map = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
+        ;
+        assertEquals(0, map.getFlushCandidateThreshold());
+        final int flushInterval =
+                configuration.getConfigData(VirtualMapConfig.class).flushInterval();
+        for (int i = 0; i < flushInterval; i++) {
+            VirtualMap copy = map.copy();
+            copy.postInit(map.getState());
+            map.release();
+            map = copy;
+        }
+        final VirtualMap copyShouldBeFlushed = map;
+        map.setFlushCandidateThreshold(12345678L);
+        for (int i = 0; i < flushInterval; i++) {
+            VirtualMap copy = map.copy();
+            copy.postInit(map.getState());
+            map.release();
+            map = copy;
+        }
+        final VirtualMap copyShouldNotBeFlushed = map;
+        // shouldBeFlushed() can only be called on released copies, so create one more copy to
+        // release copyShouldNotBeFlushed
+        final VirtualMap finalCopy = map.copy();
+        map.release();
+
+        assertTrue(copyShouldBeFlushed.shouldBeFlushed());
+        assertFalse(copyShouldNotBeFlushed.shouldBeFlushed()); // should still have a custom flush threshold
+
+        finalCopy.release();
+    }
+
+    @Test
+    @DisplayName("Copy of a root node with terminated pipeline")
+    void copyOfRootNodeWithTerminatedPipeline() {
+        VirtualMap map = createMap();
+        map.getPipeline().terminate();
+        assertThrows(IllegalStateException.class, map::copy);
+    }
+
+    @Test
+    void getVersion() {
+        assertEquals(4, createMap().getVersion());
+    }
+
+    @Test
+    void postInitNoOpIfLearnerTreeViewIsSet() {
+        VirtualMap root = createMap();
+        VirtualMap anotherRoot = createMap();
+        anotherRoot.computeHash();
+        root.setupWithOriginalNode(anotherRoot);
+        assertDoesNotThrow(() -> root.postInit(new VirtualMapState(VM_LABEL)));
     }
 
     // based heavily on VirtualMapGroup::validateCopy(), but modified to just compare two VirtualMaps, instead of

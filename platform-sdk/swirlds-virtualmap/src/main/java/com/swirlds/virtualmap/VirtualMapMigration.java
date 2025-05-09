@@ -49,7 +49,7 @@ public final class VirtualMapMigration {
             return;
         }
 
-        final RecordAccessor recordAccessor = source.getRoot().getRecords();
+        final RecordAccessor recordAccessor = source.getRecords();
 
         final long size = source.size();
 
@@ -137,7 +137,7 @@ public final class VirtualMapMigration {
             return;
         }
 
-        final RecordAccessor recordAccessor = source.getRoot().getRecords();
+        final RecordAccessor recordAccessor = source.getRecords();
 
         // A collection of threads iterate over the map. Each thread writes into its own output queue.
         final List<Thread> threads = new ArrayList<>(threadCount);

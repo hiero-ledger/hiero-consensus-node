@@ -8,10 +8,10 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualInternalNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import java.util.Objects;
 
 /**
@@ -22,7 +22,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
      * The root node that is involved in reconnect. This would be the saved state for the teacher, and
      * the new root node into which things are being serialized for the learner.
      */
-    protected final VirtualRootNode root;
+    protected final VirtualMap map;
 
     /**
      * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
@@ -40,16 +40,16 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
     /**
      * Create a new {@link VirtualTreeViewBase}.
      *
-     * @param root
-     * 		The root. Cannot be null.
+     * @param map
+     * 		The map. Cannot be null.
      * @param originalState
      * 		The original state of a learner. Cannot be null.
      * @param reconnectState
      * 		The state of the trees being reconnected. Cannot be null.
      */
     protected VirtualTreeViewBase(
-            final VirtualRootNode root, final VirtualMapState originalState, final VirtualMapState reconnectState) {
-        this.root = Objects.requireNonNull(root);
+            final VirtualMap map, final VirtualMapState originalState, final VirtualMapState reconnectState) {
+        this.map = Objects.requireNonNull(map);
         this.originalState = Objects.requireNonNull(originalState);
         this.reconnectState = Objects.requireNonNull(reconnectState);
     }
@@ -62,7 +62,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
         // NOTE: It is not clear what this "node" is. Original path? New path? It seems to be both depending on the
         // call site. Luckily, it doesn't really matter in my case.
         if (node == null || node == ROOT_PATH) {
-            return root;
+            return map;
         }
         throw new UnsupportedOperationException("Nested virtual maps not supported " + node);
     }
@@ -117,7 +117,7 @@ public abstract class VirtualTreeViewBase implements TreeView<Long> {
         } else if (originalNode > ROOT_PATH) {
             return VirtualInternalNode.CLASS_ID;
         } else {
-            return VirtualRootNode.CLASS_ID;
+            return VirtualMap.CLASS_ID;
         }
     }
 

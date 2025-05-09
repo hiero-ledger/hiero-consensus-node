@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createRoot;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -20,7 +21,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 @DisplayName("VirtualRootNode Hashing Tests")
-class VirtualRootNodeHashingTest {
+class VirtualMapHashingTest {
 
     // FUTURE WORK tests to write:
     //  - deterministic hashing
@@ -31,27 +32,27 @@ class VirtualRootNodeHashingTest {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Hash Empty Root")
     void hashEmptyMap() {
-        final VirtualRootNode root = createRoot();
-        final VirtualRootNode copy = root.copy();
+        final VirtualMap map = createMap();
+        final VirtualMap copy = map.copy();
 
-        final Hash hash = root.getHash();
+        final Hash hash = map.getHash();
         assertNotNull(hash, "hash should not be null");
 
-        root.release();
+        map.release();
         copy.release();
     }
 
     @Test
     @Tag(TestComponentTags.VMAP)
-    @DisplayName("Hash Root With One Data Entry")
+    @DisplayName("Hash Root With One Data  Entry")
     void hashMapWithOneEntry() {
-        final VirtualRootNode root = createRoot();
-        root.put(TestKey.longToKey('a'), new TestValue("a"), TestValueCodec.INSTANCE);
-        final VirtualRootNode copy = root.copy();
+        final VirtualMap map = createMap();
+        map.put(TestKey.longToKey('a'), new TestValue("a"), TestValueCodec.INSTANCE);
+        final VirtualMap copy = map.copy();
 
-        assertNotNull(root.getHash(), "hash should not be null");
+        assertNotNull(map.getHash(), "hash should not be null");
 
-        root.release();
+        map.release();
         copy.release();
     }
 
@@ -59,31 +60,29 @@ class VirtualRootNodeHashingTest {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Hash Root With Many Entries")
     void hashMapWithManyEntries() {
-        final VirtualRootNode root0 = createRoot();
+        final VirtualMap root0 = createMap();
         for (int i = 0; i < 100; i++) {
             root0.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
 
-        final VirtualRootNode root1 = root0.copy();
-        root1.postInit(root0.getState());
+        final VirtualMap map1 = root0.copy();
         final Hash hash0 = root0.getHash();
         assertNotNull(hash0, "hash should not be null");
 
         for (int i = 100; i < 200; i++) {
-            root1.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
+            map1.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
 
-        final VirtualRootNode root2 = root1.copy();
-        root2.postInit(root1.getState());
-        final Hash hash1 = root1.getHash();
+        final VirtualMap map2 = map1.copy();
+        final Hash hash1 = map1.getHash();
         assertNotNull(hash1, "hash should not be null");
 
         assertNotEquals(hash0, hash1, "hash should have changed");
         assertEquals(hash0, root0.getHash(), "root should still have the same hash");
 
         root0.release();
-        root1.release();
-        root2.release();
+        map1.release();
+        map2.release();
     }
 
     @Test
@@ -91,19 +90,19 @@ class VirtualRootNodeHashingTest {
     @DisplayName("Embedded At Root Sync")
     void embeddedAtRootSync() {
 
-        final VirtualRootNode rootA = createRoot();
+        final VirtualMap rootA = createMap();
         for (int i = 0; i < 100; i++) {
             rootA.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
-        final VirtualRootNode copyA = rootA.copy();
+        final VirtualMap copyA = rootA.copy();
         final Hash hashA = rootA.getHash();
         assertNotNull(hashA, "hash should not be null");
 
-        final VirtualRootNode rootB = createRoot();
+        final VirtualMap rootB = createMap();
         for (int i = 0; i < 100; i++) {
             rootB.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
-        final VirtualRootNode copyB = rootB.copy();
+        final VirtualMap copyB = rootB.copy();
         final Hash hashB = TestMerkleCryptoFactory.getInstance().digestTreeSync(rootA);
 
         assertEquals(hashA, hashB, "both algorithms should derive the same hash");
@@ -119,19 +118,19 @@ class VirtualRootNodeHashingTest {
     @DisplayName("Embedded At Root Async")
     void embeddedAtRootAsync() throws ExecutionException, InterruptedException {
 
-        final VirtualRootNode rootA = createRoot();
+        final VirtualMap rootA = createMap();
         for (int i = 0; i < 100; i++) {
             rootA.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
-        final VirtualRootNode copyA = rootA.copy();
+        final VirtualMap copyA = rootA.copy();
         final Hash hashA = rootA.getHash();
         assertNotNull(hashA, "hash should not be null");
 
-        final VirtualRootNode rootB = createRoot();
+        final VirtualMap rootB = createMap();
         for (int i = 0; i < 100; i++) {
             rootB.put(TestKey.longToKey(i), new TestValue(Integer.toString(i)), TestValueCodec.INSTANCE);
         }
-        final VirtualRootNode copyB = rootB.copy();
+        final VirtualMap copyB = rootB.copy();
         final Hash hashB =
                 TestMerkleCryptoFactory.getInstance().digestTreeAsync(rootA).get();
 
@@ -148,7 +147,7 @@ class VirtualRootNodeHashingTest {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Delete some tree nodes and hash")
     void hashBugFoundByPTT(long delete1, long delete2) {
-        final VirtualRootNode root0 = createRoot();
+        final VirtualMap root0 = createMap();
         root0.put(TestKey.longToKey(1), new TestValue(1), TestValueCodec.INSTANCE);
         root0.put(TestKey.longToKey(2), new TestValue(2), TestValueCodec.INSTANCE);
         root0.put(TestKey.longToKey(3), new TestValue(3), TestValueCodec.INSTANCE);
@@ -158,7 +157,7 @@ class VirtualRootNodeHashingTest {
         root0.remove(TestKey.longToKey(delete1), null);
         root0.remove(TestKey.longToKey(delete2), null);
 
-        final VirtualRootNode root1 = root0.copy();
+        final VirtualMap root1 = root0.copy();
         final Hash hash0 = root0.getHash();
         assertNotNull(hash0, "hash should not be null");
 

@@ -16,7 +16,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -84,8 +83,7 @@ public class CloseFlushTest {
                 map = copy;
             }
             copy = map.copy();
-            final VirtualRootNode root = map.getLeft();
-            root.enableFlush();
+            map.enableFlush();
             final VirtualMap lastMap = map;
             final Future<?> job = exec.submit(() -> {
                 try {

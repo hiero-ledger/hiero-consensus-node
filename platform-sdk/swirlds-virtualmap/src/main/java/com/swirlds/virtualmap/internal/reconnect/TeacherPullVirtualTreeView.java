@@ -15,9 +15,9 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.Queue;
@@ -59,8 +59,8 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      *
      * @param threadManager
      * 		responsible for creating and managing threads
-     * @param root
-     * 		The root node on the teacher side of the saved state that we are going to reconnect.
+     * @param map
+     * 		The map node on the teacher side of the saved state that we are going to reconnect.
      * @param state
      * 		The state of the virtual tree that we are synchronizing.
      * @param pipeline
@@ -69,15 +69,15 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
     public TeacherPullVirtualTreeView(
             final ThreadManager threadManager,
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode root,
+            final VirtualMap map,
             final VirtualMapState state,
             final VirtualPipeline pipeline) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(root, state, state);
+        super(map, state, state);
         this.reconnectConfig = reconnectConfig;
         new ThreadConfiguration(threadManager)
                 .setRunnable(() -> {
-                    records = pipeline.pausePipelineAndRun("copy", root::detach);
+                    records = pipeline.pausePipelineAndRun("copy", map::detach);
                     ready.countDown();
                 })
                 .setComponent("virtualmap")

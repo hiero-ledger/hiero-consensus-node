@@ -10,7 +10,6 @@ import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.internal.pipeline.VirtualRoot;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -188,10 +187,9 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         final VirtualMap oldCopy = curMap;
         curMap = curMap.copy();
         oldCopy.release();
-        final VirtualRootNode root = oldCopy.getLeft();
-        root.enableFlush();
+        oldCopy.enableFlush();
         try {
-            root.waitUntilFlushed();
+            oldCopy.waitUntilFlushed();
         } catch (InterruptedException ex) {
             logger.warn("Interrupted", ex);
             Thread.currentThread().interrupt();

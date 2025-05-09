@@ -38,15 +38,15 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
      * The {@link VirtualMap} associated with this node. Nodes cannot be moved from one map
      * to another.
      */
-    private final VirtualRootNode root;
+    private final VirtualMap map;
 
     /**
      * The {@link VirtualHashRecord} is the backing data for this node.
      */
     private final VirtualHashRecord virtualHashRecord;
 
-    public VirtualInternalNode(final VirtualRootNode root, final VirtualHashRecord virtualHashRecord) {
-        this.root = Objects.requireNonNull(root);
+    public VirtualInternalNode(final VirtualMap map, final VirtualHashRecord virtualHashRecord) {
+        this.map = Objects.requireNonNull(map);
         this.virtualHashRecord = Objects.requireNonNull(virtualHashRecord);
         setHash(virtualHashRecord.hash());
     }
@@ -79,9 +79,8 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
         }
 
         final long targetPath = node.getPath();
-        // 0 (left) is the root of the VirtualTree
         final List<Integer> routePath = Path.getRouteStepsFromRoot(targetPath);
-        final MerkleRoute nodeRoute = this.root.getRoute().extendRoute(routePath);
+        final MerkleRoute nodeRoute = this.map.getRoute().extendRoute(routePath);
         node.setRoute(nodeRoute);
         return (T) node;
     }
@@ -130,7 +129,7 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
     }
 
     private VirtualNode getChild(final long childPath) {
-        if (childPath < root.getState().getFirstLeafPath()) {
+        if (childPath < map.getState().getFirstLeafPath()) {
             return getInternalNode(childPath);
         } else {
             return getLeafNode(childPath);
@@ -148,18 +147,18 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
     private VirtualInternalNode getInternalNode(final long path) {
         assert path != INVALID_PATH : "Cannot happen. Path will be a child of virtual record path every time.";
 
-        assert path < root.getState().getFirstLeafPath();
-        Hash hash = root.getCache().lookupHashByPath(path);
+        assert path < map.getState().getFirstLeafPath();
+        Hash hash = map.getCache().lookupHashByPath(path);
         if (hash == null) {
             try {
-                hash = root.getDataSource().loadHash(path);
+                hash = map.getDataSource().loadHash(path);
             } catch (final IOException ex) {
                 throw new UncheckedIOException("Failed to read a internal record from the data source", ex);
             }
         }
 
         final VirtualHashRecord rec = new VirtualHashRecord(path, hash != VirtualNodeCache.DELETED_HASH ? hash : null);
-        return new VirtualInternalNode(root, rec);
+        return new VirtualInternalNode(map, rec);
     }
 
     /**
@@ -176,17 +175,17 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
         assert path != ROOT_PATH;
 
         // If the path is not a valid leaf path then return null
-        if (path < root.getState().getFirstLeafPath() || path > root.getState().getLastLeafPath()) {
+        if (path < map.getState().getFirstLeafPath() || path > map.getState().getLastLeafPath()) {
             return null;
         }
 
         // Check the cache first
-        VirtualLeafBytes rec = root.getCache().lookupLeafByPath(path);
+        VirtualLeafBytes rec = map.getCache().lookupLeafByPath(path);
 
         // On cache miss, check the data source. It *has* to be there.
         if (rec == null) {
             try {
-                rec = root.getDataSource().loadLeafRecord(path);
+                rec = map.getDataSource().loadLeafRecord(path);
                 // This should absolutely be impossible. We already checked to make sure the path falls
                 // within the firstLeafPath and lastLeafPath, and we already failed to find the leaf
                 // in the cache. It **MUST** be on disk, or we have a broken system.
@@ -198,10 +197,10 @@ public final class VirtualInternalNode extends PartialBinaryMerkleInternal imple
             }
         }
 
-        Hash hash = root.getCache().lookupHashByPath(path);
+        Hash hash = map.getCache().lookupHashByPath(path);
         if (hash == null) {
             try {
-                hash = root.getDataSource().loadHash(path);
+                hash = map.getDataSource().loadHash(path);
             } catch (final IOException ex) {
                 throw new UncheckedIOException("Failed to read a hash from the data source", ex);
             }

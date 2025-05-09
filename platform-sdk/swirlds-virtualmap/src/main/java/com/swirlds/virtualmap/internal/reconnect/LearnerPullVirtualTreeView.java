@@ -15,11 +15,11 @@ import com.swirlds.common.merkle.synchronization.task.ReconnectNodeCount;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -80,8 +80,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
-     * @param root
-     * 		The root node of the <strong>reconnect</strong> tree. Cannot be null.
+     * @param map
+     * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
      * @param originalRecords
      * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
      * 		Cannot be null.
@@ -97,14 +97,14 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     public LearnerPullVirtualTreeView(
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode root,
+            final VirtualMap map,
             final RecordAccessor originalRecords,
             final VirtualMapState originalState,
             final VirtualMapState reconnectState,
             final ReconnectNodeRemover nodeRemover,
             final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
-        super(root, originalState, reconnectState);
+        super(map, originalState, reconnectState);
         this.reconnectConfig = reconnectConfig;
         this.originalRecords = Objects.requireNonNull(originalRecords);
         this.nodeRemover = nodeRemover;
@@ -180,7 +180,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             if (firstNodeResponse) {
                 reconnectState.setFirstLeafPath(firstLeafPath);
                 reconnectState.setLastLeafPath(lastLeafPath);
-                root.prepareReconnectHashing(firstLeafPath, lastLeafPath);
+                map.prepareReconnectHashing(firstLeafPath, lastLeafPath);
                 nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
                 traversalOrder.start(firstLeafPath, lastLeafPath, nodeCount);
                 firstNodeResponse = false;
@@ -200,7 +200,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             }
             mapStats.incrementLeafData(1, 0);
             nodeRemover.newLeafNode(path, leaf.keyBytes());
-            root.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
+            map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
         }
     }
 
@@ -307,7 +307,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void close() {
         nodeRemover.allNodesReceived();
-        root.endLearnerReconnect();
+        map.endLearnerReconnect();
     }
 
     /**

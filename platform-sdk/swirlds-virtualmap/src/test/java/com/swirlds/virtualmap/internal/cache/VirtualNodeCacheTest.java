@@ -1936,7 +1936,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // G: [U (GRAVITY), v3] -> [U (GOOSE), v2] -> [C (GRAPE), v1]
 
         final VirtualMap map0 = createMap();
-        final VirtualNodeCache cache0 = getRoot(map0).getCache();
+        final VirtualNodeCache cache0 = map0.getCache();
         // A: [C (APPLE), v0]
         // B: [C (BANANA), v0]
         // C: [C+U (CHERRY, CUTTLEFISH), v0]
@@ -1954,7 +1954,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         map0.put(F_KEY, FIG, TestValueCodec.INSTANCE);
 
         final VirtualMap map1 = map0.copy();
-        final VirtualNodeCache cache1 = getRoot(map1).getCache();
+        final VirtualNodeCache cache1 = map1.getCache();
 
         // A: [U+D (AARDVARK), v1]
         // B: [D, v1]
@@ -1972,7 +1972,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         map1.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         final VirtualMap map2 = map1.copy();
-        final VirtualNodeCache cache2 = getRoot(map2).getCache();
+        final VirtualNodeCache cache2 = map2.getCache();
 
         // A: [D, v2]
         // B: [C+U (BEAR, BLASTOFF), v2]
@@ -1992,7 +1992,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         map2.put(G_KEY, GOOSE, TestValueCodec.INSTANCE);
 
         final VirtualMap map3 = map2.copy();
-        final VirtualNodeCache cache3 = getRoot(map3).getCache();
+        final VirtualNodeCache cache3 = map3.getCache();
 
         // B: [D, v3]
         // C: [C+U+D (CHEMISTRY, CHAD), v3]

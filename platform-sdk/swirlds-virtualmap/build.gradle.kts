@@ -54,6 +54,7 @@ timingSensitiveModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
+    requires("com.swirlds.merkledb.test.fixtures")
 }
 
 hammerModuleInfo {
