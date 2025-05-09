@@ -102,15 +102,15 @@ module com.swirlds.common {
     requires transitive org.hiero.consensus.model;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
-    requires transitive io.prometheus.simpleclient;
     requires transitive org.apache.logging.log4j;
+    requires transitive simpleclient;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
-    requires io.prometheus.simpleclient.httpserver;
     requires java.desktop;
     requires jdk.httpserver;
     requires jdk.management;
     requires org.apache.logging.log4j.core;
     requires org.bouncycastle.provider;
+    requires simpleclient.httpserver;
     requires static transitive com.github.spotbugs.annotations;
 }
