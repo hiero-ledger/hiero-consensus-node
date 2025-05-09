@@ -57,7 +57,6 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -434,7 +433,6 @@ public class ThrottleAccumulator {
                 yield shouldThrottleCryptoTransfer(
                         manager,
                         now,
-                        configuration,
                         getImplicitCreationsCount(txnInfo.txBody(), accountStore),
                         getAutoAssociationsCount(txnInfo.txBody(), relationStore));
             }
@@ -543,15 +541,16 @@ public class ThrottleAccumulator {
             @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
         final long nominalGas =
                 switch (function) {
-                    case CONTRACT_CREATE -> txnBody.contractCreateInstanceOrThrow()
-                            .gas();
+                    case CONTRACT_CREATE ->
+                        txnBody.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
-                    case ETHEREUM_TRANSACTION -> Optional.of(txnBody.ethereumTransactionOrThrow()
-                                    .ethereumData()
-                                    .toByteArray())
-                            .map(EthTxData::populateEthTxData)
-                            .map(EthTxData::gasLimit)
-                            .orElse(0L);
+                    case ETHEREUM_TRANSACTION ->
+                        Optional.of(txnBody.ethereumTransactionOrThrow()
+                                        .ethereumData()
+                                        .toByteArray())
+                                .map(EthTxData::populateEthTxData)
+                                .map(EthTxData::gasLimit)
+                                .orElse(0L);
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
@@ -587,14 +586,11 @@ public class ThrottleAccumulator {
     private boolean shouldThrottleCryptoTransfer(
             @NonNull final ThrottleReqsManager manager,
             @NonNull final Instant now,
-            @NonNull final Configuration configuration,
             final int implicitCreationsCount,
             final int autoAssociationsCount) {
-        final boolean unlimitedAutoAssociations =
-                configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         if (implicitCreationsCount > 0) {
             return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
-        } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
+        } else if (autoAssociationsCount > 0) {
             return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now);
         } else {
             return !manager.allReqsMetAt(now);

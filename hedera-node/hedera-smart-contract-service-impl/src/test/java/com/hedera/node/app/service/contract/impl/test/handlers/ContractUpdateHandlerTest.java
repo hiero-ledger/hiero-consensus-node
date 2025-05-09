@@ -349,7 +349,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         when(configuration.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
         when(ledgerConfig.maxAutoAssociations()).thenReturn(maxAutomaticTokenAssociations - 1);
-        when(entitiesConfig.unlimitedAutoAssociationsEnabled()).thenReturn(true);
         when(context.configuration()).thenReturn(configuration);
 
         when(accountStore.getContractById(targetContract)).thenReturn(contract);
@@ -372,36 +371,9 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void maxAutomaticTokenAssociationsNegativeWithDisabledFlag() {
-        when(configuration.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
-        when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
-        when(entitiesConfig.unlimitedAutoAssociationsEnabled()).thenReturn(false);
-        when(context.configuration()).thenReturn(configuration);
-
-        when(accountStore.getContractById(targetContract)).thenReturn(contract);
-        when(contract.key()).thenReturn(Key.newBuilder().build());
-
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        final var txn = TransactionBody.newBuilder()
-                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
-                        .contractID(targetContract)
-                        .adminKey(adminKey)
-                        .memo("memo")
-                        .maxAutomaticTokenAssociations(-1))
-                .transactionID(transactionID)
-                .build();
-
-        when(context.body()).thenReturn(txn);
-
-        assertFailsWith(INVALID_MAX_AUTO_ASSOCIATIONS, () -> subject.handle(context));
-    }
-
-    @Test
     void maxAutomaticTokenAssociationsNegativeWithEnabledFlag() {
         when(configuration.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
-        when(entitiesConfig.unlimitedAutoAssociationsEnabled()).thenReturn(true);
         when(context.configuration()).thenReturn(configuration);
 
         when(accountStore.getContractById(targetContract)).thenReturn(contract);
@@ -430,7 +402,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         when(configuration.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
         when(ledgerConfig.maxAutoAssociations()).thenReturn(maxAutomaticTokenAssociations + 1);
-        when(entitiesConfig.unlimitedAutoAssociationsEnabled()).thenReturn(true);
         when(context.configuration()).thenReturn(configuration);
 
         when(accountStore.getContractById(targetContract)).thenReturn(contract);
@@ -451,37 +422,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         when(context.body()).thenReturn(txn);
 
         assertFailsWith(EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT, () -> subject.handle(context));
-    }
-
-    @Test
-    void maxAutomaticTokenAssociationsBiggerThenMaxConfigFails() {
-        final var maxAutomaticTokenAssociations = 10;
-
-        when(configuration.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
-        when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(entitiesConfig);
-        when(configuration.getConfigData(TokensConfig.class)).thenReturn(tokensConfig);
-        when(ledgerConfig.maxAutoAssociations()).thenReturn(maxAutomaticTokenAssociations + 1);
-        when(entitiesConfig.limitTokenAssociations()).thenReturn(true);
-        when(tokensConfig.maxPerAccount()).thenReturn(maxAutomaticTokenAssociations - 1);
-        when(context.configuration()).thenReturn(configuration);
-
-        when(contract.maxAutoAssociations()).thenReturn(maxAutomaticTokenAssociations - 1);
-        when(contract.key()).thenReturn(Key.newBuilder().build());
-        when(accountStore.getContractById(targetContract)).thenReturn(contract);
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        final var txn = TransactionBody.newBuilder()
-                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
-                        .contractID(targetContract)
-                        .adminKey(adminKey)
-                        .memo("memo")
-                        .maxAutomaticTokenAssociations(maxAutomaticTokenAssociations))
-                .transactionID(transactionID)
-                .build();
-
-        when(context.body()).thenReturn(txn);
-
-        assertFailsWith(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT, () -> subject.handle(context));
     }
 
     @Test

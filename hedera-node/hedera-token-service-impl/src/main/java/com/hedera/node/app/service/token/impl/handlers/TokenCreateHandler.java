@@ -195,7 +195,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         final var treasury = accountStore.get(newToken.treasuryAccountId());
         // Validate if token relation can be created between treasury and new token
         // If this succeeds, create and link token relation.
-        tokenCreateValidator.validateAssociation(entitiesConfig, tokensConfig, treasury, newToken, tokenRelStore);
+        tokenCreateValidator.validateAssociation(treasury, newToken, tokenRelStore);
         createAndLinkTokenRels(treasury, List.of(newToken), accountStore, tokenRelStore);
         recordBuilder.addAutomaticTokenAssociation(asTokenAssociation(newToken.tokenId(), treasury.accountId()));
 
@@ -214,7 +214,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
 
             // Validate if token relation can be created between collector and new token
             // If this succeeds, create and link token relation.
-            tokenCreateValidator.validateAssociation(entitiesConfig, tokensConfig, collector, newToken, tokenRelStore);
+            tokenCreateValidator.validateAssociation(collector, newToken, tokenRelStore);
             createAndLinkTokenRels(collector, List.of(newToken), accountStore, tokenRelStore);
             recordBuilder.addAutomaticTokenAssociation(asTokenAssociation(newToken.tokenId(), collector.accountId()));
         }
@@ -444,12 +444,10 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      */
     public static SubType tokenSubTypeFrom(final TokenType tokenType, boolean hasCustomFees) {
         return switch (tokenType) {
-            case FUNGIBLE_COMMON -> hasCustomFees
-                    ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES
-                    : SubType.TOKEN_FUNGIBLE_COMMON;
-            case NON_FUNGIBLE_UNIQUE -> hasCustomFees
-                    ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES
-                    : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
+            case FUNGIBLE_COMMON ->
+                hasCustomFees ? SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES : SubType.TOKEN_FUNGIBLE_COMMON;
+            case NON_FUNGIBLE_UNIQUE ->
+                hasCustomFees ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
         };
     }
 }

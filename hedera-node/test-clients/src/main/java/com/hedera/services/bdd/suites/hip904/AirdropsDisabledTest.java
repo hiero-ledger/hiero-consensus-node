@@ -98,8 +98,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
 /**
- * Tests expected behavior when the {@code entities.unlimitedAutoAssociationsEnabled} feature flag is off for
- * <a href="https://hips.hedera.com/hip/hip-904">HIP-904, "Frictionless Airdrops"</a>.
+ * Tests expected behavior when the {@code tokens.airdrops.enabled} and {@code tokens.airdrops.claim.enabled}
+ * feature flags are off for <a href="https://hips.hedera.com/hip/hip-904">HIP-904, "Frictionless Airdrops"</a>.
  */
 @HapiTestLifecycle
 public class AirdropsDisabledTest {
@@ -113,7 +113,6 @@ public class AirdropsDisabledTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
                 "tokens.airdrops.enabled", "false",
-                "entities.unlimitedAutoAssociationsEnabled", "false",
                 "tokens.airdrops.claim.enabled", "false"));
         testLifecycle.doAdhoc(
                 cryptoCreate(owner).balance(ONE_HUNDRED_HBARS),
