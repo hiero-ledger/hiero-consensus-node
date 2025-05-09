@@ -131,5 +131,10 @@ jobs:
         run: |
           docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/tck-client
 
+      - name: Stop tck-server
+        run: |
+          docker compose -f ./docker-compose.yml down
+        working-directory: platform-sdk/regression
+
       - name: Stop the local node
         run: npx @hashgraph/hedera-local stop
