@@ -3,6 +3,7 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Bytes;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -30,7 +31,7 @@ class DataFileWriterTest {
     }
 
     @Test
-    public void writeAfterFinishWritingIsNotAllowed() throws IOException {
+    public void writeAfterCloseIsNotAllowed() throws IOException {
         BufferedData data = BufferedData.wrap("test".getBytes());
 
         dataFileWriter.storeDataItem(data);
@@ -38,19 +39,16 @@ class DataFileWriterTest {
 
         data.flip();
         assertThrows(
-                IllegalStateException.class,
-                () -> dataFileWriter.storeDataItem(data),
-                "Cannot write after writing is finished");
+                IOException.class, () -> dataFileWriter.storeDataItem(data), "Cannot write after writing is finished");
     }
 
     @Test
-    public void finishedWritingCalledTwice() throws IOException {
+    public void closeWriterIsIdempotent() throws IOException {
         BufferedData data = BufferedData.wrap("test".getBytes());
 
         dataFileWriter.storeDataItem(data);
         dataFileWriter.close();
-
-        assertThrows(IllegalStateException.class, () -> dataFileWriter.close(), "Finish writing can be called once");
+        assertDoesNotThrow(() -> dataFileWriter.close(), "Closing writer should be idempotent");
     }
 
     @ParameterizedTest

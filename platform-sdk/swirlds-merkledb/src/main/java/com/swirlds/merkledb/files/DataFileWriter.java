@@ -186,7 +186,7 @@ public final class DataFileWriter implements AutoCloseable {
     public synchronized long storeDataItem(final Consumer<BufferedData> dataItemWriter, final int dataItemSize)
             throws IOException {
         if (closed) {
-            throw new IllegalStateException("Data file is already closed");
+            throw new IOException("Data file is already closed");
         }
 
         final long fileOffset = getCurrentFilePosition();
@@ -222,7 +222,7 @@ public final class DataFileWriter implements AutoCloseable {
     @Override
     public synchronized void close() throws IOException {
         if (closed) {
-            throw new IllegalStateException("Data file is already closed");
+            return;
         }
 
         // total file size is where the current writing pos is
