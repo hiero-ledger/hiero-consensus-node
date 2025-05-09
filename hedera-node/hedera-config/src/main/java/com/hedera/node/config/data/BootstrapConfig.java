@@ -9,7 +9,7 @@ import com.swirlds.config.api.ConfigProperty;
 
 @ConfigData("bootstrap")
 public record BootstrapConfig(
-        @ConfigProperty(value = "feeSchedulesJson.resource", defaultValue = "/genesis/feeSchedules.json")
+        @ConfigProperty(value = "feeSchedulesJson.resource", defaultValue = "genesis/feeSchedules.json")
                 @NetworkProperty
                 String feeSchedulesJsonResource,
         @ConfigProperty(
