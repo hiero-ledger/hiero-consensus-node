@@ -20,10 +20,13 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 
 public class BesuNativeLibVerificationTest implements LifecycleTest {
 
     @HapiTest
+    @Order(Integer.MAX_VALUE)
+    // Order to be last as it will restart the network and halt if the lib is not present
     public Stream<DynamicTest> besuNativeLibVerificationHaltsIfLibNotPresent() {
 
         final var envOverrides = Map.of("contracts.evm.nativeLibVerification.halt.enabled", "true");
