@@ -1598,8 +1598,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     @Override
     public MerkleNode migrate(int version) {
         if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
-            // removing VirtualRootNode
+            // removing VirtualMapState
             super.setChild(0, null);
+            // removing VirtualRootNode
+            super.setChild(1, null);
         }
 
         return this;
