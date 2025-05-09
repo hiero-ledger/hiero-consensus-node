@@ -4,8 +4,10 @@ package com.hedera.node.app.blocks.impl.streaming;
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Track the current block state
@@ -14,18 +16,18 @@ public class BlockState {
     private final long blockNumber;
     private final List<BlockItem> items;
     private final List<PublishStreamRequest> requests;
-    private boolean isComplete;
+    private final AtomicBoolean isComplete = new AtomicBoolean(false);
+    private Instant completionTimestamp = null;
 
     /**
      * Create a new block state for a block number
      *
      * @param blockNumber the block number
      */
-    public BlockState(long blockNumber, @NonNull List<BlockItem> items) {
+    public BlockState(final long blockNumber, @NonNull final List<BlockItem> items) {
         this.blockNumber = blockNumber;
         this.items = items;
         this.requests = new ArrayList<>();
-        this.isComplete = false;
     }
 
     /**
@@ -61,13 +63,33 @@ public class BlockState {
      * @return true if the block is complete, false otherwise
      */
     public boolean isComplete() {
-        return isComplete;
+        return isComplete.get();
     }
 
     /**
      * Set the block as complete
      */
     public void setComplete() {
-        this.isComplete = true;
+        this.completionTimestamp = Instant.now();
+        this.isComplete.set(true);
+    }
+
+    /**
+     * Get the completion time of the block
+     *
+     * @return the completion time, or null if the block is not complete
+     */
+    public Instant completionTimestamp() {
+        return completionTimestamp;
+    }
+
+    @Override
+    public String toString() {
+        return "BlockState{" + "blockNumber="
+                + blockNumber + ", items="
+                + items + ", requests="
+                + requests + ", isComplete="
+                + isComplete + ", completionTimestamp="
+                + completionTimestamp + '}';
     }
 }

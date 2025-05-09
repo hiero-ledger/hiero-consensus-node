@@ -11,9 +11,12 @@ import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.NoOpBlockNodeConfigExtractor;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import dagger.Module;
@@ -31,7 +34,9 @@ public interface BlockStreamModule {
     static BlockNodeConfigExtractor provideBlockNodeConfigExtractor(@NonNull final ConfigProvider configProvider) {
         final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
         if (blockStreamConfig.streamToBlockNodes()) {
-            return new BlockNodeConfigExtractorImpl(blockStreamConfig.blockNodeConnectionFileDir());
+            final var blockNodeConnectionConfig =
+                    configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+            return new BlockNodeConfigExtractorImpl(blockNodeConnectionConfig.blockNodeConnectionFileDir());
         } else {
             return new NoOpBlockNodeConfigExtractor();
         }
@@ -39,19 +44,28 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    static BlockStreamStateManager provideBlockStreamStateManager(@NonNull final ConfigProvider configProvider) {
-        return new BlockStreamStateManager(configProvider);
+    static BlockStreamStateManager provideBlockStreamStateManager(
+            @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
+        return new BlockStreamStateManager(configProvider, blockStreamMetrics);
     }
 
     @Provides
     @Singleton
     static BlockNodeConnectionManager provideBlockNodeConnectionManager(
             @NonNull final BlockNodeConfigExtractor blockNodeConfigExtractor,
-            @NonNull final BlockStreamStateManager blockStreamStateManager) {
+            @NonNull final BlockStreamStateManager blockStreamStateManager,
+            @NonNull final BlockStreamMetrics blockStreamMetrics) {
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(blockNodeConfigExtractor, blockStreamStateManager);
+                new BlockNodeConnectionManager(blockNodeConfigExtractor, blockStreamStateManager, blockStreamMetrics);
         blockStreamStateManager.setBlockNodeConnectionManager(manager);
         return manager;
+    }
+
+    @Provides
+    @Singleton
+    static BlockStreamMetrics provideBlockStreamMetrics(
+            @NonNull final NodeInfo selfNodeInfo, @NonNull final Metrics metrics) {
+        return new BlockStreamMetrics(metrics, selfNodeInfo);
     }
 
     @Provides
@@ -72,8 +86,8 @@ public interface BlockStreamModule {
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
             case GRPC -> () -> new GrpcBlockItemWriter(blockStreamStateManager);
-            case FILE_AND_GRPC -> () ->
-                    new FileAndGrpcBlockItemWriter(configProvider, selfNodeInfo, fileSystem, blockStreamStateManager);
+            case FILE_AND_GRPC ->
+                () -> new FileAndGrpcBlockItemWriter(configProvider, selfNodeInfo, fileSystem, blockStreamStateManager);
         };
     }
 

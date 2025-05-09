@@ -2,11 +2,11 @@
 package com.hedera.services.bdd.junit.hedera.simulator;
 
 import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,17 +18,17 @@ import org.apache.logging.log4j.Logger;
 public class BlockNodeSimulatorController {
     private static final Logger log = LogManager.getLogger(BlockNodeSimulatorController.class);
 
-    private final List<SimulatedBlockNodeServer> simulatedBlockNodes;
+    private static Map<Long, SimulatedBlockNodeServer> simulatedBlockNodes = new HashMap<>();
     // Store the ports of shutdown simulators for restart
-    private final Map<Integer, Integer> shutdownSimulatorPorts = new HashMap<>();
+    private static final Map<Long, Integer> shutdownSimulatorPorts = new HashMap<>();
 
     /**
      * Create a controller for the given network's simulated block nodes.
      *
      * @param network the SubProcessNetwork containing simulated block nodes
      */
-    public BlockNodeSimulatorController(SubProcessNetwork network) {
-        this.simulatedBlockNodes = network.getSimulatedBlockNodes();
+    public BlockNodeSimulatorController(BlockNodeNetwork network) {
+        simulatedBlockNodes = network.getSimulatedBlockNodeById();
         if (simulatedBlockNodes.isEmpty()) {
             log.warn("No simulated block nodes found in the network. Make sure BlockNodeMode.SIMULATOR is set.");
         } else {
@@ -43,7 +43,7 @@ public class BlockNodeSimulatorController {
      * @param blockNumber the block number to include in the response
      */
     public void setEndOfStreamResponse(PublishStreamResponseCode responseCode, long blockNumber) {
-        for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
+        for (SimulatedBlockNodeServer server : simulatedBlockNodes.values()) {
             server.setEndOfStreamResponse(responseCode, blockNumber);
         }
         log.info("Set EndOfStream response code {} for block {} on all simulators", responseCode, blockNumber);
@@ -56,7 +56,7 @@ public class BlockNodeSimulatorController {
      * @param responseCode the response code to send
      * @param blockNumber the block number to include in the response
      */
-    public void setEndOfStreamResponse(int index, PublishStreamResponseCode responseCode, long blockNumber) {
+    public void setEndOfStreamResponse(long index, PublishStreamResponseCode responseCode, long blockNumber) {
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             simulatedBlockNodes.get(index).setEndOfStreamResponse(responseCode, blockNumber);
             log.info("Set EndOfStream response code {} for block {} on simulator {}", responseCode, blockNumber, index);
@@ -99,7 +99,7 @@ public class BlockNodeSimulatorController {
      * @param blockNumber the block number to include in the response
      * @return the last verified block number from the simulator, or 0 if the index is invalid
      */
-    public long sendEndOfStreamImmediately(int index, PublishStreamResponseCode responseCode, long blockNumber) {
+    public long sendEndOfStreamImmediately(long index, PublishStreamResponseCode responseCode, long blockNumber) {
         long lastVerifiedBlockNumber = 0L;
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
@@ -123,7 +123,7 @@ public class BlockNodeSimulatorController {
      * @param blockNumber the block number to skip
      */
     public void sendSkipBlockImmediately(long blockNumber) {
-        for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
+        for (SimulatedBlockNodeServer server : simulatedBlockNodes.values()) {
             server.sendSkipBlockImmediately(blockNumber);
         }
         log.info("Sent immediate SkipBlock response for block {} on all simulators", blockNumber);
@@ -136,7 +136,7 @@ public class BlockNodeSimulatorController {
      * @param index the index of the simulated block node (0-based)
      * @param blockNumber the block number to skip
      */
-    public void sendSkipBlockImmediately(int index, long blockNumber) {
+    public void sendSkipBlockImmediately(long index, long blockNumber) {
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
             server.sendSkipBlockImmediately(blockNumber);
@@ -153,7 +153,7 @@ public class BlockNodeSimulatorController {
      * @param blockNumber the block number to resend
      */
     public void sendResendBlockImmediately(long blockNumber) {
-        for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
+        for (SimulatedBlockNodeServer server : simulatedBlockNodes.values()) {
             server.sendResendBlockImmediately(blockNumber);
         }
         log.info("Sent immediate ResendBlock response for block {} on all simulators", blockNumber);
@@ -166,7 +166,7 @@ public class BlockNodeSimulatorController {
      * @param index the index of the simulated block node (0-based)
      * @param blockNumber the block number to resend
      */
-    public void sendResendBlockImmediately(int index, long blockNumber) {
+    public void sendResendBlockImmediately(long index, long blockNumber) {
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
             server.sendResendBlockImmediately(blockNumber);
@@ -180,7 +180,7 @@ public class BlockNodeSimulatorController {
      * Reset all configured responses on all simulated block nodes to default behavior.
      */
     public void resetAllResponses() {
-        for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
+        for (SimulatedBlockNodeServer server : simulatedBlockNodes.values()) {
             server.resetResponses();
         }
         log.info("Reset all responses on all simulators to default behavior");
@@ -215,10 +215,10 @@ public class BlockNodeSimulatorController {
      */
     public void shutdownAllSimulators() {
         shutdownSimulatorPorts.clear();
-        for (int i = 0; i < simulatedBlockNodes.size(); i++) {
-            SimulatedBlockNodeServer server = simulatedBlockNodes.get(i);
+        for (long nodeId : simulatedBlockNodes.keySet()) {
+            SimulatedBlockNodeServer server = simulatedBlockNodes.get(nodeId);
             int port = server.getPort();
-            shutdownSimulatorPorts.put(i, port);
+            shutdownSimulatorPorts.put(nodeId, port);
             server.stop();
         }
         log.info("Shutdown all {} simulators to simulate connection drops", simulatedBlockNodes.size());
@@ -226,11 +226,11 @@ public class BlockNodeSimulatorController {
 
     /**
      * Shutdown a specific simulated block node to simulate a connection drop.
-     * The server can be restarted using {@link #startSimulator(int)}.
+     * The server can be restarted using {@link #startSimulator(long)}.
      *
      * @param index the index of the simulated block node (0-based)
      */
-    public void shutdownSimulator(int index) {
+    public void shutdownSimulator(long index) {
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
             int port = server.getPort();
@@ -249,8 +249,8 @@ public class BlockNodeSimulatorController {
      * @throws IOException if a server fails to start
      */
     public void startAllSimulators() throws IOException {
-        for (Map.Entry<Integer, Integer> entry : shutdownSimulatorPorts.entrySet()) {
-            int index = entry.getKey();
+        for (Entry<Long, Integer> entry : shutdownSimulatorPorts.entrySet()) {
+            long index = entry.getKey();
             startSimulator(index);
             shutdownSimulatorPorts.remove(index);
         }
@@ -265,7 +265,7 @@ public class BlockNodeSimulatorController {
      * @param index the index of the simulated block node (0-based)
      * @throws IOException if the server fails to start
      */
-    public void startSimulator(int index) throws IOException {
+    public void startSimulator(long index) throws IOException {
         if (!shutdownSimulatorPorts.containsKey(index)) {
             log.error("Simulator {} was not previously shutdown or has already been restarted", index);
             return;
@@ -279,7 +279,7 @@ public class BlockNodeSimulatorController {
             newServer.start();
 
             // Replace the old server in the list
-            simulatedBlockNodes.set(index, newServer);
+            simulatedBlockNodes.put(index, newServer);
 
             // Remove from the shutdown map
             shutdownSimulatorPorts.remove(index);
@@ -296,7 +296,7 @@ public class BlockNodeSimulatorController {
      * @param index the index of the simulated block node (0-based)
      * @return the last verified block number, or 0 if the index is invalid
      */
-    public long getLastVerifiedBlockNumber(int index) {
+    public long getLastVerifiedBlockNumber(long index) {
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             return simulatedBlockNodes.get(index).getLastVerifiedBlockNumber();
         } else {
@@ -313,7 +313,7 @@ public class BlockNodeSimulatorController {
      * @return true if the block has been received, false otherwise
      * @throws IllegalArgumentException if the simulator index is invalid
      */
-    public boolean hasReceivedBlock(int index, long blockNumber) {
+    public boolean hasReceivedBlock(long index, long blockNumber) {
         if (index < 0 || index >= simulatedBlockNodes.size()) {
             throw new IllegalArgumentException(
                     "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
@@ -330,7 +330,7 @@ public class BlockNodeSimulatorController {
      * @return true if the block has been received by any simulator, false otherwise
      */
     public boolean hasAnyReceivedBlock(long blockNumber) {
-        for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
+        for (SimulatedBlockNodeServer server : simulatedBlockNodes.values()) {
             if (server.hasReceivedBlock(blockNumber)) {
                 return true;
             }
@@ -345,7 +345,7 @@ public class BlockNodeSimulatorController {
      * @return a set of all received block numbers
      * @throws IllegalArgumentException if the simulator index is invalid
      */
-    public Set<Long> getReceivedBlockNumbers(int index) {
+    public Set<Long> getReceivedBlockNumbers(long index) {
         if (index < 0 || index >= simulatedBlockNodes.size()) {
             throw new IllegalArgumentException(
                     "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
@@ -361,7 +361,7 @@ public class BlockNodeSimulatorController {
      * @param index the index of the simulated block node (0-based)
      * @return true if the simulator has been shut down, false otherwise
      */
-    public boolean isSimulatorShutdown(int index) {
+    public boolean isSimulatorShutdown(long index) {
         return shutdownSimulatorPorts.containsKey(index);
     }
 
