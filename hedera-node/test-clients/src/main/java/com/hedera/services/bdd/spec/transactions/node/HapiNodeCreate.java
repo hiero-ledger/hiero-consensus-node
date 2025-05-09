@@ -52,7 +52,10 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
             Arrays.asList(endpointFor("192.168.1.200", 123), endpointFor("192.168.1.201", 123));
     private List<ServiceEndpoint> grpcEndpoints = List.of(
             ServiceEndpoint.newBuilder().setDomainName("test.com").setPort(123).build());
-    private ServiceEndpoint grpcWebProxyEndpoint = endpointFor("grpc.web.proxy.com", 123);
+    // (FUTURE) Since the introduction of a flag to explicitly enable the web proxy endpoint functionality, a non-empty
+    // default here causes some tests to fail with GRPC_WEB_PROXY_NOT_SUPPORTED. Once we can enable
+    // nodes.webProxyEndpointsEnabled permanently, we can restore the non-null default.
+    private Optional<ServiceEndpoint> grpcWebProxyEndpoint = Optional.empty();
     private Optional<byte[]> gossipCaCertificate = Optional.empty();
     private Optional<byte[]> grpcCertificateHash = Optional.empty();
     private Optional<String> adminKeyName = Optional.empty();
@@ -120,8 +123,12 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     }
 
     public HapiNodeCreate grpcWebProxyEndpoint(final ServiceEndpoint grpcWebProxyEndpoint) {
-        this.grpcWebProxyEndpoint = grpcWebProxyEndpoint;
+        this.grpcWebProxyEndpoint = Optional.ofNullable(grpcWebProxyEndpoint);
         return this;
+    }
+
+    public HapiNodeCreate withNoWebProxyEndpoint() {
+        return this.grpcWebProxyEndpoint(null);
     }
 
     public HapiNodeCreate gossipCaCertificate(@NonNull final Bytes cert) {
@@ -194,7 +201,7 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
                             builder.setAdminKey(adminKey);
                             builder.clearGossipEndpoint().addAllGossipEndpoint(gossipEndpoints);
                             builder.clearServiceEndpoint().addAllServiceEndpoint(grpcEndpoints);
-                            builder.setGrpcProxyEndpoint(grpcWebProxyEndpoint);
+                            grpcWebProxyEndpoint.ifPresent(builder::setGrpcProxyEndpoint);
                             gossipCaCertificate.ifPresent(s -> builder.setGossipCaCertificate(ByteString.copyFrom(s)));
                             grpcCertificateHash.ifPresent(s -> builder.setGrpcCertificateHash(ByteString.copyFrom(s)));
                             declineReward.ifPresent(builder::setDeclineReward);

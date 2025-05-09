@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-module com.hedera.node.test.clients {
+import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
+import org.junit.platform.launcher.LauncherSessionListener;
+
+open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.spec.dsl;
     exports com.hedera.services.bdd.spec.dsl.contracts;
     exports com.hedera.services.bdd.spec.dsl.utils;
@@ -65,6 +68,9 @@ module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.restart;
     exports com.hedera.services.bdd.junit.hedera.remote;
     exports com.hedera.services.bdd.spec.remote;
+
+    provides LauncherSessionListener with
+            SharedNetworkLauncherSessionListener;
 
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;

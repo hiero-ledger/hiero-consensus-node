@@ -2,7 +2,6 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -23,6 +22,7 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,7 +67,7 @@ class SignedStateTests {
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var real = new TestMerkleStateRoot();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(real);
+        TestingAppStateInitializer.DEFAULT.initStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
         if (reserveCallback != null) {
@@ -214,7 +214,7 @@ class SignedStateTests {
         final MerkleNodeState state = spy(new TestMerkleStateRoot());
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
         final SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),

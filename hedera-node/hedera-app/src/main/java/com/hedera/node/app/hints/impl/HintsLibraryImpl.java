@@ -21,7 +21,7 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
 
     @Override
-    public Bytes newCrs(final int n) {
+    public Bytes newCrs(final short n) {
         return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
@@ -106,12 +106,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        return BRIDGE.verifyBls(
-                crs.toByteArray(),
-                signature.toByteArray(),
-                message.toByteArray(),
-                aggregationKey.toByteArray(),
-                partyId);
+        return BRIDGE.verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
     }
 
     @Override

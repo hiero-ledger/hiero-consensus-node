@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.creation.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import com.swirlds.platform.event.DefaultFutureEventBuffer;
-import com.swirlds.platform.event.EventUtils;
-import com.swirlds.platform.event.FutureEventBuffer;
-import com.swirlds.platform.event.hashing.PbjStreamHasher;
-import com.swirlds.platform.event.hashing.UnsignedEventHasher;
+import org.hiero.consensus.crypto.PbjStreamHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -29,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -98,7 +95,7 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * Event hasher for unsigned events.
      */
-    private final UnsignedEventHasher eventHasher;
+    private final PbjStreamHasher eventHasher;
 
     /**
      * Create a new tipset event creator.
@@ -148,7 +145,7 @@ public class TipsetEventCreator implements EventCreator {
 
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
         this.eventHasher = new PbjStreamHasher();
-        this.futureEventBuffer = new DefaultFutureEventBuffer(platformContext);
+        this.futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
     }
 
     /**
@@ -423,7 +420,7 @@ public class TipsetEventCreator implements EventCreator {
         if (lastSelfEvent == null) {
             timeCreated = now;
         } else {
-            timeCreated = EventUtils.calculateNewEventCreationTime(
+            timeCreated = calculateNewEventCreationTime(
                     now, lastSelfEvent.getTimeCreated(), lastSelfEvent.getTransactionCount());
         }
 
@@ -451,6 +448,8 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.clear();
         tipsetWeightCalculator.clear();
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        futureEventBuffer.clear();
+        futureEventBuffer.updateEventWindow(eventWindow);
         lastSelfEvent = null;
     }
 
@@ -474,6 +473,33 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Calculate the creation time for a new event.
+     * <p>
+     * Regardless of whatever the host computer's clock says, the event creation time must always advance from self
+     * parent to child. Further, the time in between the self parent and the child must be large enough so that every
+     * transaction in the parent can be assigned a unique timestamp at nanosecond precision.
+     *
+     * @param now                        the current time
+     * @param selfParentCreationTime     the creation time of the self parent
+     * @param selfParentTransactionCount the number of transactions in the self parent
+     * @return the creation time for the new event
+     */
+    @NonNull
+    static Instant calculateNewEventCreationTime(
+            @NonNull final Instant now,
+            @NonNull final Instant selfParentCreationTime,
+            final int selfParentTransactionCount) {
+
+        final int minimumIncrement = Math.max(1, selfParentTransactionCount);
+        final Instant minimumNextEventTime = selfParentCreationTime.plusNanos(minimumIncrement);
+        if (now.isBefore(minimumNextEventTime)) {
+            return minimumNextEventTime;
+        } else {
+            return now;
+        }
     }
 
     /**

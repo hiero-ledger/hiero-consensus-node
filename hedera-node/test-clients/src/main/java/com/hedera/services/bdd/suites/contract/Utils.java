@@ -295,9 +295,9 @@ public class Utils {
                 .build();
     }
 
-    public static AccountAmount aaWith(final ByteString evmAddress, final long amount) {
+    public static AccountAmount aaWith(HapiSpec spec, final ByteString evmAddress, final long amount) {
         return AccountAmount.newBuilder()
-                .setAccountID(accountId(evmAddress))
+                .setAccountID(accountId(spec, evmAddress))
                 .setAmount(amount)
                 .build();
     }
@@ -325,10 +325,10 @@ public class Utils {
                 .build();
     }
 
-    public static AccountID accountId(final ByteString evmAddress) {
+    public static AccountID accountId(HapiSpec spec, final ByteString evmAddress) {
         return AccountID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setAlias(evmAddress)
                 .build();
     }
@@ -492,7 +492,9 @@ public class Utils {
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
             @NonNull final com.esaulpaugh.headlong.abi.Address address) {
         var addressHex = toChecksumAddress(address.value());
-        addressHex = addressHex.substring(2); // remove 0x
+        if (addressHex.startsWith("0x")) {
+            addressHex = addressHex.substring(2);
+        }
         var shard = addressHex.substring(0, 8);
         var realm = addressHex.substring(8, 24);
         var scheduleNum = addressHex.substring(24, 40);

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.Yahcli;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.SendSuite;
-import com.hedera.services.yahcli.suites.Utils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -70,12 +70,11 @@ public class SendCommand implements Callable<Integer> {
             amount = validatedTinybars(accountsCommand.getYahcli(), amountRepr, denomination);
             denomination = null;
         } else {
-            denomination = Utils.extractAccount(denomination);
             amount = validatedUnits(amountRepr, decimals);
         }
         final var effectiveMemo = memo != null ? memo : "";
         var delegate = new SendSuite(
-                config.asSpecConfig(),
+                config,
                 beneficiary,
                 amount,
                 effectiveMemo,
@@ -83,14 +82,15 @@ public class SendCommand implements Callable<Integer> {
                 accountsCommand.getYahcli().isScheduled());
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        final var firstSpec = delegate.getFinalSpecs().getFirst();
+        if (firstSpec.getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - "
                     + "sent "
                     + amountRepr
                     + " "
                     + originalDenomination
                     + " to account "
-                    + beneficiary
+                    + asEntityString(firstSpec.shard(), firstSpec.realm(), beneficiary)
                     + " with memo: '"
                     + memo
                     + "'");
@@ -118,8 +118,9 @@ public class SendCommand implements Callable<Integer> {
     public static long validatedTinybars(final Yahcli yahcli, final String amountRepr, final String denomination) {
         final var amount = Long.parseLong(amountRepr.replaceAll("_", ""));
         return switch (denomination) {
-            default -> throw new CommandLine.ParameterException(
-                    yahcli.getSpec().commandLine(), "Denomination must be one of { tinybar | hbar | kilobar }");
+            default ->
+                throw new CommandLine.ParameterException(
+                        yahcli.getSpec().commandLine(), "Denomination must be one of { tinybar | hbar | kilobar }");
             case "tinybar" -> amount;
             case "hbar" -> amount * TINYBARS_PER_HBAR;
             case "kilobar" -> amount * TINYBARS_PER_KILOBAR;

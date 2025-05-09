@@ -10,8 +10,7 @@ import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.RoundCalculationUtils;
-import com.swirlds.platform.event.DefaultFutureEventBuffer;
-import com.swirlds.platform.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBuffer;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.internal.EventImpl;
@@ -72,7 +71,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
         linker = new ConsensusLinker(platformContext, selfId);
-        futureEventBuffer = new DefaultFutureEventBuffer(platformContext);
+        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
         eventWindowQueue = new LinkedList<>();
         ancientMode = platformContext
                 .getConfiguration()
@@ -153,6 +152,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         linker.clear();
         linker.setEventWindow(eventWindow);
+        futureEventBuffer.clear();
         futureEventBuffer.updateEventWindow(eventWindow);
         consensus.loadSnapshot(snapshot);
     }

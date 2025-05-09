@@ -17,17 +17,13 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.event.DefaultFutureEventBuffer;
-import com.swirlds.platform.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBuffer;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
-import com.swirlds.platform.event.hashing.DefaultEventHasher;
-import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
@@ -75,6 +71,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
@@ -85,6 +83,7 @@ import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
 import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
+import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -1224,19 +1223,6 @@ public class PlatformComponentBuilder {
             latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
         }
         return latestCompleteStateNotifier;
-    }
-
-    /**
-     * Builds the {@link FutureEventBuffer} if it has not yet been built and returns it.
-     *
-     * @return the future event buffer
-     */
-    @NonNull
-    public FutureEventBuffer buildFutureEventBuffer() {
-        if (futureEventBuffer == null) {
-            futureEventBuffer = new DefaultFutureEventBuffer(blocks.platformContext());
-        }
-        return futureEventBuffer;
     }
 
     /**

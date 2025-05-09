@@ -2,14 +2,17 @@
 package com.hedera.services.yahcli.suites;
 
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.yahcli.config.ConfigManager;
+import com.hedera.services.yahcli.util.HapiSpecUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,7 +21,7 @@ import org.junit.jupiter.api.DynamicTest;
 public class SendSuite extends HapiSuite {
     private static final Logger log = LogManager.getLogger(SendSuite.class);
 
-    private final Map<String, String> specConfig;
+    private final ConfigManager configManager;
     private final String memo;
     private final String beneficiary;
 
@@ -29,15 +32,15 @@ public class SendSuite extends HapiSuite {
     private final long unitsToSend;
 
     public SendSuite(
-            final Map<String, String> specConfig,
+            final ConfigManager configManager,
             final String beneficiary,
             final long unitsToSend,
             final String memo,
             @Nullable final String denomination,
             final boolean schedule) {
         this.memo = memo;
-        this.specConfig = specConfig;
-        this.beneficiary = Utils.extractAccount(beneficiary);
+        this.configManager = configManager;
+        this.beneficiary = beneficiary;
         this.unitsToSend = unitsToSend;
         this.denomination = denomination;
         this.schedule = schedule;
@@ -49,26 +52,29 @@ public class SendSuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> doSend() {
-        var transfer = denomination == null
-                ? (HapiTxnOp<?>) TxnVerbs.cryptoTransfer(
-                                HapiCryptoTransfer.tinyBarsFromTo(HapiSuite.DEFAULT_PAYER, beneficiary, unitsToSend))
-                        .memo(memo)
-                        .signedBy(HapiSuite.DEFAULT_PAYER)
-                : (HapiTxnOp<?>) TxnVerbs.cryptoTransfer(TokenMovement.moving(unitsToSend, denomination)
-                                .between(HapiSuite.DEFAULT_PAYER, beneficiary))
-                        .memo(memo)
-                        .signedBy(HapiSuite.DEFAULT_PAYER);
+        HapiTxnOp<?> transfer;
+        if (denomination == null) {
+            transfer = TxnVerbs.cryptoTransfer(
+                            HapiCryptoTransfer.tinyBarsFromTo(HapiSuite.DEFAULT_PAYER, beneficiary, unitsToSend))
+                    .memo(memo)
+                    .signedBy(HapiSuite.DEFAULT_PAYER);
+        } else {
+            final var fqDenomination = Utils.extractEntity(
+                    configManager.shard().getShardNum(), configManager.realm().getRealmNum(), denomination);
+            transfer = TxnVerbs.cryptoTransfer(TokenMovement.moving(unitsToSend, fqDenomination)
+                            .between(HapiSuite.DEFAULT_PAYER, beneficiary))
+                    .memo(memo)
+                    .signedBy(HapiSuite.DEFAULT_PAYER);
+        }
 
         // flag that transferred as parameter to schedule a transaction or to execute right away
         if (schedule) {
             transfer = TxnVerbs.scheduleCreate("original", transfer).logged();
         }
 
-        return HapiSpec.customHapiSpec("DoSend")
-                .withProperties(specConfig)
-                .given()
-                .when()
-                .then(transfer);
+        final var spec = new HapiSpec(
+                "DoSend", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {transfer});
+        return HapiSpecUtils.targeted(spec, configManager);
     }
 
     @Override

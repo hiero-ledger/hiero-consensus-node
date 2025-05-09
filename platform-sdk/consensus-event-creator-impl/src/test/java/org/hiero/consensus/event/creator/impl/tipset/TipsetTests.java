@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.tipset;
+package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -7,8 +7,6 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.platform.event.creation.tipset.Tipset;
-import com.swirlds.platform.event.creation.tipset.TipsetAdvancementWeight;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.ArrayList;
 import java.util.HashMap;

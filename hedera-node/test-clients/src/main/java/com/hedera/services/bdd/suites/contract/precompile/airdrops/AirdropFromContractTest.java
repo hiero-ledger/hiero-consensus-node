@@ -404,7 +404,7 @@ public class AirdropFromContractTest {
                                     "tokenAirdrop",
                                     token,
                                     sender.addressOn(spec.targetNetworkOrThrow()),
-                                    asAddress(accountId(hollowAccountAlias.get())),
+                                    asAddress(accountId(spec, hollowAccountAlias.get())),
                                     10L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)

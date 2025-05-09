@@ -17,7 +17,6 @@ module org.hiero.consensus.model {
     requires transitive com.hedera.pbj.runtime;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires com.swirlds.base;
     requires org.hiero.base.concurrent;
     requires static transitive com.github.spotbugs.annotations;
 }

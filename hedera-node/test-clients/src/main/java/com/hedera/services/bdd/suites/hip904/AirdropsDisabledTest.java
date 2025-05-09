@@ -563,9 +563,11 @@ public class AirdropsDisabledTest {
                     for (AtomicReference<TokenID> ftId : ftIds) {
                         b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAlias.get(), -500))
+                                .addTransfers(aaWith(spec, partyAlias.get(), -500))
                                 .addTransfers(aaWith(
-                                        ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
+                                        spec,
+                                        ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                        +500)));
                     }
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)
