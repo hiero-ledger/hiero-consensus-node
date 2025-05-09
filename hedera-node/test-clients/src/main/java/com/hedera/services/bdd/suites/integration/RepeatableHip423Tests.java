@@ -1716,7 +1716,9 @@ public class RepeatableHip423Tests {
                         .hasKnownStatus(SCHEDULE_EXPIRY_IS_BUSY));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
+            overrides = {"atomicBatch.isEnabled"})
     @DisplayName("Failing batch will trigger schedule")
     // BATCH_14
     final Stream<DynamicTest> failingBatchWillTriggerSchedule() {
@@ -1725,6 +1727,7 @@ public class RepeatableHip423Tests {
         final var schedule = "scheduledXfer";
         final var batchOperator = "batchOperator";
         return hapiTest(
+                overriding("atomicBatch.isEnabled", "true"),
                 cryptoCreate(batchOperator),
                 cryptoCreate(sender).balance(ONE_HBAR).via("createSender"),
                 cryptoCreate(receiver).balance(0L),
