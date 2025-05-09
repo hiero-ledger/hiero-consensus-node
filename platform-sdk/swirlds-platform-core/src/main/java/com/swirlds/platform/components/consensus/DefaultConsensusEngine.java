@@ -19,10 +19,8 @@ import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.model.event.AncientMode;
@@ -44,9 +42,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     /** Buffers events until needed by the consensus algorithm based on their birth round */
     private final FutureEventBuffer futureEventBuffer;
-
-    /** A queue of event window updates to be applied to the future event buffer as a result of consensus being reached */
-    private final Queue<EventWindow> eventWindowQueue;
 
     /**
      * Executes the hashgraph consensus algorithm.
@@ -84,7 +79,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         linker = new ConsensusLinker(platformContext, selfId);
         futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
-        eventWindowQueue = new LinkedList<>();
         ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
@@ -125,23 +119,28 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             return List.of();
         }
         final List<ConsensusRound> consensusRounds = addToConsensusAlgorithm(consensusRelevantEvent);
+        boolean newRoundReachedConsensus = !consensusRounds.isEmpty();
 
-        // If any rounds reached consensus, we need to process the event windows and add any events released
+        // If any rounds reached consensus, we need to process the last event window and add any events released
         // by the future event buffer to the consensus algorithm. This may cause more rounds to reach consensus,
-        // so we need to keep processing until no more rounds reach consensus (i.e. the event window queue is empty).
-        while (!eventWindowQueue.isEmpty()) {
-            final EventWindow eventWindow = eventWindowQueue.poll();
+        // so we need to keep looping until no more rounds reach consensus, or the freeze round has reached consensus.
+        while (newRoundReachedConsensus && !frozen) {
+            newRoundReachedConsensus = false;
+            // If multiple rounds reach consensus at the same moment there is no need to keep every event window.
+            // The latest event window is sufficient to keep event storage clean and release all events from the
+            // future events buffer with a birth round less than or equal to the pending round.
+            final EventWindow eventWindow = consensusRounds.getLast().getEventWindow();
             linker.setEventWindow(eventWindow);
             for (final PlatformEvent releasedEvent : futureEventBuffer.updateEventWindow(eventWindow)) {
-                consensusRounds.addAll(addToConsensusAlgorithm(releasedEvent));
+                newRoundReachedConsensus |= consensusRounds.addAll(addToConsensusAlgorithm(releasedEvent));
             }
         }
         return consensusRounds;
     }
 
     /**
-     * Links an event to its parents and adds it to the consensus algorithm. Any rounds that reach consensus as a
-     * result of the event being added are returned.
+     * Links an event to its parents and adds it to the consensus algorithm. Any rounds that reach consensus as a result
+     * of the event being added are returned.
      *
      * @param event the event to add
      * @return a list of rounds that reached consensus, or an empty list if no rounds reached consensus
@@ -166,11 +165,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 frozen = true;
                 return consensusRounds;
             }
-
-            // If multiple rounds reach consensus at the same moment there is no need to keep every event window.
-            // The latest event window is sufficient to keep event storage clean and release all events from the
-            // future events buffer with a birth round less than or equal to the pending round.
-            eventWindowQueue.add(consensusRounds.getLast().getEventWindow());
         }
 
         return consensusRounds;
