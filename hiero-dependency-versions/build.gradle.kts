@@ -77,10 +77,8 @@ dependencies.constraints {
     api("info.picocli:picocli:4.7.6") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
-    api("io.prometheus:simpleclient:0.16.0") { because("io.prometheus.simpleclient") }
-    api("io.prometheus:simpleclient_httpserver:0.16.0") {
-        because("io.prometheus.simpleclient.httpserver")
-    }
+    api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
+    api("io.prometheus:simpleclient_httpserver:0.16.0") { because("simpleclient.httpserver") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("com.goterl:lazysodium-java:5.1.4") { because("lazysodium.java") }
