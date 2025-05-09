@@ -14,7 +14,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
-import static com.swirlds.platform.state.signed.StartupStateUtils.copyInitialSignedState;
+import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
@@ -54,7 +54,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
-import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
@@ -64,14 +63,11 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.signed.StartupStateUtils;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -296,7 +292,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 merkleCryptography);
         final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
         final HashedReservedSignedState reservedState = loadInitialState(
-                platformConfig,
                 recycleBin,
                 version,
                 () -> {
@@ -512,58 +507,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
             return Optional.of(props.getAddressBook());
         } catch (final Exception ignore) {
             return Optional.empty();
-        }
-    }
-
-    /**
-     * Get the initial state to be used by this node. May return a state loaded from disk, or may return a genesis state
-     * if no valid state is found on disk.
-     *
-     * @param configuration      the configuration for this node
-     * @param softwareVersion     the software version of the app
-     * @param stateRootSupplier a supplier that can build a genesis state
-     * @param mainClassName       the name of the app's SwirldMain class
-     * @param swirldName          the name of this swirld
-     * @param selfId              the node id of this node
-     * @param platformStateFacade an object to access the platform state
-     * @return the initial state to be used by this node
-     */
-    @NonNull
-    private static HashedReservedSignedState loadInitialState(
-            @NonNull final Configuration configuration,
-            @NonNull final RecycleBin recycleBin,
-            @NonNull final SemanticVersion softwareVersion,
-            @NonNull final Supplier<MerkleNodeState> stateRootSupplier,
-            @NonNull final String mainClassName,
-            @NonNull final String swirldName,
-            @NonNull final NodeId selfId,
-            @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final PlatformContext platformContext) {
-        final var loadedState = StartupStateUtils.loadStateFile(
-                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformStateFacade, platformContext);
-        try (loadedState) {
-            if (loadedState.isNotNull()) {
-                logger.info(
-                        STARTUP.getMarker(),
-                        new SavedStateLoadedPayload(
-                                loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
-                return copyInitialSignedState(loadedState.get(), platformStateFacade, platformContext);
-            }
-        }
-        final var stateRoot = stateRootSupplier.get();
-        final var signedState = new SignedState(
-                configuration,
-                CryptoStatic::verifySignature,
-                stateRoot,
-                "genesis state",
-                false,
-                false,
-                false,
-                platformStateFacade);
-        signedState.init(platformContext);
-        final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
-        try (reservedSignedState) {
-            return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);
         }
     }
 

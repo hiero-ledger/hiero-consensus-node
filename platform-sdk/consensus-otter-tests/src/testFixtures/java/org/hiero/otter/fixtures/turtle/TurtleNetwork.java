@@ -8,8 +8,9 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -25,8 +26,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -39,7 +40,6 @@ import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-@SuppressWarnings("removal")
 public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger(TurtleNetwork.class);
@@ -93,16 +93,17 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         executorService = Executors.newFixedThreadPool(
                 Math.min(count, Runtime.getRuntime().availableProcessors()));
 
-        final RandomAddressBookBuilder addressBookBuilder =
-                RandomAddressBookBuilder.create(randotron).withSize(count).withRealKeysEnabled(true);
-        final AddressBook addressBook = addressBookBuilder.build();
+        final RandomRosterBuilder rosterBuilder =
+                RandomRosterBuilder.create(randotron).withSize(count).withRealKeysEnabled(true);
+        final Roster roster = rosterBuilder.build();
 
         simulatedNetwork =
-                new SimulatedNetwork(randotron, addressBook, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+                new SimulatedNetwork(randotron, roster, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
-        final List<TurtleNode> nodeList = addressBook.getNodeIdSet().stream()
+        final List<TurtleNode> nodeList = roster.rosterEntries().stream()
+                .map(RosterUtils::getNodeId)
                 .sorted()
-                .map(nodeId -> createTurtleNode(nodeId, addressBook, addressBookBuilder.getPrivateKeys(nodeId)))
+                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
         nodes.addAll(nodeList);
 
@@ -111,12 +112,9 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     }
 
     private TurtleNode createTurtleNode(
-            @NonNull final NodeId nodeId,
-            @NonNull final AddressBook addressBook,
-            @NonNull final KeysAndCerts privateKeys) {
+            @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(
-                randotron, timeManager.time(), nodeId, addressBook, privateKeys, simulatedNetwork, outputDir);
+        return new TurtleNode(randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, outputDir);
     }
 
     /**
