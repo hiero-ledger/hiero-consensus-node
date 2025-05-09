@@ -95,7 +95,7 @@ public class MiscellaneousFeesSuite {
                 validateChargedUsd(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD));
     }
 
-    @LeakyHapiTest
+    @LeakyHapiTest(overrides = {"atomicBatch.isEnabled"})
     @DisplayName("USD base fee as expected for atomic batch transaction")
     public Stream<DynamicTest> validateAtomicBatchBaseUSDFee() {
         final var batchOperator = "batchOperator";
