@@ -520,7 +520,10 @@ public class PlatformComponentBuilder {
     public ConsensusEngine buildConsensusEngine() {
         if (consensusEngine == null) {
             consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext(), blocks.rosterHistory().getCurrentRoster(), blocks.selfId());
+                    blocks.platformContext(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.selfId(),
+                    blocks.freezeCheckHolder());
         }
         return consensusEngine;
     }
@@ -558,9 +561,8 @@ public class PlatformComponentBuilder {
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.isInFreezePeriodReference()
-                                    .get()
-                                    .test(event.getPlatformEvent().getConsensusTimestamp()));
+                            && blocks.freezeCheckHolder()
+                                    .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;
     }
