@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.exec.v030;
+package com.hedera.node.app.service.contract.impl.exec.v063;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerLondonOperations;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaGasSchedule.HEDERA_GAS_SCHEDULE;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerCancunOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
-import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV063;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
@@ -24,6 +26,7 @@ import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeCo
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeHashOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomLogOperation;
+import com.hedera.node.app.service.contract.impl.exec.operations.CustomPrevRandaoOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSLoadOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSStoreOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
@@ -33,6 +36,9 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractC
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
+import com.hedera.node.app.service.contract.impl.hevm.HederaGasSchedule;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -54,28 +60,36 @@ import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
 import org.hyperledger.besu.evm.operation.SLoadOperation;
 import org.hyperledger.besu.evm.operation.SStoreOperation;
+import org.hyperledger.besu.evm.precompile.KZGPointEvalPrecompiledContract;
 import org.hyperledger.besu.evm.precompile.MainnetPrecompiledContracts;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
- * Provides the Services 0.30 EVM implementation, which consists of London operations and Istanbul
- * precompiles plus the Hedera gas calculator, system contracts, and operations as they were
- * configured in the 0.30 release (in particular, without lazy creation and without special
- * treatment to make system addresses "invisible").
+ * Provides the Services 0.63 EVM implementation, which consists of update to the 25.3 version of the Besu EVM
+ * and a new native library verification strategy
  */
 @Module
-public interface V030Module {
+public interface V063Module {
+
+    /** Initialization that must be performed when module is created - typically stuff from Besu's
+     * `BesuCommand.run()`
+     */
+    private static void oneTimeEVMModuleInitialization() {
+        // KZG precompile needs to have a native library loaded, "trusted state" loaded
+        KZGPointEvalPrecompiledContract.init();
+    }
+
     @Provides
     @Singleton
-    @ServicesV030
+    @ServicesV063
     static TransactionProcessor provideTransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
             @NonNull final FrameRunner frameRunner,
-            @ServicesV030 @NonNull final CustomMessageCallProcessor messageCallProcessor,
-            @ServicesV030 @NonNull final ContractCreationProcessor contractCreationProcessor,
+            @ServicesV063 @NonNull final CustomMessageCallProcessor messageCallProcessor,
+            @ServicesV063 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags,
             @NonNull final CodeFactory codeFactory) {
         return new TransactionProcessor(
                 frameBuilder,
@@ -89,118 +103,130 @@ public interface V030Module {
 
     @Provides
     @Singleton
-    @ServicesV030
+    @ServicesV063
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV030 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV063 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
                 evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
 
     @Provides
     @Singleton
-    @ServicesV030
+    @ServicesV063
     static CustomMessageCallProcessor provideMessageCallProcessor(
-            @ServicesV030 @NonNull final EVM evm,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final PrecompileContractRegistry registry,
+            @ServicesV063 @NonNull final EVM evm,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags,
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final PrecompileContractRegistry registry,
             @NonNull final Map<Address, HederaSystemContract> systemContracts) {
         return new CustomMessageCallProcessor(evm, featureFlags, registry, addressChecks, systemContracts);
     }
 
     @Provides
     @Singleton
-    @ServicesV030
+    @ServicesV063
     static EVM provideEVM(
-            @ServicesV030 @NonNull final Set<Operation> customOperations,
+            @ServicesV063 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
             @CustomOps @NonNull final Set<Operation> customOps) {
-        // Use London EVM with 0.30 custom operations and 0x00 chain id (set at runtime)
+
+        oneTimeEVMModuleInitialization();
+
+        // Use Cancun EVM with 0.50 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
-        registerLondonOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
+        registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.LONDON);
+        final var hederaGasSchedule = new HederaGasSchedule(
+                () -> HederaGasSchedule.class.getClassLoader().getResourceAsStream(HEDERA_GAS_SCHEDULE),
+                new ObjectMapper());
+        // Create a return a custom HederaEVM instance
+        return new HederaEVM(
+                operationRegistry,
+                gasCalculator,
+                evmConfiguration,
+                EvmSpecVersion.CANCUN,
+                hederaGasSchedule.getGasSchedule());
     }
 
     @Provides
     @Singleton
-    @ServicesV030
+    @ServicesV063
     static PrecompileContractRegistry providePrecompileContractRegistry(@NonNull final GasCalculator gasCalculator) {
         final var precompileContractRegistry = new PrecompileContractRegistry();
-        MainnetPrecompiledContracts.populateForIstanbul(precompileContractRegistry, gasCalculator);
+        MainnetPrecompiledContracts.populateForCancun(precompileContractRegistry, gasCalculator);
         return precompileContractRegistry;
     }
 
     @Binds
-    @ServicesV030
-    FeatureFlags bindFeatureFlags(Version030FeatureFlags featureFlags);
+    @ServicesV063
+    FeatureFlags bindFeatureFlags(Version063FeatureFlags featureFlags);
 
     @Binds
-    @ServicesV030
-    AddressChecks bindAddressChecks(Version030AddressChecks addressChecks);
+    @ServicesV063
+    AddressChecks bindAddressChecks(Version038AddressChecks addressChecks);
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideBalanceOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomBalanceOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideDelegateCallOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomDelegateCallOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideCallCodeOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomCallCodeOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideStaticCallOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomStaticCallOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideCallOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final FeatureFlags featureFlags,
+            @ServicesV063 @NonNull final AddressChecks addressChecks) {
         return new CustomCallOperation(featureFlags, gasCalculator, addressChecks);
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideChainIdOperation(@NonNull final GasCalculator gasCalculator) {
         return new CustomChainIdOperation(gasCalculator);
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideCreateOperation(
             @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
         return new CustomCreateOperation(gasCalculator, codeFactory);
@@ -208,10 +234,10 @@ public interface V030Module {
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideCreate2Operation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags,
             @NonNull final CodeFactory codeFactory) {
         return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
     }
@@ -219,7 +245,7 @@ public interface V030Module {
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideLog0Operation(@NonNull final GasCalculator gasCalculator) {
         return new CustomLogOperation(0, gasCalculator);
     }
@@ -227,7 +253,7 @@ public interface V030Module {
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideLog1Operation(final GasCalculator gasCalculator) {
         return new CustomLogOperation(1, gasCalculator);
     }
@@ -235,7 +261,7 @@ public interface V030Module {
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideLog2Operation(final GasCalculator gasCalculator) {
         return new CustomLogOperation(2, gasCalculator);
     }
@@ -243,7 +269,7 @@ public interface V030Module {
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideLog3Operation(final GasCalculator gasCalculator) {
         return new CustomLogOperation(3, gasCalculator);
     }
@@ -251,7 +277,7 @@ public interface V030Module {
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideLog4Operation(final GasCalculator gasCalculator) {
         return new CustomLogOperation(4, gasCalculator);
     }
@@ -259,58 +285,67 @@ public interface V030Module {
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideExtCodeHashOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomExtCodeHashOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideExtCodeSizeOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomExtCodeSizeOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideExtCodeCopyOperation(
             @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final AddressChecks addressChecks,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV063 @NonNull final AddressChecks addressChecks,
+            @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomExtCodeCopyOperation(gasCalculator, addressChecks, featureFlags);
     }
 
     @Provides
     @Singleton
     @IntoSet
-    @ServicesV030
+    @ServicesV063
+    static Operation providePrevRandaoOperation(@NonNull final GasCalculator gasCalculator) {
+        return new CustomPrevRandaoOperation(gasCalculator);
+    }
+
+    @Provides
+    @Singleton
+    @IntoSet
+    @ServicesV063
     static Operation provideSelfDestructOperation(
-            @NonNull final GasCalculator gasCalculator, @ServicesV030 @NonNull final AddressChecks addressChecks) {
-        return new CustomSelfDestructOperation(gasCalculator, addressChecks, UseEIP6780Semantics.NO);
+            @NonNull final GasCalculator gasCalculator, @ServicesV063 @NonNull final AddressChecks addressChecks) {
+        // Here we adopt EIP-6780 semantics, for SELFDESTRUCT, for the first time
+        return new CustomSelfDestructOperation(gasCalculator, addressChecks, UseEIP6780Semantics.YES);
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideSLoadOperation(
-            @NonNull final GasCalculator gasCalculator, @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @NonNull final GasCalculator gasCalculator, @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomSLoadOperation(featureFlags, new SLoadOperation(gasCalculator));
     }
 
     @Provides
     @IntoSet
-    @ServicesV030
+    @ServicesV063
     static Operation provideSStoreOperation(
-            @NonNull final GasCalculator gasCalculator, @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+            @NonNull final GasCalculator gasCalculator, @ServicesV063 @NonNull final FeatureFlags featureFlags) {
         return new CustomSStoreOperation(featureFlags, new SStoreOperation(gasCalculator, FRONTIER_MINIMUM));
     }
 }

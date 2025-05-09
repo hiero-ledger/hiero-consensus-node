@@ -80,7 +80,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
             }
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                    Bytes.wrap(op.functionParameters().toByteArray()), false);
+                    Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);
