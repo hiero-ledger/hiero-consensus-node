@@ -3,31 +3,40 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.MockitoAnnotations.openMocks;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.File;
 import java.io.IOException;
+import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 
 class DataFileReaderTest {
 
     private final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
-    @Mock
-    private DataFileMetadata dataFileMetadata;
+    private final DataFileMetadata dataFileMetadata = new DataFileMetadata(0, Instant.now(), 0);
 
     private File file;
     private DataFileReader dataFileReader;
 
     @BeforeEach
     void setUp() throws IOException {
-        openMocks(this);
         file = File.createTempFile("file-reader", "test");
         dataFileReader = new DataFileReader(dbConfig, file.toPath(), dataFileMetadata);
+    }
+
+    @AfterEach
+    public void tearDown() throws IOException {
+        dataFileReader.close();
+        file.deleteOnExit();
+    }
+
+    @Test
+    void testCloseIsIdempotent() throws IOException {
+        dataFileReader.close();
+        assertDoesNotThrow(() -> dataFileReader.close());
     }
 
     /**
@@ -113,10 +122,5 @@ class DataFileReaderTest {
         assertEquals(0, dataFileReader.leaseFileChannel());
         assertEquals(1, dataFileReader.leaseFileChannel());
         assertEquals(2, dataFileReader.leaseFileChannel());
-    }
-
-    @AfterEach
-    public void tearDown() {
-        file.deleteOnExit();
     }
 }

@@ -319,7 +319,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         // finish writing if we still are
         final DataFileWriter currentDataFileForWriting = currentDataFileWriter.getAndSet(null);
         if (currentDataFileForWriting != null) {
-            currentDataFileForWriting.finishWriting();
+            currentDataFileForWriting.close();
         }
         // calling startSnapshot causes the metadata file to be written
         saveMetadata(storeDir);
@@ -401,7 +401,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
             throw new IOException("Tried to end writing when we never started writing.");
         }
         // finish writing the file and write its footer
-        dataWriter.finishWriting();
+        dataWriter.close();
         final DataFileReader dataReader = currentDataFileReader.getAndSet(null);
         if (logger.isTraceEnabled()) {
             final DataFileMetadata metadata = dataReader.getMetadata();
