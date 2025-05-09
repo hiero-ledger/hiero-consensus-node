@@ -43,6 +43,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     /** Buffers events until needed by the consensus algorithm based on their birth round */
     private final FutureEventBuffer futureEventBuffer;
 
+    /** A queue of event window updates to be applied to the future event buffer as a result of consensus being reached */
     private final Queue<EventWindow> eventWindowQueue;
 
     /**
@@ -50,7 +51,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     private final Consensus consensus;
 
+    /** The way the ancient threshold is defined */
     private final AncientMode ancientMode;
+
     private final int roundsNonAncient;
 
     private final AddedEventMetrics eventAddedMetrics;
@@ -121,6 +124,14 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         return consensusRounds;
     }
 
+    /**
+     * Links an event to its parents and adds it to the consensus algorithm. Any rounds that reach consensus as a
+     * result of the event being added are returned.
+     *
+     * @param event the event to add
+     * @return a list of rounds that reached consensus, or an empty list if no rounds reached consensus
+     */
+    @NonNull
     private List<ConsensusRound> addToConsensusAlgorithm(@NonNull final PlatformEvent event) {
         final EventImpl linkedEvent = linker.linkEvent(event);
         if (linkedEvent == null) {

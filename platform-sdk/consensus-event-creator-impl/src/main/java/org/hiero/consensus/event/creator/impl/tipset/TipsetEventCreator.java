@@ -128,25 +128,24 @@ public class TipsetEventCreator implements EventCreator {
         final EventCreationConfig eventCreationConfig =
                 platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
 
-        this.antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
-        this.tipsetMetrics = new TipsetMetrics(platformContext, roster);
-        this.ancientMode = platformContext
+        antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
+        tipsetMetrics = new TipsetMetrics(platformContext, roster);
+        ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-        this.tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
-        this.childlessOtherEventTracker = new ChildlessEventTracker();
-        this.tipsetWeightCalculator =
+        tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
+        childlessOtherEventTracker = new ChildlessEventTracker();
+        tipsetWeightCalculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessOtherEventTracker);
-        this.networkSize = roster.rosterEntries().size();
+        networkSize = roster.rosterEntries().size();
 
-        this.zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
-        this.noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        this.eventHasher = new PbjStreamHasher();
-        this.futureEventBuffer =
-                new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
+        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventHasher = new PbjStreamHasher();
+        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
     }
 
     /**

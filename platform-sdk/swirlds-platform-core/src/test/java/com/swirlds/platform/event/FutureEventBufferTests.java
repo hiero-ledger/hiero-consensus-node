@@ -115,6 +115,23 @@ class FutureEventBufferTests {
     }
 
     /**
+     * Tests that the clear method removes all buffered events.
+     */
+    @Test
+    void testClear() {
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
+                .getOrCreateConfig();
+
+        final StaticTestInput testInput = new StaticTestInput();
+        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics());
+        testInput.allTestEvents().forEach(futureEventBuffer::addEvent);
+        futureEventBuffer.clear();
+        assertThat(futureEventBuffer.updateEventWindow(testInput.getEventWindowForMaxBirthRound()))
+                .isEmpty();
+    }
+
+    /**
      * It is plausible that we have a big jump in rounds due to a reconnect. Verify that we don't emit events if they
      * become ancient while buffered.
      */
@@ -443,6 +460,14 @@ class FutureEventBufferTests {
                     .setCreatorId(carol)
                     .setBirthRound(3)
                     .build();
+        }
+
+        public List<PlatformEvent> allTestEvents() {
+            return new ArrayList<>(List.of(a1, a2, a3, b1, b2, b3, c1, c2, c3));
+        }
+
+        public EventWindow getEventWindowForMaxBirthRound() {
+            return new EventWindow(3, ROUND_FIRST, ROUND_FIRST, BIRTH_ROUND_THRESHOLD);
         }
 
         /**
