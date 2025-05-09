@@ -196,7 +196,7 @@ public class TestingAppStateInitializer {
                             final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
                             final var virtualMap =
-                                    new VirtualMap<>(label, keySerializer, valueSerializer, dsBuilder, configuration);
+                                    new VirtualMap(label, dsBuilder, configuration);
                             return virtualMap;
                         });
                     } else {

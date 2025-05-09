@@ -22,12 +22,10 @@ import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -45,14 +43,8 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
  * needs access both to the original state and records, and the current reconnect state and records.
  * This implementation uses {@link Long} as the representation of a node and corresponds directly
  * to the path of the node.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
-        extends VirtualTreeViewBase<K, V> implements LearnerTreeView<Long> {
+public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
 
     private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
 
@@ -70,7 +62,7 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * Handles removal of old nodes.
      */
-    private final ReconnectNodeRemover<K, V> nodeRemover;
+    private final ReconnectNodeRemover nodeRemover;
 
     /**
      * As part of tracking {@link ExpectedLesson}s, this keeps track of the "nodeAlreadyPresent" boolean.
@@ -92,7 +84,7 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * A {@link RecordAccessor} for getting access to the original records.
      */
-    private final RecordAccessor<K, V> originalRecords;
+    private final RecordAccessor originalRecords;
 
     private final ReconnectMapStats mapStats;
 
@@ -105,10 +97,10 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
      * 		Cannot be null.
      * @param originalState
-     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapState} for accessing state (first and last paths) from the
      * 		unmodified <strong>original</strong> tree. Cannot be null.
      * @param reconnectState
-     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapState} for accessing state (first and last paths) from the
      * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
      * 		Cannot be null.
      * @param mapStats
@@ -116,11 +108,11 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     public LearnerPushVirtualTreeView(
             final ReconnectConfig reconnectConfig,
-            final VirtualRootNode<K, V> root,
-            final RecordAccessor<K, V> originalRecords,
-            final VirtualStateAccessor originalState,
-            final VirtualStateAccessor reconnectState,
-            final ReconnectNodeRemover<K, V> nodeRemover,
+            final VirtualRootNode root,
+            final RecordAccessor originalRecords,
+            final VirtualMapState originalState,
+            final VirtualMapState reconnectState,
+            final ReconnectNodeRemover nodeRemover,
             @NonNull final ReconnectMapStats mapStats) {
         super(root, originalState, reconnectState);
         this.reconnectConfig = reconnectConfig;
@@ -236,10 +228,10 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        final VirtualLeafRecord<K, V> leaf = in.readSerializable(false, VirtualLeafRecord::new);
-        nodeRemover.newLeafNode(leaf.getPath(), leaf.getKey());
+        final VirtualLeafBytes leaf = VirtualReconnectUtils.readLeafRecord(in);
+        nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
         root.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
-        return leaf.getPath();
+        return leaf.path();
     }
 
     /**
@@ -253,12 +245,12 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
         if (node == ROOT_PATH) {
             // We send the first and last leaf path when reconnecting because we don't have access
             // to this information in the virtual root node at this point in the flow, even though
-            // the info has already been sent and resides in the VirtualMapState that is a sibling
+            // the info has already been sent and resides in the ExternalVirtualMapState that is a sibling
             // of the VirtualRootNode. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
-            reconnectState.setFirstLeafPath(firstLeafPath);
             reconnectState.setLastLeafPath(lastLeafPath);
+            reconnectState.setFirstLeafPath(firstLeafPath);
             root.prepareReconnectHashing(firstLeafPath, lastLeafPath);
             nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
         }

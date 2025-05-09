@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.metrics.config.MetricsConfig;
@@ -60,10 +61,10 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     public static final int ZZZZZ = 26 * 26 * 26 * 26 * 26; // key value corresponding to five Z's (plus 1)
 
     @Override
-    protected VirtualDataSourceBuilder createBuilder() throws IOException {
+    protected VirtualDataSourceBuilder createBuilder(String postfix) throws IOException {
         // The tests create maps with identical names. They would conflict with each other in the default
         // MerkleDb instance, so let's use a new (temp) database location for every run
-        final Path defaultVirtualMapPath = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
+        final Path defaultVirtualMapPath = LegacyTemporaryFileBuilder.buildTemporaryFile(postfix, CONFIGURATION);
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
@@ -71,7 +72,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 DigestType.SHA_384,
                 merkleDbConfig.maxNumOfKeys(),
                 merkleDbConfig.hashesRamToDiskThreshold());
-        return new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+        return new MerkleDbDataSourceBuilder(defaultVirtualMapPath, tableConfig, CONFIGURATION);
     }
 
     public String randomWord(final Random random, final int maximumKeySize) {
@@ -200,11 +201,11 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             final String key = randomWord(random, config.maximumKey());
             final String value = randomWord(random, ZZZZZ);
             // treat the hashCode of the key as a long value for the TestKey
-            teacherMap.put(new TestKey(wordToKey(key)), new TestValue(value));
-            learnerMap.put(new TestKey(wordToKey(key)), new TestValue(value));
+            teacherMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
+            learnerMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
             usedKeys.add(key);
         }
-        final Queue<VirtualMap<TestKey, TestValue>> copiesQueue = new LinkedList<>();
+        final Queue<VirtualMap> copiesQueue = new LinkedList<>();
 
         for (int operation = 0; operation < config.operations(); operation++) {
             int op = random.nextInt(config.createWeight() + config.updateWeight() + config.deleteWeight());
@@ -215,18 +216,18 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                     key = randomWord(random, config.maximumKey());
                 }
                 final String value = randomWord(random, ZZZZZ);
-                teacherMap.put(new TestKey(wordToKey(key)), new TestValue(value));
+                teacherMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
                 usedKeys.add(key);
                 removedKeys.remove(key);
             } else if (op < config.createWeight() + config.updateWeight()) {
                 // update an existing key from the teacherMap
                 final String key = usedKeys.get(random);
                 final String value = randomWord(random, ZZZZZ);
-                teacherMap.put(new TestKey(wordToKey(key)), new TestValue(value));
+                teacherMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
             } else {
                 // remove an existing key from the teacherMap
                 final String key = usedKeys.get(random);
-                teacherMap.remove(new TestKey(wordToKey(key)));
+                teacherMap.remove(TestKey.longToKey(wordToKey(key)));
                 usedKeys.remove(key);
                 removedKeys.add(key);
             }
@@ -235,14 +236,14 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 copiesQueue.add(teacherMap);
                 teacherMap = teacherMap.copy();
                 if (copiesQueue.size() > config.maxCopiesInMemory()) {
-                    final VirtualMap<TestKey, TestValue> oldestCopy = copiesQueue.remove();
+                    final VirtualMap oldestCopy = copiesQueue.remove();
                     oldestCopy.release();
                 }
             }
         }
 
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
-        final VirtualMap<TestKey, TestValue> copy = teacherMap.copy(); // ensure teacherMap is immutable
+        final VirtualMap copy = teacherMap.copy(); // ensure teacherMap is immutable
         final MerkleInternal learnerTree = createTreeForMap(learnerMap);
 
         // reconnect happening
@@ -250,12 +251,12 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
 
         final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap<TestKey, TestValue> afterMap = node.getChild(3);
+        final VirtualMap afterMap = node.getChild(3);
 
         for (final String key : removedKeys) {
             try {
                 assertNull(
-                        afterMap.get(new TestKey(wordToKey(key))),
+                        afterMap.get(TestKey.longToKey(wordToKey(key)), TestValueCodec.INSTANCE),
                         "Key " + key + " should no longer be present after reconnect.");
             } catch (AssertionError ae) {
                 assertEquals(
@@ -282,19 +283,19 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     @DisplayName("#5926 regression test")
     void regression05926() throws Exception {
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
-        final VirtualMap<TestKey, TestValue> copy = teacherMap.copy();
+        final VirtualMap copy = teacherMap.copy();
         final MerkleInternal learnerTree = createTreeForMap(learnerMap);
 
         final DummyMerkleInternal afterSyncLearnerTree =
                 MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
 
         final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap<TestKey, TestValue> afterMap = node.getChild(3);
+        final VirtualMap afterMap = node.getChild(3);
 
         // Create a copy of the resulting map
-        final VirtualMap<TestKey, TestValue> afterCopy = afterMap.copy();
+        final VirtualMap afterCopy = afterMap.copy();
         // Enforce computing the hash of its root node
-        assertNotNull(afterCopy.getRight().getHash());
+        assertNotNull(afterCopy.getLeft().getHash());
 
         afterSyncLearnerTree.release();
         copy.release();
@@ -317,36 +318,36 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 metricsConfig);
         learnerMap.registerMetrics(metrics);
 
-        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_Learner");
+        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_Test");
         assertNotNull(sizeMetric);
         assertEquals(0L, sizeMetric.get(ValueType.VALUE));
 
-        final TestKey zeroKey = new TestKey(0);
-        teacherMap.put(zeroKey, new TestValue("value0"));
-        learnerMap.put(zeroKey, new TestValue("value0"));
-        assertEquals(1L, sizeMetric.get(ValueType.VALUE));
+        final Bytes zeroKey = TestKey.longToKey(0);
+        teacherMap.put(zeroKey, new TestValue("value0"), TestValueCodec.INSTANCE);
+        learnerMap.put(zeroKey, new TestValue("value0"), TestValueCodec.INSTANCE);
+        assertEquals(2L, sizeMetric.get(ValueType.VALUE));
 
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
-        final TestKey key = new TestKey(123);
-        teacherMap.put(key, new TestValue("value123"));
+        final Bytes key = TestKey.longToKey(123);
+        teacherMap.put(key, new TestValue("value123"), TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> teacherCopy = teacherMap.copy();
+        final VirtualMap teacherCopy = teacherMap.copy();
         final MerkleInternal learnerTree = createTreeForMap(learnerMap);
 
         final DummyMerkleInternal afterSyncLearnerTree =
                 MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
 
         final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap<TestKey, TestValue> afterLearnerMap = node.getChild(3);
-        final VirtualMap<TestKey, TestValue> afterCopy = afterLearnerMap.copy();
+        final VirtualMap afterLearnerMap = node.getChild(3);
+        final VirtualMap afterCopy = afterLearnerMap.copy();
 
         assertTrue(afterCopy.containsKey(key));
-        assertEquals("value123", afterCopy.get(key).getValue());
-        assertEquals(2L, sizeMetric.get(ValueType.VALUE));
-
-        final TestKey key2 = new TestKey(456);
-        afterCopy.put(key2, new TestValue("value456"));
+        assertEquals("value123", afterCopy.get(key, TestValueCodec.INSTANCE).getValue());
         assertEquals(3L, sizeMetric.get(ValueType.VALUE));
+
+        final Bytes key2 = TestKey.longToKey(456);
+        afterCopy.put(key2, new TestValue("value456"), TestValueCodec.INSTANCE);
+        assertEquals(4L, sizeMetric.get(ValueType.VALUE));
 
         teacherCopy.release();
         afterCopy.release();

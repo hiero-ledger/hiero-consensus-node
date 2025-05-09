@@ -82,7 +82,7 @@ class SerializationTest extends MerkleTestBase {
         this.config = new TestConfigBuilder()
                 .withSource(new SimpleConfigSource()
                         .withValue(VirtualMapConfig_.FLUSH_INTERVAL, 1 + "")
-                        .withValue(VirtualMapConfig_.COPY_FLUSH_THRESHOLD, 1 + ""))
+                        .withValue(VirtualMapConfig_.COPY_FLUSH_CANDIDATE_THRESHOLD, 1 + ""))
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(CryptoConfig.class)
@@ -146,10 +146,10 @@ class SerializationTest extends MerkleTestBase {
             try {
                 Field vmField = OnDiskReadableKVState.class.getDeclaredField("virtualMap");
                 vmField.setAccessible(true);
-                VirtualMap<?, ?> vm = (VirtualMap<?, ?>) vmField.get(state);
+                VirtualMap vm = (VirtualMap) vmField.get(state);
 
-                final VirtualRootNode<?, ?> root = vm.getRight();
-                if (!vm.isEmpty()) {
+                final VirtualRootNode root = vm.getLeft();
+                if (vm.size() > 1) {
                     root.enableFlush();
                     vm.release();
                     root.waitUntilFlushed();
