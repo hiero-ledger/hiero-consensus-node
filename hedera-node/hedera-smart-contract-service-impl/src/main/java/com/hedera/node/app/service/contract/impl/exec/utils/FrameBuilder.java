@@ -6,7 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSA
 import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HEDERA_GAS_COUNTER;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HEDERA_OPS_DURATION;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE;
@@ -124,7 +124,7 @@ public class FrameBuilder {
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
-        contextEntries.put(HEDERA_GAS_COUNTER, new HederaGasCounter(intrinsicGas));
+        contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(intrinsicGas));
         return contextEntries;
     }
 

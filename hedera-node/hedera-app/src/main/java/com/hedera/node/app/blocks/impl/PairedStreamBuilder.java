@@ -190,6 +190,11 @@ public class PairedStreamBuilder
         return recordStreamBuilder.getGasUsedForContractTxn();
     }
 
+    @Override
+    public long getOpsDurationForContractTxn() {
+        return recordStreamBuilder.getOpsDurationForContractTxn();
+    }
+
     @NonNull
     @Override
     public ResponseCodeEnum status() {
@@ -393,6 +398,13 @@ public class PairedStreamBuilder
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration) {
         recordStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
         blockStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
+        return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
+        recordStreamBuilder.opsDuration(opsDuration);
+        blockStreamBuilder.opsDuration(opsDuration);
         return this;
     }
 
