@@ -7,7 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * A listener that is notified when a value is written to a singleton.
  * @param <V> The type of the value
  */
-public interface SingletonChangeListener<V> {
+public interface SingletonChangeListener<V> extends DeferringListener {
     /**
      * Called when the value of a singleton is written.
      *
