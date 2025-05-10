@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event;
+package org.hiero.consensus.event;
 
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.platform.wiring.NoInput;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -21,9 +21,15 @@ import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
 /**
- * Default implementation of the {@link FutureEventBuffer}
+ * Buffers events from the future (i.e. events with a birth round that is greater than the round that consensus is
+ * currently working on). It is important to note that the future event buffer is only used to store events from the
+ * near future that can be fully validated. Events from beyond the event horizon (i.e. far future events that cannot be
+ * immediately validated) are never stored by any part of the system.
+ * <p>
+ * Output from the future event buffer is guaranteed to preserve topological ordering, as long as the input to the
+ * buffer is topologically ordered.
  */
-public class DefaultFutureEventBuffer implements FutureEventBuffer {
+public class FutureEventBuffer {
 
     /**
      * A little lambda that builds a new array list. Cache this here so we don't have to create a new lambda each time
@@ -40,37 +46,33 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
 
     /**
      * Constructor.
-     *
-     * @param platformContext the platform context
      */
-    public DefaultFutureEventBuffer(@NonNull final PlatformContext platformContext) {
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
+    public FutureEventBuffer(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        final AncientMode ancientMode =
+                configuration.getConfigData(EventConfig.class).getAncientMode();
 
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
 
-        platformContext
-                .getMetrics()
-                .getOrCreate(
-                        new FunctionGauge.Config<>("platform", "futureEventBuffer", Long.class, bufferedEventCount::get)
-                                .withDescription("the number of events sitting in the future event buffer")
-                                .withUnit("count"));
+        metrics.getOrCreate(
+                new FunctionGauge.Config<>("platform", "futureEventBuffer", Long.class, bufferedEventCount::get)
+                        .withDescription("the number of events sitting in the future event buffer")
+                        .withUnit("count"));
     }
 
     /**
-     * {@inheritDoc}
+     * Add an event to the future event buffer.
+     *
+     * @param event the event to add
+     * @return the event if it is not a time traveler, or null if the event is from the future and needs to be buffered.
      */
-    @Override
     @Nullable
-    public List<PlatformEvent> addEvent(@NonNull final PlatformEvent event) {
+    public PlatformEvent addEvent(@NonNull final PlatformEvent event) {
         if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
             return null;
         } else if (event.getBirthRound() <= eventWindow.getPendingConsensusRound()) {
             // this is not a future event, no need to buffer it
-            return List.of(event);
+            return event;
         }
 
         // this is a future event, buffer it
@@ -80,10 +82,14 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
     }
 
     /**
-     * {@inheritDoc}
+     * Update the current event window. As the event window advances, time catches up to time travelers, and events that
+     * were previously from the future are now from the present.
+     *
+     * @param eventWindow the new event window
+     * @return a list of events that were previously from the future but are now from the present, or an empty list if
+     * there are no such events.
      */
-    @Override
-    @Nullable
+    @NonNull
     public List<PlatformEvent> updateEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
@@ -106,10 +112,9 @@ public class DefaultFutureEventBuffer implements FutureEventBuffer {
     }
 
     /**
-     * {@inheritDoc}
+     * Clear all data from the future event buffer.
      */
-    @Override
-    public void clear(@NonNull final NoInput ignored) {
+    public void clear() {
         futureEvents.clear();
     }
 }

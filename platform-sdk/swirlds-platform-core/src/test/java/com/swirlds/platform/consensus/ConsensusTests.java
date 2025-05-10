@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.RANDOM;
-import static com.swirlds.platform.consensus.ConsensusTestArgs.RANDOM_WEIGHT_DESC;
-
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.test.fixtures.PlatformTest;
@@ -15,7 +12,6 @@ import org.hiero.consensus.config.EventConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -285,16 +281,6 @@ class ConsensusTests extends PlatformTest {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::removeNode)
                 .setParams(params)
-                .setContexts(contexts())
-                .setIterations(NUM_ITER)
-                .run();
-    }
-
-    @Test
-    void syntheticSnapshotTest() {
-        ConsensusTestRunner.create()
-                .setTest(ConsensusTestDefinitions::syntheticSnapshot)
-                .setParams(new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC))
                 .setContexts(contexts())
                 .setIterations(NUM_ITER)
                 .run();

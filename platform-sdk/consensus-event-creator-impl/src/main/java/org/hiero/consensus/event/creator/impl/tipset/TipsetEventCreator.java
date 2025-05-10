@@ -25,6 +25,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -53,6 +54,7 @@ public class TipsetEventCreator implements EventCreator {
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final TransactionSupplier transactionSupplier;
     private final SemanticVersion softwareVersion;
+    private final FutureEventBuffer futureEventBuffer;
     private EventWindow eventWindow;
 
     /**
@@ -141,15 +143,40 @@ public class TipsetEventCreator implements EventCreator {
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        this.eventHasher = new PbjStreamHasher();
+        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventHasher = new PbjStreamHasher();
+        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void registerEvent(@NonNull final PlatformEvent event) {
+    public void addEvent(@NonNull final PlatformEvent event) {
+        final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
+        if (nonFutureEvent != null) {
+            registerEvent(nonFutureEvent);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setEventWindow(@NonNull final EventWindow eventWindow) {
+        this.eventWindow = Objects.requireNonNull(eventWindow);
+        tipsetTracker.setEventWindow(eventWindow);
+        childlessOtherEventTracker.pruneOldEvents(eventWindow);
+        futureEventBuffer.updateEventWindow(eventWindow).forEach(this::registerEvent);
+    }
+
+    /**
+     * Registers an event with the event creator algorithm. The event must have a birth round equal to or less than the
+     * pending consensus round and must be received in topological order.
+     *
+     * @param event the event to register
+     */
+    private void registerEvent(@NonNull final PlatformEvent event) {
         if (eventWindow.isAncient(event)) {
             return;
         }
@@ -179,16 +206,6 @@ public class TipsetEventCreator implements EventCreator {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
-        tipsetTracker.setEventWindow(eventWindow);
-        childlessOtherEventTracker.pruneOldEvents(eventWindow);
     }
 
     /**
@@ -431,6 +448,8 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.clear();
         tipsetWeightCalculator.clear();
         eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        futureEventBuffer.clear();
+        futureEventBuffer.updateEventWindow(eventWindow);
         lastSelfEvent = null;
     }
 
