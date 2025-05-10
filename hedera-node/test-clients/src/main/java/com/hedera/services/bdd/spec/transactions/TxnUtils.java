@@ -259,14 +259,15 @@ public class TxnUtils {
                     .setAlias(asLiteralEvmAddress(s))
                     .build();
         }
+        if (isIdLiteral(s)) {
+            return asAccount(s);
+        }
         if (isNumericLiteral(s)) {
             return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
         }
-        return isIdLiteral(s)
-                ? asAccount(s)
-                : (lookupSpec.registry().hasAccountId(s)
-                        ? lookupSpec.registry().getAccountID(s)
-                        : lookUpAccount(lookupSpec, s));
+        return lookupSpec.registry().hasAccountId(s)
+                ? lookupSpec.registry().getAccountID(s)
+                : lookUpAccount(lookupSpec, s);
     }
 
     private static AccountID lookUpAccount(final HapiSpec spec, final String alias) {

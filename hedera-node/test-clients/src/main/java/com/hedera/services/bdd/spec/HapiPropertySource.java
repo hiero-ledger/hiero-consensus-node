@@ -294,7 +294,7 @@ public interface HapiPropertySource {
         return asContract(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
     }
 
-    static ContractID asContract(Long shard, Long realm, Long num) {
+    static ContractID asContract(long shard, long realm, long num) {
         return ContractID.newBuilder()
                 .setShardNum(shard)
                 .setRealmNum(realm)
@@ -323,10 +323,14 @@ public interface HapiPropertySource {
     }
 
     static TokenID asToken(String shard, String realm, String num) {
+        return asToken(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
+    }
+
+    static TokenID asToken(long shard, long realm, long num) {
         return TokenID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setTokenNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setTokenNum(num)
                 .build();
     }
 
@@ -582,7 +586,7 @@ public interface HapiPropertySource {
         return String.format("%d.%d.%s", shard, realm, num);
     }
 
-    @Deprecated
+    @Deprecated(forRemoval = true)
     static String asEntityString(final long num) {
         return asEntityString(shard, realm, num);
     }

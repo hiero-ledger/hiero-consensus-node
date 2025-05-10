@@ -781,7 +781,8 @@ public class ContractHTSSuite {
                                             HapiParserUtil.asHeadlongAddress(
                                                     asAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))),
                                             sender,
-                                            asHeadlongAddress(toAddressStringWithShardAndRealm("0")),
+                                            asHeadlongAddress(toAddressStringWithShardAndRealm(
+                                                    (int) spec.shard(), spec.realm(), "0")),
                                             1L)
                                     .payingWith(GENESIS)
                                     .gas(GAS_TO_OFFER)

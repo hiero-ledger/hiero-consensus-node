@@ -4,7 +4,6 @@ package com.swirlds.merkledb.collections;
 /**
  * An interface for classes that provide long index functionality. Such long indices must
  * support Compare-And-Swap operations and iterations over all valid index entries.
- *
  * Implementation can use atomic CAS or straightforward logic in single-threaded case.
  */
 public interface CASableLongIndex {
@@ -48,7 +47,7 @@ public interface CASableLongIndex {
      *
      * @param <T> Type of throwable allowed to throw by the action
      */
-    public interface LongAction<T extends Throwable> {
+    interface LongAction<T extends Throwable> {
         void handle(long index, long value) throws InterruptedException, T;
     }
 }
