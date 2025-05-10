@@ -221,8 +221,7 @@ public class CryptoOpsUsage {
         final var newCryptoKeys = getChangedCryptoKeys(
                 cryptoApproveMeta.getCryptoAllowances().keySet(),
                 ctx.currentCryptoAllowances().keySet());
-
-        newTotalBytes += newCryptoKeys * CRYPTO_ALLOWANCE_SIZE;
+        newTotalBytes += cryptoApproveMeta.getCryptoAllowancesCount() * CRYPTO_ALLOWANCE_SIZE;
 
         final var newTokenKeys = getChangedTokenKeys(
                 cryptoApproveMeta.getTokenAllowances().keySet(),
