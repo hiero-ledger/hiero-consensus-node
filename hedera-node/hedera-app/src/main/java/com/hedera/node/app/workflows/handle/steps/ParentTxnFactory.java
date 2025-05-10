@@ -20,6 +20,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -271,9 +272,7 @@ public class ParentTxnFactory {
         requireNonNull(exchangeRates);
         final var preHandleResult = parentTxn.preHandleResult();
         final var keyVerifier = new DefaultKeyVerifier(
-                parentTxn.txnInfo().signatureMap().sigPair().size(),
-                parentTxn.config().getConfigData(HederaConfig.class),
-                preHandleResult.getVerificationResults());
+                parentTxn.config().getConfigData(HederaConfig.class), preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
         final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
         return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
@@ -356,7 +355,8 @@ public class ParentTxnFactory {
                 feeAccumulator,
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
-                preHandleResult.innerResults());
+                preHandleResult.innerResults(),
+                transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(
@@ -438,7 +438,7 @@ public class ParentTxnFactory {
                     null,
                     SO_FAR_SO_GOOD,
                     OK,
-                    getTxnInfoFrom(payerId, body),
+                    getTxnInfoFrom(payerId, body, SignatureMap.DEFAULT),
                     Set.of(),
                     Set.of(),
                     Set.of(),
@@ -452,7 +452,7 @@ public class ParentTxnFactory {
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, payerId, config, dispatcher, transactionChecker, creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
-            final var txInfo = getTxnInfoFrom(payerId, body);
+            final var txInfo = getTxnInfoFrom(payerId, body, SignatureMap.DEFAULT);
             return new PreHandleResult(
                     null,
                     null,

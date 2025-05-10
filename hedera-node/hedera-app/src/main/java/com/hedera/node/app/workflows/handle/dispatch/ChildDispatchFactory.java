@@ -52,7 +52,6 @@ import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
@@ -116,8 +115,7 @@ public class ChildDispatchFactory {
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ServiceScopeLookup serviceScopeLookup,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final TransactionChecker transactionChecker,
-            @NonNull final DeduplicationCache deduplicationCache) {
+            @NonNull final TransactionChecker transactionChecker) {
         this.dispatcher = requireNonNull(dispatcher);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
@@ -172,7 +170,7 @@ public class ChildDispatchFactory {
                 : preHandleChild(options.body(), options.payerId(), config, readableStoreFactory, creatorInfo);
         final var childVerifier = overridePreHandleResult != null
                 ? new DefaultKeyVerifier(
-                        0, config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
+                        config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
                 : getKeyVerifier(options.effectiveKeyVerifier(), config, options.authorizingKeys());
         boolean isLastAllowedPreset = false;
         if (options.body().hasScheduleCreate()) {
@@ -189,7 +187,12 @@ public class ChildDispatchFactory {
                         .copyBuilder()
                         .transactionID(stack.nextPresetTxnId(isLastAllowedPreset))
                         .build();
-        final var childTxnInfo = getTxnInfoFrom(options.payerId(), body);
+        final var childTxnInfo = overridePreHandleResult != null
+                ? getTxnInfoFrom(
+                        options.payerId(),
+                        body,
+                        overridePreHandleResult.txInfo().signatureMap())
+                : getTxnInfoFrom(options.payerId(), body, SignatureMap.DEFAULT);
         final var streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
         final var childStack = SavepointStackImpl.newChildStack(
                 stack, options.reversingBehavior(), options.category(), options.transactionCustomizer(), streamMode);
@@ -283,7 +286,8 @@ public class ChildDispatchFactory {
                 childFeeAccumulator,
                 dispatchMetadata,
                 transactionChecker,
-                null);
+                null,
+                category);
         final var childFees = dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);
         final var congestionMultiplier = feeManager.congestionMultiplierFor(
                 txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
@@ -434,7 +438,7 @@ public class ChildDispatchFactory {
                         }
                 : new AppKeyVerifier() {
                     private final AppKeyVerifier verifier =
-                            new DefaultKeyVerifier(0, config.getConfigData(HederaConfig.class), emptyMap());
+                            new DefaultKeyVerifier(config.getConfigData(HederaConfig.class), emptyMap());
 
                     @NonNull
                     @Override
@@ -478,7 +482,7 @@ public class ChildDispatchFactory {
      * @return the transaction information
      */
     public static TransactionInfo getTxnInfoFrom(
-            @NonNull final AccountID payerId, @NonNull final TransactionBody txBody) {
+            @NonNull final AccountID payerId, @NonNull final TransactionBody txBody, SignatureMap signatureMap) {
         requireNonNull(payerId);
         requireNonNull(txBody);
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txBody);
@@ -493,7 +497,7 @@ public class ChildDispatchFactory {
                 txBody,
                 txBody.transactionIDOrElse(TransactionID.DEFAULT),
                 payerId,
-                SignatureMap.DEFAULT,
+                signatureMap,
                 signedTransactionBytes,
                 functionOfTxn(txBody),
                 null);

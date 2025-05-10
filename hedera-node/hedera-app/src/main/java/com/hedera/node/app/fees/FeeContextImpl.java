@@ -133,6 +133,15 @@ public class FeeContextImpl implements FeeContext {
     public Fees dispatchComputeFees(
             @NonNull final TransactionBody childTxBody, @NonNull final AccountID syntheticPayerId) {
         return transactionDispatcher.dispatchComputeFees(new ChildFeeContextImpl(
-                feeManager, this, childTxBody, syntheticPayerId, true, authorizer, storeFactory, consensusTime));
+                feeManager,
+                this,
+                childTxBody,
+                syntheticPayerId,
+                true,
+                authorizer,
+                storeFactory,
+                consensusTime,
+                null,
+                numSignatures));
     }
 }
