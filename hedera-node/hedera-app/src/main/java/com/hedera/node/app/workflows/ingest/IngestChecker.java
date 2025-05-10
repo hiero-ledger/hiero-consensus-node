@@ -198,6 +198,8 @@ public final class IngestChecker {
         // 1. Check the syntax
         final var maxBytes = maxIngestParseSize(configuration);
         final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
+        // check jumbo size after parsing
+        transactionChecker.checkJumboTransactionBody(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
