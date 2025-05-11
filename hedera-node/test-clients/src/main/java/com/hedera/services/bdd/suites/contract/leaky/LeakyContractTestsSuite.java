@@ -272,7 +272,7 @@ public class LeakyContractTestsSuite {
                 cryptoTransfer((spec, b) -> {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(
+                                    .addAccountAmounts(Utils.aaWith(
                                             spec,
                                             ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                             +ONE_HBAR))

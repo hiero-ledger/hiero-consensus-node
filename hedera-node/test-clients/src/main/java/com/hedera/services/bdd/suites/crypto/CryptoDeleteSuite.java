@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
@@ -25,11 +24,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -76,7 +77,7 @@ public class CryptoDeleteSuite {
 
     @LeakyHapiTest(requirement = ContextRequirement.SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> deletedAccountCannotBePayer() {
-        final var submittingNodeAccount = asEntityString(3);
+        final var submittingNodeAccount = "3";
         final var beneficiaryAccount = "beneficiaryAccountForDeletedAccount";
         final var submittingNodePreTransfer = "submittingNodePreTransfer";
         final var submittingNodeAfterBalanceLoad = "submittingNodeAfterBalanceLoad";
@@ -192,24 +193,28 @@ public class CryptoDeleteSuite {
         return hapiTest(
                 createHip32Auto(1, SECP_256K1_SHAPE, i -> ACCOUNT_TO_BE_DELETED),
                 balanceSnapshot("before", ACCOUNT_TO_BE_DELETED),
-                withAddressOfKey(
-                        ACCOUNT_TO_BE_DELETED,
-                        address -> cryptoTransfer((spec, builder) -> builder.setTransfers(TransferList.newBuilder()
-                                .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(AccountID.newBuilder()
-                                                .setShardNum(shard)
-                                                .setRealmNum(realm)
-                                                .setAccountNum(2))
-                                        .setAmount(-ONE_HUNDRED_HBARS)
-                                        .build())
-                                .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(AccountID.newBuilder()
-                                                .setShardNum(shard)
-                                                .setRealmNum(realm)
-                                                .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
-                                        .setAmount(ONE_HUNDRED_HBARS)
-                                        .build())
-                                .build()))),
+                withOpContext((spec, opLog) -> {
+                    final var op = withAddressOfKey(
+                            ACCOUNT_TO_BE_DELETED,
+                            address -> cryptoTransfer((innerSpec, builder) ->
+                                    builder.setTransfers(TransferList.newBuilder()
+                                            .addAccountAmounts(AccountAmount.newBuilder()
+                                                    .setAccountID(AccountID.newBuilder()
+                                                            .setShardNum(shard)
+                                                            .setRealmNum(realm)
+                                                            .setAccountNum(2))
+                                                    .setAmount(-ONE_HUNDRED_HBARS)
+                                                    .build())
+                                            .addAccountAmounts(AccountAmount.newBuilder()
+                                                    .setAccountID(AccountID.newBuilder()
+                                                            .setShardNum(shard)
+                                                            .setRealmNum(realm)
+                                                            .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                                    .setAmount(ONE_HUNDRED_HBARS)
+                                                    .build())
+                                            .build())));
+                    allRunFor(spec, op);
+                }),
                 getAccountBalance(ACCOUNT_TO_BE_DELETED).hasTinyBars(changeFromSnapshot("before", ONE_HUNDRED_HBARS)),
                 cryptoDelete(ACCOUNT_TO_BE_DELETED),
                 withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> getAliasedAccountInfo(

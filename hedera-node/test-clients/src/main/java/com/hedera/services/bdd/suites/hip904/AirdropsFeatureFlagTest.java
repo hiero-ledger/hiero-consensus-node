@@ -21,7 +21,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.crypto.CryptoDeleteSuite.TREASURY;
 import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProviderFactory.FUNGIBLE_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -30,6 +29,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransferList;
@@ -69,8 +69,8 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     // Create a hollow account
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
@@ -104,8 +104,8 @@ public class AirdropsFeatureFlagTest {
 
                     // Create hollow account with the deleted account alias
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(s, treasuryAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(s, hollowAccountAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +2 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
@@ -166,8 +166,8 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     // Create a hollow account
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferFtToHollowAccountTxn);
@@ -202,8 +202,8 @@ public class AirdropsFeatureFlagTest {
                     // Create hollow account with the deleted account alias
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                     .setToken(fungibleTokenId.get())
-                                    .addTransfers(aaWith(s, treasuryAlias.get(), -1))
-                                    .addTransfers(aaWith(s, hollowAccountAlias.get(), +1))))
+                                    .addTransfers(Utils.aaWith(s, treasuryAlias.get(), -1))
+                                    .addTransfers(Utils.aaWith(s, hollowAccountAlias.get(), +1))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferFtToHollowAccountTxn);

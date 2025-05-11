@@ -34,8 +34,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
-import static com.hedera.services.bdd.suites.contract.Utils.accountId;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.FUNGIBLE_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.NON_FUNGIBLE_TOKEN;
@@ -58,6 +57,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -274,12 +274,12 @@ public class UnlimitedAutoAssociationSuite {
                 // Create hollow account with 2 token transfers
                 cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(tokenIdA.get())
-                                        .addTransfers(aaWith(s, treasuryAlias.get(), -1))
-                                        .addTransfers(aaWith(s, hollowAccountAlias.get(), +1)))
+                                        .addTransfers(Utils.aaWith(s, treasuryAlias.get(), -1))
+                                        .addTransfers(Utils.aaWith(s, hollowAccountAlias.get(), +1)))
                                 .addTokenTransfers(TokenTransferList.newBuilder()
                                         .setToken(tokenIdB.get())
-                                        .addTransfers(aaWith(s, treasuryAlias.get(), -1))
-                                        .addTransfers(aaWith(s, hollowAccountAlias.get(), +1))))
+                                        .addTransfers(Utils.aaWith(s, treasuryAlias.get(), -1))
+                                        .addTransfers(Utils.aaWith(s, hollowAccountAlias.get(), +1))))
                         .payingWith(TREASURY)
                         .signedBy(TREASURY)
                         .via(hollowAccountTxn),
@@ -372,14 +372,14 @@ public class UnlimitedAutoAssociationSuite {
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdA.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountId(s, treasuryAlias.get()),
-                                                        accountId(s, hollowAccountAlias.get()),
+                                                        accountIdFromEvmAddress(s, treasuryAlias.get()),
+                                                        accountIdFromEvmAddress(s, hollowAccountAlias.get()),
                                                         1L)))
                                         .addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdB.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountId(s, treasuryAlias.get()),
-                                                        accountId(s, hollowAccountAlias.get()),
+                                                        accountIdFromEvmAddress(s, treasuryAlias.get()),
+                                                        accountIdFromEvmAddress(s, hollowAccountAlias.get()),
                                                         1L))))
                                 .payingWith(TREASURY)
                                 .signedBy(TREASURY)
@@ -454,13 +454,13 @@ public class UnlimitedAutoAssociationSuite {
                         // Transfer both tokens to hollow account with different senders.
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdA.get())
-                                                .addTransfers(aaWith(s, aliceAlias.get(), -1))
-                                                .addTransfers(aaWith(s, carolHollowAccountAlias.get(), +1)))
+                                                .addTransfers(Utils.aaWith(s, aliceAlias.get(), -1))
+                                                .addTransfers(Utils.aaWith(s, carolHollowAccountAlias.get(), +1)))
                                         .addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdB.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountId(s, bobAlias.get()),
-                                                        accountId(s, carolHollowAccountAlias.get()),
+                                                        accountIdFromEvmAddress(s, bobAlias.get()),
+                                                        accountIdFromEvmAddress(s, carolHollowAccountAlias.get()),
                                                         1L))))
                                 .payingWith(ALICE)
                                 .signedBy(ALICE, BOB)

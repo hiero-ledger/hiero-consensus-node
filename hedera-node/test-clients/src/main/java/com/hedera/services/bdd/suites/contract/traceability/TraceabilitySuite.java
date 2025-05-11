@@ -104,6 +104,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -4783,7 +4784,7 @@ public class TraceabilitySuite {
                 cryptoTransfer((spec, b) -> {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(
+                                    .addAccountAmounts(Utils.aaWith(
                                             spec,
                                             ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                             +ONE_HBAR))

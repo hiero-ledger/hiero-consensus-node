@@ -66,7 +66,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.WEIBARS_IN_A_TINYBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
@@ -1002,8 +1001,8 @@ public class EthereumSuite {
                         .exposingCreatedIdTo(tokenNum::set),
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
@@ -1046,8 +1045,8 @@ public class EthereumSuite {
                 // try to create a new account with the same alias
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .hasKnownStatus(SUCCESS);
 

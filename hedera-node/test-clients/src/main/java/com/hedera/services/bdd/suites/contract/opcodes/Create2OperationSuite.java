@@ -64,7 +64,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
-import static com.hedera.services.bdd.suites.contract.Utils.accountId;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.aliasContractIdKey;
 import static com.hedera.services.bdd.suites.contract.Utils.aliasDelegateContractKey;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -111,6 +111,7 @@ import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.NftTransfer;
@@ -700,7 +701,7 @@ public class Create2OperationSuite {
                                             .addNftTransfers(NftTransfer.newBuilder()
                                                     .setSerialNumber(2L)
                                                     .setSenderAccountID(tt)
-                                                    .setReceiverAccountID(accountId(
+                                                    .setReceiverAccountID(Utils.accountIdWithHexedEvmAddress(
                                                             spec.shard(), spec.realm(), userMirrorAddr.get()))));
                         })
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
@@ -1518,8 +1519,8 @@ public class Create2OperationSuite {
         NftTransfer[] nftTransfers = new NftTransfer[nftTransfersSize];
         for (int i = 0; i < nftTransfersSize; i++) {
             nftTransfers[i] = ocWith(
-                    accountId(spec, partyAlias.get()),
-                    accountId(spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                    accountIdFromEvmAddress(spec, partyAlias.get()),
+                    accountIdFromEvmAddress(spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                     i + 1);
         }
         return Arrays.asList(nftTransfers);
@@ -1533,8 +1534,8 @@ public class Create2OperationSuite {
         return cryptoTransfer((spec, b) -> {
                     b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(ftId.get())
-                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
-                            .addTransfers(aaWith(
+                            .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                            .addTransfers(Utils.aaWith(
                                     spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)
@@ -1562,7 +1563,7 @@ public class Create2OperationSuite {
         return cryptoTransfer((spec, b) -> {
                     final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                     var transferListBuilder = TransferList.newBuilder()
-                            .addAccountAmounts(aaWith(
+                            .addAccountAmounts(Utils.aaWith(
                                     spec,
                                     ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                     +ONE_HBAR))
@@ -1572,8 +1573,8 @@ public class Create2OperationSuite {
 
                     ftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
-                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
-                            .addTransfers(aaWith(
+                            .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                            .addTransfers(Utils.aaWith(
                                     spec,
                                     ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                     +500))));
@@ -1581,8 +1582,8 @@ public class Create2OperationSuite {
                     nftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
                             .addNftTransfers(ocWith(
-                                    accountId(spec, partyAlias.get()),
-                                    accountId(
+                                    accountIdFromEvmAddress(spec, partyAlias.get()),
+                                    accountIdFromEvmAddress(
                                             spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                                     1L))));
                 })

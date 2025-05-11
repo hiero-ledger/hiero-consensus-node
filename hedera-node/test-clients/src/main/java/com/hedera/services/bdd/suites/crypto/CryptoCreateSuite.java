@@ -90,10 +90,8 @@ public class CryptoCreateSuite {
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
     public static final String ED_25519_KEY = "ed25519Alias";
-    public static final String ACCOUNT_ID = asEntityString(10);
-    ;
-    public static final String STAKED_ACCOUNT_ID = asEntityString(3);
-    ;
+    public static final String ACCOUNT_ID = "10";
+    public static final String STAKED_ACCOUNT_ID = "3";
     public static final String CIVILIAN = "civilian";
     public static final String NO_KEYS = "noKeys";
     public static final String SHORT_KEY = "shortKey";
@@ -207,11 +205,15 @@ public class CryptoCreateSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(true)
                         .stakedAccountId(ACCOUNT_ID),
-                getAccountInfo("civilianWORewardStakingAcc")
-                        .has(accountWith()
-                                .isDeclinedReward(true)
-                                .noStakingNodeId()
-                                .stakedAccountIdWithLiteral(ACCOUNT_ID)),
+                withOpContext((spec, opLog) -> {
+                    final var op = getAccountInfo("civilianWORewardStakingAcc")
+                            .has(accountWith()
+                                    .isDeclinedReward(true)
+                                    .noStakingNodeId()
+                                    .stakedAccountIdWithLiteral(
+                                            asEntityString(spec.shard(), spec.realm(), ACCOUNT_ID)));
+                    allRunFor(spec, op);
+                }),
                 cryptoCreate("civilianWRewardStakingNode")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
@@ -225,18 +227,22 @@ public class CryptoCreateSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
                         .stakedAccountId(ACCOUNT_ID),
-                getAccountInfo("civilianWRewardStakingAcc")
-                        .has(accountWith()
-                                .isDeclinedReward(false)
-                                .noStakingNodeId()
-                                .stakedAccountIdWithLiteral(ACCOUNT_ID)),
+                withOpContext((spec, opLog) -> {
+                    final var op = getAccountInfo("civilianWRewardStakingAcc")
+                            .has(accountWith()
+                                    .isDeclinedReward(false)
+                                    .noStakingNodeId()
+                                    .stakedAccountIdWithLiteral(
+                                            asEntityString(spec.shard(), spec.realm(), ACCOUNT_ID)));
+                    allRunFor(spec, op);
+                }),
                 /* --- sentinel values throw */
                 cryptoCreate("invalidStakedAccount")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
                         .shardId(ShardID.newBuilder().setShardNum(0).build())
                         .realmId(RealmID.newBuilder().setRealmNum(0).build())
-                        .stakedAccountId("0.0.0")
+                        .stakedAccountId("0")
                         .hasPrecheck(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")
                         .balance(ONE_HUNDRED_HBARS)
@@ -1028,14 +1034,16 @@ public class CryptoCreateSuite {
                 cryptoCreate("control").key(key).balance(1L).hasKnownStatus(SUCCESS),
                 cryptoCreate("differentShard")
                         .key(key)
+                        .memo("differentShard!")
                         .balance(1L)
-                        .shardId(ShardID.newBuilder().setShardNum(1).build())
+                        .shardId(ShardID.newBuilder().setShardNum(3).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID),
                 // expected realm is 2
                 cryptoCreate("differentRealm")
                         .key(key)
+                        .memo("differentRealm!")
                         .balance(1L)
-                        .realmId(RealmID.newBuilder().setRealmNum(1).build())
+                        .realmId(RealmID.newBuilder().setRealmNum(4).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 }

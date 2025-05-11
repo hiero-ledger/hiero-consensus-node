@@ -40,7 +40,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
@@ -77,6 +76,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -563,8 +563,8 @@ public class AirdropsDisabledTest {
                     for (AtomicReference<TokenID> ftId : ftIds) {
                         b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(spec, partyAlias.get(), -500))
-                                .addTransfers(aaWith(
+                                .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                                .addTransfers(Utils.aaWith(
                                         spec,
                                         ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                         +500)));
