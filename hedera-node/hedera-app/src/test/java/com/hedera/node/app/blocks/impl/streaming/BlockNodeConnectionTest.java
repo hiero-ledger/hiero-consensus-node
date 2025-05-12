@@ -60,7 +60,6 @@ class BlockNodeConnectionTest {
     private static final String HOST_ADDRESS = "127.0.0.1";
     private static final int PORT = 50211;
     private static final String CONNECTION_DESCRIPTOR = HOST_ADDRESS + ":" + PORT;
-    private static final int RECONNECT_SECS = 1;
     private static final int MAX_END_OF_STREAM_RESTARTS_VALUE = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES_VALUE = 10;
     private static final Duration VERIFY_TIMEOUT = Duration.ofSeconds(1);
@@ -768,7 +767,7 @@ class BlockNodeConnectionTest {
         connection.onNext(response);
 
         // Verify block state is removed
-        verify(blockStreamStateManager).removeBlockStatesUpTo(BLOCK_NUMBER);
+        assertNull(blockStreamStateManager.getBlockState(BLOCK_NUMBER));
 
         // Verify jumpToBlock is called
         verify(connection).jumpToBlock(BLOCK_NUMBER + 1);
@@ -837,7 +836,7 @@ class BlockNodeConnectionTest {
         connection.onNext(response);
 
         // Verify block state is removed
-        verify(blockStreamStateManager).removeBlockStatesUpTo(BLOCK_NUMBER);
+        assertNull(blockStreamStateManager.getBlockState(BLOCK_NUMBER));
 
         // Verify metrics
         verify(blockStreamMetrics).incrementBlockAckReceivedCount();
@@ -896,7 +895,7 @@ class BlockNodeConnectionTest {
         connection.onNext(response);
 
         // Verify block state is removed
-        verify(blockStreamStateManager).removeBlockStatesUpTo(BLOCK_NUMBER);
+        assertNull(blockStreamStateManager.getBlockState(BLOCK_NUMBER));
 
         // Verify jumpToBlock is called
         verify(connection).jumpToBlock(BLOCK_NUMBER + 1);
@@ -965,7 +964,7 @@ class BlockNodeConnectionTest {
         connection.onNext(response);
 
         // Verify block state is removed
-        verify(blockStreamStateManager).removeBlockStatesUpTo(BLOCK_NUMBER);
+        assertNull(blockStreamStateManager.getBlockState(BLOCK_NUMBER));
 
         // Verify metrics
         verify(blockStreamMetrics).incrementBlockAckReceivedCount();
@@ -1029,7 +1028,6 @@ class BlockNodeConnectionTest {
         verify(blockNodeConnectionManager).updateLastVerifiedBlock(eq(blockNodeConfig), eq(BLOCK_NUMBER));
 
         // Verify there are no other calls
-        verify(blockStreamStateManager, never()).removeBlockStatesUpTo(anyLong());
         verify(connection, never()).jumpToBlock(anyInt());
 
         // Verify no more interactions with the metrics
@@ -1050,7 +1048,6 @@ class BlockNodeConnectionTest {
         assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
 
         // Verify there are no other calls
-        verify(blockStreamStateManager, never()).removeBlockStatesUpTo(anyLong());
         verify(connection, never()).jumpToBlock(anyInt());
 
         // Verify no interactions with the metrics
