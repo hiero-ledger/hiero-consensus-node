@@ -6,6 +6,7 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.common.utility.RuntimeObjectRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -80,6 +81,10 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         final Randotron randotron = Randotron.create();
 
+        final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
+
+        RuntimeObjectRegistry.initialize(time);
+
         try {
             final ConstructableRegistry registry = ConstructableRegistry.getInstance();
             registry.registerConstructables("");
@@ -87,8 +92,6 @@ public class TurtleTestEnvironment implements TestEnvironment {
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
-
-        final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
 
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
