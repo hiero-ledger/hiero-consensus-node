@@ -191,7 +191,7 @@ jobs:
 
       - name: Gradle Dependency Scopes Check
         if: ${{ inputs.enable-dependency-check && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles --continue
+        run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles --continue --no-build-cache
 
       - name: Unit Testing
         id: gradle-test
