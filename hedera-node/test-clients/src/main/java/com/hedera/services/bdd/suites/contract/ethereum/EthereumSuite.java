@@ -255,7 +255,7 @@ public class EthereumSuite {
                                                 .logs(inOrder())
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
@@ -437,7 +437,7 @@ public class EthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> etx014ContractCreateInheritsSignerProperties() {
-        final AtomicReference<String> contractID = new AtomicReference<>();
+        final AtomicReference<String> contractNum = new AtomicReference<>();
         final String MEMO = "memo";
         final String PROXY = "proxy";
         final long INITIAL_BALANCE = 100L;
@@ -464,10 +464,7 @@ public class EthereumSuite {
                             .balance(INITIAL_BALANCE)
                             .gasPrice(10L)
                             .maxGasAllowance(ONE_HUNDRED_HBARS)
-                            .exposingNumTo(num -> contractID.set(asHexedSolidityAddress(
-                                    (int) spec.setup().defaultShard().getShardNum(),
-                                    spec.setup().defaultRealm().getRealmNum(),
-                                    num)))
+                            .exposingNumTo(num -> contractNum.set(String.valueOf(num)))
                             .gasLimit(1_000_000L)
                             .hasKnownStatus(SUCCESS);
                     getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey());
@@ -480,7 +477,7 @@ public class EthereumSuite {
                             .gasLimit(1_000_000L)
                             .hasKnownStatus(SUCCESS);
                     getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged();
-                    sourcing(() -> getContractInfo(contractID.get())
+                    sourcing(() -> getContractInfo(contractNum.get())
                             .has(contractWith()
                                     .defaultAdminKey()
                                     .autoRenew(AUTO_RENEW_PERIOD)
@@ -579,7 +576,7 @@ public class EthereumSuite {
                                                 .logs(inOrder())
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
@@ -669,7 +666,7 @@ public class EthereumSuite {
                                                                 List.of(eventSignatureOf("Info(address,address)")))))
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
@@ -863,7 +860,7 @@ public class EthereumSuite {
                                                 .logs(inOrder())
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(

@@ -412,7 +412,7 @@ public class NonceSuite {
                         ethereumCall(
                                         INTERNAL_CALLER_CONTRACT,
                                         TRANSFER_TO_FUNCTION,
-                                        mirrorAddrWith(receiverId.get().getAccountNum()))
+                                        mirrorAddrWith(spec, receiverId.get().getAccountNum()))
                                 .type(EthTransactionType.EIP1559)
                                 .signingWith(SECP_256K1_SOURCE_KEY)
                                 .payingWith(RELAYER)
@@ -441,7 +441,7 @@ public class NonceSuite {
                         ethereumCall(
                                         INTERNAL_CALLER_CONTRACT,
                                         TRANSFER_TO_FUNCTION,
-                                        mirrorAddrWith(eth0x2.getAccountNum()))
+                                        mirrorAddrWith(spec, eth0x2.getAccountNum()))
                                 .type(EthTransactionType.EIP1559)
                                 .signingWith(SECP_256K1_SOURCE_KEY)
                                 .payingWith(RELAYER)
@@ -470,7 +470,7 @@ public class NonceSuite {
                         ethereumCall(
                                         INTERNAL_CALLER_CONTRACT,
                                         TRANSFER_TO_FUNCTION,
-                                        mirrorAddrWith(eth0x167.getAccountNum()))
+                                        mirrorAddrWith(spec, eth0x167.getAccountNum()))
                                 .type(EthTransactionType.EIP1559)
                                 .signingWith(SECP_256K1_SOURCE_KEY)
                                 .payingWith(RELAYER)
@@ -544,7 +544,7 @@ public class NonceSuite {
                         ethereumCall(
                                         INTERNAL_CALLER_CONTRACT,
                                         TRANSFER_TO_FUNCTION,
-                                        mirrorAddrWith(receiverId.get().getAccountNum()))
+                                        mirrorAddrWith(spec, receiverId.get().getAccountNum()))
                                 .type(EthTransactionType.EIP1559)
                                 .signingWith(SECP_256K1_SOURCE_KEY)
                                 .payingWith(RELAYER)
@@ -873,7 +873,7 @@ public class NonceSuite {
                         ethereumCall(
                                         INTERNAL_CALLER_CONTRACT,
                                         TRANSFER_TO_FUNCTION,
-                                        mirrorAddrWith(receiverId.get().getAccountNum()))
+                                        mirrorAddrWith(spec, receiverId.get().getAccountNum()))
                                 .type(EthTransactionType.EIP1559)
                                 .signingWith(SECP_256K1_SOURCE_KEY)
                                 .payingWith(RELAYER)

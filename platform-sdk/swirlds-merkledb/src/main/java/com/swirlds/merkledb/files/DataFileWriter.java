@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.merkledb.utilities.MemoryUtils;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.MappedByteBuffer;
@@ -21,6 +20,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * Class for creating and sequentially writing to the file.
