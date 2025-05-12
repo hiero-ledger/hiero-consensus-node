@@ -24,8 +24,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class IntakeAndConsensusTests {
     /**
-     * Reproduces #5635
-     * <p>
      * This test creates a graph with two partitions, where one partition is small enough that it is not needed for
      * consensus. Because the small partition does not affect consensus, we can delay inserting those events and still
      * reach consensus. We delay adding the small partition events until the first of these events becomes ancient. This
@@ -35,8 +33,6 @@ class IntakeAndConsensusTests {
      * that new events will be descendants of some small partition events. This means that the small partition events
      * will now be needed for consensus. If the small partition events are not inserted into one of the nodes correctly,
      * it will not be able to reach consensus.
-     * <p>
-     * Tests the workaround described in #5762
      */
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
