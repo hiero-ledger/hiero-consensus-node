@@ -3,18 +3,14 @@ package com.hedera.node.app.blocks;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigExtractor;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigExtractorImpl;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
-import com.hedera.node.app.blocks.impl.streaming.NoOpBlockNodeConfigExtractor;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -31,19 +27,6 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
-    static BlockNodeConfigExtractor provideBlockNodeConfigExtractor(@NonNull final ConfigProvider configProvider) {
-        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
-        if (blockStreamConfig.streamToBlockNodes()) {
-            final var blockNodeConnectionConfig =
-                    configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-            return new BlockNodeConfigExtractorImpl(blockNodeConnectionConfig.blockNodeConnectionFileDir());
-        } else {
-            return new NoOpBlockNodeConfigExtractor();
-        }
-    }
-
-    @Provides
-    @Singleton
     static BlockStreamStateManager provideBlockStreamStateManager(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         return new BlockStreamStateManager(configProvider, blockStreamMetrics);
@@ -52,11 +35,11 @@ public interface BlockStreamModule {
     @Provides
     @Singleton
     static BlockNodeConnectionManager provideBlockNodeConnectionManager(
-            @NonNull final BlockNodeConfigExtractor blockNodeConfigExtractor,
+            @NonNull final ConfigProvider configProvider,
             @NonNull final BlockStreamStateManager blockStreamStateManager,
             @NonNull final BlockStreamMetrics blockStreamMetrics) {
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(blockNodeConfigExtractor, blockStreamStateManager, blockStreamMetrics);
+                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics);
         blockStreamStateManager.setBlockNodeConnectionManager(manager);
         return manager;
     }

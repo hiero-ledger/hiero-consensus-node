@@ -17,14 +17,20 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
@@ -45,7 +51,7 @@ class BlockNodeConnectionManagerTest {
     private LogCaptor logCaptor;
 
     @LoggingSubject
-    private BlockNodeConnectionManager blockNodeConnectionManager;
+    private static BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Mock
     private Supplier<Void> mockSupplier;
@@ -54,25 +60,29 @@ class BlockNodeConnectionManagerTest {
     private BlockNodeConnection mockConnection;
 
     @Mock
-    private BlockStreamStateManager mockStateManager;
+    private static BlockStreamStateManager mockStateManager;
 
     @Mock
     private BlockState mockBlockState;
 
     @Mock
-    BlockStreamMetrics blockStreamMetrics;
+    private static BlockStreamMetrics blockStreamMetrics;
 
-    private static BlockNodeConfigExtractor mockBlockNodeConfigExtractor;
+    @Mock
+    private static ConfigProvider configProvider;
+
+    private static BlockNodeConnectionManager mockBlockNodeConnectionManager;
 
     private static final List<Server> testServers = new ArrayList<>();
 
     @BeforeAll
     static void beforeAll() {
-        mockBlockNodeConfigExtractor = mock(BlockNodeConfigExtractor.class);
-        when(mockBlockNodeConfigExtractor.getAllNodes())
+        mockBlockNodeConnectionManager = mock(BlockNodeConnectionManager.class);
+
+        when(mockBlockNodeConnectionManager.getAvailableNodes())
                 .thenReturn(List.of(localBlockNodeConfigEntry(8080, 1), localBlockNodeConfigEntry(8081, 2)));
 
-        mockBlockNodeConfigExtractor.getAllNodes().forEach(node -> {
+        mockBlockNodeConnectionManager.getAvailableNodes().forEach(node -> {
             try {
                 testServers.add(ServerBuilder.forPort(node.port())
                         .addService(new BlockStreamServiceTestImpl())
@@ -94,7 +104,7 @@ class BlockNodeConnectionManagerTest {
     @BeforeEach
     void setUp() {
         blockNodeConnectionManager =
-                new BlockNodeConnectionManager(mockBlockNodeConfigExtractor, mockStateManager, blockStreamMetrics);
+                new BlockNodeConnectionManager(createConfigProvider(), mockStateManager, blockStreamMetrics);
     }
 
     @AfterAll
@@ -106,6 +116,13 @@ class BlockNodeConnectionManagerTest {
                 throw new RuntimeException("Failed to stop test server", e);
             }
         });
+    }
+
+    @Test
+    void testLoadConfig() {
+        List<BlockNodeConfig> nodes = blockNodeConnectionManager.getAvailableNodes();
+        assertThat(nodes).isNotEmpty();
+        assertThat(nodes).allMatch(node -> node.address() != null && node.port() > 0);
     }
 
     @Test
@@ -196,10 +213,10 @@ class BlockNodeConnectionManagerTest {
         blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
 
         final List<String> infoLogs = logCaptor.infoLogs();
-        assertThat(infoLogs.get(0)).contains("Establishing connection to block node based on priorities");
+        assertThat(infoLogs.get(2)).contains("Establishing connection to block node based on priorities");
 
         // Verify the order of connection attempts: The high priority node should be the first
-        assertThat(infoLogs.get(1)).contains("Scheduling connection attempt for block node localhost:8080");
+        assertThat(infoLogs.get(3)).contains("Scheduling connection attempt for block node localhost:8080");
     }
 
     @Test
@@ -385,5 +402,18 @@ class BlockNodeConnectionManagerTest {
         assertThat(blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig))
                 .isEqualTo(initialBlockNumber);
         verify(mockStateManager, times(1)).setLatestAcknowledgedBlock(initialBlockNumber);
+    }
+
+    private ConfigProvider createConfigProvider() {
+        final var configPath = Objects.requireNonNull(
+                        BlockNodeConnectionManagerTest.class.getClassLoader().getResource("bootstrap/"))
+                .getPath();
+        assertThat(Files.exists(Path.of(configPath))).isTrue();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
+                .withValue("blockNode.blockNodeConnectionFileDir", configPath)
+                .getOrCreateConfig();
+        return () -> new VersionedConfigImpl(config, 1L);
     }
 }

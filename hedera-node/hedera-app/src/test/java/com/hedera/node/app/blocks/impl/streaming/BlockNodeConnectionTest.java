@@ -2,9 +2,11 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.hapi.block.PublishStreamResponseCode.*;
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.block.PublishStreamRequest;
@@ -13,6 +15,8 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -45,6 +49,9 @@ class BlockNodeConnectionTest {
     private static final int MAX_END_OF_STREAM_RESTARTS_VALUE = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES_VALUE = 10;
     private static final Duration VERIFY_TIMEOUT = Duration.ofSeconds(1);
+
+    @Mock
+    private ConfigProvider configProvider;
 
     @Mock
     private BlockNodeConfig blockNodeConfig;
@@ -92,8 +99,10 @@ class BlockNodeConnectionTest {
         when(blockNodeConfig.address()).thenReturn(HOST_ADDRESS);
         when(blockNodeConfig.port()).thenReturn(PORT);
         //            when(blockNodeConfig.priority()).thenReturn(1);
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         connection = spy(new BlockNodeConnection(
+                configProvider,
                 blockNodeConfig,
                 blockNodeConnectionManager,
                 blockStreamStateManager,
@@ -987,7 +996,8 @@ class BlockNodeConnectionTest {
 
         // Verify failure outcome
         assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
-        verify(blockNodeConnectionManager).handleConnectionError(connection);
+        verify(blockNodeConnectionManager)
+                .handleConnectionError(connection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
         verify(blockStreamMetrics).incrementOnErrorCount();
         assertThat(logCaptor.errorLogs())
                 .anyMatch(

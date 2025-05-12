@@ -5,11 +5,14 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
+import java.time.Duration;
 
 /**
  * Configuration for Connecting to Block Nodes.
  * @param shutdownNodeOnNoBlockNodes whether to shut down the consensus node if there are no block node connections
- * @param blockNodeConnectionFileDir directory to get the block node configuration file
+ * @param blockNodeConnectionFileDir the directory to get the block node configuration file
+ * @param blockNodeConfigFile the file containing the block nodes configurations
  * @param waitPeriodForActiveConnection the time in minutes to wait for an active connection
  */
 @ConfigData("blockNode")
@@ -17,4 +20,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean shutdownNodeOnNoBlockNodes,
         @ConfigProperty(defaultValue = "data/config") @NodeProperty String blockNodeConnectionFileDir,
         @ConfigProperty(defaultValue = "block-nodes.json") @NodeProperty String blockNodeConfigFile,
-        @ConfigProperty(defaultValue = "10") @NetworkProperty long waitPeriodForActiveConnection) {}
+        @ConfigProperty(defaultValue = "10") @NetworkProperty long waitPeriodForActiveConnection,
+        @ConfigProperty(defaultValue = "5") @NodeProperty long endOfStreamCount,
+        @ConfigProperty(defaultValue = "30s") @Min(0) @NodeProperty Duration endOfStreamTimeFrame,
+        @ConfigProperty(defaultValue = "30s") @Min(0) @NodeProperty Duration endOfStreamScheduleDelay) {}

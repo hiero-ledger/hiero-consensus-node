@@ -11,11 +11,17 @@ import com.hedera.hapi.block.PublishStreamResponse.EndOfStream;
 import com.hedera.hapi.block.PublishStreamResponse.ResendBlock;
 import com.hedera.hapi.block.PublishStreamResponse.SkipBlock;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +37,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     private static final int MAX_END_OF_STREAM_RESTARTS = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES = 10;
+    private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
     private final ScheduledExecutorService scheduler;
 
     private final BlockNodeConfig blockNodeConfig;
@@ -39,6 +46,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final BlockStreamStateManager blockStreamStateManager;
     private BlockStreamMetrics blockStreamMetrics = null;
     private final String connectionDescriptor;
+    private long endOfStreamCount;
+    private Duration endOfStreamTimeFrame;
+    private Duration endOfStreamScheduleDelay;
 
     // Locks and synchronization objects
     private final Object workerLock = new Object();
@@ -91,6 +101,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     /**
      * Construct a new BlockNodeConnection.
      *
+     * @param configProvider the configuration to use
      * @param nodeConfig the configuration for the block node
      * @param blockNodeConnectionManager the connection manager for block node connections
      * @param blockStreamStateManager the block stream state manager for block node connections
@@ -99,12 +110,14 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param blockStreamMetrics the block stream metrics for block node connections
      */
     public BlockNodeConnection(
+            @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockStreamStateManager blockStreamStateManager,
             @NonNull final GrpcServiceClient grpcServiceClient,
             @NonNull final ScheduledExecutorService scheduler,
             @NonNull final BlockStreamMetrics blockStreamMetrics) {
+        requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
@@ -115,6 +128,13 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionDescriptor = generateConnectionDescriptor(nodeConfig);
         this.connectionState = ConnectionState.UNINITIALIZED;
+
+        final var blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+
+        this.endOfStreamCount = blockNodeConnectionConfig.endOfStreamCount();
+        this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
+        this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
     }
 
     public void createRequestObserver() {
@@ -306,7 +326,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
     private void handleStreamFailure() {
         close();
-        blockNodeConnectionManager.handleConnectionError(this);
+        blockNodeConnectionManager.handleConnectionError(this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
     }
 
     private void moveToNextBlock() {
@@ -327,7 +347,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             Thread.currentThread().getName(),
                             connectionDescriptor,
                             getCurrentBlockNumber());
-                    blockNodeConnectionManager.handleConnectionError(this);
+                    blockNodeConnectionManager.handleConnectionError(
+                            this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
                 },
                 5,
                 TimeUnit.SECONDS);
@@ -418,6 +439,21 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         // Always end the stream when we receive an end of stream message
         close();
 
+        // Check if we've exceeded the EndOfStream rate limit
+        if (hasExceededEndOfStreamLimit(endOfStreamCount, endOfStreamTimeFrame)) {
+            logger.warn(
+                    "[{}] Block node {} exceeded EndOfStream rate limit ({} in {} seconds). Delaying reconnection by {} seconds.",
+                    Thread.currentThread().getName(),
+                    connectionDescriptor,
+                    endOfStreamCount,
+                    endOfStreamTimeFrame.toSeconds(),
+                    endOfStreamScheduleDelay.toSeconds());
+
+            // Schedule delayed retry through connection manager
+            blockNodeConnectionManager.handleConnectionError(this, endOfStreamScheduleDelay);
+            return;
+        }
+
         switch (responseCode) {
             case STREAM_ITEMS_INTERNAL_ERROR, STREAM_ITEMS_PERSISTENCE_FAILED -> {
                 // The block node had an end of stream error and cannot continue processing.
@@ -476,7 +512,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             connectionDescriptor);
 
                     if (endOfStreamExpBackoffs.incrementAndGet() <= MAX_END_OF_STREAM_EXP_RETRIES) {
-                        blockNodeConnectionManager.handleConnectionError(this);
+                        blockNodeConnectionManager.handleConnectionError(
+                                this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
                     }
                 }
             }
@@ -525,6 +562,23 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 resendBlockNumber,
                 connectionDescriptor);
         restartStreamAtBlock(resendBlockNumber);
+    }
+
+    private boolean hasExceededEndOfStreamLimit(
+            final long endOfStreamCount, @NonNull final Duration endOfStreamTimeFrame) {
+        final var now = Instant.now();
+        final var cutoff = now.minus(endOfStreamTimeFrame);
+
+        // Remove expired timestamps
+        while (!endOfStreamTimestamps.isEmpty() && endOfStreamTimestamps.peek().isBefore(cutoff)) {
+            endOfStreamTimestamps.poll();
+        }
+
+        // Add current timestamp
+        endOfStreamTimestamps.offer(now);
+
+        // Check if we've exceeded the limit
+        return endOfStreamTimestamps.size() >= endOfStreamCount;
     }
 
     private String generateConnectionDescriptor(final BlockNodeConfig nodeConfig) {
