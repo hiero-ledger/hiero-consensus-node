@@ -450,9 +450,7 @@ public class AtomicBatchTest {
                             .payingWith(alias)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
                             .signedBy(alias, batchOperator),
-                    getAliasedAccountInfo(alias)
-                            .has(accountWith().hasNonEmptyKey())
-                            .logged(),
+                    getAliasedAccountInfo(alias).has(accountWith().hasNonEmptyKey()),
                     getAccountBalance("innerRecipient").hasTinyBars(123L)));
         }
 
@@ -475,7 +473,6 @@ public class AtomicBatchTest {
                             .payingWith(alias)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
                             .signedBy(alias, batchOperator)
-                            .via("failingBatchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     getAliasedAccountInfo(alias).isNotHollow(),
                     getAccountRecords("innerRecipient")
