@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.workflows.handle.stack.SavepointStackImpl.castBuilder;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -361,7 +362,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         PreHandleResult childPreHandleResult = null;
         // If we have pre-computed pre-handle results for the inner transactions, pass them to the child
         // dispatch instead of computing a synthetic pre-handle result for child dispatch.
-        if (preHandleResults != null && !preHandleResults.isEmpty()) {
+        if (options.category() == BATCH_INNER && preHandleResults != null && !preHandleResults.isEmpty()) {
             childPreHandleResult = preHandleResults.removeFirst();
         }
         final var childDispatch = childDispatchFactory.createChildDispatch(
