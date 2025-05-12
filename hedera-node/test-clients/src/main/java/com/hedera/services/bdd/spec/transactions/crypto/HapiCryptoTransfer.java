@@ -299,7 +299,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
             final String from, final String to, final long amount) {
         return spec -> {
             final var fromId = asId(from, spec);
-            final var toId = spec.registry().keyAliasIdFor(to);
+            final var toId = spec.registry().keyAliasIdFor(spec, to);
             return xFromTo(fromId, toId, amount);
         };
     }
@@ -318,7 +318,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                         .build();
                 return xFromTo(fromId, toAccId, amount);
             }
-            final var toId = spec.registry().keyAliasIdFor(to);
+            final var toId = spec.registry().keyAliasIdFor(spec, to);
             return xFromTo(fromId, toId, amount);
         };
     }

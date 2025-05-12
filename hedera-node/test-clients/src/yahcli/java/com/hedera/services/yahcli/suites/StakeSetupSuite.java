@@ -8,12 +8,12 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
-import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
+import com.hedera.services.yahcli.util.HapiSpecUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
@@ -25,7 +25,6 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class StakeSetupSuite extends HapiSuite {
     private static final Logger log = LogManager.getLogger(StakeSetupSuite.class);
-    private static final String SPEC_NAME = "StartStakingAndExportCreatedStakers";
 
     private final long stakePerNode;
     private final long stakingRewardRate;
@@ -57,22 +56,20 @@ public class StakeSetupSuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> startStakingAndExportCreatedStakers() {
-        final var spec = new HapiSpec(SPEC_NAME, new MapPropertySource(specConfig), new SpecOperation[] {
-            overriding("staking.perHbarRewardRate", String.valueOf(stakingRewardRate)),
-            TxnVerbs.cryptoTransfer(HapiCryptoTransfer.tinyBarsFromTo(
-                    HapiSuite.DEFAULT_PAYER, HapiSuite.STAKING_REWARD, rewardAccountBalance)),
-            UtilVerbs.inParallel(configManager.nodeIdsInTargetNet().stream()
-                    .map(nodeId -> TxnVerbs.cryptoCreate("stakerFor" + nodeId)
-                            .stakedNodeId(nodeId)
-                            .balance(stakePerNode)
-                            .key(HapiSuite.DEFAULT_PAYER)
-                            .exposingCreatedIdTo(id -> accountsToStakedNodes.put(asEntityString(id), nodeId)))
-                    .toArray(HapiSpecOperation[]::new))
-        });
-        final var network = RemoteNetworkFactory.newWithTargetFrom(
-                configManager.shard().getShardNum(), configManager.realm().getRealmNum(), configManager.asNodeInfos());
-        spec.setTargetNetwork(network);
-        return Stream.of(DynamicTest.dynamicTest(SPEC_NAME, spec));
+        final var spec = new HapiSpec(
+                "StartStakingAndExportCreatedStakers", new MapPropertySource(specConfig), new SpecOperation[] {
+                    overriding("staking.perHbarRewardRate", String.valueOf(stakingRewardRate)),
+                    TxnVerbs.cryptoTransfer(HapiCryptoTransfer.tinyBarsFromTo(
+                            HapiSuite.DEFAULT_PAYER, HapiSuite.STAKING_REWARD, rewardAccountBalance)),
+                    UtilVerbs.inParallel(configManager.nodeIdsInTargetNet().stream()
+                            .map(nodeId -> TxnVerbs.cryptoCreate("stakerFor" + nodeId)
+                                    .stakedNodeId(nodeId)
+                                    .balance(stakePerNode)
+                                    .key(HapiSuite.DEFAULT_PAYER)
+                                    .exposingCreatedIdTo(id -> accountsToStakedNodes.put(asEntityString(id), nodeId)))
+                            .toArray(HapiSpecOperation[]::new))
+                });
+        return HapiSpecUtils.targeted(spec, configManager);
     }
 
     @Override

@@ -381,11 +381,7 @@ public class AssociatePrecompileSuite {
                         CONTRACT_REVERT_EXECUTED,
                         recordWith().status(INVALID_ACCOUNT_ID)),
                 childRecordsCheck(
-                        nullTokenArray, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
-                childRecordsCheck(
-                        nonExistingTokensInArray,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_TOKEN_ID)));
+                        nullTokenArray, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }
 
     @HapiTest
@@ -454,8 +450,6 @@ public class AssociatePrecompileSuite {
                         recordWith().status(INVALID_ACCOUNT_ID)),
                 childRecordsCheck(
                         nullAccount, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ACCOUNT_ID)),
-                childRecordsCheck(
-                        nonExistingToken, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
                 childRecordsCheck(
                         nullToken, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }

@@ -3,8 +3,8 @@ package com.hedera.services.bdd.junit;
 
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
@@ -139,14 +139,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     HapiSpec.doDelayedPrepareUpgrades(offsets);
                 }
             }
-            final long configShard = Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
-                    .map(Long::parseLong)
-                    .orElse((long) SHARD);
-            final long configRealm = Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
-                    .map(Long::parseLong)
-                    .orElse(REALM);
-            SubProcessNetwork subProcessNetwork =
-                    (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(networkSize, configShard, configRealm);
+            SubProcessNetwork subProcessNetwork = (SubProcessNetwork)
+                    SubProcessNetwork.newSharedNetwork(networkSize, getConfigShard(), getConfigRealm());
 
             // Check for the blocknode mode system property
             String blockNodeModeProperty = System.getProperty("hapi.spec.blocknode.mode");

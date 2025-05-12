@@ -390,7 +390,7 @@ public class HapiClients {
     }
 
     private static synchronized ChannelStubs nextStubsFromPool(@NonNull final String stubId) {
-        requireNonNull(stubId);
+        requireNonNull(stubId, "HapiClients has no matching stub!");
         final List<ChannelStubs> stubs = channelPools.get(stubId);
         if (stubs == null || stubs.isEmpty()) {
             throw new IllegalArgumentException("Should have ensured at least one channel in pool");

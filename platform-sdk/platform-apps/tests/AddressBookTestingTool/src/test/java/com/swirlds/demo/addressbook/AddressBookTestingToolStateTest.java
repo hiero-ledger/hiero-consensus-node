@@ -2,7 +2,6 @@
 package com.swirlds.demo.addressbook;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -17,6 +16,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import java.time.Duration;
 import java.time.Instant;
@@ -62,7 +62,7 @@ class AddressBookTestingToolStateTest {
         state = new AddressBookTestingToolState();
         consensusStateEventHandler =
                 new AddressBookTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
     }
 
     @BeforeEach

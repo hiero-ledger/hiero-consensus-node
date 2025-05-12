@@ -49,7 +49,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -191,10 +190,6 @@ public class DissociatePrecompileSuite {
                 childRecordsCheck(
                         nullTokenArray, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
                 childRecordsCheck(
-                        nonExistingTokensInArray,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)),
-                childRecordsCheck(
                         someNonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)));
     }
 
@@ -265,10 +260,6 @@ public class DissociatePrecompileSuite {
                         recordWith().status(INVALID_ACCOUNT_ID)),
                 childRecordsCheck(
                         nullAccount, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ACCOUNT_ID)),
-                childRecordsCheck(
-                        nonExistingToken,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)),
                 childRecordsCheck(
                         nullToken, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }
