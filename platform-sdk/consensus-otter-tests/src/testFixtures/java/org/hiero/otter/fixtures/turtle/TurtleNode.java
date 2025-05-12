@@ -318,6 +318,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
+                .withUncaughtExceptionHandler((t, e) -> {
+                    throw new AssertionError(e);
+                })
                 .build();
         final SemanticVersion version =
                 currentConfiguration.getValue(TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class);
