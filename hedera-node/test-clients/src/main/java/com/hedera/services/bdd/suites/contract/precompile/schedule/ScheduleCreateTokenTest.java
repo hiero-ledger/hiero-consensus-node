@@ -192,11 +192,8 @@ public class ScheduleCreateTokenTest {
                             .gas(1_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
             final var scheduleID = asScheduleId(scheduleAddress.get());
-            final var scheduleNum = spec.setup().defaultShard().getShardNum() + "."
-                    + spec.setup().defaultRealm().getRealmNum() + "."
-                    + scheduleID.getScheduleNum();
             spec.registry().saveScheduleId("scheduledCreateFTWithEOA", scheduleID);
-            assertScheduleAndSignWithEOA(spec, "scheduledCreateFTWithEOA", scheduleNum);
+            assertScheduleAndSignWithEOA(spec, "scheduledCreateFTWithEOA", String.valueOf(scheduleID.getScheduleNum()));
         }));
     }
 

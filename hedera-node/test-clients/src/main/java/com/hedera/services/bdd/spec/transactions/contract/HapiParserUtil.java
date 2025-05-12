@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
@@ -71,11 +68,11 @@ public class HapiParserUtil {
     }
 
     // Generate an address with the shard, realm and passed number. All the values are padded till the required length.
-    public static String toAddressStringWithShardAndRealm(String number) {
-        String shardHex = Integer.toHexString(SHARD);
+    public static String toAddressStringWithShardAndRealm(int shard, long realm, String number) {
+        String shardHex = Integer.toHexString(shard);
         shardHex = "000000".substring(0, 6 - shardHex.length()) + shardHex;
 
-        String realmHex = Long.toHexString(REALM);
+        String realmHex = Long.toHexString(realm);
         realmHex = "0000000000000000".substring(0, 16 - realmHex.length()) + realmHex;
 
         number = "0000000000000000".substring(0, 16 - number.length()) + number;

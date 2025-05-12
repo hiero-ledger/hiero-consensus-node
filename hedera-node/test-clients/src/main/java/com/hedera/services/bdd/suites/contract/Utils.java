@@ -5,8 +5,6 @@ import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.NUM_LONG_ZEROS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -55,7 +53,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import org.apache.commons.io.FileUtils;
@@ -302,7 +302,11 @@ public class Utils {
                 .build();
     }
 
-    public static AccountAmount aaWith(final String hexedEvmAddress, final long amount) {
+    public static AccountAmount aaWith(HapiSpec spec, final String hexedEvmAddress, final long amount) {
+        return aaWith(spec.shard(), spec.realm(), hexedEvmAddress, amount);
+    }
+
+    public static AccountAmount aaWith(long shard, long realm, final String hexedEvmAddress, final long amount) {
         return AccountAmount.newBuilder()
                 .setAccountID(accountId(shard, realm, hexedEvmAddress))
                 .setAmount(amount)
@@ -315,6 +319,10 @@ public class Utils {
                 .setReceiverAccountID(to)
                 .setSerialNumber(serialNo)
                 .build();
+    }
+
+    public static AccountID accountId(HapiSpec spec, final String hexedEvmAddress) {
+        return accountId(spec.shard(), spec.realm(), hexedEvmAddress);
     }
 
     public static AccountID accountId(final long shard, final long realm, final String hexedEvmAddress) {
@@ -333,7 +341,7 @@ public class Utils {
                 .build();
     }
 
-    public static Key aliasContractIdKey(final String hexedEvmAddress) {
+    public static Key aliasContractIdKey(final long shard, final long realm, final String hexedEvmAddress) {
         return Key.newBuilder()
                 .setContractID(ContractID.newBuilder()
                         .setShardNum(shard)
@@ -342,7 +350,7 @@ public class Utils {
                 .build();
     }
 
-    public static Key aliasDelegateContractKey(final String hexedEvmAddress) {
+    public static Key aliasDelegateContractKey(final long shard, final long realm, final String hexedEvmAddress) {
         return Key.newBuilder()
                 .setDelegatableContractId(ContractID.newBuilder()
                         .setShardNum(shard)
@@ -420,9 +428,13 @@ public class Utils {
         return Address.wrap(toChecksumAddress("0x" + addr));
     }
 
-    public static Address mirrorAddrWith(final long num) {
-        return Address.wrap(
-                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress(shard, realm, num))));
+    public static Address mirrorAddrWith(HapiSpec spec, final long num) {
+        return Address.wrap(toChecksumAddress(
+                new BigInteger(1, HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), num))));
+    }
+
+    public static Function<HapiSpec, Object[]> mirrorAddrParamFunction(final long contractNum) {
+        return spec -> List.of(mirrorAddrWith(spec, contractNum)).toArray();
     }
 
     public static Address nonMirrorAddrWith(final long num) {
