@@ -18,18 +18,18 @@ dependencies {
 val autoService = "1.1.1"
 val besu = "24.3.3"
 val bouncycastle = "1.80"
-val dagger = "2.56.1"
+val dagger = "2.56.2"
 val eclipseCollections = "11.1.0"
 val grpc = "1.72.0"
 val hederaCryptography = "0.2.3-SNAPSHOT"
 val helidon = "4.2.1"
-val jackson = "2.18.3"
+val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.17.0"
 val pbj = "0.11.0" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.30.2"
-val testContainers = "1.20.6"
+val testContainers = "1.21.0"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
 
@@ -74,7 +74,7 @@ dependencies.constraints {
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
     api("com.esaulpaugh:headlong:13.2.2") { because("com.esaulpaugh.headlong") }
-    api("info.picocli:picocli:4.7.6") { because("info.picocli") }
+    api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
     api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }

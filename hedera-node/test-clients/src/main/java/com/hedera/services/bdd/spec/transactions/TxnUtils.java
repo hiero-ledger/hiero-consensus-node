@@ -297,7 +297,13 @@ public class TxnUtils {
     }
 
     public static TopicID asTopicId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asTopic(s) : lookupSpec.registry().getTopicID(s);
+        if (isIdLiteral(s)) {
+            return asTopic(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asTopic(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getTopicID(s);
     }
 
     public static FileID asFileId(final String s, final HapiSpec lookupSpec) {
