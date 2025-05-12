@@ -57,7 +57,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -300,7 +299,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
 
         StakingValidator.validateStakedIdForUpdate(
-                context.configuration().getConfigData(StakingConfig.class).isEnabled(),
                 op.hasDeclineReward(),
                 op.stakedId().kind().name(),
                 op.stakedAccountId(),
@@ -369,7 +367,12 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
      * @return the calculated bytes
      */
     private static int currentNonBaseBytes(final Account account) {
-        return account.memo().getBytes(StandardCharsets.UTF_8).length
+        // TODO: should this part be a new utility method so we don't repeat it over and over?
+        final var accountMemoSize = (account == null || account.memo() == null)
+                ? 0
+                : account.memo().getBytes(StandardCharsets.UTF_8).length;
+
+        return accountMemoSize
                 + getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
                 + (account.maxAutoAssociations() == 0 ? 0 : INT_SIZE);
     }

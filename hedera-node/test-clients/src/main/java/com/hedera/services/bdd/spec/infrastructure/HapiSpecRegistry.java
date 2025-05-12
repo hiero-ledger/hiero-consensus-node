@@ -4,13 +4,12 @@ package com.hedera.services.bdd.spec.infrastructure;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asScheduleString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.infrastructure.listeners.TokenAccountRegistryRel;
@@ -60,7 +59,6 @@ public class HapiSpecRegistry {
 
     public HapiSpecRegistry(HapiSpecSetup setup) throws Exception {
         this.setup = setup;
-
         final var key = TypedKey.from(setup.payerKey());
         final var genesisKey = asPublicKey(key.pubKey(), key.type());
 
@@ -333,6 +331,9 @@ public class HapiSpecRegistry {
         if (txn.hasMemo()) {
             meta.setMemo(txn.getMemo().getValue());
         }
+        if (txn.hasCustomFees()) {
+            meta.addAllCustomFees(txn.getCustomFees().getFeesList());
+        }
         put(name, meta.build());
         if (txn.hasExpirationTime()) {
             put(name, txn.getExpirationTime().getSeconds());
@@ -525,11 +526,11 @@ public class HapiSpecRegistry {
         return get(name, AccountID.class);
     }
 
-    public AccountID keyAliasIdFor(String keyName) {
+    public AccountID keyAliasIdFor(HapiSpec spec, String keyName) {
         final var key = get(keyName, Key.class);
         return AccountID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setAlias(key.toByteString())
                 .build();
     }
@@ -558,6 +559,10 @@ public class HapiSpecRegistry {
 
     public TopicID getTopicID(String name) {
         return get(name, TopicID.class);
+    }
+
+    public boolean hasTopicID(String name) {
+        return registry.containsKey(full(name, TopicID.class));
     }
 
     public TokenID getTokenID(String name) {

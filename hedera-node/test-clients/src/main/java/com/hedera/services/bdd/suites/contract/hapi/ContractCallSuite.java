@@ -3,15 +3,13 @@ package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -287,18 +285,16 @@ public class ContractCallSuite {
     final Stream<DynamicTest> lowLevelEcrecCallBehavior() {
         final var TEST_CONTRACT = "TestContract";
         final var somebody = "somebody";
-        final var account = SHARD_AND_REALM + "1";
+        final var account = "1";
         return hapiTest(
                 uploadInitCode(TEST_CONTRACT),
-                contractCreate(
-                                TEST_CONTRACT,
-                                idAsHeadlongAddress(AccountID.newBuilder()
-                                        .setShardNum(SHARD)
-                                        .setRealmNum(REALM)
-                                        .setAccountNum(2)
-                                        .build()),
-                                BigInteger.ONE)
-                        .balance(ONE_HBAR),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                        TEST_CONTRACT,
+                                        idAsHeadlongAddress(asAccount(spec.shard(), spec.realm(), 2)),
+                                        BigInteger.ONE)
+                                .balance(ONE_HBAR))),
                 cryptoCreate(somebody),
                 balanceSnapshot("start", account),
                 cryptoUpdate(account).receiverSigRequired(true).signedBy(GENESIS),
@@ -687,7 +683,6 @@ public class ContractCallSuite {
         final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
         final AtomicReference<String> addressBookMirror = new AtomicReference<>();
         final AtomicReference<String> jurisdictionMirror = new AtomicReference<>();
-
         return hapiTest(
                 getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
                 withOpContext((spec, opLog) -> defaultPayerMirror.set((unhex(
@@ -698,12 +693,14 @@ public class ContractCallSuite {
                 // support
                 contractCreate(addressBook)
                         .gas(1_000_000L)
-                        .exposingNumTo(num -> addressBookMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
+                        .exposingContractIdTo(id -> addressBookMirror.set(
+                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),
                 contractCreate(jurisdictions)
                         .gas(4_000_000L)
-                        .exposingNumTo(num -> jurisdictionMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
+                        .exposingContractIdTo(id -> jurisdictionMirror.set(
+                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
                         .withExplicitParams(() -> EXPLICIT_JURISDICTION_CONS_PARAMS)
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),

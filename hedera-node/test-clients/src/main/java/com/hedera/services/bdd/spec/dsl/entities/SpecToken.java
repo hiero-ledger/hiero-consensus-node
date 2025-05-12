@@ -253,8 +253,8 @@ public class SpecToken extends AbstractSpecEntity<HapiTokenCreate, Token> implem
                 creation.model()
                         .copyBuilder()
                         .tokenId(TokenID.newBuilder()
-                                .shardNum(Long.parseLong(SHARD))
-                                .realmNum(Long.parseLong(REALM))
+                                .shardNum(spec.shard())
+                                .realmNum(spec.realm())
                                 .tokenNum(newTokenNum)
                                 .build())
                         .build(),
@@ -265,8 +265,8 @@ public class SpecToken extends AbstractSpecEntity<HapiTokenCreate, Token> implem
                             .saveTokenId(
                                     name,
                                     com.hederahashgraph.api.proto.java.TokenID.newBuilder()
-                                            .setShardNum(Long.parseLong(SHARD))
-                                            .setRealmNum(Long.parseLong(REALM))
+                                            .setShardNum(spec.shard())
+                                            .setRealmNum(spec.realm())
                                             .setTokenNum(newTokenNum)
                                             .build());
                     creation.op().registerAttributes(siblingSpec);
@@ -275,8 +275,8 @@ public class SpecToken extends AbstractSpecEntity<HapiTokenCreate, Token> implem
                             .saveContractId(
                                     name,
                                     ContractID.newBuilder()
-                                            .setShardNum(Long.parseLong(SHARD))
-                                            .setRealmNum(Long.parseLong(REALM))
+                                            .setShardNum(spec.shard())
+                                            .setRealmNum(spec.realm())
                                             .setContractNum(newTokenNum)
                                             .build());
                 }));

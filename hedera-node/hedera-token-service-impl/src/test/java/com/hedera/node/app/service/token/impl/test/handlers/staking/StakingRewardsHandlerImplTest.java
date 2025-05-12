@@ -493,8 +493,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .tinybarBalance(ownerBalance + accountBalance)
                 .stakedNodeId(0L)
                 .build());
-        writableAccountStore.put(Account
-                .newBuilder()
+        writableAccountStore.put(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(800).build())
                 .tinybarBalance(123L * HBARS_TO_TINYBARS)
                 .build());
@@ -892,8 +891,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .tinybarBalance(ownerBalance + accountBalance)
                 .stakedNodeId(0L)
                 .build());
-        writableAccountStore.put(Account
-                .newBuilder()
+        writableAccountStore.put(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(800).build())
                 .tinybarBalance(123L * HBARS_TO_TINYBARS)
                 .build());
@@ -1009,8 +1007,7 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .tinybarBalance(ownerBalance + accountBalance)
                 .stakedNodeId(0L)
                 .build());
-        writableAccountStore.put(Account
-                .newBuilder()
+        writableAccountStore.put(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(800).build())
                 .tinybarBalance(123L * HBARS_TO_TINYBARS)
                 .build());
@@ -1027,7 +1024,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(recordBuilder.getNumberOfDeletedAccounts()).willReturn(2);
         given(recordBuilder.getDeletedAccountBeneficiaryFor(payerId)).willReturn(ownerId);
         given(recordBuilder.getDeletedAccountBeneficiaryFor(ownerId)).willReturn(spenderId);
-        given(entityIdFactory.newAccountId(800)).willReturn(AccountID.newBuilder().accountNum(800).build());
+        given(entityIdFactory.newAccountId(800))
+                .willReturn(AccountID.newBuilder().accountNum(800).build());
 
         assertThatThrownBy(() -> subject.applyStakingRewards(context, Collections.emptySet(), emptyMap()))
                 .isInstanceOf(IllegalStateException.class);

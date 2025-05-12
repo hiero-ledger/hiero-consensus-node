@@ -3,10 +3,11 @@ package com.hedera.services.yahcli.config;
 
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.readKeyPairFrom;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.readECKeyFrom;
-import static com.hedera.services.yahcli.config.ConfigUtils.asId;
-import static com.hedera.services.yahcli.config.ConfigUtils.isLiteral;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.props.NodeConnectInfo;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottlesJsonToGrpcBytes;
@@ -14,6 +15,9 @@ import com.hedera.services.yahcli.Yahcli;
 import com.hedera.services.yahcli.config.domain.GlobalConfig;
 import com.hedera.services.yahcli.config.domain.NetConfig;
 import com.hedera.services.yahcli.config.domain.NodeConfig;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.RealmID;
+import com.hederahashgraph.api.proto.java.ShardID;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,6 +56,18 @@ public class ConfigManager {
         var yamlIn = new Yaml(new Constructor(GlobalConfig.class, new LoaderOptions()));
         try (InputStream fin = Files.newInputStream(Paths.get(yamlLoc))) {
             GlobalConfig globalConfig = yamlIn.load(fin);
+
+            globalConfig
+                    .getNetworks()
+                    .forEach((name, netConfig) -> netConfig.getNodes().forEach(nodeConfig -> {
+                        if (netConfig.getShard() != null) {
+                            nodeConfig.setShard(netConfig.getShard());
+                        }
+                        if (netConfig.getRealm() != null) {
+                            nodeConfig.setRealm(netConfig.getRealm());
+                        }
+                    }));
+
             return new ConfigManager(yahcli, globalConfig);
         }
     }
@@ -67,14 +83,18 @@ public class ConfigManager {
             specConfig.put("fees.fixedOffer", String.valueOf(useFixedFee() ? fixedFee() : "0"));
             specConfig.put("fees.useFixedOffer", "true");
         }
-        var payerId = asId(defaultPayer);
-        if (isLiteral(payerId)) {
+        var payerId = asEntityString(targetNet.getShard(), targetNet.getRealm(), Long.parseLong(defaultPayer));
+        if (TxnUtils.isIdLiteral(payerId)) {
             addPayerConfig(specConfig, payerId);
         } else {
             fail("Named accounts not yet supported!");
         }
         specConfig.put("default.node", defaultNodeAccount);
         return specConfig;
+    }
+
+    public List<NodeConnectInfo> asNodeInfos() {
+        return targetNet.toNodeInfos();
     }
 
     public boolean isAllowListEmptyOrContainsAccount(long account) {
@@ -199,8 +219,8 @@ public class ConfigManager {
     }
 
     private void assertDefaultNodeAccountIsKnown() {
-        final var configDefault = "0.0." + targetNet.getDefaultNodeAccount();
-        defaultNodeAccount = Optional.ofNullable(yahcli.getNodeAccount()).orElse(configDefault);
+        defaultNodeAccount =
+                Optional.ofNullable(yahcli.getNodeAccount()).orElse(String.valueOf(targetNet.getDefaultNodeAccount()));
     }
 
     private void assertDefaultPayerIsKnown() {
@@ -235,9 +255,8 @@ public class ConfigManager {
         targetNet = global.getNetworks().get(targetName);
         if (yahcli.getNodeIpv4Addr() != null) {
             final var ip = yahcli.getNodeIpv4Addr();
-            var nodeAccount = (yahcli.getNodeAccount() == null)
-                    ? MISSING_NODE_ACCOUNT
-                    : HapiPropertySource.asDotDelimitedLongArray(yahcli.getNodeAccount())[2];
+            var nodeAccount =
+                    (yahcli.getNodeAccount() == null) ? MISSING_NODE_ACCOUNT : Long.parseLong(yahcli.getNodeAccount());
             final var nodes = targetNet.getNodes();
             if (nodeAccount == MISSING_NODE_ACCOUNT) {
                 for (final var node : nodes) {
@@ -254,6 +273,8 @@ public class ConfigManager {
 
             final var overrideConfig = new NodeConfig();
             overrideConfig.setIpv4Addr(ip);
+            overrideConfig.setShard(targetNet.getShard());
+            overrideConfig.setRealm(targetNet.getRealm());
             overrideConfig.setAccount(nodeAccount);
             targetNet.setNodes(List.of(overrideConfig));
         }
@@ -263,11 +284,22 @@ public class ConfigManager {
         throw new CommandLine.ParameterException(yahcli.getSpec().commandLine(), msg);
     }
 
-    public String getDefaultPayer() {
-        return defaultPayer;
+    public AccountID getDefaultPayer() {
+        return HapiPropertySource.asAccount(targetNet.getShard(), targetNet.getRealm(), Long.parseLong(defaultPayer));
     }
 
     public String getTargetName() {
         return targetName;
+    }
+
+    public ShardID shard() {
+        return ShardID.newBuilder().setShardNum(targetNet.getShard()).build();
+    }
+
+    public RealmID realm() {
+        return RealmID.newBuilder()
+                .setShardNum(targetNet.getShard())
+                .setRealmNum(targetNet.getRealm())
+                .build();
     }
 }

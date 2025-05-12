@@ -21,9 +21,7 @@ import com.hedera.node.app.state.SingleTransactionRecord.TransactionOutputs;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.stream.Signer;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.crypto.PublicStores;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,6 +34,8 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signer;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

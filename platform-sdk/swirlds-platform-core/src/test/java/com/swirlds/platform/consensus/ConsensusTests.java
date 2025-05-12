@@ -313,4 +313,18 @@ class ConsensusTests extends PlatformTest {
                 .setIterations(NUM_ITER)
                 .run();
     }
+
+    @ParameterizedTest
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#threeNetworkTypes")
+    @Tag(TestComponentTags.PLATFORM)
+    @Tag(TestComponentTags.CONSENSUS)
+    @DisplayName("Consensus Freeze Tests")
+    void consensusFreezeTest(final ConsensusTestParams params) {
+        ConsensusTestRunner.create()
+                .setTest(ConsensusTestDefinitions::consensusFreezeTests)
+                .setParams(params)
+                .setContexts(contexts())
+                .setIterations(NUM_ITER)
+                .run();
+    }
 }

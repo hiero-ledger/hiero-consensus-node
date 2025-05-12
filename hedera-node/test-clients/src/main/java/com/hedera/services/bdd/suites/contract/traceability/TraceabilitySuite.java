@@ -4784,6 +4784,7 @@ public class TraceabilitySuite {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(aaWith(
+                                            spec,
                                             ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                             +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
