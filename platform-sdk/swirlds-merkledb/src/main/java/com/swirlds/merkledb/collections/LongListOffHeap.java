@@ -6,7 +6,6 @@ import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNullElse;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.utilities.MemoryUtils;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -17,6 +16,7 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * A {@link LongList} that stores its contents off-heap via a {@link AtomicReferenceArray} of direct

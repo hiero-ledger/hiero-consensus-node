@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb.utilities;
+package org.hiero.base.utility;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
