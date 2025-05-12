@@ -259,14 +259,15 @@ public class TxnUtils {
                     .setAlias(asLiteralEvmAddress(s))
                     .build();
         }
+        if (isIdLiteral(s)) {
+            return asAccount(s);
+        }
         if (isNumericLiteral(s)) {
             return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
         }
-        return isIdLiteral(s)
-                ? asAccount(s)
-                : (lookupSpec.registry().hasAccountId(s)
-                        ? lookupSpec.registry().getAccountID(s)
-                        : lookUpAccount(lookupSpec, s));
+        return lookupSpec.registry().hasAccountId(s)
+                ? lookupSpec.registry().getAccountID(s)
+                : lookUpAccount(lookupSpec, s);
     }
 
     private static AccountID lookUpAccount(final HapiSpec spec, final String alias) {
@@ -296,7 +297,13 @@ public class TxnUtils {
     }
 
     public static TopicID asTopicId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asTopic(s) : lookupSpec.registry().getTopicID(s);
+        if (isIdLiteral(s)) {
+            return asTopic(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asTopic(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getTopicID(s);
     }
 
     public static FileID asFileId(final String s, final HapiSpec lookupSpec) {

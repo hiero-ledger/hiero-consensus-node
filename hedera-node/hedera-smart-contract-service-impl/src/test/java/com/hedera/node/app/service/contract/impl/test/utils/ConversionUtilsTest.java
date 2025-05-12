@@ -61,6 +61,7 @@ import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -68,6 +69,9 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -312,6 +316,45 @@ class ConversionUtilsTest {
     @Test
     void evmContractIDToNumNonLongZeroTest() {
         assertThat(contractIDToNum(entityIdFactory, VALID_CONTRACT_ADDRESS)).isEqualTo(0);
+    }
+
+    @Test
+    void asTokenIdWithZeros() {
+        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000000000000000000000000000000000000");
+
+        var tokenId = ConversionUtils.asTokenId(address);
+
+        assertEquals(0, tokenId.shardNum());
+        assertEquals(0, tokenId.realmNum());
+        assertEquals(0, tokenId.tokenNum());
+    }
+
+    @Test
+    void asTokenId() {
+        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000500000000000000060000000000000007");
+
+        var tokenId = ConversionUtils.asTokenId(address);
+
+        assertEquals(5, tokenId.shardNum());
+        assertEquals(6, tokenId.realmNum());
+        assertEquals(7, tokenId.tokenNum());
+    }
+
+    @ParameterizedTest
+    @MethodSource("asTokenIdWithNegativeValuesProvideParameters")
+    void asTokenIdWithNegativeValues(String hex, String errorMessage) {
+        final var address = com.esaulpaugh.headlong.abi.Address.wrap(hex);
+
+        IllegalArgumentException exception =
+                assertThrows(IllegalArgumentException.class, () -> ConversionUtils.asTokenId(address));
+        assertEquals(errorMessage, exception.getMessage());
+    }
+
+    private static Stream<Arguments> asTokenIdWithNegativeValuesProvideParameters() {
+        return Stream.of(
+                Arguments.of("0xFFFFffff00000000000000060000000000000007", "Shard is negative"),
+                Arguments.of("0x00000005FfffffFFfffFfFFF0000000000000007", "Realm is negative"),
+                Arguments.of("0x000000050000000000000006ffFFFFfFFffFFFff", "Number is negative"));
     }
 
     private byte[] bloomFor() {
