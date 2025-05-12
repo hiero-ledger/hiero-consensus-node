@@ -56,14 +56,17 @@ public class MultipleNodeConsensusResultsAssertCont
             @Override
             public SubscriberAction onConsensusRounds(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
                 for (final ConsensusRound round : rounds) {
-                    final RoundResult reference = referenceRounds.computeIfAbsent(round.getRoundNum(), key -> new RoundResult(nodeId, round));
-                    if (! round.equals(reference.round())) {
-                        throw new AssertionError("Expected rounds to be equal, but round %d differs. Node %s produced %s, while node %s produced %s".formatted(
-                                round.getRoundNum(),
-                                nodeId,
-                                round,
-                                reference.nodeId(),
-                                reference.round()));
+                    final RoundResult reference =
+                            referenceRounds.computeIfAbsent(round.getRoundNum(), key -> new RoundResult(nodeId, round));
+                    if (!round.equals(reference.round())) {
+                        throw new AssertionError(
+                                "Expected rounds to be equal, but round %d differs. Node %s produced %s, while node %s produced %s"
+                                        .formatted(
+                                                round.getRoundNum(),
+                                                nodeId,
+                                                round,
+                                                reference.nodeId(),
+                                                reference.round()));
                     }
                 }
                 return stopped.get() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;

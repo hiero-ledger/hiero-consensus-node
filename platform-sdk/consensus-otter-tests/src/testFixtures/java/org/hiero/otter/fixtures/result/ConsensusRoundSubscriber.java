@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,8 +10,7 @@ import org.hiero.consensus.model.node.NodeId;
  * Defines a subscriber that will receive {@link ConsensusRound}s.
  */
 @FunctionalInterface
-public
-interface ConsensusRoundSubscriber {
+public interface ConsensusRoundSubscriber {
 
     enum SubscriberAction {
         CONTINUE,

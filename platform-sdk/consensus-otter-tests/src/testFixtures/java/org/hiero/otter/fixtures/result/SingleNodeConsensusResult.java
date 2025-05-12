@@ -45,5 +45,4 @@ public interface SingleNodeConsensusResult {
      * @param subscriber the subscriber that will receive the rounds
      */
     void subscribe(@NonNull ConsensusRoundSubscriber subscriber);
-
 }
