@@ -3,7 +3,6 @@ package com.swirlds.platform.test.fixtures.consensus.framework;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
@@ -14,6 +13,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
@@ -177,6 +177,16 @@ public class ConsensusTestOrchestrator {
     public void setOtherParentAffinity(final List<List<Double>> matrix) {
         for (final ConsensusTestNode node : nodes) {
             node.getEventEmitter().getGraphGenerator().setOtherParentAffinity(matrix);
+        }
+    }
+
+    /**
+     * Execute the given consumer for each node
+     * @param consumer the consumer to execute
+     */
+    public void forEachNode(@NonNull final Consumer<ConsensusTestNode> consumer) {
+        for (final ConsensusTestNode node : nodes) {
+            consumer.accept(node);
         }
     }
 

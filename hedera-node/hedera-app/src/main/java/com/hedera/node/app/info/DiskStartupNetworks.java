@@ -3,8 +3,8 @@ package com.hedera.node.app.info;
 
 import static com.hedera.hapi.util.HapiUtils.parseAccountFromLegacy;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
-import static com.swirlds.platform.roster.RosterRetriever.buildRoster;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.Node;
@@ -26,9 +26,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -45,6 +43,8 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterRetriever;
 
 /**
  * A {@link StartupNetworks} implementation that loads {@link Network} information from a
@@ -196,19 +196,19 @@ public class DiskStartupNetworks implements StartupNetworks {
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
-        Optional.ofNullable(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
-                .ifPresent(activeRoster -> {
-                    final var network = Network.newBuilder();
-                    final List<NodeMetadata> nodeMetadata = new ArrayList<>();
-                    activeRoster.rosterEntries().forEach(entry -> {
-                        final var node = requireNonNull(nodeStore.get(entry.nodeId()));
-                        nodeMetadata.add(new NodeMetadata(
-                                infoTypes.contains(InfoType.ROSTER) ? entry : null,
-                                infoTypes.contains(InfoType.NODE_DETAILS) ? node : null));
-                    });
-                    network.nodeMetadata(nodeMetadata);
-                    tryToExport(network.build(), path);
-                });
+        final long round = platformStateFacade.roundOf(state);
+        Optional.ofNullable(RosterRetriever.retrieveActive(state, round)).ifPresent(activeRoster -> {
+            final var network = Network.newBuilder();
+            final List<NodeMetadata> nodeMetadata = new ArrayList<>();
+            activeRoster.rosterEntries().forEach(entry -> {
+                final var node = requireNonNull(nodeStore.get(entry.nodeId()));
+                nodeMetadata.add(new NodeMetadata(
+                        infoTypes.contains(InfoType.ROSTER) ? entry : null,
+                        infoTypes.contains(InfoType.NODE_DETAILS) ? node : null));
+            });
+            network.nodeMetadata(nodeMetadata);
+            tryToExport(network.build(), path);
+        });
     }
 
     /**
@@ -251,8 +251,6 @@ public class DiskStartupNetworks implements StartupNetworks {
                             final var legacyGossipEndpoints = List.of(
                                     rosterEntry.gossipEndpoint().getLast(),
                                     rosterEntry.gossipEndpoint().getFirst());
-                            final var declineReward =
-                                    nodeAccountId.accountNumOrThrow() <= ledgerConfig.numSystemAccounts();
                             return NodeMetadata.newBuilder()
                                     .rosterEntry(rosterEntry)
                                     .node(Node.newBuilder()
@@ -265,7 +263,7 @@ public class DiskStartupNetworks implements StartupNetworks {
                                             .grpcCertificateHash(Bytes.EMPTY)
                                             .weight(rosterEntry.weight())
                                             .deleted(false)
-                                            .declineReward(declineReward)
+                                            .declineReward(true)
                                             .adminKey(Key.DEFAULT)
                                             .build())
                                     .build();

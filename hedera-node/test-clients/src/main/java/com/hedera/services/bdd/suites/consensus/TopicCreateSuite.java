@@ -74,7 +74,8 @@ public class TopicCreateSuite {
     @Tag(ADHOC)
     final Stream<DynamicTest> autoRenewAccountIsValidated() {
         return hapiTest(createTopic("testTopic")
-                .autoRenewAccountId("1.2.3")
+                // Intentionally use a bogus shard and realm
+                .autoRenewAccountId("999.999.3")
                 .signedBy(GENESIS)
                 .hasKnownStatus(INVALID_AUTORENEW_ACCOUNT));
     }

@@ -11,7 +11,6 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_0;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.protobuf.ByteString;
@@ -50,12 +49,11 @@ import com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -85,9 +83,11 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.roster.RosterUtils;
 
 public class PlatformTestingToolConsensusStateEventHandler
         implements ConsensusStateEventHandler<PlatformTestingToolState> {
@@ -188,6 +188,9 @@ public class PlatformTestingToolConsensusStateEventHandler
      * Handles quorum determinations for all {@link ControlTransaction} processed by the handle method.
      */
     private QuorumTriggeredAction<ControlAction> controlQuorum;
+
+    /** The round number of the freeze round */
+    private long freezeRound = -1;
 
     public PlatformTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
         this.platformStateFacade = platformStateFacade;
@@ -746,6 +749,9 @@ public class PlatformTestingToolConsensusStateEventHandler
         updateTransactionCounters(state);
         round.forEachEventTransaction((event, transaction) ->
                 handleConsensusTransaction(event, transaction, state, stateSignatureTransactionCallback));
+        if (platformStateFacade.isFreezeRound(state, round)) {
+            freezeRound = round.getRoundNum();
+        }
     }
 
     /**
@@ -1146,7 +1152,7 @@ public class PlatformTestingToolConsensusStateEventHandler
             genesisInit(state);
         }
         state.invalidateHash();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
 
         // compute hash
         try {
@@ -1160,14 +1166,21 @@ public class PlatformTestingToolConsensusStateEventHandler
     }
 
     /**
-     * For every 3 consensus rounds, seal the consensus round.
+     * For every 3 consensus rounds, seal the consensus round. If it's a freeze round, seal it regardless of the round
+     * number.
      *
      * @param round the current consensus round
      * @param state the current state of the platform testing tool
-     * @return {@code true} every 3 consensus rounds
+     * @return {@code true} when the round should be sealed, {@code false} otherwise
      */
     @Override
     public boolean onSealConsensusRound(@NonNull Round round, @NonNull PlatformTestingToolState state) {
+        // if this is a freeze round, we need to seal it
+        // we cannot check the freeze time in the state at this point, because lastFrozenTime has already been updated
+        // so we remember the freeze round number in onHandleConsensusRound and check it here
+        if (round.getRoundNum() == freezeRound) {
+            return true;
+        }
         return round.getRoundNum() % 3 == 0;
     }
 

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.util;
 
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -76,7 +77,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                                 try {
                                     // set node account id to 0.0.0 if not set
                                     if (op.getNode().isEmpty()) {
-                                        op.setNode(DEFAULT_NODE_ACCOUNT_ID);
+                                        op.setNodeId(asId(DEFAULT_NODE_ACCOUNT_ID, spec));
                                     }
                                     // create a transaction for each operation
                                     final var transaction = op.signedTxnFor(spec);

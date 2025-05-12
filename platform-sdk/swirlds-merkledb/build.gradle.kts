@@ -21,6 +21,7 @@ jmhModuleInfo { requires("jmh.core") }
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.merkledb.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")

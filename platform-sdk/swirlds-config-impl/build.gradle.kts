@@ -12,6 +12,8 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("com.swirlds.common")
     runtimeOnly("com.swirlds.platform.core")
+
+    exportsTo("com.swirlds.config.extensions")
 }
 
 jmhModuleInfo {

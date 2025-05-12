@@ -31,7 +31,9 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.LongSummaryStatistics;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -319,7 +321,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 storeName,
                 firstLeafPath,
                 lastLeafPath);
-        startWriting();
+        // If no stale bucket entries are found, no need to create a new bucket data file
+        final AtomicBoolean newDataFile = new AtomicBoolean(false);
+        final AtomicLong liveEntries = new AtomicLong(0);
         for (int i = 0; i < numOfBuckets; i++) {
             final long bucketId = i;
             final long bucketDataLocation = bucketIndexToBucketLocation.get(bucketId);
@@ -329,7 +333,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final BufferedData bucketData =
                     fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketId);
             if (bucketData == null) {
-                throw new IOException("Cannot read bucket=" + bucketId + ", data location=" + bucketDataLocation);
+                logger.warn("Delete bucket (not found): {}, dataLocation={}", bucketId, bucketDataLocation);
+                bucketIndexToBucketLocation.remove(bucketId);
+                continue;
             }
             try (final ParsedBucket bucket = new ParsedBucket()) {
                 bucket.readFrom(bucketData);
@@ -348,7 +354,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                                     MERKLE_DB.getMarker(), "Delete key (path range): key={}, path={}", keyBytes, path);
                         } else {
                             final BufferedData recordBytes = store.get(path);
-                            assert recordBytes != null;
+                            if (recordBytes == null) {
+                                throw new IOException("Record not found in pathToKeyValue store, path=" + path);
+                            }
                             final VirtualLeafBytes record = VirtualLeafBytes.parseFrom(recordBytes);
                             if (!record.keyBytes().equals(keyBytes)) {
                                 logger.warn(
@@ -358,12 +366,16 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                                         record.keyBytes(),
                                         keyBytes);
                             } else {
-                                assert record.path() == path;
                                 removeKey = false;
                             }
                         }
                         if (removeKey) {
+                            if (newDataFile.compareAndSet(false, true)) {
+                                startWriting();
+                            }
                             delete(keyBytes, entry.getHashCode());
+                        } else {
+                            liveEntries.incrementAndGet();
                         }
                     } catch (final Exception e) {
                         logger.error(
@@ -377,7 +389,15 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 });
             }
         }
-        endWriting();
+        // If a new data file is created, call endWriting()
+        if (newDataFile.get()) {
+            endWriting();
+        }
+        final long expectedEntries = lastLeafPath - firstLeafPath + 1;
+        if (liveEntries.get() != expectedEntries) {
+            throw new IOException(
+                    "HDHM repair failed, expected keys = " + expectedEntries + ", actual = " + liveEntries.get());
+        }
     }
 
     /** {@inheritDoc} */
@@ -406,8 +426,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /**
      * {@inheritDoc}
      */
+    @Override
     public LongSummaryStatistics getFilesSizeStatistics() {
-        return fileCollection.getAllCompletedFilesSizeStatistics();
+        return fileCollection.getFilesSizeStatistics();
     }
 
     /**
@@ -571,8 +592,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 }
                 // close files session
                 dataFileReader = fileCollection.endWriting(0, numOfBuckets);
-                // we have updated all indexes so the data file can now be included in merges
-                dataFileReader.setFileCompleted();
             } else {
                 dataFileReader = null;
             }
@@ -872,11 +891,5 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private int computeBucketIndex(final int keyHash) {
         return (numOfBuckets - 1) & keyHash;
-    }
-
-    private record ReadBucketResult(Bucket bucket, Throwable error) {
-        public ReadBucketResult {
-            assert (bucket != null) ^ (error != null);
-        }
     }
 }

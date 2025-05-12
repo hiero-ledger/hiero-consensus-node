@@ -48,9 +48,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.roster.RosterUtils;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -67,6 +64,9 @@ import java.util.Set;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -171,6 +171,7 @@ class DiskStartupNetworksTest {
             assertThat(rosterEntry.gossipEndpoint().getFirst().ipAddressV4())
                     .isEqualTo(Bytes.wrap(new byte[] {127, 0, 0, 1}));
             assertThat(rosterEntry.gossipEndpoint().getLast().domainName()).isEqualTo("localhost");
+            assertThat(network.nodeMetadata().get(i).node().declineReward()).isTrue();
         }
     }
 

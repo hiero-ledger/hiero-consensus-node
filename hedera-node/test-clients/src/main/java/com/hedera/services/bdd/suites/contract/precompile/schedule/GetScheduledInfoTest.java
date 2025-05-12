@@ -64,23 +64,33 @@ public class GetScheduledInfoTest {
     private static final int MINIMUM_TO_COLLECT = 5;
     private static final int MAXIMUM_TO_COLLECT = 400;
 
-    @Contract(contract = "GetScheduleInfo")
+    @Contract(contract = "GetScheduleInfo", creationGas = 5_000_000)
     static SpecContract contract;
 
     @HapiTest
     @DisplayName("Cannot get scheduled info for non-existent fungible create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentFungibleCreateSchedule() {
-        return hapiTest(
-                contract.call("getFungibleCreateTokenInfo", asHeadlongAddress(toAddressStringWithShardAndRealm("1234")))
-                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND)));
+        return hapiTest(withOpContext((spec, log) -> {
+            final var callOp = contract.call(
+                            "getFungibleCreateTokenInfo",
+                            asHeadlongAddress(
+                                    toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "1234")))
+                    .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
+            allRunFor(spec, callOp);
+        }));
     }
 
     @HapiTest
     @DisplayName("Cannot get scheduled info for non-existent NFT create schedule")
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
-        return hapiTest(contract.call(
-                        "getNonFungibleCreateTokenInfo", asHeadlongAddress(toAddressStringWithShardAndRealm("1234")))
-                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND)));
+        return hapiTest(withOpContext((spec, log) -> {
+            final var callOp = contract.call(
+                            "getNonFungibleCreateTokenInfo",
+                            asHeadlongAddress(
+                                    toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "1234")))
+                    .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
+            allRunFor(spec, callOp);
+        }));
     }
 
     @HapiTest

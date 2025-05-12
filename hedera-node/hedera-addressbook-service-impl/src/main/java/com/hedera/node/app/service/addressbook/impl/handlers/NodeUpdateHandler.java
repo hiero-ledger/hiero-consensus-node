@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICATE_HASH;
@@ -117,6 +118,7 @@ public class NodeUpdateHandler implements TransactionHandler {
             addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
         }
         if (op.hasGrpcProxyEndpoint()) {
+            validateTrue(nodeConfig.webProxyEndpointsEnabled(), GRPC_WEB_PROXY_NOT_SUPPORTED);
             addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
         }
 

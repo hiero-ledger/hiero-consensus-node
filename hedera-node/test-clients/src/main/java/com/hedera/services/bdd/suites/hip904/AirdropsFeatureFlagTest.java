@@ -69,8 +69,8 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     // Create a hollow account
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(treasuryAlias.get(), -3 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                    .addAccountAmounts(aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
+                                    .addAccountAmounts(aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
@@ -104,8 +104,8 @@ public class AirdropsFeatureFlagTest {
 
                     // Create hollow account with the deleted account alias
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(treasuryAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(hollowAccountAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(aaWith(s, treasuryAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(aaWith(s, hollowAccountAlias.get(), +2 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
@@ -166,8 +166,8 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     // Create a hollow account
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(treasuryAlias.get(), -3 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                    .addAccountAmounts(aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
+                                    .addAccountAmounts(aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferFtToHollowAccountTxn);
@@ -202,8 +202,8 @@ public class AirdropsFeatureFlagTest {
                     // Create hollow account with the deleted account alias
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                     .setToken(fungibleTokenId.get())
-                                    .addTransfers(aaWith(treasuryAlias.get(), -1))
-                                    .addTransfers(aaWith(hollowAccountAlias.get(), +1))))
+                                    .addTransfers(aaWith(s, treasuryAlias.get(), -1))
+                                    .addTransfers(aaWith(s, hollowAccountAlias.get(), +1))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferFtToHollowAccountTxn);

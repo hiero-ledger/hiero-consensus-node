@@ -2,10 +2,10 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 
 /**
  * A simple, deterministic factory for Event instances

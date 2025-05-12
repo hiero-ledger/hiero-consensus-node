@@ -9,8 +9,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -184,7 +182,7 @@ public class LeakyContractTestsSuite {
     public static final String CREATE_TX = "createTX";
     public static final String CREATE_TX_REC = "createTXRec";
     public static final String FALSE = "false";
-    public static final int GAS_TO_OFFER = 1_000_000;
+    public static final int GAS_TO_OFFER = 2_000_000;
     private static final Logger log = LogManager.getLogger(LeakyContractTestsSuite.class);
     public static final String SENDER = "yahcliSender";
     public static final String RECEIVER = "yahcliReceiver";
@@ -241,7 +239,7 @@ public class LeakyContractTestsSuite {
         final var creation = CREATION;
         final var salt = BigInteger.valueOf(42);
         final var adminKey = ADMIN_KEY;
-        final AtomicReference<String> factoryEvmAddress = new AtomicReference<>();
+        final AtomicReference<byte[]> factoryEvmAddress = new AtomicReference<>();
         final AtomicReference<String> expectedCreate2Address = new AtomicReference<>();
         final AtomicReference<String> hollowCreationAddress = new AtomicReference<>();
         final AtomicReference<String> mergedAliasAddr = new AtomicReference<>();
@@ -249,7 +247,6 @@ public class LeakyContractTestsSuite {
         final AtomicReference<String> mergedAliasAddr2 = new AtomicReference<>();
         final AtomicReference<String> mergedMirrorAddr2 = new AtomicReference<>();
         final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
-
         return hapiTest(
                 overriding("contracts.evm.version", "v0.46"),
                 newKeyNamed(adminKey),
@@ -260,7 +257,7 @@ public class LeakyContractTestsSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(SHARD, REALM, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asSolidityAddress(id))),
                 sourcing(() -> contractCallLocal(
                                 contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
                         .exposingTypedResultsTo(results -> {
@@ -276,6 +273,7 @@ public class LeakyContractTestsSuite {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(aaWith(
+                                            spec,
                                             ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
                                             +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
@@ -510,8 +508,7 @@ public class LeakyContractTestsSuite {
         final var longLifetime = 100 * 7776000L;
         final AtomicLong normalPayerGasUsed = new AtomicLong();
         final AtomicLong longLivedPayerGasUsed = new AtomicLong();
-        final AtomicReference<String> toyMakerMirror = new AtomicReference<>();
-
+        final AtomicReference<byte[]> toyMakerMirror = new AtomicReference<>();
         return hapiTest(
                 overridingTwo(
                         "ledger.autoRenewPeriod.maxDuration", "" + longLifetime,
@@ -519,8 +516,7 @@ public class LeakyContractTestsSuite {
                 cryptoCreate(normalPayer),
                 cryptoCreate(longLivedPayer).autoRenewSecs(longLifetime - 12345),
                 uploadInitCode(toyMaker, createIndirectly),
-                contractCreate(toyMaker)
-                        .exposingNumTo(num -> toyMakerMirror.set(asHexedSolidityAddress(SHARD, REALM, num))),
+                contractCreate(toyMaker).exposingContractIdTo(id -> toyMakerMirror.set(asSolidityAddress(id))),
                 sourcing(() -> contractCreate(createIndirectly)
                         .autoRenewSecs(longLifetime - 12345)
                         .payingWith(GENESIS)),
@@ -734,15 +730,15 @@ public class LeakyContractTestsSuite {
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
 
                     final var childId = ContractID.newBuilder()
-                            .setShardNum(SHARD)
-                            .setRealmNum(REALM)
+                            .setShardNum(spec.shard())
+                            .setRealmNum(spec.realm())
                             .setContractNum(parentNum.getContractNum() + 1L)
                             .build();
                     childLiteralId.set(HapiPropertySource.asContractString(childId));
                     expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
                     final var grandChildId = ContractID.newBuilder()
-                            .setShardNum(SHARD)
-                            .setRealmNum(REALM)
+                            .setShardNum(spec.shard())
+                            .setRealmNum(spec.realm())
                             .setContractNum(parentNum.getContractNum() + 2L)
                             .build();
                     grandChildLiteralId.set(HapiPropertySource.asContractString(grandChildId));
@@ -821,7 +817,7 @@ public class LeakyContractTestsSuite {
                 inParallel(IntStream.range(0, createBurstSize)
                         .mapToObj(i -> contractCustomCreate(contract, String.valueOf(i), numSlots)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .gas(300_000L)
+                                .gas(800_000L)
                                 .payingWith(GENESIS)
                                 .noLogging()
                                 .deferStatusResolution()
@@ -855,7 +851,7 @@ public class LeakyContractTestsSuite {
                 overriding("contracts.evm.version", "v0.34"),
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
                 uploadInitCode(LAZY_CREATE_CONTRACT),
-                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC),
+                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(6_000_000L),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged().exposingAllTo(records -> {
                     final var lastChildResult = records.getLast().getContractCreateResult();
                     evmAddressOfChildContract.set(lastChildResult.getEvmAddress());
@@ -871,7 +867,7 @@ public class LeakyContractTestsSuite {
                             contractCall(
                                             LAZY_CREATE_CONTRACT,
                                             callLazyCreateFunction,
-                                            mirrorAddrWith(NONEXISTENT_CONTRACT_NUM))
+                                            mirrorAddrWith(spec, NONEXISTENT_CONTRACT_NUM))
                                     .sending(depositAmount)
                                     .via(mirrorTxn)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -954,7 +950,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
                 newKeyNamed(ECDSA_KEY2).shape(SECP_256K1_SHAPE),
                 uploadInitCode(LAZY_CREATE_CONTRACT),
-                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC),
+                contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(2_000_000),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged(),
                 withOpContext((spec, opLog) -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
@@ -987,8 +983,7 @@ public class LeakyContractTestsSuite {
         final AtomicLong whitelistedCalleeMirrorNum = new AtomicLong();
         final AtomicReference<TokenID> tokenID = new AtomicReference<>();
         final AtomicReference<String> attackerMirrorAddr = new AtomicReference<>();
-        final AtomicReference<String> whitelistedCalleeMirrorAddr = new AtomicReference<>();
-
+        final AtomicReference<byte[]> whitelistedCalleeMirrorAddr = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(PRETEND_ATTACKER)
@@ -1003,9 +998,9 @@ public class LeakyContractTestsSuite {
                 uploadInitCode(DELEGATE_PRECOMPILE_CALLEE),
                 contractCreate(DELEGATE_PRECOMPILE_CALLEE)
                         .adminKey(DEFAULT_PAYER)
-                        .exposingNumTo(num -> {
-                            whitelistedCalleeMirrorNum.set(num);
-                            whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(SHARD, REALM, num));
+                        .exposingContractIdTo(id -> {
+                            whitelistedCalleeMirrorNum.set(id.getContractNum());
+                            whitelistedCalleeMirrorAddr.set(asSolidityAddress(id));
                         }),
                 tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
                 tokenAssociate(DELEGATE_PRECOMPILE_CALLEE, FUNGIBLE_TOKEN),
@@ -1034,9 +1029,8 @@ public class LeakyContractTestsSuite {
         final AtomicLong whitelistedCalleeMirrorNum = new AtomicLong();
         final AtomicReference<TokenID> tokenID = new AtomicReference<>();
         final AtomicReference<String> attackerMirrorAddr = new AtomicReference<>();
-        final AtomicReference<String> unListedCalleeMirrorAddr = new AtomicReference<>();
-        final AtomicReference<String> whitelistedCalleeMirrorAddr = new AtomicReference<>();
-
+        final AtomicReference<byte[]> unListedCalleeMirrorAddr = new AtomicReference<>();
+        final AtomicReference<byte[]> whitelistedCalleeMirrorAddr = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(PRETEND_ATTACKER)
@@ -1049,16 +1043,16 @@ public class LeakyContractTestsSuite {
                 uploadInitCode(PRETEND_PAIR),
                 contractCreate(PRETEND_PAIR).adminKey(DEFAULT_PAYER),
                 uploadInitCode(DELEGATE_ERC_CALLEE),
-                contractCreate(DELEGATE_ERC_CALLEE).adminKey(DEFAULT_PAYER).exposingNumTo(num -> {
-                    whitelistedCalleeMirrorNum.set(num);
-                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(SHARD, REALM, num));
+                contractCreate(DELEGATE_ERC_CALLEE).adminKey(DEFAULT_PAYER).exposingContractIdTo(id -> {
+                    whitelistedCalleeMirrorNum.set(id.getContractNum());
+                    whitelistedCalleeMirrorAddr.set(asSolidityAddress(id));
                 }),
                 uploadInitCode(DELEGATE_PRECOMPILE_CALLEE),
                 contractCreate(DELEGATE_PRECOMPILE_CALLEE)
                         .adminKey(DEFAULT_PAYER)
-                        .exposingNumTo(num -> {
-                            unlistedCalleeMirrorNum.set(num);
-                            unListedCalleeMirrorAddr.set(asHexedSolidityAddress(SHARD, REALM, num));
+                        .exposingContractIdTo(id -> {
+                            unlistedCalleeMirrorNum.set(id.getContractNum());
+                            unListedCalleeMirrorAddr.set(asSolidityAddress(id));
                         }),
                 tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
                 tokenAssociate(DELEGATE_ERC_CALLEE, FUNGIBLE_TOKEN),
@@ -1105,7 +1099,7 @@ public class LeakyContractTestsSuite {
                 overriding("contracts.nonces.externalization.enabled", "false"),
                 cryptoCreate(payer).balance(10 * ONE_HUNDRED_HBARS),
                 uploadInitCode(contract),
-                contractCreate(contract).logged().gas(500_000L).via("txn"),
+                contractCreate(contract).logged().gas(1_000_000L).via("txn"),
                 withOpContext((spec, opLog) -> {
                     HapiGetTxnRecord op = getTxnRecord("txn")
                             .logged()
@@ -1129,7 +1123,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(MULTI_KEY_NAME),
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000L),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1237,7 +1231,7 @@ public class LeakyContractTestsSuite {
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 cryptoCreate(B_CIVILIAN).exposingCreatedIdTo(id -> bCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1313,7 +1307,7 @@ public class LeakyContractTestsSuite {
                 newKeyNamed(MULTI_KEY_NAME),
                 cryptoCreate(A_CIVILIAN).exposingCreatedIdTo(id -> aCivilianMirrorAddr.set(asHexedSolidityAddress(id))),
                 uploadInitCode(SOME_ERC_721_SCENARIOS),
-                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME),
+                contractCreate(SOME_ERC_721_SCENARIOS).adminKey(MULTI_KEY_NAME).gas(2_000_000),
                 tokenCreate(NF_TOKEN)
                         .supplyKey(MULTI_KEY_NAME)
                         .tokenType(NON_FUNGIBLE_UNIQUE)

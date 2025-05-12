@@ -10,11 +10,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.literalIdFromHexedMirrorAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -110,6 +105,7 @@ import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
@@ -172,8 +168,8 @@ public class Create2OperationSuite {
                 contractCreate(contract).payingWith(GENESIS).via(CREATION).exposingNumTo(outerCreatorNum::set),
                 contractCall(contract, "startChain", msg).gas(4_000_000).via(noisyTxn),
                 sourcing(() -> {
-                    final var idOfFirstThreeLogs = SHARD_AND_REALM + (outerCreatorNum.get() + 1);
-                    final var idOfLastTwoLogs = SHARD_AND_REALM + (outerCreatorNum.get() + 2);
+                    final var idOfFirstThreeLogs = String.valueOf(outerCreatorNum.get() + 1);
+                    final var idOfLastTwoLogs = String.valueOf(outerCreatorNum.get() + 2);
                     return getTxnRecord(noisyTxn)
                             .andAllChildRecords()
                             .hasPriority(recordWith()
@@ -316,7 +312,7 @@ public class Create2OperationSuite {
         final var replAdminKey = "replAdminKey";
         final var customAutoRenew = 7776001L;
         final var autoRenewAccountID = "autoRenewAccount";
-        final AtomicReference<String> factoryEvmAddress = new AtomicReference<>();
+        final AtomicReference<byte[]> factoryEvmAddress = new AtomicReference<>();
         final AtomicReference<String> expectedCreate2Address = new AtomicReference<>();
         final AtomicReference<String> expectedMirrorAddress = new AtomicReference<>();
         final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
@@ -337,7 +333,7 @@ public class Create2OperationSuite {
                         .autoRenewSecs(customAutoRenew)
                         .autoRenewAccountId(autoRenewAccountID)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(SHARD, REALM, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asSolidityAddress(id))),
                 getContractInfo(contract)
                         .has(contractWith().autoRenewAccountId(autoRenewAccountID))
                         .logged(),
@@ -381,11 +377,11 @@ public class Create2OperationSuite {
                 withOpContext((spec, opLog) -> {
                     final var parentId = spec.registry().getContractId(contract);
                     final var childId = ContractID.newBuilder()
-                            .setShardNum(SHARD)
-                            .setRealmNum(REALM)
+                            .setShardNum(spec.shard())
+                            .setRealmNum(spec.realm())
                             .setContractNum(parentId.getContractNum() + 2L)
                             .build();
-                    mirrorLiteralId.set(SHARD_AND_REALM + childId.getContractNum());
+                    mirrorLiteralId.set(String.valueOf(childId.getContractNum()));
                     expectedMirrorAddress.set(hex(asSolidityAddress(childId)));
                 }),
                 sourcing(() -> getContractBytecode(mirrorLiteralId.get()).exposingBytecodeTo(bytecodeFromMirror::set)),
@@ -464,7 +460,7 @@ public class Create2OperationSuite {
                         .exposingContractId(childId::set)
                         .has(contractWith().balance(2 * ONE_HBAR))),
                 sourcing(() -> contractCallWithFunctionAbi(asLiteralHexed(childAddress.get()), vacateAddressAbi)),
-                sourcing(() -> getContractInfo(SHARD_AND_REALM + childId.get().getContractNum())
+                sourcing(() -> getContractInfo(String.valueOf(childId.get().getContractNum()))
                         .has(contractWith().isDeleted())));
     }
 
@@ -549,7 +545,6 @@ public class Create2OperationSuite {
         final AtomicReference<String> hexedNftType = new AtomicReference<>();
 
         final var salt = unhex(SALT);
-
         return hapiTest(
                 newKeyNamed(multiKey),
                 cryptoCreate(TOKEN_TREASURY),
@@ -574,7 +569,7 @@ public class Create2OperationSuite {
                         .supplyKey(multiKey),
                 mintToken(nft, List.of(ByteString.copyFromUtf8("PRICELESS"))),
                 tokenUpdate(nft)
-                        .supplyKey(() -> aliasContractIdKey(userAliasAddr.get()))
+                        .supplyKey(spec -> aliasContractIdKey(spec.shard(), spec.realm(), userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
@@ -677,7 +672,7 @@ public class Create2OperationSuite {
                 // https://github.com/hashgraph/hedera-services/issues/2876 (mint via
                 // delegatable_contract_id)
                 tokenUpdate(nft)
-                        .supplyKey(() -> aliasDelegateContractKey(userAliasAddr.get()))
+                        .supplyKey(spec -> aliasDelegateContractKey(spec.shard(), spec.realm(), userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 sourcing(() -> contractCallWithFunctionAbi(
                                 userAliasAddr.get(),
@@ -695,18 +690,18 @@ public class Create2OperationSuite {
                             final var nftId = registry.getTokenID(nft);
                             b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(aaWith(tt, -666))
-                                    .addAccountAmounts(aaWith(userMirrorAddr.get(), +666)));
+                                    .addAccountAmounts(aaWith(spec, userMirrorAddr.get(), +666)));
                             b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(ftId)
                                             .addTransfers(aaWith(tt, -6))
-                                            .addTransfers(aaWith(userMirrorAddr.get(), +6)))
+                                            .addTransfers(aaWith(spec, userMirrorAddr.get(), +6)))
                                     .addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(nftId)
                                             .addNftTransfers(NftTransfer.newBuilder()
                                                     .setSerialNumber(2L)
                                                     .setSenderAccountID(tt)
-                                                    .setReceiverAccountID(
-                                                            accountId(shard, realm, userMirrorAddr.get()))));
+                                                    .setReceiverAccountID(accountId(
+                                                            spec.shard(), spec.realm(), userMirrorAddr.get()))));
                         })
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
                 sourcing(() -> getContractInfo(userLiteralId.get()).logged()));
@@ -1395,8 +1390,8 @@ public class Create2OperationSuite {
                 cryptoTransfer((spec, b) -> {
                             b.addTokenTransfers(TokenTransferList.newBuilder()
                                     .setToken(nftId.get())
-                                    .addAllNftTransfers(
-                                            buildNftTransfers(nftTransfersSize, partyAlias, expectedCreate2Address)));
+                                    .addAllNftTransfers(buildNftTransfers(
+                                            spec, nftTransfersSize, partyAlias, expectedCreate2Address)));
                         })
                         .signedBy(DEFAULT_PAYER, PARTY)
                         .fee(ONE_HBAR)
@@ -1516,14 +1511,15 @@ public class Create2OperationSuite {
     }
 
     private Iterable<NftTransfer> buildNftTransfers(
+            final HapiSpec spec,
             final int nftTransfersSize,
             AtomicReference<ByteString> partyAlias,
             AtomicReference<String> expectedCreate2Address) {
         NftTransfer[] nftTransfers = new NftTransfer[nftTransfersSize];
         for (int i = 0; i < nftTransfersSize; i++) {
             nftTransfers[i] = ocWith(
-                    accountId(partyAlias.get()),
-                    accountId(ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                    accountId(spec, partyAlias.get()),
+                    accountId(spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                     i + 1);
         }
         return Arrays.asList(nftTransfers);
@@ -1537,9 +1533,9 @@ public class Create2OperationSuite {
         return cryptoTransfer((spec, b) -> {
                     b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(ftId.get())
-                            .addTransfers(aaWith(partyAlias.get(), -500))
+                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
                             .addTransfers(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
+                                    spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)
                 .fee(ONE_HBAR)
@@ -1567,22 +1563,27 @@ public class Create2OperationSuite {
                     final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                     var transferListBuilder = TransferList.newBuilder()
                             .addAccountAmounts(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +ONE_HBAR))
+                                    spec,
+                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                    +ONE_HBAR))
                             .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR));
 
                     b.setTransfers(transferListBuilder);
 
                     ftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
-                            .addTransfers(aaWith(partyAlias.get(), -500))
+                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
                             .addTransfers(aaWith(
-                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500))));
+                                    spec,
+                                    ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                    +500))));
 
                     nftId.ifPresent(id -> b.addTokenTransfers(TokenTransferList.newBuilder()
                             .setToken(id.get())
                             .addNftTransfers(ocWith(
-                                    accountId(partyAlias.get()),
-                                    accountId(ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
+                                    accountId(spec, partyAlias.get()),
+                                    accountId(
+                                            spec, ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get()))),
                                     1L))));
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)

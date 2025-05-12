@@ -17,4 +17,6 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+
+    opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
 }

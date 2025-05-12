@@ -172,8 +172,8 @@ public class HollowAccountFinalizationSuite {
                     final var cryptoTransferWithLazyCreate = cryptoTransfer(
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(ftId.get())
-                                            .addTransfers(aaWith(partyAlias.get(), -500))
-                                            .addTransfers(aaWith(counterAlias.get(), +500))))
+                                            .addTransfers(aaWith(s, partyAlias.get(), -500))
+                                            .addTransfers(aaWith(s, counterAlias.get(), +500))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(FT_XFER);
 

@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.hiero.base.crypto.internal.CryptoUtils;
+import org.hiero.base.crypto.internal.DetRandomProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,7 +137,7 @@ class NetworkPeerIdentifierTest {
     void testIdentifyTlsPeerReturnsNull()
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
 
-        final SecureRandom secureRandom = CryptoUtils.getDetRandom();
+        final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
 
         final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
         rsaKeyGen.initialize(3072, secureRandom);

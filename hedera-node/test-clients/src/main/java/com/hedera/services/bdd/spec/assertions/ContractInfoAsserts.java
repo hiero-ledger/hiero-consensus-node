@@ -211,7 +211,12 @@ public class ContractInfoAsserts extends BaseErroringAssertsProvider<ContractInf
         registerProvider((spec, o) -> {
             final var actualKey = object2ContractInfo(o).getAdminKey();
             assertTrue(actualKey.hasContractID(), "Expected a contract admin key, got " + actualKey);
-            if (TxnUtils.isIdLiteral(name)) {
+            if (TxnUtils.isNumericLiteral(name)) {
+                assertEquals(
+                        HapiPropertySource.asContract(spec.shard(), spec.realm(), Long.parseLong(name)),
+                        actualKey.getContractID(),
+                        "Wrong immutable contract key");
+            } else if (TxnUtils.isIdLiteral(name)) {
                 assertEquals(
                         HapiPropertySource.asContract(name), actualKey.getContractID(), "Wrong immutable contract key");
             } else {
