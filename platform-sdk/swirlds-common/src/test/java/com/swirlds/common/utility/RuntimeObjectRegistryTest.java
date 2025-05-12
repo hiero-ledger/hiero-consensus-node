@@ -19,19 +19,19 @@ class RuntimeObjectRegistryTest {
     }
 
     @Test
-    void testInitializingWithNullFails() {
+    void initializingWithNullFails() {
         //noinspection DataFlowIssue
         assertThatCode(() -> RuntimeObjectRegistry.initialize(null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    void testUninitializedRegistryUsesRealTime() {
+    void uninitializedRegistryUsesRealTime() {
         final RuntimeObjectRecord objectRecord = RuntimeObjectRegistry.createRecord(Object.class);
         assertThat(objectRecord.getAge(Instant.now())).isLessThan(Duration.ofMinutes(5));
     }
 
     @Test
-    void testInitializedRegistryUsesFakeTime() {
+    void initializedRegistryUsesFakeTime() {
         final Time fakeTime = new FakeTime();
         RuntimeObjectRegistry.initialize(fakeTime);
 
@@ -40,7 +40,7 @@ class RuntimeObjectRegistryTest {
     }
 
     @Test
-    void testAlreadyUsedRegistryCannotBeInitialized() {
+    void alreadyUsedRegistryCannotBeInitialized() {
         final Time fakeTime = new FakeTime();
 
         RuntimeObjectRegistry.createRecord(Object.class);
