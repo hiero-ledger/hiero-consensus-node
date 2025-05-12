@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.assertions;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.isNumericLiteral;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -35,8 +37,11 @@ public class BaseErroringAssertsProvider<T> implements ErroringAssertsProvider<T
     @SuppressWarnings("unchecked")
     protected <R> void registerIdLookupAssert(String key, Function<T, R> getActual, Class<R> cls, String err) {
         registerProvider((spec, o) -> {
-            R expected =
-                    isIdLiteral(key) ? parseIdByType(key, cls) : spec.registry().getId(key, cls);
+            final var keyToUse =
+                    isNumericLiteral(key) ? asEntityString(spec.shard(), spec.realm(), Long.parseLong(key)) : key;
+            R expected = isIdLiteral(keyToUse)
+                    ? parseIdByType(keyToUse, cls)
+                    : spec.registry().getId(keyToUse, cls);
             R actual = getActual.apply((T) o);
             Assertions.assertEquals(expected, actual, err);
         });

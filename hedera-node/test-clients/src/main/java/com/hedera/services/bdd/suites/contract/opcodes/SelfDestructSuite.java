@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -22,7 +22,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.nonExistingSystemAccounts;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -46,6 +46,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.queries.contract.HapiGetContractInfo;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -278,7 +279,7 @@ public class SelfDestructSuite {
                 sourcing(() -> contractCall(
                                 SELF_DESTRUCT_CALLABLE_CONTRACT,
                                 "destroyExplicitBeneficiary",
-                                mirrorAddrWith(beneficiaryId.get()))
+                                mirrorAddrParamFunction(beneficiaryId.get()))
                         .hasKnownStatus(INVALID_SIGNATURE)),
                 getAccountInfo(BENEFICIARY).has(accountWith().balance(ONE_HUNDRED_HBARS)),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
@@ -295,7 +296,7 @@ public class SelfDestructSuite {
                 sourcing(() -> contractCall(
                                 SELF_DESTRUCT_CALLABLE_CONTRACT,
                                 DESTROY_EXPLICIT_BENEFICIARY,
-                                mirrorAddrWith(contractNum.get()))
+                                mirrorAddrParamFunction(contractNum.get()))
                         .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID)),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
                         .has(contractWith().balance(ONE_HBAR)));
@@ -305,7 +306,10 @@ public class SelfDestructSuite {
             @NonNull final String evmVersion) {
         return hapiTest(
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
-                contractCallLocal(SELF_DESTRUCT_CALLABLE_CONTRACT, "destroyExplicitBeneficiary", mirrorAddrWith(999L))
+                contractCallLocal(
+                                SELF_DESTRUCT_CALLABLE_CONTRACT,
+                                "destroyExplicitBeneficiary",
+                                mirrorAddrParamFunction(999L))
                         .hasAnswerOnlyPrecheck(LOCAL_CALL_MODIFICATION_EXCEPTION));
     }
 
@@ -413,19 +417,20 @@ public class SelfDestructSuite {
             List<Long> accounts, String contract, String methodName, ResponseCodeEnum status) {
         HapiSpecOperation[] opsArray = new HapiSpecOperation[accounts.size()];
         for (int i = 0; i < accounts.size(); i++) {
-            opsArray[i] = contractCall(contract, methodName, mirrorAddrWith(accounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(contract, methodName, mirrorAddrParamFunction(accounts.get(index)))
                     .hasKnownStatus(status);
         }
         return opsArray;
     }
 
-    private @NonNull String getNthNextEntityFrom(final long nth, final long from) {
-        return SHARD_AND_REALM + (from + nth);
+    private @NonNull String getNthNextEntityFrom(final long nth, final ContractID fromId) {
+        return asEntityString(fromId.getShardNum(), fromId.getRealmNum(), fromId.getContractNum() + nth);
     }
 
     private @NonNull HapiGetContractInfo getNthNextContractInfoFrom(
             @NonNull final HapiSpec spec, @NonNull final String contract, final long nth) {
-        final var fromNum = spec.registry().getContractId(contract).getContractNum();
-        return getContractInfo(getNthNextEntityFrom(nth, fromNum));
+        final var fromId = spec.registry().getContractId(contract);
+        return getContractInfo(getNthNextEntityFrom(nth, fromId));
     }
 }

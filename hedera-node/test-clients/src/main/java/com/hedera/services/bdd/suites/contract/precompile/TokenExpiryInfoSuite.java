@@ -75,8 +75,6 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("updateTokenExpiryInfo")
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
-    private static final Address MISSING_LONG_ZERO_ADDRESS =
-            asHeadlongAddress(toAddressStringWithShardAndRealm(Long.toHexString(Integer.MAX_VALUE)));
     private static final String TOKEN_EXPIRY_CONTRACT = "TokenExpiryContract";
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String UPDATED_AUTO_RENEW_ACCOUNT = "updatedAutoRenewAccount";
@@ -147,19 +145,17 @@ public class TokenExpiryInfoSuite {
         @HapiTest
         @DisplayName("still cannot set an invalid auto-renew account")
         final Stream<DynamicTest> cannotSetInvalidAutoRenewAccount() {
-            return hapiTest(
-                    // This function takes four arguments---a token address, an expiry second, an auto-renew account
-                    // address, and an auto-renew period---and tries to update the token at that address with the given
-                    // metadata; here we set an invalid auto-renew account address
-                    tokenExpiryContract
-                            .call(
-                                    "updateExpiryInfoForToken",
-                                    mutableToken,
-                                    0L,
-                                    MISSING_LONG_ZERO_ADDRESS,
-                                    MONTH_IN_SECONDS)
-                            .andAssert(
-                                    txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT)));
+            return hapiTest(withOpContext((spec, log) -> {
+                final var missingLongZeroAddress = asHeadlongAddress(toAddressStringWithShardAndRealm(
+                        (int) spec.shard(), spec.realm(), Long.toHexString(Integer.MAX_VALUE)));
+                // This function takes four arguments---a token address, an expiry second, an auto-renew account
+                // address, and an auto-renew period---and tries to update the token at that address with the given
+                // metadata; here we set an invalid auto-renew account address
+                final var callOp = tokenExpiryContract
+                        .call("updateExpiryInfoForToken", mutableToken, 0L, missingLongZeroAddress, MONTH_IN_SECONDS)
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT));
+                allRunFor(spec, callOp);
+            }));
         }
 
         @HapiTest

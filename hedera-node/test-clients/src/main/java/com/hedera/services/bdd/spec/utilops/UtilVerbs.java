@@ -1342,7 +1342,7 @@ public class UtilVerbs {
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator() {
-        return spec -> new ValidContractIdsAssertion();
+        return ValidContractIdsAssertion::new;
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> visibleItems(
@@ -2561,10 +2561,7 @@ public class UtilVerbs {
     }
 
     private static Object swapLongZeroToEVMAddresses(HapiSpec spec, Object arg, Address address) {
-        if (isLongZeroAddress(
-                spec.setup().defaultShard().getShardNum(),
-                spec.setup().defaultRealm().getRealmNum(),
-                explicitFromHeadlong(address))) {
+        if (isLongZeroAddress(spec.shard(), spec.realm(), explicitFromHeadlong(address))) {
             var contractNum = numberOfLongZero(explicitFromHeadlong(address));
             if (spec.registry().hasEVMAddress(String.valueOf(contractNum))) {
                 return HapiParserUtil.asHeadlongAddress(spec.registry().getEVMAddress(String.valueOf(contractNum)));
