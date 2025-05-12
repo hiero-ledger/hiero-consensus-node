@@ -455,9 +455,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             case STREAM_ITEMS_SUCCESS -> {
                 // The block node orderly ended the stream. In this case, no errors occurred.
                 // We should wait for a longer period before attempting to retry.
-                // The block node is most likely in a software upgrade state.
                 logger.warn(
-                        "[{}] Block node {} orderly ended the stream at block {}. Most probably due to software upgrade.",
+                        "[{}] Block node {} orderly ended the stream at block {}",
                         Thread.currentThread().getName(),
                         connectionDescriptor,
                         blockNumber);
