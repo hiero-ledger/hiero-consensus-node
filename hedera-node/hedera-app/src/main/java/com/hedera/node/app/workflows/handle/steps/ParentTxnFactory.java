@@ -20,7 +20,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -438,7 +437,7 @@ public class ParentTxnFactory {
                     null,
                     SO_FAR_SO_GOOD,
                     OK,
-                    getTxnInfoFrom(payerId, body, SignatureMap.DEFAULT),
+                    getTxnInfoFrom(payerId, body),
                     Set.of(),
                     Set.of(),
                     Set.of(),
@@ -452,7 +451,7 @@ public class ParentTxnFactory {
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, payerId, config, dispatcher, transactionChecker, creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
-            final var txInfo = getTxnInfoFrom(payerId, body, SignatureMap.DEFAULT);
+            final var txInfo = getTxnInfoFrom(payerId, body);
             return new PreHandleResult(
                     null,
                     null,

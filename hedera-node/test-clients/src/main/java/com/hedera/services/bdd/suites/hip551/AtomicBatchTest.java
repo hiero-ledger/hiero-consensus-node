@@ -475,20 +475,35 @@ public class AtomicBatchTest {
         @DisplayName("Batch should finalize hollow account")
         final Stream<DynamicTest> batchFinalizeHollowAccount() {
             final var alias = "alias";
+            final var alias2 = "alias2";
             final var batchOperator = "batchOperator";
             return hapiTest(flattened(
                     cryptoCreate(batchOperator),
+                    cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
                     newKeyNamed(alias).shape(SECP_256K1_SHAPE),
+                    newKeyNamed(alias2).shape(SECP_256K1_SHAPE),
                     createHollowAccountFrom(alias),
+                    createHollowAccountFrom(alias2),
                     getAliasedAccountInfo(alias).isHollow(),
-                    atomicBatch(cryptoCreate("foo")
-                                    .payingWith(alias)
-                                    .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
+                    getAliasedAccountInfo(alias2).isHollow(),
+                    atomicBatch(cryptoCreate("test")
+                                    .payingWith("payer")
+                                    .signedBy(batchOperator)
                                     .batchKey(batchOperator))
                             .payingWith(alias)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
-                            .signedBy(alias, batchOperator),
+                            .signedBy(alias, batchOperator)
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     getAliasedAccountInfo(alias)
+                            .has(accountWith().hasNonEmptyKey())
+                            .logged(),
+                    atomicBatch(cryptoTransfer(tinyBarsFromTo("payer", batchOperator, ONE_HBAR))
+                                    .payingWith("payer")
+                                    .batchKey(batchOperator))
+                            .payingWith(alias2)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(alias2))
+                            .signedBy(alias2, batchOperator),
+                    getAliasedAccountInfo(alias2)
                             .has(accountWith().hasNonEmptyKey())
                             .logged()));
         }

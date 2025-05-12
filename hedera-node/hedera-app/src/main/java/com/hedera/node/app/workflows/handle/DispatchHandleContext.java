@@ -368,7 +368,9 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         PreHandleResult childPreHandleResult = null;
         // If we have pre-computed pre-handle results for the inner transactions, pass them to the child
         // dispatch instead of computing a synthetic pre-handle result for child dispatch.
-        if (preHandleResults != null && !preHandleResults.isEmpty()) {
+        if (options.category().equals(TransactionCategory.BATCH_INNER)
+                && preHandleResults != null
+                && !preHandleResults.isEmpty()) {
             childPreHandleResult = preHandleResults.removeFirst();
         }
         final var childDispatch = childDispatchFactory.createChildDispatch(

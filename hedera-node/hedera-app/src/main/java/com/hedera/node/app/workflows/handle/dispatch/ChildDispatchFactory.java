@@ -188,15 +188,13 @@ public class ChildDispatchFactory {
                         .transactionID(stack.nextPresetTxnId(isLastAllowedPreset))
                         .build();
         final var childTxnInfo = overridePreHandleResult != null
-                ? getTxnInfoFrom(
-                        options.payerId(),
-                        body,
-                        overridePreHandleResult.txInfo().signatureMap())
-                : getTxnInfoFrom(options.payerId(), body, SignatureMap.DEFAULT);
+                ? overridePreHandleResult.txInfo()
+                : getTxnInfoFrom(options.payerId(), body);
         final var streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
         final var childStack = SavepointStackImpl.newChildStack(
                 stack, options.reversingBehavior(), options.category(), options.transactionCustomizer(), streamMode);
-        final var streamBuilder = initializedForChild(childStack.getBaseBuilder(StreamBuilder.class), childTxnInfo);
+        final var streamBuilder =
+                initializedForChild(childStack.getBaseBuilder(StreamBuilder.class), requireNonNull(childTxnInfo));
         return newChildDispatch(
                 streamBuilder,
                 childTxnInfo,
@@ -482,7 +480,7 @@ public class ChildDispatchFactory {
      * @return the transaction information
      */
     public static TransactionInfo getTxnInfoFrom(
-            @NonNull final AccountID payerId, @NonNull final TransactionBody txBody, SignatureMap signatureMap) {
+            @NonNull final AccountID payerId, @NonNull final TransactionBody txBody) {
         requireNonNull(payerId);
         requireNonNull(txBody);
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txBody);
@@ -497,7 +495,7 @@ public class ChildDispatchFactory {
                 txBody,
                 txBody.transactionIDOrElse(TransactionID.DEFAULT),
                 payerId,
-                signatureMap,
+                SignatureMap.DEFAULT,
                 signedTransactionBytes,
                 functionOfTxn(txBody),
                 null);
