@@ -15,6 +15,7 @@ import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +29,9 @@ import org.apache.logging.log4j.Logger;
  * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
  */
 public class BlockNodeConnection implements StreamObserver<PublishStreamResponse> {
+    // We use a longer retry delay in the cases of EndOfStream.STREAM_ITEMS_SUCCESS
+    // This indicates that the Block Node is having a software update.
+    public static final Duration LONGER_RETRY_DELAY = Duration.ofSeconds(1);
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     private static final int MAX_END_OF_STREAM_RESTARTS = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES = 10;
@@ -306,7 +310,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
     private void handleStreamFailure() {
         close();
-        blockNodeConnectionManager.handleConnectionError(this);
+        blockNodeConnectionManager.handleConnectionError(this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
     }
 
     private void moveToNextBlock() {
@@ -327,7 +331,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             Thread.currentThread().getName(),
                             connectionDescriptor,
                             getCurrentBlockNumber());
-                    blockNodeConnectionManager.handleConnectionError(this);
+                    blockNodeConnectionManager.handleConnectionError(
+                            this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
                 },
                 5,
                 TimeUnit.SECONDS);
@@ -433,10 +438,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     handleEndOfStreamError();
                 }
             }
-            case STREAM_ITEMS_SUCCESS,
-                    STREAM_ITEMS_TIMEOUT,
-                    STREAM_ITEMS_OUT_OF_ORDER,
-                    STREAM_ITEMS_BAD_STATE_PROOF -> {
+            case STREAM_ITEMS_TIMEOUT, STREAM_ITEMS_OUT_OF_ORDER, STREAM_ITEMS_BAD_STATE_PROOF -> {
                 // We should restart the stream at the block immediately
                 // following the block where the node fell behind.
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
@@ -451,6 +453,17 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 } else {
                     handleEndOfStreamError();
                 }
+            }
+            case STREAM_ITEMS_SUCCESS -> {
+                // The block node orderly ended the stream. In this case, no errors occurred.
+                // We should wait for a longer period before attempting to retry.
+                // The block node is most likely in a software upgrade state.
+                logger.warn(
+                        "[{}] Block node {} orderly ended the stream at block {}. Most probably due to software upgrade.",
+                        Thread.currentThread().getName(),
+                        connectionDescriptor,
+                        blockNumber);
+                blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
             }
             case STREAM_ITEMS_BEHIND -> {
                 // The block node is behind us, check if we have the last verified block still available in order to
@@ -476,7 +489,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             connectionDescriptor);
 
                     if (endOfStreamExpBackoffs.incrementAndGet() <= MAX_END_OF_STREAM_EXP_RETRIES) {
-                        blockNodeConnectionManager.handleConnectionError(this);
+                        blockNodeConnectionManager.handleConnectionError(
+                                this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
                     }
                 }
             }

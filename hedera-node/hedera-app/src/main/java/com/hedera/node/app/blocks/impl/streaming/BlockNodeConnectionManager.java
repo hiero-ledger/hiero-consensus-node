@@ -109,15 +109,16 @@ public class BlockNodeConnectionManager {
      * Schedules a retry for the failed connection and attempts to select a new active node.
      *
      * @param connection the connection that received the error
+     * @param initialDelay the delay to wait before retrying the connection
      */
-    public void handleConnectionError(@NonNull final BlockNodeConnection connection) {
+    public void handleConnectionError(@NonNull final BlockNodeConnection connection, @NonNull Duration initialDelay) {
         synchronized (connections) {
             logger.warn(
                     "[{}] Handling connection error for {}",
                     Thread.currentThread().getName(),
                     blockNodeName(connection.getNodeConfig()));
-            // Schedule retry for the failed connection (will use INITIAL_RETRY_DELAY)
-            scheduleRetry(connection, INITIAL_RETRY_DELAY);
+            // Schedule retry for the failed connection after a delay (initialDelay)
+            scheduleRetry(connection, initialDelay);
             // Immediately try to find and connect to the next available node
             selectBlockNodeForStreaming();
         }

@@ -987,7 +987,8 @@ class BlockNodeConnectionTest {
 
         // Verify failure outcome
         assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
-        verify(blockNodeConnectionManager).handleConnectionError(connection);
+        verify(blockNodeConnectionManager)
+                .handleConnectionError(connection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
         verify(blockStreamMetrics).incrementOnErrorCount();
         assertThat(logCaptor.errorLogs())
                 .anyMatch(
