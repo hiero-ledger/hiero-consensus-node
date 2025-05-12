@@ -242,8 +242,8 @@ public class UnlimitedAutoAssociationSuite {
         final var hollowKey = "hollowKey";
         final AtomicReference<TokenID> tokenIdA = new AtomicReference<>();
         final AtomicReference<TokenID> tokenIdB = new AtomicReference<>();
-        final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> treasuryAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> hollowAccountAlias = new AtomicReference<>();
         final var hollowAccountTxn = "hollowAccountTxn";
         return hapiTest(
                 newKeyNamed(hollowKey).shape(SECP_256K1_SHAPE),
@@ -259,15 +259,14 @@ public class UnlimitedAutoAssociationSuite {
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
                     final var treasuryAccountId = registry.getAccountID(TREASURY);
-                    treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                    treasuryAlias.set(asSolidityAddress(treasuryAccountId));
 
                     // Save the alias for the hollow account
                     final var ecdsaKey = spec.registry()
                             .getKey(hollowKey)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    hollowAccountAlias.set(evmAddressBytes);
+                    hollowAccountAlias.set(recoverAddressFromPubKey(ecdsaKey));
                     tokenIdA.set(registry.getTokenID(tokenA));
                     tokenIdB.set(registry.getTokenID(tokenB));
                 }),
@@ -317,8 +316,8 @@ public class UnlimitedAutoAssociationSuite {
         final var hollowTransferTxn = "hollowTransferTxn";
         final AtomicReference<TokenID> tokenIdA = new AtomicReference<>();
         final AtomicReference<TokenID> tokenIdB = new AtomicReference<>();
-        final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> treasuryAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> hollowAccountAlias = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed(hollowAccountKey).shape(SECP_256K1_SHAPE),
                 newKeyNamed(MULTI_KEY),
@@ -338,15 +337,14 @@ public class UnlimitedAutoAssociationSuite {
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
                     final var treasuryAccountId = registry.getAccountID(TREASURY);
-                    treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                    treasuryAlias.set(asSolidityAddress(treasuryAccountId));
 
                     // Save the alias for the hollow account
                     final var ecdsaKey = spec.registry()
                             .getKey(hollowAccountKey)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    hollowAccountAlias.set(evmAddressBytes);
+                    hollowAccountAlias.set(recoverAddressFromPubKey(ecdsaKey));
                     tokenIdA.set(registry.getTokenID(tokenA));
                     tokenIdB.set(registry.getTokenID(tokenB));
                 }),
@@ -361,7 +359,7 @@ public class UnlimitedAutoAssociationSuite {
                         cryptoCreate("testAccount")
                                 .key(hollowAccountKey)
                                 .maxAutomaticTokenAssociations(-1)
-                                .alias(hollowAccountAlias.get()),
+                                .alias(ByteString.copyFrom(hollowAccountAlias.get())),
                         // Verify maxAutomaticAssociations is set to -1 and there is no auto association
                         getAccountInfo("testAccount")
                                 .hasAlreadyUsedAutomaticAssociations(0)
@@ -372,14 +370,18 @@ public class UnlimitedAutoAssociationSuite {
                         cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdA.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountIdFromEvmAddress(s, treasuryAlias.get()),
-                                                        accountIdFromEvmAddress(s, hollowAccountAlias.get()),
+                                                        accountIdFromEvmAddress(
+                                                                s, ByteString.copyFrom(treasuryAlias.get())),
+                                                        accountIdFromEvmAddress(
+                                                                s, ByteString.copyFrom(hollowAccountAlias.get())),
                                                         1L)))
                                         .addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdB.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountIdFromEvmAddress(s, treasuryAlias.get()),
-                                                        accountIdFromEvmAddress(s, hollowAccountAlias.get()),
+                                                        accountIdFromEvmAddress(
+                                                                s, ByteString.copyFrom(treasuryAlias.get())),
+                                                        accountIdFromEvmAddress(
+                                                                s, ByteString.copyFrom(hollowAccountAlias.get())),
                                                         1L))))
                                 .payingWith(TREASURY)
                                 .signedBy(TREASURY)
@@ -412,9 +414,9 @@ public class UnlimitedAutoAssociationSuite {
         final var transfersToHollowAccountTxn = "transfersToHollowAccountTxn";
         final AtomicReference<TokenID> tokenIdA = new AtomicReference<>();
         final AtomicReference<TokenID> tokenIdB = new AtomicReference<>();
-        final AtomicReference<ByteString> aliceAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> bobAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> carolHollowAccountAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> aliceAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> bobAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> carolHollowAccountAlias = new AtomicReference<>();
         final double expectedCryptoTransferAndAssociationUsd =
                 expectedCreateHollowAccountFee + 2 * transferFee + 2 * expectedFeeForOneAssociation;
 
@@ -436,14 +438,13 @@ public class UnlimitedAutoAssociationSuite {
                         .treasury(BOB),
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
-                    aliceAlias.set(ByteString.copyFrom(asSolidityAddress(registry.getAccountID(ALICE))));
-                    bobAlias.set(ByteString.copyFrom(asSolidityAddress(registry.getAccountID(BOB))));
+                    aliceAlias.set(asSolidityAddress(registry.getAccountID(ALICE)));
+                    bobAlias.set(asSolidityAddress(registry.getAccountID(BOB)));
 
                     // Save the alias for the hollow account
                     final var ecdsaKey =
                             spec.registry().getKey(CAROL).getECDSASecp256K1().toByteArray();
-                    final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    carolHollowAccountAlias.set(evmAddressBytes);
+                    carolHollowAccountAlias.set(recoverAddressFromPubKey(ecdsaKey));
                     tokenIdA.set(registry.getTokenID(FUNGIBLE_TOKEN));
                     tokenIdB.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
                 }),
@@ -459,8 +460,9 @@ public class UnlimitedAutoAssociationSuite {
                                         .addTokenTransfers(TokenTransferList.newBuilder()
                                                 .setToken(tokenIdB.get())
                                                 .addNftTransfers(ocWith(
-                                                        accountIdFromEvmAddress(s, bobAlias.get()),
-                                                        accountIdFromEvmAddress(s, carolHollowAccountAlias.get()),
+                                                        accountIdFromEvmAddress(s, ByteString.copyFrom(bobAlias.get())),
+                                                        accountIdFromEvmAddress(
+                                                                s, ByteString.copyFrom(carolHollowAccountAlias.get())),
                                                         1L))))
                                 .payingWith(ALICE)
                                 .signedBy(ALICE, BOB)

@@ -26,7 +26,6 @@ import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProvi
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
-import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.suites.contract.Utils;
@@ -47,8 +46,8 @@ public class AirdropsFeatureFlagTest {
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaHBARTransferAndCompleteIt() {
         final var hollowAccountKey = "hollowAccountKey";
-        final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> treasuryAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> hollowAccountAlias = new AtomicReference<>();
         final var transferHBARSToHollowAccountTxn = "transferHBARSToHollowAccountTxn";
         return hapiTest(
                 overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
@@ -57,14 +56,13 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
                     final var treasuryAccountId = registry.getAccountID(TREASURY);
-                    treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                    treasuryAlias.set(asSolidityAddress(treasuryAccountId));
                     // Save the alias for the hollow account
                     final var ecdsaKey = spec.registry()
                             .getKey(hollowAccountKey)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    hollowAccountAlias.set(evmAddressBytes);
+                    hollowAccountAlias.set(recoverAddressFromPubKey(ecdsaKey));
                 }),
                 withOpContext((spec, opLog) -> {
                     // Create a hollow account
@@ -139,8 +137,8 @@ public class AirdropsFeatureFlagTest {
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaFtTransferAndCompleteIt() {
         final var hollowAccountKey = "hollowAccountKey";
         final AtomicReference<TokenID> fungibleTokenId = new AtomicReference<>();
-        final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> treasuryAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> hollowAccountAlias = new AtomicReference<>();
         final var transferFtToHollowAccountTxn = "transferFtToHollowAccountTxn";
         return hapiTest(
                 overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
@@ -153,14 +151,13 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
                     final var treasuryAccountId = registry.getAccountID(TREASURY);
-                    treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                    treasuryAlias.set(asSolidityAddress(treasuryAccountId));
                     // Save the alias for the hollow account
                     final var ecdsaKey = spec.registry()
                             .getKey(hollowAccountKey)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    hollowAccountAlias.set(evmAddressBytes);
+                    hollowAccountAlias.set(recoverAddressFromPubKey(ecdsaKey));
                     fungibleTokenId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                 }),
                 withOpContext((spec, opLog) -> {

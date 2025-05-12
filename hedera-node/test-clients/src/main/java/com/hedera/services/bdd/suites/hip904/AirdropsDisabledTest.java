@@ -155,19 +155,23 @@ public class AirdropsDisabledTest {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                contractCreate(contract)
-                        .payingWith(GENESIS)
-                        .adminKey(adminKey)
-                        .entityMemo(ENTITY_MEMO)
-                        .gas(10_000_000L)
-                        .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                withOpContext((spec, opLog) -> {
+                    final var op = contractCreate(contract)
+                            .payingWith(GENESIS)
+                            .adminKey(adminKey)
+                            .entityMemo(ENTITY_MEMO)
+                            .gas(10_000_000L)
+                            .via(CREATE_2_TXN)
+                            .exposingNumTo(num -> factoryEvmAddress.set(
+                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
+                    allRunFor(spec, op);
+                }),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -266,19 +270,23 @@ public class AirdropsDisabledTest {
         }
 
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         final int givenOpsSize = 6;
         HapiSpecOperation[] givenOps = new HapiSpecOperation[givenOpsSize + (fungibleTransfersSize * 2)];
         givenOps[0] = newKeyNamed(adminKey);
         givenOps[1] = newKeyNamed(MULTI_KEY);
         givenOps[2] = uploadInitCode(contract);
-        givenOps[3] = contractCreate(contract)
-                .payingWith(GENESIS)
-                .adminKey(adminKey)
-                .entityMemo(ENTITY_MEMO)
-                .via(CREATE_2_TXN)
-                .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num)));
+        givenOps[3] = withOpContext((spec, opLog) -> {
+            final var op = contractCreate(contract)
+                    .payingWith(GENESIS)
+                    .adminKey(adminKey)
+                    .entityMemo(ENTITY_MEMO)
+                    .via(CREATE_2_TXN)
+                    .exposingNumTo(num ->
+                            factoryEvmAddress.set(asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
+            allRunFor(spec, op);
+        });
         givenOps[4] = cryptoCreate(PARTY).maxAutomaticTokenAssociations(2);
         givenOps[5] = setIdentifiers(Optional.empty(), Optional.empty(), Optional.of(partyId), Optional.of(partyAlias));
 
@@ -471,18 +479,22 @@ public class AirdropsDisabledTest {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                contractCreate(contract)
-                        .payingWith(GENESIS)
-                        .adminKey(adminKey)
-                        .entityMemo(ENTITY_MEMO)
-                        .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                withOpContext((spec, opLog) -> {
+                    final var op = contractCreate(contract)
+                            .payingWith(GENESIS)
+                            .adminKey(adminKey)
+                            .entityMemo(ENTITY_MEMO)
+                            .via(CREATE_2_TXN)
+                            .exposingNumTo(num -> factoryEvmAddress.set(
+                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
+                    allRunFor(spec, op);
+                }),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -558,7 +570,7 @@ public class AirdropsDisabledTest {
             String creation,
             AtomicReference<String> expectedCreate2Address,
             AtomicReference<TokenID> ftIds[],
-            AtomicReference<ByteString> partyAlias) {
+            AtomicReference<byte[]> partyAlias) {
         return cryptoTransfer((spec, b) -> {
                     for (AtomicReference<TokenID> ftId : ftIds) {
                         b.addTokenTransfers(TokenTransferList.newBuilder()
