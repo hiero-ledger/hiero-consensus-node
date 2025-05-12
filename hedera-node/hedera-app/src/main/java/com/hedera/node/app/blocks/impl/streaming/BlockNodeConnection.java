@@ -37,7 +37,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     private static final int MAX_END_OF_STREAM_RESTARTS = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES = 10;
-    private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
     private final ScheduledExecutorService scheduler;
 
     private final BlockNodeConfig blockNodeConfig;
@@ -46,9 +45,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final BlockStreamStateManager blockStreamStateManager;
     private BlockStreamMetrics blockStreamMetrics = null;
     private final String connectionDescriptor;
+
     private long endOfStreamCount;
     private Duration endOfStreamTimeFrame;
     private Duration endOfStreamScheduleDelay;
+    private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
 
     // Locks and synchronization objects
     private final Object workerLock = new Object();
