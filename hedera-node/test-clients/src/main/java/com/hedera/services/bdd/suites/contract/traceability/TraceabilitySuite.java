@@ -4753,13 +4753,16 @@ public class TraceabilitySuite {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(create2Factory),
-                contractCreate(create2Factory)
-                        .payingWith(GENESIS)
-                        .adminKey(adminKey)
-                        .entityMemo(entityMemo)
-                        .via(CREATE_2_TXN)
-                        .exposingNumTo(
-                                num -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
+                withOpContext((spec, opLog) -> {
+                    final var op = contractCreate(create2Factory)
+                            .payingWith(GENESIS)
+                            .adminKey(adminKey)
+                            .entityMemo(entityMemo)
+                            .via(CREATE_2_TXN)
+                            .exposingNumTo(num -> factoryEvmAddress.set(
+                                    HapiPropertySource.asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
+                    allRunFor(spec, op);
+                }),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 sourcing(() -> contractCallLocal(
                                 create2Factory, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
