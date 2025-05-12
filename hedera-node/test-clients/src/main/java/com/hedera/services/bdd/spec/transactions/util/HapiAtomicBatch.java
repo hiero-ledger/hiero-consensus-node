@@ -165,7 +165,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         }
     }
 
-    private static void setInnerTxnNodeID(HapiSpec spec, HapiTxnOp<?> op) {
+    private void setInnerTxnNodeID(HapiSpec spec, HapiTxnOp<?> op) {
         // Set node ID for inner transactions
         if (op.getNodeNum().isPresent()) {
             op.setNodeId(asId(op.getNodeNum().get(), spec));
