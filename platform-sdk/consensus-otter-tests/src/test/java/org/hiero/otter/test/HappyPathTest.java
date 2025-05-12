@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import com.swirlds.logging.legacy.LogMarker;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.otter.fixtures.MarkerFilter.exclude;
+import static org.hiero.otter.fixtures.NodeFilter.without;
+import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
+
 import java.time.Duration;
 import org.apache.logging.log4j.Level;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.Validator.LogFilter;
 import org.hiero.otter.fixtures.Validator.Profile;
 import org.junit.jupiter.api.Disabled;
 
@@ -29,11 +32,9 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofMinutes(2L));
 
         // Validations
-        env.validator()
-                .assertLogs(
-                        LogFilter.maxLogLevel(Level.INFO),
-                        LogFilter.ignoreMarkers(LogMarker.STARTUP),
-                        LogFilter.ignoreNodes(network.getNodes().getFirst()))
-                .validateRemaining(Profile.DEFAULT);
+        env.validator().validateRemaining(Profile.DEFAULT);
+
+        assertThat(network.getLogResults(without(network.getNodes().getFirst()), exclude(STARTUP)))
+                .noMessageWithLeverHigherThan(Level.INFO);
     }
 }

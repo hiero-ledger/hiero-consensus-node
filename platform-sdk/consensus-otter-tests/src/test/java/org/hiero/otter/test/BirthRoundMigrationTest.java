@@ -13,7 +13,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.Validator.LogFilter;
 
 class BirthRoundMigrationTest {
 
@@ -65,11 +64,9 @@ class BirthRoundMigrationTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator()
-                .assertPlatformStatus()
-                .assertLogs(LogFilter.maxLogLevel(WARN))
-                .assertMetrics();
+        env.validator().assertPlatformStatus().assertMetrics();
 
+        assertThat(network.getLogResults()).noMessageWithLeverHigherThan(WARN);
         assertThat(network.getConsensusResult())
                 .hasAdvancedSince(freezeRound)
                 .hasEqualRoundsIgnoringLast(withPercentage(5));

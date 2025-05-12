@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 
 /**
  * Interface representing a node in the network.
@@ -73,4 +74,18 @@ public interface Node {
      */
     @NonNull
     SingleNodeConsensusResult getConsensusResult();
+
+    /**
+     * Gets the log results of this node filtered by the specified marker filter.
+     *
+     * <p>The filter is applied to the logs, and only the logs that match the filter are included
+     * in the result. If no filter is provided, all logs are included in the result.
+     *
+     * @param markerFilter the filter to apply to the logs
+     * @return the log results of this node filtered by the specified marker filter
+     *
+     * @see org.hiero.otter.fixtures.MarkerFilter
+     */
+    @NonNull
+    SingleNodeLogResult getLogResult(@NonNull MarkerFilter markerFilter);
 }

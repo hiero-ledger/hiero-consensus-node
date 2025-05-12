@@ -96,6 +96,18 @@ public class InMemoryAppender extends AbstractAppender {
     }
 
     /**
+     * Returns an unmodifiable list of all captured log statements for a specific node
+     *
+     * @param nodeId nodeId of the node
+     *
+     * @return an unmodifiable list of all captured log statements for {@code nodeId}
+     */
+    @NonNull
+    public static List<StructuredLog> getLogs(final long nodeId) {
+        return logs.stream().filter(l -> l.nodeId() == nodeId).toList();
+    }
+
+    /**
      * Clears all logs currently stored in the in-memory appender.
      */
     public static void clearLogs() {

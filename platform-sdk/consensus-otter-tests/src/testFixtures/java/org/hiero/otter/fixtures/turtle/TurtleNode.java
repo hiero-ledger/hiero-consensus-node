@@ -44,6 +44,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -55,10 +57,15 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.otter.fixtures.MarkerFilter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
@@ -220,10 +227,25 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         return nodeConfiguration;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public SingleNodeConsensusResult getConsensusResult() {
         return resultsCollector.getConsensusResult();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public SingleNodeLogResult getLogResult(@NonNull final MarkerFilter markerFilter) {
+        Objects.requireNonNull(markerFilter);
+        final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId.id());
+        return new SingleNodeLogResultImpl(
+                selfId, logs.stream().filter(markerFilter).toList());
     }
 
     /**

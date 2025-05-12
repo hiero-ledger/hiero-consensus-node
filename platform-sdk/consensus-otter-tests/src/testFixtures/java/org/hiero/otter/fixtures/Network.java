@@ -2,9 +2,11 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 
 /**
  * Interface representing a network of nodes.
@@ -79,4 +81,22 @@ public interface Network {
      */
     @NonNull
     MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters);
+
+    /**
+     * Gets the log results of multiple nodes.
+     *
+     * <p>It is possible to request only the results of a subset of nodes by providing filters.
+     * The filters are applied to the logs, and only the logs that match the filters are included
+     * in the result. If no filters are provided, all logs are included in the result.
+     *
+     * <p>Additionally, markers can also be filtered using {@link org.hiero.otter.fixtures.MarkerFilter}.
+     *
+     * @param filters the filters to apply to the logs
+     * @return the log results of the filtered nodes
+     *
+     * @see org.hiero.otter.fixtures.MarkerFilter
+     * @see org.hiero.otter.fixtures.NodeFilter
+     */
+    @NonNull
+    MultipleNodeLogResults getLogResults(@Nullable OtterFilter<?>... filters);
 }
