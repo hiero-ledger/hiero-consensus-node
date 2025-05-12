@@ -387,8 +387,8 @@ class FrameUtilsTest {
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(initialFrame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
-        assertTrue(FrameUtils.contractRequired(frame, Address.fromHexString("0xFFFFFFFFFFFFFFFF"), featureFlags));
-        verify(featureFlags).isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, null);
+        assertTrue(FrameUtils.contractRequired(frame, Address.fromHexString("0x0000000000000008"), featureFlags));
+        verify(featureFlags).isAllowCallsToNonContractAccountsEnabled(DEFAULT_CONTRACTS_CONFIG, 8L);
     }
 
     @Test
