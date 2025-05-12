@@ -134,7 +134,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @return the current state of the connection
      */
     @VisibleForTesting
-    ConnectionState getConnectionState() {
+    ConnectionState getState() {
         return connectionState;
     }
 
@@ -174,7 +174,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 if (blockState == null && currentBlock != -1) {
                     long lowestAvailableBlock = blockStreamStateManager.getBlockNumber();
                     if (lowestAvailableBlock > currentBlock) {
-                        logger.trace(
+                        logger.debug(
                                 "[{}] Block {} state not found and lowest available block is {}, ending stream for node {}",
                                 Thread.currentThread().getName(),
                                 currentBlock,
@@ -596,7 +596,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @return true if the connection is active, false otherwise
      */
     public boolean isActive() {
-        return getConnectionState() == ConnectionState.ACTIVE;
+        return getState() == ConnectionState.ACTIVE;
     }
 
     /**
@@ -772,9 +772,5 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     connectionDescriptor);
             streamCompletionInProgress.set(false);
         }
-    }
-
-    public ConnectionState getState() {
-        return connectionState;
     }
 }
