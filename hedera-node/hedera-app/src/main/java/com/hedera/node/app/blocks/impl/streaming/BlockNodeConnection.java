@@ -29,9 +29,7 @@ import org.apache.logging.log4j.Logger;
  * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
  */
 public class BlockNodeConnection implements StreamObserver<PublishStreamResponse> {
-    // We use a longer retry delay in the cases of EndOfStream.STREAM_ITEMS_SUCCESS
-    // This indicates that the Block Node is having a software update.
-    public static final Duration LONGER_RETRY_DELAY = Duration.ofSeconds(1);
+    public static final Duration LONGER_RETRY_DELAY = Duration.ofSeconds(30);
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     private static final int MAX_END_OF_STREAM_RESTARTS = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES = 10;
