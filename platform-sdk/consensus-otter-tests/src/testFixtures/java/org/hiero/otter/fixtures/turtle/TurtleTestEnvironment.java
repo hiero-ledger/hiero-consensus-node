@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -22,7 +23,6 @@ import org.apache.logging.log4j.core.appender.FileAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.core.filter.NoMarkerFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -117,13 +117,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
                     .setTarget(ConsoleAppender.Target.SYSTEM_OUT)
                     .build();
 
-            final NoMarkerFilter markerExistsFilter = NoMarkerFilter.newBuilder()
-                    .setOnMatch(Result.DENY)
-                    .setOnMismatch(Result.ACCEPT)
-                    .build();
-            consoleAppender.addFilter(markerExistsFilter);
-
-            final MarkerFilter noStateHashFilter = MarkerFilter.createFilter("STATE_HASH", Result.DENY, Result.NEUTRAL);
+            final MarkerFilter noStateHashFilter =
+                    MarkerFilter.createFilter(STATE_HASH.name(), Result.DENY, Result.NEUTRAL);
             consoleAppender.addFilter(noStateHashFilter);
 
             consoleAppender.start();
@@ -148,7 +143,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
             // Accept only logs with marker STATE_HASH
             final MarkerFilter onlyStateHashFilter =
-                    MarkerFilter.createFilter("STATE_HASH", Result.ACCEPT, Result.DENY);
+                    MarkerFilter.createFilter(STATE_HASH.name(), Result.ACCEPT, Result.DENY);
             stateHashFileAppender.addFilter(onlyStateHashFilter);
 
             stateHashFileAppender.start();

@@ -7,10 +7,7 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Threshold;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
@@ -29,14 +26,11 @@ import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.Spliterators;
@@ -578,49 +572,6 @@ public final class ConsensusTestDefinitions {
                 // this used to be set to 0.5, but then a test failed because it had a ratio of 0.4999
                 // the number are a bit arbitrary, but the goal is to validate that events are reaching consensus
                 consensusOutputValidatorWithEventRatio);
-    }
-
-    public static void syntheticSnapshot(@NonNull final TestInput input) {
-        final long round = 100;
-        final long lastConsensusOrder = 4000;
-
-        final ConsensusTestOrchestrator orchestrator =
-                OrchestratorBuilder.builder().setTestInput(input).build();
-        final Instant snapshotTimestamp = Instant.now();
-        final Configuration configuration = input.platformContext().getConfiguration();
-        orchestrator.getNodes().forEach(n -> {
-            final int numEvents = orchestrator.getEventFraction(0.5);
-            n.getEventEmitter().setCheckpoint(numEvents);
-            final List<EventImpl> events = n.getEventEmitter().emitEvents(numEvents);
-            n.getEventEmitter().reset();
-            final Optional<EventImpl> maxGenEvent = events.stream()
-                    .max(Comparator.comparingLong(EventImpl::getGeneration).thenComparing(EventImpl::getCreatorId));
-            final ConsensusSnapshot syntheticSnapshot = SyntheticSnapshot.generateSyntheticSnapshot(
-                    round,
-                    lastConsensusOrder,
-                    snapshotTimestamp,
-                    configuration.getConfigData(ConsensusConfig.class),
-                    configuration.getConfigData(EventConfig.class).getAncientMode(),
-                    maxGenEvent.orElseThrow().getBaseEvent());
-            n.getIntake().loadSnapshot(syntheticSnapshot);
-        });
-
-        orchestrator.generateEvents(0.5);
-        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType1 =
-                new ConsensusOutputValidator(Set.of(
-                        new OutputEventsEqualityValidation(),
-                        OutputEventRatioValidation.blank().setMaximumConsensusRatio(0)));
-        orchestrator.validateAndClear(
-                // only 1 event will actually be added, that is the judge, so there can be no variation in the order
-                consensusOutputValidatorWithEventRatioType1);
-
-        orchestrator.generateEvents(0.5);
-        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
-                new ConsensusOutputValidator(Set.of(
-                        new OutputEventsAddedInDifferentOrderValidation(),
-                        new OutputEventsEqualityValidation(),
-                        OutputEventRatioValidation.blank().setMinimumConsensusRatio(0.8)));
-        orchestrator.validate(consensusOutputValidatorWithEventRatioType2);
     }
 
     /**
