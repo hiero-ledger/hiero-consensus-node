@@ -298,7 +298,7 @@ public final class IngestChecker {
 
         try {
             for (var bytes : innerTxnsBytes) {
-                final var innerTxn = transactionChecker.parseAndCheck(bytes, maxParseSize);
+                final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
                 final var functionality = innerTxn.functionality();
                 assertThrottlingPreconditions(innerTxn, configuration);
 
