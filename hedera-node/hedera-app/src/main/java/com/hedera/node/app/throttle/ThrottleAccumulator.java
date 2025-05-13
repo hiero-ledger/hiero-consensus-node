@@ -911,7 +911,7 @@ public class ThrottleAccumulator {
         }
         if (verbose == Verbose.YES) {
             log.info(
-                    "Resolved {} bytes throttle -\n {} bytes/sec (throttling {})",
+                    "Resolved {} ops duration throttle -\n {} ops duration/sec (throttling {})",
                     throttleType.name(),
                     opsDurationThrottle.capacity(),
                     (contractConfig.throttleThrottleByOpsDuration() ? "ON" : "OFF"));

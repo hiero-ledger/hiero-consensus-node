@@ -28,7 +28,7 @@ public class ThrottleMetrics {
 
     private static final String GAS_THROTTLE_ID = "<GAS>";
     private static final String BYTES_THROTTLE_ID = "<GAS>";
-    private static final String OPS_DURATION_ID = "OPS_DURATION";
+    private static final String OPS_DURATION_ID = "<OPS_DURATION>";
 
     private final Metrics metrics;
     private final String nameTemplate;
