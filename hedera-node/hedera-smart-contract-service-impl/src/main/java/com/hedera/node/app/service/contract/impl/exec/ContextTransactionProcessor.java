@@ -29,7 +29,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -88,18 +87,18 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final Supplier<HederaWorldUpdater> feesOnlyUpdater,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging) {
-        this.context = Objects.requireNonNull(context);
+        this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
-        this.evmActionTracer = Objects.requireNonNull(evmActionTracer);
-        this.feesOnlyUpdater = Objects.requireNonNull(feesOnlyUpdater);
-        this.processor = Objects.requireNonNull(processor);
-        this.rootProxyWorldUpdater = Objects.requireNonNull(worldUpdater);
-        this.configuration = Objects.requireNonNull(configuration);
-        this.contractsConfig = Objects.requireNonNull(contractsConfig);
-        this.hederaEvmContext = Objects.requireNonNull(hederaEvmContext);
-        this.hevmTransactionFactory = Objects.requireNonNull(hevmTransactionFactory);
-        this.gasCharging = Objects.requireNonNull(customGasCharging);
+        this.evmActionTracer = requireNonNull(evmActionTracer);
+        this.feesOnlyUpdater = requireNonNull(feesOnlyUpdater);
+        this.processor = requireNonNull(processor);
+        this.rootProxyWorldUpdater = requireNonNull(worldUpdater);
+        this.configuration = requireNonNull(configuration);
+        this.contractsConfig = requireNonNull(contractsConfig);
+        this.hederaEvmContext = requireNonNull(hederaEvmContext);
+        this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
+        this.gasCharging = requireNonNull(customGasCharging);
     }
 
     @Override

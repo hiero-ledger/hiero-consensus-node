@@ -33,6 +33,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -590,11 +591,12 @@ public class ConversionUtils {
      * Throws a {@link HandleException} if the given status is not {@link ResponseCodeEnum#SUCCESS}.
      *
      * @param status the status
+     * @param hederaOperations the Hedera operations
      */
-    public static void throwIfUnsuccessful(@NonNull final ResponseCodeEnum status) {
+    public static void throwIfUnsuccessful(
+            @NonNull final ResponseCodeEnum status, @NonNull final HederaOperations hederaOperations) {
         if (status != SUCCESS) {
-            // We don't want to rollback the root updater here since it contains gas charges
-            throw new HandleException(status, HandleException.ShouldRollbackStack.NO);
+            throw new HandleException(status, hederaOperations::replayGasChargingIn);
         }
     }
 

@@ -157,7 +157,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             outcome.addCreateDetailsTo(context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class));
         }
 
-        throwIfUnsuccessful(outcome.status());
+        throwIfUnsuccessful(outcome.status(), component.hederaOperations());
     }
 
     /**

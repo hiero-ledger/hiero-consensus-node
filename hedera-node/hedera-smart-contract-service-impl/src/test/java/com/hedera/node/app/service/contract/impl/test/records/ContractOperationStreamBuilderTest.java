@@ -40,7 +40,6 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                123L,
                 ContractActions.DEFAULT,
                 stateChanges);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
@@ -57,7 +56,6 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                123L,
                 null,
                 ContractStateChanges.DEFAULT);
         final var builder = subject.withCommonFieldsSetFrom(outcome);

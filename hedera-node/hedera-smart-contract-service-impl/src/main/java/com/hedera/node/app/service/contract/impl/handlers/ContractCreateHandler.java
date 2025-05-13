@@ -61,7 +61,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         // Assemble the appropriate top-level record for the result
         outcome.addCreateDetailsTo(context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class));
 
-        throwIfUnsuccessful(outcome.status());
+        throwIfUnsuccessful(outcome.status(), component.hederaOperations());
     }
 
     @Override

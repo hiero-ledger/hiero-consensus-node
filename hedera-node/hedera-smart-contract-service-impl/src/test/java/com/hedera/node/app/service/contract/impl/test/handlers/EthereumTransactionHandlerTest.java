@@ -34,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
@@ -60,7 +61,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
@@ -132,7 +132,10 @@ class EthereumTransactionHandlerTest {
     private TransactionProcessor transactionProcessor;
 
     @Mock
-    CustomGasCharging customGasCharging;
+    private CustomGasCharging customGasCharging;
+
+    @Mock
+    private HederaOperations hederaOperations;
 
     private EthereumTransactionHandler subject;
 
@@ -147,9 +150,6 @@ class EthereumTransactionHandlerTest {
 
     @Mock(strictness = Strictness.LENIENT)
     private ContractServiceComponent contractServiceComponent;
-
-    @Mock
-    private Configuration configuration;
 
     @Mock
     private ContractsConfig contractsConfig;
@@ -218,12 +218,7 @@ class EthereumTransactionHandlerTest {
         final var expectedResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
-                expectedResult,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
-                CALLED_CONTRACT_ID,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
-                null,
-                null);
+                expectedResult, SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(), CALLED_CONTRACT_ID, null, null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -258,12 +253,7 @@ class EthereumTransactionHandlerTest {
         final var expectedResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
-                expectedResult,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
-                CALLED_CONTRACT_ID,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
-                null,
-                null);
+                expectedResult, SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(), CALLED_CONTRACT_ID, null, null);
 
         given(createRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
@@ -292,7 +282,7 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void preHandleTranslatesIseAsInvalidEthereumTransaction() throws PreCheckException {
+    void preHandleTranslatesIseAsInvalidEthereumTransaction() {
         final var ethTxn = EthereumTransactionBody.newBuilder()
                 .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
                 .build();
