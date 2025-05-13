@@ -188,6 +188,8 @@ class BlockNodeConnectionManagerTest {
         blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
 
         final List<String> infoLogs = logCaptor.infoLogs();
+        assertThat(infoLogs.get(0)).contains("Loaded block node configuration from");
+        assertThat(infoLogs.get(1)).contains("Block node configuration:");
         assertThat(infoLogs.get(2)).contains("Establishing connection to block node based on priorities");
 
         // Verify the order of connection attempts: The high priority node should be the first
@@ -209,16 +211,18 @@ class BlockNodeConnectionManagerTest {
         lenient().doReturn(mockBlockState).when(mockStateManager).getBlockState(TEST_BLOCK_NUMBER);
 
         List<String> infoLogs = logCaptor.infoLogs();
-        assertThat(infoLogs.get(0)).contains("Establishing connection to block node based on priorities");
-        assertThat(infoLogs.get(1)).contains("Scheduling connection attempt for block node localhost:8080");
-        assertThat(infoLogs.get(2)).contains("Scheduling connection task for block node localhost:8080 in 0 ms");
+        assertThat(infoLogs.get(0)).contains("Loaded block node configuration from");
+        assertThat(infoLogs.get(1)).contains("Block node configuration:");
+        assertThat(infoLogs.get(2)).contains("Establishing connection to block node based on priorities");
+        assertThat(infoLogs.get(3)).contains("Scheduling connection attempt for block node localhost:8080");
+        assertThat(infoLogs.get(4)).contains("Scheduling connection task for block node localhost:8080 in 0 ms");
 
         // When connection error occurs
         blockNodeConnectionManager.handleConnectionError(
                 activeConnection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
 
         infoLogs = logCaptor.infoLogs();
-        assertThat(infoLogs.get(3)).contains("Scheduling connection task for block node localhost:8080 in 1000 ms");
+        assertThat(infoLogs.get(5)).contains("Scheduling connection task for block node localhost:8080 in 1000 ms");
 
         Thread.sleep(BlockNodeConnectionManager.INITIAL_RETRY_DELAY.plusMillis(100));
 
@@ -240,9 +244,9 @@ class BlockNodeConnectionManagerTest {
 
         infoLogs = logCaptor.infoLogs();
         // Verify that we establish connection to the fallback node with priority 2
-        assertThat(infoLogs.get(4)).contains("Establishing connection to block node based on priorities");
-        assertThat(infoLogs.get(5)).contains("Scheduling connection attempt for block node localhost:8081");
-        assertThat(infoLogs.get(6)).contains("Scheduling connection task for block node localhost:8081 in 0 ms");
+        assertThat(infoLogs.get(6)).contains("Establishing connection to block node based on priorities");
+        assertThat(infoLogs.get(7)).contains("Scheduling connection attempt for block node localhost:8081");
+        assertThat(infoLogs.get(8)).contains("Scheduling connection task for block node localhost:8081 in 0 ms");
 
         // There is higher priority ready connection, so we close the current active
         assertThat(newActiveConnection.getState()).isEqualTo(BlockNodeConnection.ConnectionState.UNINITIALIZED);

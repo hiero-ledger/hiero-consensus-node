@@ -149,6 +149,7 @@ class BlockNodeConnectionTest {
                 NullPointerException.class,
                 () -> new BlockNodeConnection(
                         null,
+                        blockNodeConfig,
                         blockNodeConnectionManager,
                         blockStreamStateManager,
                         grpcServiceClient,
@@ -158,6 +159,18 @@ class BlockNodeConnectionTest {
         assertThrows(
                 NullPointerException.class,
                 () -> new BlockNodeConnection(
+                        configProvider,
+                        null,
+                        blockNodeConnectionManager,
+                        blockStreamStateManager,
+                        grpcServiceClient,
+                        scheduler,
+                        blockStreamMetrics),
+                "nodeConfig must not be null");
+        assertThrows(
+                NullPointerException.class,
+                () -> new BlockNodeConnection(
+                        configProvider,
                         blockNodeConfig,
                         null,
                         blockStreamStateManager,
@@ -168,6 +181,7 @@ class BlockNodeConnectionTest {
         assertThrows(
                 NullPointerException.class,
                 () -> new BlockNodeConnection(
+                        configProvider,
                         blockNodeConfig,
                         blockNodeConnectionManager,
                         null,
@@ -178,6 +192,7 @@ class BlockNodeConnectionTest {
         assertThrows(
                 NullPointerException.class,
                 () -> new BlockNodeConnection(
+                        configProvider,
                         blockNodeConfig,
                         blockNodeConnectionManager,
                         blockStreamStateManager,
@@ -188,6 +203,7 @@ class BlockNodeConnectionTest {
         assertThrows(
                 NullPointerException.class,
                 () -> new BlockNodeConnection(
+                        configProvider,
                         blockNodeConfig,
                         blockNodeConnectionManager,
                         blockStreamStateManager,
@@ -198,6 +214,7 @@ class BlockNodeConnectionTest {
         assertThrows(
                 NullPointerException.class,
                 () -> new BlockNodeConnection(
+                        configProvider,
                         blockNodeConfig,
                         blockNodeConnectionManager,
                         blockStreamStateManager,
@@ -603,6 +620,7 @@ class BlockNodeConnectionTest {
     void closeHandlesNullWorkerAndObserver() {
         // create new connection so that both observer and worker are null
         BlockNodeConnection connection = new BlockNodeConnection(
+                configProvider,
                 blockNodeConfig,
                 blockNodeConnectionManager,
                 blockStreamStateManager,
