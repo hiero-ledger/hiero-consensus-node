@@ -352,6 +352,10 @@ public class BlockNodeConnectionManager {
                 .orElse(Integer.MAX_VALUE);
     }
 
+    /**
+     * Returns the active connection if one exists.
+     * @return return the active connection or null if none exists
+     */
     @VisibleForTesting
     BlockNodeConnection getActiveConnection() {
         return connections.values().stream()
@@ -408,8 +412,8 @@ public class BlockNodeConnectionManager {
      * @param blockNodeConnection the current connection to compare with
      * @return the highest priority pending connection, or null if none found
      */
-    public BlockNodeConnection getHighestPriorityPendingConnection(
-            @NonNull final BlockNodeConnection blockNodeConnection) {
+    @VisibleForTesting
+    BlockNodeConnection getHighestPriorityPendingConnection(@NonNull final BlockNodeConnection blockNodeConnection) {
         BlockNodeConnection highestPri = null;
         for (BlockNodeConnection connection : this.connections.values()) {
             if (connection.getState().equals(ConnectionState.PENDING)

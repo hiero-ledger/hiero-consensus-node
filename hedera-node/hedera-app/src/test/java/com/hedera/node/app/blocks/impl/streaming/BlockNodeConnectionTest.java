@@ -1419,22 +1419,6 @@ class BlockNodeConnectionTest {
                         false)); // Case with no block state and retry limit reached results in no action
     }
 
-    static Stream<Arguments> streamItemsSuccessCase() {
-        return Stream.of(
-                Arguments.of(true, 0, true, false), // Case with restart
-                Arguments.of(
-                        true,
-                        MAX_END_OF_STREAM_RESTARTS_VALUE,
-                        false,
-                        false), // Case with restart limit hit results in error
-                Arguments.of(false, 0, false, true), // Case with no block state - retry scheduled
-                Arguments.of(
-                        false,
-                        MAX_END_OF_STREAM_EXP_RETRIES_VALUE,
-                        false,
-                        false)); // Case with no block state and retry limit reached results in no action
-    }
-
     private void setupWorkerTest() {
         connection.updateConnectionState(BlockNodeConnection.ConnectionState.ACTIVE);
         connection.createRequestObserver();
