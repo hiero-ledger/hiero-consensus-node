@@ -4,6 +4,7 @@ package com.hedera.node.app.history;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -77,8 +78,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void setLedgerId(@NonNull Bytes bytes);
 
     /**
-     * Purges any state no longer needed after a given handoff.
-     * @return whether any state was purged
+     * Hands off from the active construction to the next construction if appropriate.
+     * @param fromRoster the roster to hand off from
+     * @param toRoster the roster to hand off to
+     * @param toRosterHash the hash of the roster to hand off to
+     * @return whether the handoff happened
      */
-    boolean purgeStateAfterHandoff(@NonNull ActiveRosters activeRosters);
+    boolean handoff(@NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash);
 }

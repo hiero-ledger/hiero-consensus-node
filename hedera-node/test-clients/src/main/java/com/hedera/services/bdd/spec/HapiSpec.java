@@ -24,15 +24,20 @@ import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.DEFAULT_KEY_GEN;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.FEES;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.createEthereumAccountForSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.isEthereumAccountCreatedForSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.convertHapiCallsToEthereumCalls;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.remembering;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 import static com.hedera.services.bdd.suites.HapiSuite.ETH_SUFFIX;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
@@ -80,6 +85,7 @@ import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.swirlds.state.spi.WritableKVState;
@@ -99,6 +105,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.DelayQueue;
@@ -144,6 +151,12 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     @Nullable
     private static volatile DelayQueue<DelayedDuration> prepareUpgradeOffsets;
 
+    @Nullable
+    private static volatile Set<AccountID> stakerIds;
+
+    @Nullable
+    private static volatile DelayQueue<DelayedDuration> stakeRebalanceOffsets;
+
     /**
      * Requests all executing specs to issue a prepare upgrade transaction if they are
      * the first to pass an offset from now in the given list.
@@ -152,6 +165,15 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     public static void doDelayedPrepareUpgrades(@NonNull final List<Duration> offsets) {
         prepareUpgradeOffsets =
                 new DelayQueue<>(offsets.stream().map(DelayedDuration::new).toList());
+    }
+
+    /**
+     * If set, a set of stakers to randomly transfer balance between every so often to ensure
+     * stake weights change each stake period boundary.
+     * @param stakerIds the set of staker IDs to use
+     */
+    public static void setStakerIds(@NonNull final Set<AccountID> stakerIds) {
+        HapiSpec.stakerIds = stakerIds;
     }
 
     public static final ThreadLocal<HederaNetwork> TARGET_NETWORK = new ThreadLocal<>();
@@ -628,6 +650,21 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         if (offsets != null && (dd = offsets.poll()) != null) {
             log.info("Executing PREPARE_UPGRADE requested to run circa {}", dd.end);
             ops.add(prepareFakeUpgrade());
+        }
+        if (stakerIds != null) {
+            if (stakeRebalanceOffsets == null) {
+                stakeRebalanceOffsets = new DelayQueue<>();
+                requireNonNull(stakeRebalanceOffsets)
+                        .add(new DelayedDuration(
+                                Duration.ofSeconds(startupProperties().getLong("staking.periodMins") * 60 / 2)));
+            }
+            dd = requireNonNull(stakeRebalanceOffsets).poll();
+            if (dd != null) {
+                ops.add(rebalanceStakes());
+                requireNonNull(stakeRebalanceOffsets)
+                        .add(new DelayedDuration(
+                                Duration.ofSeconds(startupProperties().getLong("staking.periodMins") * 60 / 2)));
+            }
         }
         if (!suitePrefix.endsWith(ETH_SUFFIX)) {
             ops.addAll(Stream.of(given, when, then).flatMap(Arrays::stream).toList());
@@ -1370,6 +1407,22 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             throw new IllegalStateException("Target network is not embedded");
         }
         return network;
+    }
+
+    private SpecOperation rebalanceStakes() {
+        final var ids = new ArrayList<>(requireNonNull(stakerIds).stream()
+                .map(HapiPropertySource::asAccountString)
+                .toList());
+        Collections.shuffle(ids);
+        final List<SpecOperation> transfers = new ArrayList<>();
+        for (int i = 0, n = ids.size() / 2; i < n; i++) {
+            final var from = ids.get(i * 2);
+            final var to = ids.get(i * 2 + 1);
+            transfers.add(cryptoTransfer(tinyBarsFromTo(from, to, ONE_HBAR))
+                    .payingWith(GENESIS)
+                    .signedBy(GENESIS));
+        }
+        return inParallel(transfers.toArray(SpecOperation[]::new));
     }
 
     private static class DelayedDuration implements Delayed {
