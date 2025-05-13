@@ -19,10 +19,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -35,7 +32,11 @@ class AncientParentsTest {
     public static final int SECOND_BATCH_SIZE = 1000;
 
     /**
-     * This test creates a graph with two partitions, where one partition is small enough that it is not needed for
+     * Tests the scenario where some stale events are added to different nodes at different points in consensus time.
+     * Depending on the point in consensus time, an event might have ancient parents on one node, but not on the other.
+     * Both nodes should have the same consensus output.
+     * <p>
+     * This test creates a graph with two partitions, where one partition is small enough that it is not required for
      * consensus. Because the small partition does not affect consensus, we can delay inserting those events and still
      * reach consensus. We delay adding the small partition events until the first of these events becomes ancient. This
      * would lead to at least one subsequent small partition event being non-ancient, but not having only ancient
@@ -57,7 +58,6 @@ class AncientParentsTest {
                 .withValue(ConsensusConfig_.ROUNDS_EXPIRED, 25)
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, Boolean.toString(useBirthRounds))
                 .getOrCreateConfig();
-        final AncientMode ancientMode = configuration.getConfigData(EventConfig.class).getAncientMode();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
@@ -88,8 +88,6 @@ class AncientParentsTest {
         // during the partition, we will not insert the minority partition events into consensus
         // we generate just enough events to make the first event of the partition ancient, but we don't insert the
         // last event into the second consensus
-        long partitionMin = Long.MAX_VALUE;
-        long partitionMax = Long.MIN_VALUE;
         final List<EventImpl> partitionedEvents = new LinkedList<>();
         boolean succeeded = false;
         EventImpl lastEvent = null;
@@ -104,10 +102,6 @@ class AncientParentsTest {
                     firstEventInPartition = lastEvent;
                 }
 
-                // for now we just keep track of the min and max ancient thresholds
-                partitionMin = Math.min(partitionMin, ancientMode.selectIndicator(lastEvent.getBaseEvent()));
-                partitionMax = Math.max(partitionMax, ancientMode.selectIndicator(lastEvent.getBaseEvent()));
-
                 // we don't add these events to consensus yet, we will add them later
                 partitionedEvents.add(lastEvent);
             } else {
@@ -118,9 +112,9 @@ class AncientParentsTest {
                 // if this event caused the first event in the partition to become ancient, then we exit this loop.
                 // we will add this event to node 2 later, after we add the partitioned events
                 final EventWindow node1Window = node1.getOutput().getEventWindow();
-                if(firstEventInPartition != null && node1Window.isAncient(firstEventInPartition.getBaseEvent())){
+                if (firstEventInPartition != null && node1Window.isAncient(firstEventInPartition.getBaseEvent())) {
                     succeeded = true;
-                }else{
+                } else {
                     node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
                 }
             }
@@ -136,6 +130,7 @@ class AncientParentsTest {
         node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
         final long consRoundBeforeLastBatch =
                 node1.getConsensusRounds().getLast().getRoundNum();
+        // we wanted the first event in the partition to become ancient, so it should never reach consensus
         assertEventDidNotReachConsensus(firstEventInPartition, node1, node2);
         assertConsensusEvents(node1, node2);
 
@@ -154,7 +149,13 @@ class AncientParentsTest {
         assertConsensusEvents(node1, node2);
     }
 
-    private static void assertEventDidNotReachConsensus(final EventImpl event, final TestIntake... nodes){
+    /**
+     * Assert that the supplied event did not reach consensus in any of the nodes.
+     *
+     * @param event the event to check
+     * @param nodes the nodes to check
+     */
+    private static void assertEventDidNotReachConsensus(final EventImpl event, final TestIntake... nodes) {
         final Hash eventHash = event.getBaseHash();
         final boolean found = Arrays.stream(nodes)
                 .map(TestIntake::getConsensusRounds)
