@@ -328,7 +328,7 @@ class WritableHintsStoreImplTest {
         final var publicationsBefore = subject.getHintsKeyPublications(Set.of(0L), partySizeForRoster(A_ROSTER));
         assertEquals(1, publicationsBefore.size());
 
-        subject.updateAtHandoff(prevRoster, C_ROSTER, C_ROSTER_HASH, false);
+        subject.handoff(prevRoster, C_ROSTER, C_ROSTER_HASH, false);
 
         assertSame(nextConstruction, constructionNow(ACTIVE_HINT_CONSTRUCTION_KEY));
 

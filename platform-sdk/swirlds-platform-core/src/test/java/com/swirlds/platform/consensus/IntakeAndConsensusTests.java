@@ -118,7 +118,7 @@ class IntakeAndConsensusTests {
             node2.addEvent(partitionedEvent.getBaseEvent().copyGossipedData());
         }
         // now we add the event that was added to 1 but not to 2
-        node2.addEvent(lastEvent.getBaseEvent());
+        node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
         final long consRoundBeforeLastBatch =
                 node1.getConsensusRounds().getLast().getRoundNum();
         assertConsensusEvents(node1, node2);

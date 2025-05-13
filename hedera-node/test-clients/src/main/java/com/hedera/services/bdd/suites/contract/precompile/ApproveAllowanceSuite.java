@@ -4,9 +4,6 @@ package com.hedera.services.bdd.suites.contract.precompile;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -183,8 +180,8 @@ public class ApproveAllowanceSuite {
                 withOpContext((spec, opLog) -> {
                     final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
                     final var receiver = spec.registry().getContractId(nestedContract);
-                    final var idOfToken = SHARD_AND_REALM
-                            + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(approveTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -338,8 +335,8 @@ public class ApproveAllowanceSuite {
                 withOpContext((spec, opLog) -> {
                     final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
                     final var receiver = spec.registry().getAccountID(theSpender);
-                    final var idOfToken = SHARD_AND_REALM
-                            + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(approveTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -550,8 +547,8 @@ public class ApproveAllowanceSuite {
                 withOpContext((spec, opLog) -> {
                     final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
                     final var receiver = spec.registry().getAccountID(theSpender);
-                    final var idOfToken = SHARD_AND_REALM
-                            + (spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(allowanceTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -599,8 +596,7 @@ public class ApproveAllowanceSuite {
 
         final AtomicReference<TokenID> tokenID = new AtomicReference<>();
         final AtomicReference<String> attackerMirrorAddr = new AtomicReference<>();
-        final AtomicReference<String> calleeMirrorAddr = new AtomicReference<>();
-
+        final AtomicReference<byte[]> calleeMirrorAddr = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(PRETEND_ATTACKER)
@@ -618,7 +614,7 @@ public class ApproveAllowanceSuite {
                 contractCreate(callee)
                         .refusingEthConversion()
                         .adminKey(DEFAULT_PAYER)
-                        .exposingNumTo(num -> calleeMirrorAddr.set(asHexedSolidityAddress(SHARD, REALM, num))),
+                        .exposingContractIdTo(id -> calleeMirrorAddr.set(asSolidityAddress(id))),
                 tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
                 tokenAssociate(callee, FUNGIBLE_TOKEN),
                 sourcing(() -> contractCall(
