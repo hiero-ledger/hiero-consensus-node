@@ -1,10 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.merkledb;
 
-import com.swirlds.merkledb.MerkleDbCompactionCoordinator;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceProvider;
 import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceRecord;
+import com.swirlds.merkledb.MerkleDbCompactionCoordinator;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,5 +25,4 @@ public class Compaction {
         coordinator.compactDiskStoreForKeyToPathAsync();
         coordinator.waitForCurrrentCompactionToComplete();
     }
-
 }

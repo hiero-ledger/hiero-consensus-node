@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.reporting;
 
 import static com.hedera.statevalidation.validators.Constants.JOB_URL;
@@ -25,13 +10,11 @@ import static com.hedera.statevalidation.validators.Constants.SLACK_TAGS;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
@@ -58,26 +41,25 @@ public class SlackReportGenerator implements AfterTestExecutionCallback {
     public static void generateReport() {
         try {
 
-
-        ArrayNode blocksArray = mapper.createArrayNode();
-        addHeader(blocksArray);
-        addTestResults(blocksArray);
-        addTags(blocksArray);
-        ObjectNode attachment = mapper.createObjectNode();
-        attachment.put("color", "#ff0000");
-        attachment.set("blocks", blocksArray);
-        ArrayNode attachmentArray = mapper.createArrayNode();
-        attachmentArray.add(attachment);
-        ObjectNode reportNode = mapper.createObjectNode();
-        reportNode.set("attachments", attachmentArray);
-        File previousReport = new File(REPORT_FILE_PATH);
-        if(previousReport.exists()) {
-           mapper.readTree(previousReport).get("attachments").forEach(attachmentArray::add);
-        }
-        try (FileWriter fileWriter = new FileWriter(REPORT_FILE_PATH)) {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(fileWriter, reportNode);
-        }
-        }catch (IOException e){
+            ArrayNode blocksArray = mapper.createArrayNode();
+            addHeader(blocksArray);
+            addTestResults(blocksArray);
+            addTags(blocksArray);
+            ObjectNode attachment = mapper.createObjectNode();
+            attachment.put("color", "#ff0000");
+            attachment.set("blocks", blocksArray);
+            ArrayNode attachmentArray = mapper.createArrayNode();
+            attachmentArray.add(attachment);
+            ObjectNode reportNode = mapper.createObjectNode();
+            reportNode.set("attachments", attachmentArray);
+            File previousReport = new File(REPORT_FILE_PATH);
+            if (previousReport.exists()) {
+                mapper.readTree(previousReport).get("attachments").forEach(attachmentArray::add);
+            }
+            try (FileWriter fileWriter = new FileWriter(REPORT_FILE_PATH)) {
+                mapper.writerWithDefaultPrettyPrinter().writeValue(fileWriter, reportNode);
+            }
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -87,7 +69,9 @@ public class SlackReportGenerator implements AfterTestExecutionCallback {
         blockNode.put("type", "header");
         ObjectNode textNode = mapper.createObjectNode();
         textNode.put("type", "plain_text");
-        textNode.put("text", String.format(":boom: %s State Validation failed for %s, round %s", NET_NAME, NODE_DESCRIPTION, ROUND));
+        textNode.put(
+                "text",
+                String.format(":boom: %s State Validation failed for %s, round %s", NET_NAME, NODE_DESCRIPTION, ROUND));
         textNode.put("emoji", true);
         blockNode.set("text", textNode);
 
@@ -117,7 +101,6 @@ public class SlackReportGenerator implements AfterTestExecutionCallback {
             blockArrayNode.add(blockNode);
         }
     }
-
 
     public record TestResult(String testName, String errorMessage) {}
 }

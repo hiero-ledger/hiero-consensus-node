@@ -1,5 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.reporting;
-
 
 public class StorageReport {
     long minPath;
@@ -11,7 +11,6 @@ public class StorageReport {
     double wastePercentage;
     int duplicateItems;
     long itemCount;
-
 
     public long minPath() {
         return minPath;

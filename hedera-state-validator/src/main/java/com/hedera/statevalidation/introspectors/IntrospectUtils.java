@@ -1,7 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.introspectors;
 
 import com.hedera.pbj.runtime.JsonCodec;
-
 import java.lang.reflect.Field;
 
 public final class IntrospectUtils {

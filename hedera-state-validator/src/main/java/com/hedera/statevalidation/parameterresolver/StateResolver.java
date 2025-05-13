@@ -1,20 +1,11 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.parameterresolver;
+
+import static com.hedera.statevalidation.parameterresolver.InitUtils.getConfiguration;
+import static com.hedera.statevalidation.parameterresolver.InitUtils.initConfiguration;
+import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceMigrator;
+import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceRegistry;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.HederaStateRoot;
@@ -49,11 +40,6 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
-import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.extension.ParameterContext;
-import org.junit.jupiter.api.extension.ParameterResolutionException;
-import org.junit.jupiter.api.extension.ParameterResolver;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,12 +47,10 @@ import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static com.hedera.statevalidation.parameterresolver.InitUtils.getConfiguration;
-import static com.hedera.statevalidation.parameterresolver.InitUtils.initConfiguration;
-import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceMigrator;
-import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceRegistry;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.ParameterContext;
+import org.junit.jupiter.api.extension.ParameterResolutionException;
+import org.junit.jupiter.api.extension.ParameterResolver;
 
 public class StateResolver implements ParameterResolver {
 
@@ -87,8 +71,8 @@ public class StateResolver implements ParameterResolver {
         if (deserializedSignedState == null) {
             try {
 
-            initState();
-            }catch (IOException e){
+                initState();
+            } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
@@ -99,11 +83,13 @@ public class StateResolver implements ParameterResolver {
         initConfiguration();
         final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
         PlatformStateFacade platformStateFacade = new PlatformStateFacade(ServicesSoftwareVersion::new);
-        serviceRegistry.register(new RosterService(roster -> true, () -> {}, StateResolver::getState, platformStateFacade));
+        serviceRegistry.register(
+                new RosterService(roster -> true, () -> {}, StateResolver::getState, platformStateFacade));
         final PlatformContext platformContext = createPlatformContext();
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(), platformStateFacade, platformContext);
-        final MerkleStateRoot servicesState = (MerkleStateRoot) deserializedSignedState.reservedSignedState().get().getState();
+        final MerkleStateRoot servicesState = (MerkleStateRoot)
+                deserializedSignedState.reservedSignedState().get().getState();
 
         initServiceMigrator(servicesState, platformContext.getConfiguration(), serviceRegistry);
 
@@ -141,13 +127,12 @@ public class StateResolver implements ParameterResolver {
             ConstructableRegistry.getInstance().registerConstructables("com.hedera.node.app");
             ConstructableRegistry.getInstance().registerConstructables("com.hedera.hapi");
             ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-            ConstructableUtils.registerVirtualMapConstructables(getConfiguration() );
-            BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration() );
+            ConstructableUtils.registerVirtualMapConstructables(getConfiguration());
+            BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration());
             final SemanticVersion servicesVersion = readVersion();
 
             ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(MerkleStateRoot.class,
-                            HederaStateRoot::new));
+                    .registerConstructable(new ClassConstructorPair(MerkleStateRoot.class, HederaStateRoot::new));
         } catch (ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }
@@ -159,7 +144,6 @@ public class StateResolver implements ParameterResolver {
                     .withConfigDataType(CryptoConfig.class)
                     .withConfigDataType(BasicConfig.class)
                     .build();
-
 
             @Override
             public MerkleCryptography getMerkleCryptography() {

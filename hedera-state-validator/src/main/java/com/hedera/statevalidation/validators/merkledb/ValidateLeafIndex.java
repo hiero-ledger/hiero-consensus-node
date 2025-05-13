@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.merkledb;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processRange;
@@ -34,14 +19,12 @@ import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Tag;
@@ -60,7 +43,7 @@ public class ValidateLeafIndex {
     @ParameterizedTest
     @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
     public void validateIndex(VirtualMapAndDataSourceRecord<?, ?> dsRecord, Report report) {
-        if(dsRecord.dataSource().getFirstLeafPath() == -1) {
+        if (dsRecord.dataSource().getFirstLeafPath() == -1) {
             log.info("Skipping the validation for {} as the map is empty", dsRecord.name());
             return;
         }
@@ -99,11 +82,13 @@ public class ValidateLeafIndex {
                 if (data != null) {
                     final VirtualLeafBytes leafRecord = VirtualLeafBytes.parseFrom(data);
                     assertEquals(leafRecord.path(), path);
-                    OnDiskKey key = (OnDiskKey) keySerializer.deserialize(leafRecord.keyBytes().toReadableSequentialData());
+                    OnDiskKey key = (OnDiskKey)
+                            keySerializer.deserialize(leafRecord.keyBytes().toReadableSequentialData());
                     long actual = objectKeyToPath.get(leafRecord.keyBytes(), key.hashCode(), -1);
                     assertEquals(path, actual);
 
-                    OnDiskValue value = (OnDiskValue) valueSerializer.deserialize(leafRecord.valueBytes().toReadableSequentialData());
+                    OnDiskValue value = (OnDiskValue)
+                            valueSerializer.deserialize(leafRecord.valueBytes().toReadableSequentialData());
                     assertEquals(value.getValue(), ((OnDiskValue) map.get(key)).getValue());
                     successCount.incrementAndGet();
                 } else {

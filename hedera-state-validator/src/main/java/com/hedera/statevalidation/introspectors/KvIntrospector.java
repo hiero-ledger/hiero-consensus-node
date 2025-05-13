@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.introspectors;
+
+import static com.hedera.statevalidation.introspectors.IntrospectUtils.getCodecFor;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -13,7 +16,6 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
@@ -22,8 +24,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
-
-import static com.hedera.statevalidation.introspectors.IntrospectUtils.getCodecFor;
 
 public class KvIntrospector {
 
@@ -43,7 +43,8 @@ public class KvIntrospector {
     }
 
     public void introspect() {
-        ReadableKVState<Object, Object> kvState = state.getReadableStates(serviceName).get(stateName);
+        ReadableKVState<Object, Object> kvState =
+                state.getReadableStates(serviceName).get(stateName);
         final JsonCodec jsonCodec;
         switch (keyType) {
             case "EntityNumber" -> jsonCodec = EntityNumber.JSON;

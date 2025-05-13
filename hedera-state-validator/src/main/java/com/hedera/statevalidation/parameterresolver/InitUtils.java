@@ -1,20 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.parameterresolver;
+
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.statevalidation.parameterresolver.StateResolver.readVersion;
+import static com.hedera.statevalidation.validators.Constants.FILE_CHANNELS;
+import static com.hedera.statevalidation.validators.Constants.STATE_DIR;
+import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -92,7 +83,6 @@ import com.hedera.node.config.types.LongPair;
 import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.listener.ReportingListener;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ConstructableRegistry;
 import com.swirlds.common.crypto.config.CryptoConfig;
@@ -118,9 +108,6 @@ import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.InstantSource;
@@ -131,17 +118,12 @@ import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
-import static com.hedera.statevalidation.parameterresolver.StateResolver.readVersion;
-import static com.hedera.statevalidation.validators.Constants.FILE_CHANNELS;
-import static com.hedera.statevalidation.validators.Constants.STATE_DIR;
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class InitUtils {
 
     private static final Logger log = LogManager.getLogger(InitUtils.class);
-
 
     /**
      * The excluded tables were renamed (see https://github.com/hashgraph/hedera-services/pull/16775). However, their metadata
@@ -249,9 +231,14 @@ public class InitUtils {
                                             md.onDiskValueClassId(),
                                             md.stateDefinition().valueCodec());
                                     final var ds = new RestoringMerkleDbDataSourceBuilder<>(stateDirPath, tableConfig);
-                                    final var vm = new VirtualMap(label, keySerializer, valueSerializer, ds, CONFIGURATION);
+                                    final var vm =
+                                            new VirtualMap(label, keySerializer, valueSerializer, ds, CONFIGURATION);
                                     virtualMaps.add(new VirtualMapAndDataSourceRecord<>(
-                                            label, (MerkleDbDataSource) vm.getDataSource(), vm, keySerializer, valueSerializer));
+                                            label,
+                                            (MerkleDbDataSource) vm.getDataSource(),
+                                            vm,
+                                            keySerializer,
+                                            valueSerializer));
                                 });
                                 return null;
                             }
@@ -276,9 +263,8 @@ public class InitUtils {
         final Configuration bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final Configuration config = getConfiguration();
         final Supplier<Configuration> configSupplier = () -> config;
-        final ServicesRegistryImpl servicesRegistry = new ServicesRegistryImpl(
-                ConstructableRegistry.getInstance(),
-                config);
+        final ServicesRegistryImpl servicesRegistry =
+                new ServicesRegistryImpl(ConstructableRegistry.getInstance(), config);
         final FakeNetworkInfo fakeNetworkInfo = new FakeNetworkInfo();
         final AppContextImpl appContext = new AppContextImpl(
                 InstantSource.system(),
@@ -290,12 +276,15 @@ public class InitUtils {
                 configSupplier,
                 fakeNetworkInfo::selfNodeInfo,
                 NoOpMetrics::new,
-                new AppThrottleFactory(configSupplier, () -> null, () -> ThrottleDefinitions.DEFAULT,
-                        ThrottleAccumulator::new, ServicesSoftwareVersion::new),
+                new AppThrottleFactory(
+                        configSupplier,
+                        () -> null,
+                        () -> ThrottleDefinitions.DEFAULT,
+                        ThrottleAccumulator::new,
+                        ServicesSoftwareVersion::new),
                 () -> NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
-        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v ->
-               new ServicesSoftwareVersion(readVersion()));
+        PlatformStateService.PLATFORM_STATE_SERVICE.setAppVersionFn(v -> new ServicesSoftwareVersion(readVersion()));
 
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
         Set.of(
@@ -310,7 +299,8 @@ public class InitUtils {
                                 .get()
                                 .transactionChecker()
                                 .parseSignedAndCheck(
-                                        signedTxn, config.getConfigData(HederaConfig.class).nodeTransactionMaxBytes())
+                                        signedTxn,
+                                        config.getConfigData(HederaConfig.class).nodeTransactionMaxBytes())
                                 .txBody()),
                         new RecordCacheService(),
                         new BlockRecordService(),
@@ -320,14 +310,20 @@ public class InitUtils {
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
                         new HintsServiceImpl(
-                            new NoOpMetrics(),
-                            ForkJoinPool.commonPool(),
-                            appContext,
-                            new HintsLibraryImpl(),
-                            bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()
-                        ),
-                        new RosterService(roster -> true, () -> {},
-                                () -> StateResolver.deserializedSignedState.reservedSignedState().get().getState(),
+                                new NoOpMetrics(),
+                                ForkJoinPool.commonPool(),
+                                appContext,
+                                new HintsLibraryImpl(),
+                                bootstrapConfig
+                                        .getConfigData(BlockStreamConfig.class)
+                                        .blockPeriod()),
+                        new RosterService(
+                                roster -> true,
+                                () -> {},
+                                () -> StateResolver.deserializedSignedState
+                                        .reservedSignedState()
+                                        .get()
+                                        .getState(),
                                 new PlatformStateFacade(ServicesSoftwareVersion::new)),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
@@ -358,6 +354,6 @@ public class InitUtils {
     }
 
     private static SemanticVersion getNodeStartupVersion(final Configuration config) {
-            return   readVersion();
+        return readVersion();
     }
 }
