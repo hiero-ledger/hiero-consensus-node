@@ -96,7 +96,17 @@ public class BlockStreamStateManager {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
 
-        scheduleNextPruning();
+        // Only start the pruning thread if we're streaming to block nodes
+        if (streamToBlockNodesEnabled()) {
+            scheduleNextPruning();
+        }
+    }
+
+    private boolean streamToBlockNodesEnabled() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamToBlockNodes();
     }
 
     /**
@@ -182,7 +192,11 @@ public class BlockStreamStateManager {
         blockStatesById.put(blockNumber, blockState);
         this.blockNumber = blockNumber;
         blockStreamMetrics.setProducingBlockNumber(blockNumber);
-        blockNodeConnectionManager.openBlock(blockNumber);
+
+        // Only notify block nodes if we're streaming to them
+        if (streamToBlockNodesEnabled()) {
+            blockNodeConnectionManager.openBlock(blockNumber);
+        }
     }
 
     /**
@@ -250,8 +264,10 @@ public class BlockStreamStateManager {
                 blockState.blockNumber(),
                 blockState.requests().size());
 
-        // Notify the connection manager
-        blockNodeConnectionManager.notifyConnectionsOfNewRequest();
+        // Notify the connection manager only if we're streaming to block nodes
+        if (streamToBlockNodesEnabled()) {
+            blockNodeConnectionManager.notifyConnectionsOfNewRequest();
+        }
 
         if ((!blockState.items().isEmpty() && force) || blockState.items().size() >= batchSize) {
             // another request can be created
