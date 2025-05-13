@@ -16,16 +16,13 @@ import java.time.Duration;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.Filter.Result;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.FileAppender;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.LoggerConfig;
-import org.apache.logging.log4j.core.filter.CompositeFilter;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
-import org.apache.logging.log4j.core.filter.NoMarkerFilter;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -122,13 +119,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
             final MarkerFilter noStateHashFilter =
                     MarkerFilter.createFilter(STATE_HASH.name(), Result.DENY, Result.NEUTRAL);
-            final NoMarkerFilter markerExistsFilter = NoMarkerFilter.newBuilder()
-                    .setOnMatch(Result.DENY)
-                    .setOnMismatch(Result.ACCEPT)
-                    .build();
-            final CompositeFilter consoleFilters =
-                    CompositeFilter.createFilters(new Filter[] {noStateHashFilter, markerExistsFilter});
-            consoleAppender.addFilter(consoleFilters);
+            consoleAppender.addFilter(noStateHashFilter);
 
             consoleAppender.start();
             rootLoggerConfig.addAppender(consoleAppender, Level.INFO, null);
