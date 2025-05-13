@@ -85,17 +85,26 @@ public record CallOutcome(
     }
 
     /**
-     * Adds the call details to the given record builder.
+     * Adds the call details to the given stream builder.
      *
-     * @param recordBuilder the record builder
+     * @param streamBuilder the stream builder
      */
-    public void addCallDetailsTo(@NonNull final ContractCallStreamBuilder recordBuilder) {
-        requireNonNull(recordBuilder);
+    public void addCallDetailsTo(@NonNull final ContractCallStreamBuilder streamBuilder) {
+        requireNonNull(streamBuilder);
+        addCalledContractIfNotAborted(streamBuilder);
+        streamBuilder.contractCallResult(result);
+        streamBuilder.withCommonFieldsSetFrom(this);
+    }
+
+    /**
+     * Adds the called contract ID to the given stream builder if the call was not aborted.
+     * @param streamBuilder the stream builder
+     */
+    public void addCalledContractIfNotAborted(@NonNull final ContractCallStreamBuilder streamBuilder) {
+        requireNonNull(streamBuilder);
         if (!callWasAborted()) {
-            recordBuilder.contractID(recipientId);
+            streamBuilder.contractID(recipientId);
         }
-        recordBuilder.contractCallResult(result);
-        recordBuilder.withCommonFieldsSetFrom(this);
     }
 
     /**

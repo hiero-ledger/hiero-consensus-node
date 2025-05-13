@@ -13,7 +13,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CANONIC
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ACCOUNTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_LEDGER_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
@@ -67,6 +66,7 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -86,6 +86,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class HandleHederaOperationsTest {
     @Mock
     private TokenServiceApi tokenServiceApi;
+
+    @Mock
+    private StreamBuilder streamBuilder;
 
     @Mock
     private BlockRecordInfo blockRecordInfo;
@@ -258,9 +261,14 @@ class HandleHederaOperationsTest {
 
     @Test
     void collectHtsFeeUsesTheContextAndDoesNotReplay() {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
+        given(context.savepointStack()).willReturn(stack);
+
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
         subject.collectHtsFee(NON_SYSTEM_ACCOUNT_ID, 123L);
 
-        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
+        verify(tokenServiceApi).chargeFee(NON_SYSTEM_ACCOUNT_ID, 123L, streamBuilder, null);
 
         subject.replayGasChargingIn(feeChargingContext);
         verifyNoInteractions(feeChargingContext);
@@ -277,26 +285,13 @@ class HandleHederaOperationsTest {
         verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
         verify(context).refundBestEffort(RELAYER_ID, 12L);
         verify(context).refundBestEffort(NON_SYSTEM_ACCOUNT_ID, 42L);
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
 
         subject.replayGasChargingIn(feeChargingContext);
         verify(feeChargingContext).charge(RELAYER_ID, new Fees(0, 69L - 12L, 0L), null);
         verify(feeChargingContext).charge(NON_SYSTEM_ACCOUNT_ID, new Fees(0, 123L - 42L, 0L), null);
-    }
-
-    @Test
-    void refundGasFeeStillTransfersAllFromNetworkFunding() {
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-
-        subject.refundGasFee(NON_SYSTEM_ACCOUNT_ID, 123L);
-
-        verify(tokenServiceApi)
-                .transferFromTo(
-                        AccountID.newBuilder()
-                                .accountNum(DEFAULT_LEDGER_CONFIG.fundingAccount())
-                                .build(),
-                        NON_SYSTEM_ACCOUNT_ID,
-                        123L);
+        verify(tokenServiceApi).incrementSenderNonce(NON_SYSTEM_ACCOUNT_ID);
     }
 
     @Test

@@ -60,6 +60,8 @@ import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Address;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A fully mutable {@link HederaOperations} implementation based on a {@link HandleContext}.
@@ -74,6 +76,7 @@ public class HandleHederaOperations implements HederaOperations {
                     .maxAutomaticTokenAssociations(0)
                     .autoRenewPeriod(Duration.newBuilder().seconds(THREE_MONTHS_IN_SECONDS))
                     .key(IMMUTABILITY_SENTINEL_KEY);
+    private static final Logger log = LoggerFactory.getLogger(HandleHederaOperations.class);
 
     private final TinybarValues tinybarValues;
     private final ContractsConfig contractsConfig;
@@ -236,8 +239,9 @@ public class HandleHederaOperations implements HederaOperations {
      */
     @Override
     public void collectHtsFee(@NonNull final AccountID payerId, final long amount) {
-        requireNonNull(payerId);
-        context.tryToCharge(payerId, amount);
+        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+
+        tokenServiceApi.chargeFee(payerId, amount, context.savepointStack().getBaseBuilder(StreamBuilder.class), null);
     }
 
     @Override
