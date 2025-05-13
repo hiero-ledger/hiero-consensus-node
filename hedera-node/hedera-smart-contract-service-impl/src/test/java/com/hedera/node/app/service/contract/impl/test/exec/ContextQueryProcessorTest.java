@@ -65,19 +65,12 @@ class ContextQueryProcessorTest {
         final var processors = processorsForAllCurrentEvmVersions(processor);
 
         final var subject = new ContextQueryProcessor(
-                context,
-                hederaEvmContext,
-                tracer,
-                proxyWorldUpdater,
-                hevmStaticTransactionFactory,
-                feesOnlyUpdater,
-                processors);
+                context, hederaEvmContext, tracer, proxyWorldUpdater, hevmStaticTransactionFactory, processors);
 
         given(context.configuration()).willReturn(CONFIGURATION);
         given(context.query()).willReturn(Query.DEFAULT);
         given(hevmStaticTransactionFactory.fromHapiQuery(Query.DEFAULT)).willReturn(HEVM_CREATION);
-        given(processor.processTransaction(
-                        HEVM_CREATION, proxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+        given(processor.processTransaction(HEVM_CREATION, proxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT);
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);

@@ -110,14 +110,13 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenSenderAccount();
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult =
@@ -141,14 +140,13 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenSenderAccount();
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult =
@@ -171,13 +169,12 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT);
         given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
@@ -200,13 +197,12 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
 
         subject.call();
@@ -228,7 +224,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -260,7 +255,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -292,7 +286,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -327,7 +320,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -362,7 +354,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -392,7 +383,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 

@@ -29,7 +29,6 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.function.Supplier;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
@@ -91,7 +90,6 @@ public class TransactionProcessor {
      *
      * @param transaction the transaction to process
      * @param updater the world updater to commit to
-     * @param feesOnlyUpdater if base commit fails, a fees-only updater
      * @param context the context to use
      * @param tracer the tracer to use
      * @param config the node configuration
@@ -100,7 +98,6 @@ public class TransactionProcessor {
     public HederaEvmTransactionResult processTransaction(
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater,
-            @NonNull final Supplier<HederaWorldUpdater> feesOnlyUpdater,
             @NonNull final HederaEvmContext context,
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final Configuration config) {

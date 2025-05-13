@@ -67,9 +67,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private ContextTransactionProcessor processor;
 
     @Mock
-    private HederaOperations operations;
-
-    @Mock
     private ContractCallStreamBuilder recordBuilder;
 
     @Mock
@@ -77,6 +74,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private RootProxyWorldUpdater baseProxyWorldUpdater;
+
+    @Mock
+    private HederaOperations hederaOperations;
 
     @Mock
     private GasCalculator gasCalculator;
@@ -113,6 +113,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         final var expectedOutcome =
                 new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), CALLED_CONTRACT_ID, null, null);
         given(processor.call()).willReturn(expectedOutcome);
+        given(component.hederaOperations()).willReturn(hederaOperations);
 
         given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
@@ -125,7 +126,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     void delegatesToCreatedComponentAndThrowsOnFailure() {
         given(factory.create(handleContext, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
-        given(component.hederaOperations()).willReturn(operations);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);

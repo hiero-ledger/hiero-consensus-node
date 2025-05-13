@@ -181,7 +181,6 @@ class EthereumTransactionHandlerTest {
                 tracer,
                 baseProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 transactionProcessor,
                 customGasCharging);
 
@@ -195,12 +194,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
-                        HEVM_CREATION,
-                        baseProxyWorldUpdater,
-                        feesOnlyUpdater,
-                        hederaEvmContext,
-                        tracer,
-                        DEFAULT_CONFIG))
+                        HEVM_CREATION, baseProxyWorldUpdater, hederaEvmContext, tracer, DEFAULT_CONFIG))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
     }
 
@@ -208,6 +202,7 @@ class EthereumTransactionHandlerTest {
     void delegatesToCreatedComponentAndExposesEthTxDataCallWithToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS));
+        given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
@@ -244,6 +239,7 @@ class EthereumTransactionHandlerTest {
     void delegatesToCreatedComponentAndExposesEthTxDataCreateWithoutToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS));
+        given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);

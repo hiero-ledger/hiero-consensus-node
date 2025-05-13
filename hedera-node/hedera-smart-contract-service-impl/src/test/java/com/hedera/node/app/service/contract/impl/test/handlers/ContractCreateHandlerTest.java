@@ -27,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
@@ -64,6 +65,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private HederaOperations hederaOperations;
 
     @Mock
     private TransactionComponent.Factory factory;
@@ -113,8 +117,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        System.out.println(expectedResult);
         final var expectedOutcome = new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
@@ -130,6 +134,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(factory.create(handleContext, HederaFunctionality.CONTRACT_CREATE))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
