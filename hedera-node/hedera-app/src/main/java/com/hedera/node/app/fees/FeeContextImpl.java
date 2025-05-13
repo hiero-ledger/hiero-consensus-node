@@ -141,7 +141,8 @@ public class FeeContextImpl implements FeeContext {
                 authorizer,
                 storeFactory,
                 consensusTime,
-                null,
+                null, // This is only used when dispatching synthetic transactions,
+                // so no signatures to verify
                 numSignatures));
     }
 }
