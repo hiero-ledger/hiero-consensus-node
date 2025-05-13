@@ -14,6 +14,9 @@ import java.time.Duration;
  * @param blockNodeConnectionFileDir the directory to get the block node configuration file
  * @param blockNodeConfigFile the file containing the block nodes configurations
  * @param waitPeriodForActiveConnection the time in minutes to wait for an active connection
+ * @param endOfStreamCount the limit of EndOfStream responses in a time frame
+ * @param endOfStreamTimeFrame the time frame in seconds to check for EndOfStream responses
+ * @param endOfStreamScheduleDelay the delay in seconds to schedule connections after the limit is reached
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
