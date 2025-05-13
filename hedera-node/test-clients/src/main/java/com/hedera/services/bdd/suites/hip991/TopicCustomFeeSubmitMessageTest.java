@@ -38,6 +38,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -1817,7 +1818,8 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .via("submit1024"),
                     submitMessageTo(TOPIC)
                             .message("test")
-                            .signedBy(SUBMIT_KEY, SUBMITTER)
+                            .signedBy(SUBMITTER, SUBMIT_KEY)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(SUBMITTER, SUBMIT_KEY))
                             .payingWith(SUBMITTER)
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
