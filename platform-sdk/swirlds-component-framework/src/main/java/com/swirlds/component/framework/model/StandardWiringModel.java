@@ -88,7 +88,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     /**
      * The (optional) global {@link UncaughtExceptionHandler} for the wiring framework
      */
-    private final UncaughtExceptionHandler globalUncaughtExceptionHandler;
+    private final UncaughtExceptionHandler taskSchedulerExceptionHandler;
 
     /**
      * Constructor.
@@ -126,7 +126,7 @@ public class StandardWiringModel extends TraceableWiringModel {
             anchor = null;
         }
 
-        globalUncaughtExceptionHandler = builder.getGlobalUncaughtExceptionHandler();
+        taskSchedulerExceptionHandler = builder.getTaskSchedulerExceptionHandler();
     }
 
     /**
@@ -138,8 +138,8 @@ public class StandardWiringModel extends TraceableWiringModel {
         throwIfStarted();
         final StandardTaskSchedulerBuilder<O> builder =
                 new StandardTaskSchedulerBuilder<>(this.time, this.metrics, this, name, defaultPool);
-        if (globalUncaughtExceptionHandler != null) {
-            builder.withUncaughtExceptionHandler(globalUncaughtExceptionHandler);
+        if (taskSchedulerExceptionHandler != null) {
+            builder.withUncaughtExceptionHandler(taskSchedulerExceptionHandler);
         }
         return builder;
     }

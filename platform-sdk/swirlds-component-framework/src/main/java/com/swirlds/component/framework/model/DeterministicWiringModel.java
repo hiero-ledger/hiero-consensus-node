@@ -38,23 +38,23 @@ public class DeterministicWiringModel extends TraceableWiringModel {
 
     private final DeterministicHeartbeatScheduler heartbeatScheduler;
 
-    private final UncaughtExceptionHandler globalUncaughtExceptionHandler;
+    private final UncaughtExceptionHandler taskSchedulerExceptionHandler;
 
     /**
      * Constructor.
      *
      * @param metrics the metrics
      * @param time the time
-     * @param globalUncaughtExceptionHandler the global {@link UncaughtExceptionHandler}
+     * @param taskSchedulerExceptionHandler the global {@link UncaughtExceptionHandler}
      */
     DeterministicWiringModel(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @Nullable final UncaughtExceptionHandler globalUncaughtExceptionHandler) {
+            @Nullable final UncaughtExceptionHandler taskSchedulerExceptionHandler) {
         super(false);
         this.metrics = Objects.requireNonNull(metrics);
         this.heartbeatScheduler = new DeterministicHeartbeatScheduler(this, time, "heartbeat");
-        this.globalUncaughtExceptionHandler = globalUncaughtExceptionHandler;
+        this.taskSchedulerExceptionHandler = taskSchedulerExceptionHandler;
     }
 
     /**
@@ -91,8 +91,8 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     public <O> TaskSchedulerBuilder<O> schedulerBuilder(@NonNull final String name) {
         final DeterministicTaskSchedulerBuilder<O> builder =
                 new DeterministicTaskSchedulerBuilder<>(metrics, this, name, this::submitWork);
-        if (globalUncaughtExceptionHandler != null) {
-            builder.withUncaughtExceptionHandler(globalUncaughtExceptionHandler);
+        if (taskSchedulerExceptionHandler != null) {
+            builder.withUncaughtExceptionHandler(taskSchedulerExceptionHandler);
         }
         return builder;
     }
