@@ -36,19 +36,14 @@ public class HederaOpsDuration {
     }
 
     public Map<Integer, Long> getOpsDuration() {
-        return requireNonNull(hederaOpsDurationData).opsDuration();
+        return requireNonNull(hederaOpsDurationData).getOpsDuration();
     }
 
     public Map<Integer, Long> getPrecompileDuration() {
-        return requireNonNull(hederaOpsDurationData).precompileDuration();
+        return requireNonNull(hederaOpsDurationData).getPrecompileDuration();
     }
 
     public Map<Integer, Long> getSystemContractDuration() {
-        return requireNonNull(hederaOpsDurationData).systemContractDuration();
+        return requireNonNull(hederaOpsDurationData).getSystemContractDuration();
     }
-
-    private record HederaOpsDurationData(
-            Map<Integer, Long> opsDuration,
-            Map<Integer, Long> precompileDuration,
-            Map<Integer, Long> systemContractDuration) {}
 }
