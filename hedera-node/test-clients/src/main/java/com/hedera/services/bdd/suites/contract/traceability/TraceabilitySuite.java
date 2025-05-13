@@ -4789,7 +4789,7 @@ public class TraceabilitySuite {
                             b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(
                                             spec,
-                                            ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
+                                            expectedCreate2Address.get(),
                                             +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
