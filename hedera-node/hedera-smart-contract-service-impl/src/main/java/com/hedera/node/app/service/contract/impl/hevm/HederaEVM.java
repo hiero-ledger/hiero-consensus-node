@@ -63,21 +63,21 @@ public class HederaEVM extends EVM {
     private final Operation endOfScriptStop;
     private final EvmSpecVersion evmSpecVersion;
     private final boolean enableShanghai;
-    private final Map<Integer, Long> hederaGasSchedule;
+    private final Map<Integer, Long> opsDurationValueMap;
 
     public HederaEVM(
             OperationRegistry operations,
             GasCalculator gasCalculator,
             EvmConfiguration evmConfiguration,
             EvmSpecVersion evmSpecVersion,
-            Map<Integer, Long> hederaGasSchedule) {
+            Map<Integer, Long> opsDurationValueMap) {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
         this.operations = operations;
         this.gasCalculator = gasCalculator;
         this.endOfScriptStop = new VirtualOperation(new StopOperation(gasCalculator));
         this.evmSpecVersion = evmSpecVersion;
         this.enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
-        this.hederaGasSchedule = hederaGasSchedule;
+        this.opsDurationValueMap = opsDurationValueMap;
     }
 
     @Override
@@ -86,6 +86,7 @@ public class HederaEVM extends EVM {
         OperationTracer operationTracer = tracing == OperationTracer.NO_TRACING ? null : tracing;
         byte[] code = frame.getCode().getBytes().toArrayUnsafe();
         Operation[] operationArray = this.operations.getOperations();
+        long usedOpsDuration = 0;
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -198,7 +199,7 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                incrementOpsDuration(frame, hederaGasSchedule.getOrDefault(opcode, DEFAULT_OPS_DURATION));
+                usedOpsDuration += opsDurationValueMap.getOrDefault(opcode, DEFAULT_OPS_DURATION);
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {
@@ -211,5 +212,9 @@ public class HederaEVM extends EVM {
                 operationTracer.tracePostExecution(frame, result);
             }
         }
+        /*
+         ** As above update this line if a new EVM class needs to be supported.
+         */
+        incrementOpsDuration(frame, usedOpsDuration);
     }
 }

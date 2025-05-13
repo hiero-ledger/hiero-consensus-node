@@ -385,8 +385,9 @@ public class FrameUtils {
      * @param opsDuration the amount ops duration to increment by
      */
     public static void incrementOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
-        final HederaOpsDurationCounter gasCounter = initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
-        gasCounter.incrementOpsDuration(opsDuration);
+        final HederaOpsDurationCounter opsDurationCounter =
+                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
+        opsDurationCounter.incrementOpsDuration(opsDuration);
     }
 
     /**
