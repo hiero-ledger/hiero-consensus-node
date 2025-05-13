@@ -83,10 +83,10 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                                     // create a transaction for each operation
                                     final var transaction = op.signedTxnFor(spec);
                                     if (!loggingOff) {
-                                        String message = String.format(
-                                                "%s add inner transaction to batch - %s",
-                                                spec.logPrefix(), txnToString(transaction));
-                                        log.info(message);
+                                        log.info(
+                                                "{} add inner transaction to batch - {}",
+                                                spec.logPrefix(),
+                                                txnToString(transaction));
                                     }
                                     // save transaction id
                                     final var txnId = extractTxnId(transaction);
