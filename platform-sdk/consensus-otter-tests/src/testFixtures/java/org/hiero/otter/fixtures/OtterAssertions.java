@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.assertj.core.api.Assertions;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -11,7 +12,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 /**
  * This class contains all {@code assertThat()} methods for test results of the Otter framework.
  */
-public class OtterAssertions {
+public class OtterAssertions extends Assertions {
 
     private OtterAssertions() {}
 

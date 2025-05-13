@@ -40,4 +40,5 @@ public record NodesConfig(
         @ConfigProperty(defaultValue = "100000000000000") @NetworkProperty long minNodeRewardBalance,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean adjustNodeFees,
         @ConfigProperty(defaultValue = "10") @NetworkProperty int activeRoundsPercent,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean preserveMinNodeRewardBalance) {}
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean preserveMinNodeRewardBalance,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean webProxyEndpointsEnabled) {}

@@ -75,7 +75,7 @@ public interface Network {
      * in the result. If no filters are provided, all nodes are included in the result.
      *
      * @param filters the filters to apply to the nodes
-     * @return the consensus rounds of the node
+     * @return the consensus rounds of the filtered nodes
      */
     @NonNull
     MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters);

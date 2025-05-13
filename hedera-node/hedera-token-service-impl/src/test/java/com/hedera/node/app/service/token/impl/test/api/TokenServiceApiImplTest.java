@@ -131,10 +131,10 @@ class TokenServiceApiImplTest {
     void delegatesStakingValidationAsExpected() {
         try (var mockedValidator = mockStatic(StakingValidator.class)) {
             subject.assertValidStakingElectionForCreation(
-                    true, false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
+                    false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
             mockedValidator.verify(
                     () -> StakingValidator.validateStakedIdForCreation(
-                            true, false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo),
+                            false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo),
                     times(1));
         }
     }
@@ -448,7 +448,6 @@ class TokenServiceApiImplTest {
         @BeforeEach
         void setUp() {
             configBuilder = HederaTestConfigBuilder.create()
-                    .withValue("staking.isEnabled", true)
                     .withValue("staking.fees.nodeRewardPercentage", 10)
                     .withValue("staking.fees.stakingRewardPercentage", 20)
                     .withValue("hedera.shard", 0)
@@ -480,7 +479,6 @@ class TokenServiceApiImplTest {
         void withStakingRewards() {
             // Given that staking is enabled
             final var config = configBuilder
-                    .withValue("staking.isEnabled", true)
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
             final Map<AccountID, Long> adjustments = new HashMap<>();
@@ -525,7 +523,6 @@ class TokenServiceApiImplTest {
         void balancesAreUnchangedAfterRefunds() {
             // Given that staking is enabled
             final var config = configBuilder
-                    .withValue("staking.isEnabled", true)
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
 
@@ -554,47 +551,6 @@ class TokenServiceApiImplTest {
             verify(onNodeRefund).accept(2L);
 
             assertThat(rb.transactionFee()).isEqualTo(0L);
-        }
-
-        @Test
-        void withoutStakingRewards() {
-            // Given that staking is disabled
-            final var config = configBuilder
-                    .withValue("staking.isEnabled", false)
-                    .withValue("nodes.preserveMinNodeRewardBalance", false)
-                    .getOrCreateConfig();
-            final Map<AccountID, Long> adjustments = new HashMap<>();
-
-            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
-
-            // When we charge fees of 10 tinybars
-            subject.chargeFees(
-                    EOA_ACCOUNT_ID,
-                    NODE_ACCOUNT_ID,
-                    fees,
-                    rb,
-                    (id, amount) -> adjustments.merge(id, amount, Long::sum),
-                    onNodeFee);
-
-            // Then we find that all the fees go to the funding account
-            final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
-            assertThat(payerAccount.tinybarBalance()).isEqualTo(PAYER_BALANCE_AFTER_ALL_FEES);
-            assertThat(adjustments.get(EOA_ACCOUNT_ID)).isEqualTo(-ALL_FEES);
-
-            final var nodeRewardAccount = requireNonNull(accountState.get(NODE_REWARD_ACCOUNT_ID));
-            assertThat(nodeRewardAccount.tinybarBalance()).isZero();
-            assertThat(adjustments.get(NODE_REWARD_ACCOUNT_ID)).isNull();
-
-            final var stakingRewardAccount = requireNonNull(accountState.get(STAKING_REWARD_ACCOUNT_ID));
-            assertThat(stakingRewardAccount.tinybarBalance()).isZero();
-            assertThat(adjustments.get(STAKING_REWARD_ACCOUNT_ID)).isNull();
-
-            final var fundingAccount = requireNonNull(accountState.get(FUNDING_ACCOUNT_ID));
-            assertThat(fundingAccount.tinybarBalance()).isEqualTo(10);
-            assertThat(adjustments.get(FUNDING_ACCOUNT_ID)).isEqualTo(10);
-            assertThat(adjustments.get(NODE_ACCOUNT_ID)).isEqualTo(ALL_FEES - 10);
-
-            assertThat(rb.transactionFee()).isEqualTo(ALL_FEES);
         }
 
         @Test

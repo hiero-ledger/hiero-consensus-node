@@ -50,6 +50,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
@@ -824,5 +825,16 @@ public class AtomicBatchNegativeTest {
                             .signedBy(alice) // Alice signs with the valid BatchKey
                             .hasPrecheck(MISSING_BATCH_KEY));
         }
+    }
+
+    @HapiTest
+    @DisplayName("Non default inner transaction node ID should fail")
+    public Stream<DynamicTest> nonDefaultInnerTxnIdFails() {
+        var batchOperator = "batchOperator";
+        var innerCryptoTxn = cryptoCreate("foo").setNode("1").batchKey(batchOperator);
+
+        return hapiTest(
+                cryptoCreate(batchOperator),
+                atomicBatch(innerCryptoTxn).payingWith(batchOperator).hasPrecheck(INVALID_NODE_ACCOUNT_ID));
     }
 }

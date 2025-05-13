@@ -60,7 +60,7 @@ public class DataFileCollectionBench extends BaseBench {
                 index.put(id, store.storeDataItem(record::serialize, BenchmarkRecord.getSerializedSize()));
                 if (verify) map[(int) id] = record;
             }
-            store.endWriting(0, maxKey).setFileCompleted();
+            store.endWriting(0, maxKey);
         }
         System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
 

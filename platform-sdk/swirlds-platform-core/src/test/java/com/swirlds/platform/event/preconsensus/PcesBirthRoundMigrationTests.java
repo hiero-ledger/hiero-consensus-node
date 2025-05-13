@@ -158,7 +158,7 @@ class PcesBirthRoundMigrationTests {
                     fullPcesPath);
             files.add(file);
 
-            final PcesMutableFile mutableFile = file.getMutableFile();
+            final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
             for (final PlatformEvent event : fileEvents) {
                 mutableFile.writeEvent(event);
                 if (discontinutiyIntroduced || discontinuityType == DiscontinuityType.NONE) {
