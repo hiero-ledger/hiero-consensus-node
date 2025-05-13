@@ -27,12 +27,10 @@ public class PcesMutableFile {
     /**
      * Create a new preconsensus event file that can be written to.
      *
-     * @param descriptor           a description of the file
-     * @param useFileChannelWriter whether to use a FileChannel to write to the file as opposed to an OutputStream
-     * @param syncEveryEvent       whether to sync the file after every event
+     * @param descriptor a description of the file
+     * @param pcesFileWriterType the type of writer
      */
-    PcesMutableFile(
-            @NonNull final PcesFile descriptor, final boolean useFileChannelWriter, final boolean syncEveryEvent)
+    PcesMutableFile(@NonNull final PcesFile descriptor, final @NonNull PcesFileWriterType pcesFileWriterType)
             throws IOException {
         if (Files.exists(descriptor.getPath())) {
             throw new IOException("File " + descriptor.getPath() + " already exists");
@@ -41,9 +39,7 @@ public class PcesMutableFile {
         Files.createDirectories(descriptor.getPath().getParent());
 
         this.descriptor = descriptor;
-        writer = useFileChannelWriter
-                ? new PcesFileChannelWriter(descriptor.getPath(), syncEveryEvent)
-                : new PcesOutputStreamFileWriter(descriptor.getPath(), syncEveryEvent);
+        this.writer = pcesFileWriterType.createWriter(descriptor.getPath());
         writer.writeVersion(PcesFileVersion.currentVersionNumber());
         highestAncientIdentifierInFile = descriptor.getLowerBound();
     }
@@ -158,5 +154,14 @@ public class PcesMutableFile {
     @Override
     public String toString() {
         return descriptor.toString();
+    }
+
+    /**
+     * Return the stats accumulated by the writer during the writing of this file.
+     *
+     * @return the stats accumulated by the writer during the writing of this file
+     */
+    public PcesFileWriterStats writerStats() {
+        return writer.getStats();
     }
 }

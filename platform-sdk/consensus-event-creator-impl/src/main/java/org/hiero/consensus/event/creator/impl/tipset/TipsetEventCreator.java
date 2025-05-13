@@ -141,8 +141,8 @@ public class TipsetEventCreator implements EventCreator {
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        this.eventHasher = new PbjStreamHasher();
+        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventHasher = new PbjStreamHasher();
     }
 
     /**

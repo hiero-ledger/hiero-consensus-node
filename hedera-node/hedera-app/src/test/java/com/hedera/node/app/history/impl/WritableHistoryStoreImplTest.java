@@ -55,8 +55,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
@@ -287,24 +285,7 @@ class WritableHistoryStoreImplTest {
     }
 
     @Test
-    void purgingStateAfterExactlyHandoffIsFalseIfNothingHappened() {
-        given(activeRosters.phase()).willReturn(TRANSITION);
-        assertThrows(IllegalArgumentException.class, () -> subject.purgeStateAfterHandoff(activeRosters));
-        given(activeRosters.phase()).willReturn(BOOTSTRAP);
-        assertThrows(IllegalArgumentException.class, () -> subject.purgeStateAfterHandoff(activeRosters));
-        given(activeRosters.phase()).willReturn(HANDOFF);
-        given(activeRosters.currentRosterHash()).willReturn(Bytes.wrap("NA"));
-
-        assertFalse(subject.purgeStateAfterHandoff(activeRosters));
-    }
-
-    @Test
     void purgingStateAfterHandoffHasTrueExpectedEffectIfSomethingHappened() {
-        given(activeRosters.phase()).willReturn(HANDOFF);
-        given(activeRosters.currentRosterHash()).willReturn(C_ROSTER_HASH);
-        final SortedSet<Long> removedNodeIds = new TreeSet<>(List.of(0L));
-        given(activeRosters.removedNodeIds()).willReturn(removedNodeIds);
-        givenARosterLookup();
         final var activeConstruction = HistoryProofConstruction.newBuilder()
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
@@ -332,7 +313,7 @@ class WritableHistoryStoreImplTest {
         final var signaturesBefore = subject.getSignaturePublications(123L, Set.of(0L));
         assertEquals(1, signaturesBefore.size());
 
-        subject.purgeStateAfterHandoff(activeRosters);
+        subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH);
 
         assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_KEY));
 
