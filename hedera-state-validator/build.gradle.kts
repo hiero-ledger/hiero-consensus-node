@@ -5,7 +5,6 @@ plugins {
 }
 
 dependencies {
-
     implementation("info.picocli:picocli:4.7.0")
     implementation("org.apache.logging.log4j:log4j-api:2.17.2")
     implementation("org.apache.logging.log4j:log4j-core:2.17.2")
@@ -15,18 +14,16 @@ dependencies {
 }
 
 mainModuleInfo {
-    requires ("com.hedera.node.app")
-    requires ("com.hedera.node.app.test.fixtures")
+    requires("com.hedera.node.app")
+    requires("com.hedera.node.app.test.fixtures")
 
-    requires ("com.swirlds.merkledb")
-
+    requires("com.swirlds.merkledb")
 
     // Define the individual libraries
     // JUnit Bundle
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.engine")
     requires("org.junit.platform.launcher")
-
 }
 
 application.mainClass = "com.hedera.statevalidation.StateOperatorCommand"

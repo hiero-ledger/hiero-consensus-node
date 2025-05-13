@@ -1,20 +1,17 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-
+import java.io.File;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
 import picocli.CommandLine.Parameters;
 
-import java.io.File;
-import java.util.concurrent.Callable;
-
 @CommandLine.Command(
         name = "operator",
         mixinStandardHelpOptions = true,
-        subcommands = { ValidateCommand.class, IntrospectCommand.class },
-        description = "CLI tool with validation and introspection modes"
-)
+        subcommands = {ValidateCommand.class, IntrospectCommand.class},
+        description = "CLI tool with validation and introspection modes")
 public class StateOperatorCommand implements Runnable {
 
     private static final Logger log = LogManager.getLogger(StateOperatorCommand.class);
@@ -25,7 +22,6 @@ public class StateOperatorCommand implements Runnable {
     File getStateDir() {
         return stateDir;
     }
-
 
     @Override
     public void run() {
@@ -44,5 +40,4 @@ public class StateOperatorCommand implements Runnable {
             throw new RuntimeException(e);
         }
     }
-
 }

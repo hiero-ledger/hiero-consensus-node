@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.listener;
 
 import static com.hedera.statevalidation.listener.ListenerUtils.extractTestFullName;
@@ -60,8 +61,7 @@ public class SummaryGeneratingListener implements TestExecutionListener {
     private static void printMessage(TestIdentifier testIdentifier, String message, String color, long timeTaken) {
         log.info(String.format(
                 "%s - %s%s%s, time taken - %s sec",
-                extractTestFullName(testIdentifier), color, message, ANSI_RESET, timeTaken
-        ));
+                extractTestFullName(testIdentifier), color, message, ANSI_RESET, timeTaken));
     }
 
     public boolean isFailed() {

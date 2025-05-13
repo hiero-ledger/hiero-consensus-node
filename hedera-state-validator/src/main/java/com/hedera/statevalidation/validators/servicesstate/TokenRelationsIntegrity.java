@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.servicesstate;
+
+import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
@@ -23,17 +27,13 @@ import com.swirlds.state.merkle.disk.OnDiskValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
 @Tag("tokenRelations")
@@ -44,12 +44,14 @@ public class TokenRelationsIntegrity {
     @ParameterizedTest
     @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
     void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
-        final MerkleStateRoot servicesState = (MerkleStateRoot) deserializedState.reservedSignedState().get().getState();
+        final MerkleStateRoot servicesState =
+                (MerkleStateRoot) deserializedState.reservedSignedState().get().getState();
 
         VirtualMap<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>> tokenRelsVm = null;
 
         for (int i = 0; i < servicesState.getNumberOfChildren(); i++) {
-            if (servicesState.getChild(i) instanceof VirtualMap<?, ?> virtualMap && virtualMap.getLabel().equals("TokenService.TOKEN_RELS")) {
+            if (servicesState.getChild(i) instanceof VirtualMap<?, ?> virtualMap
+                    && virtualMap.getLabel().equals("TokenService.TOKEN_RELS")) {
                 tokenRelsVm = (VirtualMap<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>>) virtualMap;
             }
         }
@@ -100,7 +102,11 @@ public class TokenRelationsIntegrity {
             objectsProcessed.incrementAndGet();
         };
 
-        VirtualMapMigration.extractVirtualMapDataC(AdHocThreadManager.getStaticThreadManager(), tokenRelsVm, handler, VALIDATOR_FORK_JOIN_POOL.getParallelism());
+        VirtualMapMigration.extractVirtualMapDataC(
+                AdHocThreadManager.getStaticThreadManager(),
+                tokenRelsVm,
+                handler,
+                VALIDATOR_FORK_JOIN_POOL.getParallelism());
 
         assertEquals(objectsProcessed.get(), tokenRelsVm.size());
         assertEquals(0, accountFailCounter.get());

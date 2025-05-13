@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.merkledb;
 
 import static com.hedera.statevalidation.parameterresolver.InitUtils.CONFIGURATION;
@@ -24,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceProvider;
 import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceRecord;
@@ -32,6 +16,7 @@ import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.hedera.statevalidation.reporting.StorageReport;
 import com.hedera.statevalidation.reporting.VirtualMapReport;
+import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
@@ -42,14 +27,6 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -59,6 +36,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 
 @ExtendWith({ReportResolver.class, SlackReportGenerator.class})
 @Tag("stateAnalyzer")
@@ -98,8 +82,9 @@ public class StateAnalyzer {
     @ParameterizedTest
     @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
     public void calculateDuplicatesForObjectKeyToPathStorage(VirtualMapAndDataSourceRecord labelAndDs, Report report) {
-//          MerkleDbDataSource vds = labelAndDs.dataSource();
-//          updateReport(labelAndDs, report, new HalfDiskHashMapW(vds.getKeyToPath()).getFileCollection(), VirtualMapReport::setObjectKeyToPathReport);
+        //          MerkleDbDataSource vds = labelAndDs.dataSource();
+        //          updateReport(labelAndDs, report, new HalfDiskHashMapW(vds.getKeyToPath()).getFileCollection(),
+        // VirtualMapReport::setObjectKeyToPathReport);
     }
 
     private void updateReport(
@@ -145,7 +130,7 @@ public class StateAnalyzer {
 
                 while (dataIterator.next()) {
                     try {
-                        //int itemSize = dataIterator.getDataItemData().remaining();
+                        // int itemSize = dataIterator.getDataItemData().remaining();
                         int itemSize = 0;
                         final long path;
                         Object dataItemData = deser.apply(dataIterator.getDataItemData());
@@ -154,7 +139,8 @@ public class StateAnalyzer {
                             path = hashRecord.path();
                         } else if (dataItemData instanceof VirtualLeafRecord<?, ?> leafRecord) {
                             path = leafRecord.getPath();
-                            SerializableDataOutputStream outputStream = new SerializableDataOutputStream(arrayOutputStream);
+                            SerializableDataOutputStream outputStream =
+                                    new SerializableDataOutputStream(arrayOutputStream);
                             leafRecord.getKey().serialize(outputStream);
                             itemSize += outputStream.size();
                             arrayOutputStream.reset();
