@@ -197,7 +197,8 @@ class BlockNodeConnectionManagerTest {
         assertThat(infoLogs.get(2)).contains("Scheduling connection task for block node localhost:8080 in 0 ms");
 
         // When connection error occurs
-        blockNodeConnectionManager.handleConnectionError(activeConnection);
+        blockNodeConnectionManager.handleConnectionError(
+                activeConnection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
 
         infoLogs = logCaptor.infoLogs();
         assertThat(infoLogs.get(3)).contains("Scheduling connection task for block node localhost:8080 in 1000 ms");
