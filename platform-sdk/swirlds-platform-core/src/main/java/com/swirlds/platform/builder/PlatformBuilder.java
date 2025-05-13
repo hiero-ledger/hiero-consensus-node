@@ -23,16 +23,14 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
+import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
-import com.swirlds.platform.roster.RosterHistory;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -57,11 +55,15 @@ import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -318,7 +320,7 @@ public final class PlatformBuilder {
         this.keysAndCerts = Objects.requireNonNull(keysAndCerts);
         // Ensure that the platform has a valid signing cert that matches the signing private key.
         // https://github.com/hashgraph/hedera-services/issues/16648
-        if (!CryptoStatic.checkCertificate(keysAndCerts.sigCert())) {
+        if (!CryptoUtils.checkCertificate(keysAndCerts.sigCert())) {
             throw new IllegalStateException("Starting the platform requires a signing cert.");
         }
         final PlatformSigner platformSigner = new PlatformSigner(keysAndCerts);
@@ -493,7 +495,7 @@ public final class PlatformBuilder {
                 intakeEventCounter,
                 randomBuilder,
                 new TransactionPoolNexus(platformContext),
-                new AtomicReference<>(),
+                new FreezeCheckHolder(),
                 new AtomicReference<>(),
                 initialPcesFiles,
                 consensusEventStreamName,

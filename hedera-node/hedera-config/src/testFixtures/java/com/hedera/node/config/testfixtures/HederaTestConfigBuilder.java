@@ -39,6 +39,7 @@ import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GrpcConfig;
+import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -169,6 +170,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(AtomicBatchConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
+                .withConfigDataType(GrpcUsageTrackerConfig.class)
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
                 .withConverter(KnownBlockValues.class, new KnownBlockValuesConverter())

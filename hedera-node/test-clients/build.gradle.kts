@@ -13,8 +13,6 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
-testModuleInfo { runtimeOnly("org.junit.jupiter.api") }
-
 sourceSets {
     create("rcdiff")
     create("yahcli")
@@ -26,7 +24,7 @@ tasks.register<JavaExec>("runTestClient") {
     group = "build"
     description = "Run a test client via -PtestClient=<Class>"
 
-    classpath = sourceSets.main.get().runtimeClasspath + files(tasks.jar)
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     mainClass = providers.gradleProperty("testClient")
 }
 
@@ -41,7 +39,7 @@ tasks.jacocoTestReport {
 
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -65,9 +63,6 @@ tasks.test {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prCheckTags =
@@ -122,13 +117,18 @@ val prCheckNetSizeOverrides =
     )
 
 tasks {
-    prCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testSubprocess") } }
+    prCheckTags.forEach { (taskName, _) ->
+        register(taskName) {
+            getByName(taskName).group = "hapi-test"
+            dependsOn("testSubprocess")
+        }
+    }
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
 }
 
 tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     // Choose a different initial port for each test task if running as PR check
     val initialPort =
@@ -190,14 +190,11 @@ tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -292,14 +289,11 @@ tasks.register<Test>("testSubprocess") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -358,9 +352,6 @@ tasks.register<Test>("testRemote") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prEmbeddedCheckTags = mapOf("hapiEmbeddedMisc" to "EMBEDDED")
@@ -374,7 +365,7 @@ tasks {
 // Runs tests against an embedded network that supports concurrent tests
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -409,9 +400,6 @@ tasks.register<Test>("testEmbedded") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prRepeatableCheckTags = mapOf("hapiRepeatableMisc" to "REPEATABLE")
@@ -426,7 +414,7 @@ tasks {
 // single thread
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -455,9 +443,6 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"

@@ -1018,7 +1018,7 @@ public class RepeatableHip423Tests {
                 sleepForSeconds(THIRTY_MINUTES * 2),
 
                 // try to trigger the scheduled transaction with failing throttle
-                submitMessageTo((String) null).hasRetryPrecheckFrom(BUSY).hasKnownStatus(INVALID_TOPIC_ID),
+                submitMessageTo("0.0.0").hasRetryPrecheckFrom(BUSY).hasKnownStatus(INVALID_TOPIC_ID),
 
                 // the balance is changed
                 getAccountBalance(RECEIVER).hasTinyBars(1L));

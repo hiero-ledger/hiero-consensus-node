@@ -4,14 +4,15 @@ package com.swirlds.platform.core.jmh;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.event.preconsensus.PcesFile;
+import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.event.preconsensus.PcesMutableFile;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -32,11 +33,8 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 3, time = 10)
 public class PcesWriterBenchmark {
 
-    @Param({"true", "false"})
-    public boolean useFileChannelWriter;
-
-    @Param({"true", "false"})
-    public boolean syncEveryEvent;
+    @Param({"OUTPUT_STREAM", "FILE_CHANNEL", "FILE_CHANNEL_SYNC"})
+    public PcesFileWriterType pcesFileWriterType;
 
     private PlatformEvent event;
     private Path directory;
@@ -55,7 +53,7 @@ public class PcesWriterBenchmark {
         directory = Files.createTempDirectory("PcesWriterBenchmark");
         final PcesFile file = PcesFile.of(AncientMode.GENERATION_THRESHOLD, r.nextInstant(), 1, 0, 100, 0, directory);
 
-        mutableFile = file.getMutableFile(useFileChannelWriter, syncEveryEvent);
+        mutableFile = file.getMutableFile(pcesFileWriterType);
     }
 
     @TearDown(Level.Iteration)
@@ -77,5 +75,13 @@ public class PcesWriterBenchmark {
     @OutputTimeUnit(TimeUnit.SECONDS)
     public void writeEvent() throws IOException {
         mutableFile.writeEvent(event);
+    }
+
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    @OutputTimeUnit(TimeUnit.SECONDS)
+    public void writeEventAndSync() throws IOException {
+        mutableFile.writeEvent(event);
+        mutableFile.sync();
     }
 }

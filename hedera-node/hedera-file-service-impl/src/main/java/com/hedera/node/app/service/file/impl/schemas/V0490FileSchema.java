@@ -50,6 +50,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -274,7 +275,7 @@ public class V0490FileSchema extends Schema {
      */
     public Bytes genesisFeeSchedules(@NonNull final Configuration config) {
         final var resourceName = config.getConfigData(BootstrapConfig.class).feeSchedulesJsonResource();
-        try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+        try (final var in = loadResourceInPackage(resourceName)) {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
@@ -480,7 +481,7 @@ public class V0490FileSchema extends Schema {
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (apiPermissionsContent == null) {
             final var resourceName = "api-permission.properties";
-            try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+            try (final var in = loadResourceInRoot(resourceName)) {
                 apiPermissionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("API Permissions loaded from classpath resource {}", resourceName);
             } catch (IOException | NullPointerException e) {
@@ -574,8 +575,7 @@ public class V0490FileSchema extends Schema {
 
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (throttleDefinitionsContent == null) {
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(throttleDefinitionsResource)) {
+            try (final var in = loadResourceInPackage(throttleDefinitionsResource)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("Throttle definitions loaded from classpath resource {}", throttleDefinitionsResource);
             } catch (IOException | NullPointerException e) {
@@ -587,8 +587,7 @@ public class V0490FileSchema extends Schema {
 
         if (throttleDefinitionsContent == null) {
             // Load the default throttle definitions resource
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(DEFAULT_THROTTLES_RESOURCE)) {
+            try (final var in = loadResourceInPackage(DEFAULT_THROTTLES_RESOURCE)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info(
                         "Throttle definitions loaded from default fallback classpath resource {}",
@@ -683,5 +682,19 @@ public class V0490FileSchema extends Schema {
                 .shardNum(hederaConfig.shard())
                 .fileNum(fileNum)
                 .build();
+    }
+
+    /**
+     * Loads a resource from within a package. The package must be within the loading Module or exported/opened.
+     */
+    private static InputStream loadResourceInPackage(String resourcePath) {
+        return V0490FileSchema.class.getResourceAsStream("/" + resourcePath);
+    }
+
+    /**
+     * Loads a resource from the root of any Jar file (not inside a package).
+     */
+    private static InputStream loadResourceInRoot(String resourceName) {
+        return Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName);
     }
 }

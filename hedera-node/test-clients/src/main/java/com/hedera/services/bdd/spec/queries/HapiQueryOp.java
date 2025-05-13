@@ -206,10 +206,17 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             processAnswerOnlyResponse(spec);
 
             actualPrecheck = reflectForPrecheck(response);
+
+            // no need to retry if the precheck status is the expected one
+            if (actualPrecheck == expectedAnswerOnlyPrecheck()) {
+                break;
+            }
+
             if (answerOnlyRetryPrechecks.isPresent()
                     && answerOnlyRetryPrechecks.get().contains(actualPrecheck)
                     && isWithInRetryLimit(retryCount)) {
                 retryCount++;
+                log.info(spec.logPrefix() + "retry count: " + retryCount);
                 sleep(10);
             } else {
                 break;

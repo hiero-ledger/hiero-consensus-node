@@ -83,7 +83,6 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.ReadableRosterStoreImpl;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -108,6 +107,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.
@@ -226,8 +226,8 @@ public class HandleWorkflow {
     /**
      * Handles the next {@link Round}
      *
-     * @param state                     the writable {@link State} that this round will work on
-     * @param round                     the next {@link Round} that needs to be processed
+     * @param state the writable {@link State} that this round will work on
+     * @param round the next {@link Round} that needs to be processed
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
@@ -255,11 +255,12 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
+        configureTssCallbacks(state);
         try {
             transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
             try {
                 // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
-                // Dispatch rewards for active nodes after atleast one user transaction is handled
+                // Dispatch rewards for active nodes after at least one user transaction is handled
                 final var timeStamp = boundaryStateChangeListener.lastConsensusTime();
                 if (timeStamp != null) {
                     transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
@@ -295,8 +296,8 @@ public class HandleWorkflow {
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
      *
-     * @param state                     the state to apply the effects to
-     * @param round                     the round to apply the effects of
+     * @param state the state to apply the effects to
+     * @param round the round to apply the effects of
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     private boolean handleEvents(
@@ -354,9 +355,8 @@ public class HandleWorkflow {
         }
         final boolean isGenesis =
                 switch (streamMode) {
-                    case RECORDS -> blockRecordManager
-                            .consTimeOfLastHandledTxn()
-                            .equals(Instant.EPOCH);
+                    case RECORDS ->
+                        blockRecordManager.consTimeOfLastHandledTxn().equals(Instant.EPOCH);
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
         if (isGenesis) {
@@ -416,9 +416,9 @@ public class HandleWorkflow {
      * executing the workflow for the transaction. This produces a stream of records that are then passed to the
      * {@link BlockRecordManager} to be externalized.
      *
-     * @param state      the writable {@link State} that this transaction will work on
-     * @param creator    the {@link NodeInfo} of the creator of the transaction
-     * @param txn        the {@link ConsensusTransaction} to be handled
+     * @param state the writable {@link State} that this transaction will work on
+     * @param creator the {@link NodeInfo} of the creator of the transaction
+     * @param txn the {@link ConsensusTransaction} to be handled
      * @param txnVersion the software version for the event containing the transaction
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
@@ -444,7 +444,8 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             type = switch (blockStreamManager.pendingWork()) {
                 case POST_UPGRADE_WORK -> POST_UPGRADE_TRANSACTION;
-                default -> ORDINARY_TRANSACTION;};
+                default -> ORDINARY_TRANSACTION;
+            };
         }
         final var userTxn =
                 parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, type, stateSignatureTxnCallback);
@@ -506,10 +507,10 @@ public class HandleWorkflow {
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
      *
-     * @param state          the state to execute scheduled transactions from
+     * @param state the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
-     * @param consensusNow   the consensus time at which the user transaction triggering this execution was processed
-     * @param creatorInfo    the node info of the user transaction creator
+     * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
+     * @param creatorInfo the node info of the user transaction creator
      */
     private void executeAsManyScheduled(
             @NonNull final State state,
@@ -600,9 +601,9 @@ public class HandleWorkflow {
      * Type inference helper to compute the base builder for a {@link ParentTxn} derived from a
      * {@link ExecutableTxn}.
      *
-     * @param <T>           the type of the stream builder
+     * @param <T> the type of the stream builder
      * @param executableTxn the executable transaction to compute the base builder for
-     * @param parentTxn     the user transaction derived from the executable transaction
+     * @param parentTxn the user transaction derived from the executable transaction
      * @return the base builder for the user transaction
      */
     private <T extends StreamBuilder> T baseBuilderFor(
@@ -617,8 +618,8 @@ public class HandleWorkflow {
      * should be set to the current time.
      *
      * @param state the state to purge
-     * @param then  the last time the purge was triggered
-     * @param now   the current time
+     * @param then the last time the purge was triggered
+     * @param now the current time
      */
     private void purgeScheduling(@NonNull final State state, final Instant then, final Instant now) {
         if (!Instant.EPOCH.equals(then) && then.getEpochSecond() < now.getEpochSecond()) {
@@ -641,9 +642,9 @@ public class HandleWorkflow {
      * just the transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result,
      * and no other side effects.
      *
-     * @param parentTxn  the user transaction to execute
+     * @param parentTxn the user transaction to execute
      * @param txnVersion the software version for the event containing the transaction
-     * @param state      the state to commit any direct changes against
+     * @param state the state to commit any direct changes against
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSubmittedParent(
@@ -732,7 +733,7 @@ public class HandleWorkflow {
      * scheduled transaction with a {@link ResponseCodeEnum#FAIL_INVALID} transaction result, and
      * no other side effects.
      *
-     * @param state        the state to execute the transaction against
+     * @param state the state to execute the transaction against
      * @param consensusNow the time to execute the transaction at
      * @return the stream output from executing the transaction
      */
@@ -769,7 +770,7 @@ public class HandleWorkflow {
      * Manages time-based side effects for the given user transaction and dispatch.
      *
      * @param parentTxn the user transaction to manage time for
-     * @param dispatch  the dispatch to manage time for
+     * @param dispatch the dispatch to manage time for
      */
     private void advanceTimeFor(@NonNull final ParentTxn parentTxn, @NonNull final Dispatch dispatch) {
         // WARNING: The check below relies on the BlockStreamManager's last-handled time not being updated yet,
@@ -786,10 +787,10 @@ public class HandleWorkflow {
      * Commits an action with side effects while capturing its key/value state changes and writing them to the
      * block stream.
      *
-     * @param writableStates         the writable states to commit the action to
+     * @param writableStates the writable states to commit the action to
      * @param entityIdWritableStates if not null, the writable states for the entity ID service
-     * @param now                    the consensus timestamp of the action
-     * @param action                 the action to commit
+     * @param now the consensus timestamp of the action
+     * @param action the action to commit
      */
     private void doStreamingKVChanges(
             @NonNull final WritableStates writableStates,
@@ -840,8 +841,8 @@ public class HandleWorkflow {
      * information. The record builder is initialized with the transaction, transaction bytes, transaction ID,
      * exchange rate, and memo.
      *
-     * @param builder         the base builder
-     * @param txnInfo         the transaction information
+     * @param builder the base builder
+     * @param txnInfo the transaction information
      * @param exchangeRateSet the active exchange rate set
      * @return the initialized base builder
      */
@@ -872,7 +873,7 @@ public class HandleWorkflow {
      * Processes any side effects of crossing a stake period boundary.
      *
      * @param parentTxn the user transaction that crossed the boundary
-     * @param dispatch  the dispatch for the user transaction that crossed the boundary
+     * @param dispatch the dispatch for the user transaction that crossed the boundary
      */
     private void processStakePeriodChanges(@NonNull final ParentTxn parentTxn, @NonNull final Dispatch dispatch) {
         try {
@@ -891,11 +892,65 @@ public class HandleWorkflow {
     }
 
     /**
+     * Configure the TSS callbacks for the given state.
+     * @param state the latest state
+     */
+    private void configureTssCallbacks(@NonNull final State state) {
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (tssConfig.hintsEnabled()) {
+            hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
+                // On finishing the genesis construction, use it immediately no matter what
+                if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                    context.setConstruction(construction);
+                } else if (!tssConfig.historyEnabled()) {
+                    // When not using history proofs, completing a weight rotation is also immediately actionable
+                    final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+                    if (rosterStore.candidateIsWeightRotation()) {
+                        hintsService.manageRosterAdoption(
+                                hintsStore,
+                                requireNonNull(rosterStore.getActiveRoster()),
+                                requireNonNull(rosterStore.getCandidateRoster()),
+                                requireNonNull(rosterStore.getCandidateRosterHash()),
+                                tssConfig.forceHandoffs());
+                    }
+                }
+            });
+        }
+        if (tssConfig.historyEnabled()) {
+            historyService.onFinishedConstruction((historyStore, construction) -> {
+                if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                    // History service has no other action to take on finishing the genesis construction
+                    return;
+                }
+                final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+                if (rosterStore.candidateIsWeightRotation()) {
+                    historyStore.handoff(
+                            requireNonNull(rosterStore.getActiveRoster()),
+                            requireNonNull(rosterStore.getCandidateRoster()),
+                            requireNonNull(rosterStore.getCandidateRosterHash()));
+                    if (tssConfig.hintsEnabled()) {
+                        final var writableHintsStates = state.getWritableStates(HintsService.NAME);
+                        final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
+                        final var entityCounters = new WritableEntityIdStore(writableEntityStates);
+                        final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
+                        hintsService.manageRosterAdoption(
+                                hintsStore,
+                                requireNonNull(rosterStore.getActiveRoster()),
+                                requireNonNull(rosterStore.getCandidateRoster()),
+                                requireNonNull(rosterStore.getCandidateRosterHash()),
+                                tssConfig.forceHandoffs());
+                    }
+                }
+            });
+        }
+    }
+
+    /**
      * Reconciles the state of the TSS system with the active rosters in the given state at the given timestamps.
      * Notice that when TSS is enabled but the signer is not yet ready, <b>only</b> the round timestamp advances,
      * since we don't create block boundaries until we can sign them.
      *
-     * @param state          the state to use when reconciling the TSS system state with the active rosters
+     * @param state the state to use when reconciling the TSS system state with the active rosters
      * @param roundTimestamp the current round timestamp
      */
     private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {

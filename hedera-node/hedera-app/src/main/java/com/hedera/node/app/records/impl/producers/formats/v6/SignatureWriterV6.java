@@ -9,7 +9,6 @@ import com.hedera.hapi.streams.SignatureObject;
 import com.hedera.hapi.streams.SignatureType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.stream.Signer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signer;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**

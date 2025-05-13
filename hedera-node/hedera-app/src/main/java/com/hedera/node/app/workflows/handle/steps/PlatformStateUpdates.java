@@ -21,7 +21,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,12 +29,12 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Simple facility that notifies interested parties when the freeze state is updated.
@@ -106,16 +105,8 @@ public class PlatformStateUpdates {
                         final var stakingInfoStore = new ReadableStakingInfoStoreImpl(
                                 state.getReadableStates(TokenService.NAME), entityCounters);
 
-                        // update the candidate roster weights with weights from stakingNodeInfo map
-                        final Function<Long, Long> weightFunction = nodeId -> {
-                            final var stakingInfo = stakingInfoStore.get(nodeId);
-                            if (stakingInfo != null && !stakingInfo.deleted()) {
-                                return stakingInfo.stake();
-                            }
-                            // Default weight if no staking info is found or the node is deleted
-                            return 0L;
-                        };
-                        var candidateRoster = nodeStore.snapshotOfFutureRoster(weightFunction);
+                        // Get a candidate roster with the latest weights
+                        var candidateRoster = nodeStore.snapshotOfFutureRoster(stakingInfoStore.weightFunction());
                         // Ensure we don't have a candidate roster with all zero weights by preserving
                         // weights from the current roster when no HBAR is staked to any node
                         if (hasZeroWeight(candidateRoster)) {

@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -26,7 +27,7 @@ import java.util.function.Consumer;
 /**
  * Default implementation of the {@link HistoryService}.
  */
-public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof> {
+public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof>, OnProofFinished {
     @Deprecated
     private final Configuration bootstrapConfig;
 
@@ -37,6 +38,9 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
      */
     @Nullable
     private HistoryProof historyProof;
+
+    @Nullable
+    private OnProofFinished cb;
 
     public HistoryServiceImpl(
             @NonNull final Metrics metrics,
@@ -82,11 +86,23 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
                 }
             }
             case HANDOFF -> {
-                if (historyStore.purgeStateAfterHandoff(activeRosters)) {
-                    final var construction = requireNonNull(historyStore.getConstructionFor(activeRosters));
-                    this.accept(construction.targetProofOrThrow());
-                }
+                // No-op
             }
+        }
+    }
+
+    @Override
+    public void onFinishedConstruction(@Nullable final OnProofFinished cb) {
+        this.cb = cb;
+    }
+
+    @Override
+    public void accept(
+            @NonNull final WritableHistoryStore historyStore, @NonNull final HistoryProofConstruction construction) {
+        requireNonNull(historyStore);
+        requireNonNull(construction);
+        if (cb != null) {
+            cb.accept(historyStore, construction);
         }
     }
 

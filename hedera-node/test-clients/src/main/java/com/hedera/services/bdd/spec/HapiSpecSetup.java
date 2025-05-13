@@ -22,10 +22,8 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.security.PrivateKey;
@@ -324,10 +322,6 @@ public class HapiSpecSetup {
         return props.get("default.payer.name");
     }
 
-    public RealmID defaultRealm() {
-        return props.getRealm("default.realm");
-    }
-
     /**
      * Returns whether a {@link HapiSpec} should automatically take and fuzzy-match snapshots of the record stream.
      *
@@ -349,10 +343,6 @@ public class HapiSpecSetup {
 
     public boolean defaultReceiverSigRequired() {
         return props.getBoolean("default.receiverSigRequired");
-    }
-
-    public ShardID defaultShard() {
-        return props.getShard("default.shard");
     }
 
     public int defaultThresholdM() {
@@ -534,16 +524,24 @@ public class HapiSpecSetup {
         return props.getLong("status.wait.timeout.ms");
     }
 
+    public long shard() {
+        return props.getShard();
+    }
+
+    public long realm() {
+        return props.getRealm();
+    }
+
     public AccountID nodeRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "801");
+        return asAccount(shard(), realm(), 801L);
     }
 
     public AccountID stakingRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "800");
+        return asAccount(shard(), realm(), 800);
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "802");
+        return asAccount(shard(), realm(), 802);
     }
 
     public String nodeRewardAccountName() {

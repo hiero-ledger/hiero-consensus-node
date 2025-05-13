@@ -40,6 +40,10 @@ public class DataFileCompactor {
 
     private static final Logger logger = LogManager.getLogger(DataFileCompactor.class);
 
+    public static final String HASH_STORE_DISK = "HashStoreDisk";
+    public static final String OBJECT_KEY_TO_PATH = "ObjectKeyToPath";
+    public static final String PATH_TO_KEY_VALUE = "PathToKeyValue";
+
     /**
      * This is the compaction level that non-compacted files have.
      */
@@ -48,25 +52,28 @@ public class DataFileCompactor {
     private final MerkleDbConfig dbConfig;
 
     /**
-     * Name of the file store to compact.
+     * Name of the file store to compact. This is used for logging and metrics.
      */
     private final String storeName;
+
     /**
-     * The data file collection to compact
+     * The data file collection to compact.
      */
     private final DataFileCollection dataFileCollection;
 
     /**
-     * Index to update during compaction
+     * Index to update during compaction.
      */
     private final CASableLongIndex index;
+
     /**
-     * A function that will be called to report the duration of the compaction
+     * A function that will be called to report the duration of the compaction.
      */
     @Nullable
     private final BiConsumer<Integer, Long> reportDurationMetricFunction;
+
     /**
-     * A function that will be called to report the amount of space saved by the compaction
+     * A function that will be called to report the amount of space saved by the compaction.
      */
     @Nullable
     private final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction;
@@ -74,7 +81,7 @@ public class DataFileCompactor {
     private final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction;
 
     /**
-     * A function that updates statistics of total usage of disk space and off-heap space
+     * A function that updates statistics of total usage of disk space and off-heap space.
      */
     @Nullable
     private final Runnable updateTotalStatsFunction;
@@ -133,7 +140,7 @@ public class DataFileCompactor {
      * @param index                          index to update during compaction
      * @param reportDurationMetricFunction   function to report how long compaction took, in ms
      * @param reportSavedSpaceMetricFunction function to report how much space was compacted, in Mb
-     * @param reportFileSizeByLevelMetricFunction function to report how much spaсе is used by the store by compaction level, in Mb
+     * @param reportFileSizeByLevelMetricFunction function to report how much space is used by the store by compaction level, in Mb
      * @param updateTotalStatsFunction       A function that updates statistics of total usage of disk space and off-heap space
      */
     public DataFileCompactor(
@@ -481,7 +488,7 @@ public class DataFileCompactor {
      * then this level and the levels above it are not included in the plan.
      * @return filter creating a compaction plan
      */
-    static <D> List<DataFileReader> compactionPlan(
+    static List<DataFileReader> compactionPlan(
             List<DataFileReader> dataFileReaders, int minNumberOfFilesToCompact, int maxCompactionLevel) {
         if (dataFileReaders.isEmpty()) {
             return dataFileReaders;

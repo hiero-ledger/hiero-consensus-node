@@ -101,11 +101,6 @@ public class TokenCreateValidator {
                 context.expiryValidator(),
                 INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
 
-        final var nftsAreEnabled = config.nftsAreEnabled();
-        if (op.tokenType().equals(TokenType.NON_FUNGIBLE_UNIQUE)) {
-            validateTrue(nftsAreEnabled, NOT_SUPPORTED);
-        }
-
         context.attributeValidator().validateMemo(op.memo());
         tokenAttributesValidator.validateTokenSymbol(op.symbol(), config);
         tokenAttributesValidator.validateTokenName(op.name(), config);

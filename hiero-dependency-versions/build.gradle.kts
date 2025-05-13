@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.0.Final"))
+    api(platform("io.netty:netty-bom:4.2.1.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -18,18 +18,18 @@ dependencies {
 val autoService = "1.1.1"
 val besu = "24.3.3"
 val bouncycastle = "1.80"
-val dagger = "2.56.1"
+val dagger = "2.56.2"
 val eclipseCollections = "11.1.0"
-val grpc = "1.71.0"
-val hederaCryptography = "0.2.2-SNAPSHOT"
-val helidon = "4.2.0"
-val jackson = "2.18.3"
+val grpc = "1.72.0"
+val hederaCryptography = "0.2.3-SNAPSHOT"
+val helidon = "4.2.2"
+val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
 val mockito = "5.17.0"
 val pbj = "0.11.0" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.30.2"
-val testContainers = "1.20.6"
+val testContainers = "1.21.0"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
 
@@ -60,7 +60,7 @@ dependencies.constraints {
     api("com.google.auto.service:auto-service:$autoService") {
         because("com.google.auto.service.processor")
     }
-    api("com.google.guava:guava:33.4.7-jre") { because("com.google.common") }
+    api("com.google.guava:guava:33.4.8-jre") { because("com.google.common") }
     api("com.google.j2objc:j2objc-annotations:3.0.0") { because("com.google.j2objc.annotations") }
     api("com.google.jimfs:jimfs:1.3.0") { because("com.google.common.jimfs") }
     api("com.google.protobuf:protobuf-java:$protobuf") { because("com.google.protobuf") }
@@ -73,24 +73,22 @@ dependencies.constraints {
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
-    api("com.esaulpaugh:headlong:13.2.0") { because("com.esaulpaugh.headlong") }
-    api("info.picocli:picocli:4.7.6") { because("info.picocli") }
+    api("com.esaulpaugh:headlong:13.2.2") { because("com.esaulpaugh.headlong") }
+    api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
-    api("io.prometheus:simpleclient:0.16.0") { because("io.prometheus.simpleclient") }
-    api("io.prometheus:simpleclient_httpserver:0.16.0") {
-        because("io.prometheus.simpleclient.httpserver")
-    }
+    api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
+    api("io.prometheus:simpleclient_httpserver:0.16.0") { because("simpleclient.httpserver") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("com.goterl:lazysodium-java:5.1.4") { because("lazysodium.java") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
-    api("org.apache.commons:commons-collections4:4.4") {
+    api("org.apache.commons:commons-collections4:4.5.0") {
         because("org.apache.commons.collections4")
     }
-    api("commons-io:commons-io:2.18.0") { because("org.apache.commons.io") }
+    api("commons-io:commons-io:2.19.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.17.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }

@@ -7,7 +7,6 @@ import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.utility.NonCryptographicHashing;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -19,6 +18,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.utility.NonCryptographicHashing;
 import org.hiero.consensus.model.event.AncientMode;
 
 /**
@@ -378,26 +378,15 @@ public final class PcesFile implements Comparable<PcesFile> {
     }
 
     /**
-     * Same as {@link #getMutableFile(boolean, boolean)} with both parameters set to false.
-     */
-    @NonNull
-    public PcesMutableFile getMutableFile() throws IOException {
-        return new PcesMutableFile(this, false, false);
-    }
-
-    /**
      * Get an object that can be used to write events to this file. Throws if there already exists a file on disk with
      * the same path.
      *
-     * @param useFileChannelWriter if true, use a {@link java.nio.channels.FileChannel} to write to the file. Otherwise,
-     *                             use a {@link java.io.FileOutputStream}.
-     * @param syncEveryEvent       if true, sync the file after every event is written
      * @return a writer for this file
+     * @param pcesFileWriterType the type of writer to use
      */
     @NonNull
-    public PcesMutableFile getMutableFile(final boolean useFileChannelWriter, final boolean syncEveryEvent)
-            throws IOException {
-        return new PcesMutableFile(this, useFileChannelWriter, syncEveryEvent);
+    public PcesMutableFile getMutableFile(@NonNull final PcesFileWriterType pcesFileWriterType) throws IOException {
+        return new PcesMutableFile(this, pcesFileWriterType);
     }
 
     /**
