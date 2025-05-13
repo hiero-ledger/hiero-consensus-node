@@ -28,20 +28,23 @@ public final class DataFileMetadata {
     // Data file metadata protobuf fields
     private static final FieldDefinition FIELD_INDEX =
             new FieldDefinition("index", FieldType.UINT32, false, true, false, 1);
+
     private static final FieldDefinition FIELD_CREATION_SECONDS =
             new FieldDefinition("creationDateSeconds", FieldType.UINT64, false, false, false, 2);
+
     private static final FieldDefinition FIELD_CREATION_NANOS =
             new FieldDefinition("creationDateNanos", FieldType.UINT32, false, false, false, 3);
-    private static final FieldDefinition FIELD_COMPACTION_LEVEL =
-            new FieldDefinition("compactionLevel", FieldType.UINT32, false, true, false, 6);
+
+    @Deprecated
+    private static final FieldDefinition FIELD_ITEMS_COUNT =
+            new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
 
     @Deprecated
     private static final FieldDefinition FIELD_ITEM_VERSION =
             new FieldDefinition("itemsVersion", FieldType.UINT64, false, true, false, 5);
 
-    @Deprecated
-    private static final FieldDefinition FIELD_ITEMS_COUNT =
-            new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
+    private static final FieldDefinition FIELD_COMPACTION_LEVEL =
+            new FieldDefinition("compactionLevel", FieldType.UINT32, false, true, false, 6);
 
     /**
      * Maximum level of compaction for storage files.

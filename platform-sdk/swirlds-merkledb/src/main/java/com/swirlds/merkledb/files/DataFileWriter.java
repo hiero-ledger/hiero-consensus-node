@@ -7,11 +7,8 @@ import static com.swirlds.merkledb.files.DataFileCommon.PAGE_SIZE;
 import static com.swirlds.merkledb.files.DataFileCommon.createDataFilePath;
 
 import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -125,9 +122,6 @@ public final class DataFileWriter implements AutoCloseable {
      */
     private void moveWritingBuffer(final long startPosition) throws IOException {
         final MappedByteBuffer newBuffer = fileChannel.map(MapMode.READ_WRITE, startPosition, dataBufferSize);
-        if (newBuffer == null) {
-            throw new IOException("Failed to map file channel to memory");
-        }
         if (mappedDataBuffer != null) {
             MemoryUtils.closeMmapBuffer(mappedDataBuffer);
         }
@@ -137,12 +131,13 @@ public final class DataFileWriter implements AutoCloseable {
     }
 
     private long writeHeader() throws IOException {
-        try (final OutputStream fileOut = Files.newOutputStream(path, StandardOpenOption.WRITE)) {
-            final WritableSequentialData out = new WritableStreamingData(fileOut);
-            metadata.writeTo(out);
-            fileOut.flush();
-
-            return out.position();
+        final MappedByteBuffer headerMappedBuffer = fileChannel.map(MapMode.READ_WRITE, 0, 1024);
+        final BufferedData headerBuffer = BufferedData.wrap(headerMappedBuffer);
+        try {
+            metadata.writeTo(headerBuffer);
+            return headerBuffer.position();
+        } finally {
+            MemoryUtils.closeMmapBuffer(headerMappedBuffer);
         }
     }
 
