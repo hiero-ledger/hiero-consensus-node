@@ -1217,7 +1217,7 @@ class BlockNodeConnectionTest {
     }
 
     @Test
-    @DisplayName("onNext handles EndOfStream with STREAM_ITEMS_UNKNOWN response code")
+    @DisplayName("onNext handles EndOfStream with STREAM_ITEMS_SUCCESS response code")
     void onNextEndOfStreamStreamItemsSuccess() {
         connection.setCurrentBlockNumber(BLOCK_NUMBER);
         PublishStreamResponse response = createEndOfStreamResponse(STREAM_ITEMS_SUCCESS, BLOCK_NUMBER);
@@ -1377,9 +1377,6 @@ class BlockNodeConnectionTest {
 
     static Stream<Arguments> immediateRestartCodes() {
         return Stream.of(
-                // Arguments.of(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS, 0, true),
-                // Arguments.of(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS, MAX_END_OF_STREAM_RESTARTS_VALUE,
-                // false),
                 Arguments.of(PublishStreamResponseCode.STREAM_ITEMS_TIMEOUT, 0, true),
                 Arguments.of(PublishStreamResponseCode.STREAM_ITEMS_TIMEOUT, MAX_END_OF_STREAM_RESTARTS_VALUE, false),
                 Arguments.of(PublishStreamResponseCode.STREAM_ITEMS_OUT_OF_ORDER, 0, true),
