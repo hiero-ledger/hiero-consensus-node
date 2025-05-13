@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("TipsetEventCreatorImpl Tests")
@@ -603,15 +605,19 @@ class TipsetEventCreatorTests {
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
         // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
-        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(
+                random, time, roster, nodeA, Collections::emptyList, AncientMode.GENERATION_THRESHOLD);
 
         // Create some genesis events
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION);
-        final PlatformEvent eventC1 = createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION);
-        final PlatformEvent eventD1 = createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent eventB1 =
+                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventC1 =
+                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventD1 =
+                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -645,7 +651,7 @@ class TipsetEventCreatorTests {
             otherParentId = null;
         }
 
-        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 2);
+        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 2, ROUND_FIRST);
 
         eventCreator.registerEvent(legalOtherParent);
 
@@ -656,9 +662,10 @@ class TipsetEventCreatorTests {
     /**
      * Event from nodes not in the address book should not be used as parents for creating new events.
      */
-    @Test
+    @ParameterizedTest
+    @EnumSource(AncientMode.class)
     @DisplayName("Not Registering Events From NodeIds Not In AddressBook")
-    void notRegisteringEventsFromNodesNotInAddressBook() {
+    void notRegisteringEventsFromNodesNotInAddressBook(@NonNull final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();
 
         final int networkSize = 4;
@@ -679,21 +686,28 @@ class TipsetEventCreatorTests {
         final NodeId nodeE = NodeId.of(nodeD.id() + 1);
 
         // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
-        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        final EventCreator eventCreator =
+                buildEventCreator(random, time, roster, nodeA, Collections::emptyList, ancientMode);
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
 
         // Create some genesis events
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
-        final PlatformEvent eventB1 = createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION);
-        final PlatformEvent eventC1 = createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION);
-        final PlatformEvent eventD1 = createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION);
-        final PlatformEvent eventE1 = createTestEvent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent eventB1 =
+                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventC1 =
+                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventD1 =
+                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+        final PlatformEvent eventE1 =
+                createTestEvent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
         eventCreator.registerEvent(eventD1);
-        // Attempt to register event from a node not in the address book.
+        // Attempt to add an event from a node not in the address book.
         eventCreator.registerEvent(eventE1);
 
         // Create the next several events.
@@ -721,9 +735,9 @@ class TipsetEventCreatorTests {
      * time. This test verifies that this is no longer possible.
      */
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
+    @EnumSource(AncientMode.class)
     @DisplayName("No Stale Events At Creation Time Test")
-    void noStaleEventsAtCreationTimeTest(final boolean useBirthRoundForAncient) {
+    void noStaleEventsAtCreationTimeTest(@NonNull final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();
 
         final int networkSize = 4;
@@ -738,13 +752,9 @@ class TipsetEventCreatorTests {
 
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
 
-        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
-
-        eventCreator.setEventWindow(new EventWindow(
-                1,
-                100,
-                1 /* ignored in this context */,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD));
+        final EventCreator eventCreator =
+                buildEventCreator(random, time, roster, nodeA, Collections::emptyList, ancientMode);
+        eventCreator.setEventWindow(new EventWindow(1, 100, 1 /* ignored in this context */, ancientMode));
 
         // Since there are no other parents available, the next event created would have a generation of 0
         // (if event creation were permitted). Since the current minimum generation non ancient is 100,
@@ -851,13 +861,16 @@ class TipsetEventCreatorTests {
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, selfId, () -> Collections.EMPTY_LIST);
+        final EventCreator eventCreator = buildEventCreator(
+                random, new FakeTime(), roster, selfId, Collections::emptyList, AncientMode.GENERATION_THRESHOLD);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD));
 
         final List<PlatformEvent> pcesEvents = new ArrayList<>();
         PlatformEvent eventWithHighestNGen = null;
         for (int i = 0; i < numEvents; i++) {
-            final PlatformEvent event = createTestEvent(random, selfId, i + 1);
+            final PlatformEvent event = createTestEvent(random, selfId, i + 1, ROUND_FIRST);
             if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
                 eventWithHighestNGen = event;
             }
@@ -888,8 +901,11 @@ class TipsetEventCreatorTests {
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, selfId, () -> Collections.EMPTY_LIST);
+        final EventCreator eventCreator = buildEventCreator(
+                random, new FakeTime(), roster, selfId, Collections::emptyList, AncientMode.GENERATION_THRESHOLD);
+
+        // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD));
 
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
@@ -900,7 +916,8 @@ class TipsetEventCreatorTests {
         // the events. This is a branch, but not necessarily an intentional branch. This old event should be discarded
         // because we want to favor any self event last created by the event creator even though it does not have an
         // nGen set.
-        final PlatformEvent oldSelfEvent = createTestEvent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION);
+        final PlatformEvent oldSelfEvent =
+                createTestEvent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         eventCreator.registerEvent(oldSelfEvent);
 
         // Now create another event and check that the self parent is the expected event.
