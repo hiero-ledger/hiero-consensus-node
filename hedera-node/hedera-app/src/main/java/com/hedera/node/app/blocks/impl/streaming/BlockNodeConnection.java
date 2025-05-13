@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -338,21 +337,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         currentRequestIndex.set(0);
     }
 
-    private void handleEndOfStreamError() {
-        scheduler.schedule(
-                () -> {
-                    logger.debug(
-                            "[{}] Attempting retry after internal error for node {} at block {}",
-                            Thread.currentThread().getName(),
-                            connectionDescriptor,
-                            getCurrentBlockNumber());
-                    blockNodeConnectionManager.handleConnectionError(
-                            this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
-                },
-                5,
-                TimeUnit.SECONDS);
-    }
-
     private void handleAcknowledgement(@NonNull final Acknowledgement acknowledgement) {
         if (acknowledgement.hasBlockAck()) {
             final var blockAck = acknowledgement.blockAck();
@@ -463,8 +447,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                         Thread.currentThread().getName(),
                         connectionDescriptor,
                         blockNumber);
-
-                handleEndOfStreamError();
+                blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
             }
             case STREAM_ITEMS_TIMEOUT, STREAM_ITEMS_OUT_OF_ORDER, STREAM_ITEMS_BAD_STATE_PROOF -> {
                 // We should restart the stream at the block immediately

@@ -1085,7 +1085,7 @@ class BlockNodeConnectionTest {
         assertThat(logCaptor.warnLogs()).anyMatch(log -> log.contains("Unknown acknowledgement received: "));
     }
 
-    @ParameterizedTest(name = "{index}: code={0}, endOfStreamLimit={1}, expectRetry={2}")
+    @ParameterizedTest(name = "{index}: code={0}, endOfStreamLimit={1}, expectEndOfStreamExceeded={2}")
     @MethodSource("internalErrorRetryCodes")
     @DisplayName("onNext handles EndOfStream with internal error code respecting retry limits cases")
     void onNextEndOfStreamInternalErrorWithRetryLimits(
@@ -1105,27 +1105,15 @@ class BlockNodeConnectionTest {
                         && log.contains("at block " + BLOCK_NUMBER));
 
         if (!expectEndOfStreamExceeded) {
-            // Verify scheduler is used to schedule the retry
-            verify(scheduler).schedule(runnableCaptor.capture(), delayCaptor.capture(), timeUnitCaptor.capture());
-            assertEquals(5L, delayCaptor.getValue());
-            assertEquals(TimeUnit.SECONDS, timeUnitCaptor.getValue());
+            // Verify connection error handling is triggered
+            verify(blockNodeConnectionManager)
+                    .handleConnectionError(connection, BlockNodeConnection.LONGER_RETRY_DELAY);
 
             // Verify internal error common logs
             assertThat(logCaptor.warnLogs())
                     .anyMatch(log -> log.contains("Block node " + CONNECTION_DESCRIPTOR)
                             && log.contains("reported an error at block " + BLOCK_NUMBER)
                             && log.contains("Will attempt to reestablish the stream later"));
-
-            // Run the scheduled task and verify the retry
-            runnableCaptor.getValue().run();
-            assertThat(logCaptor.debugLogs())
-                    .anyMatch(log ->
-                            log.contains("Attempting retry after internal error for node " + CONNECTION_DESCRIPTOR)
-                                    && log.contains("at block -1"));
-
-            // Verify connection error handling is triggered
-            verify(blockNodeConnectionManager)
-                    .handleConnectionError(connection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
         } else {
             // When the EndOfStream limit is exceeded
             assertThat(logCaptor.warnLogs())
@@ -1135,7 +1123,7 @@ class BlockNodeConnectionTest {
         }
     }
 
-    @ParameterizedTest(name = "{index}: code={0}, endOfStreamLimit={1}, expectRestart={2}")
+    @ParameterizedTest(name = "{index}: code={0}, endOfStreamLimit={1}, expectEndOfStreamExceeded={2}")
     @MethodSource("immediateRestartCodes")
     @DisplayName("onNext handles EndOfStream with immediate restart codes respecting retry limits cases")
     void onNextEndOfStreamImmediateRestartWithRetryLimits(
@@ -1170,9 +1158,7 @@ class BlockNodeConnectionTest {
         }
     }
 
-    @ParameterizedTest(
-            name =
-                    "{index}: blockStateAvailable={0}, endOfStreamLimit={1}, expectRestart={2}, expectHandleEndOfStreamError={3}")
+    @ParameterizedTest(name = "{index}: blockStateAvailable={0}, endOfStreamLimit={1}, expectEndOfStreamExceeded={2}")
     @MethodSource("streamItemsBehindCases")
     @DisplayName("onNext handles EndOfStream with STREAM_ITEMS_BEHIND response respecting retry limits cases")
     void OnNextHandlesStreamItemsBehind(
