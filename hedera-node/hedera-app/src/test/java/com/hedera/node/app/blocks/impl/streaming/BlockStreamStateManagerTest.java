@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.swirlds.config.api.Configuration;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -846,6 +848,7 @@ class BlockStreamStateManagerTest {
                 .withValue("blockStream.blockItemBatchSize", 3)
                 .withValue("blockStream.blockBufferTtl", blockTtl)
                 .withValue("blockStream.blockBufferPruneInterval", pruneInterval)
+                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -918,6 +921,73 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
+    void constructorShouldNotSchedulePruningWhenStreamingToBlockNodesDisabled() {
+        // Configure streamToBlockNodes to return false
+        final var mockConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
+
+        // Create a new instance
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+
+        // Get the executor service via reflection
+        final ScheduledExecutorService execSvc = (ScheduledExecutorService) execSvcHandle.get(blockStreamStateManager);
+
+        // Verify that no tasks were scheduled (the executor should be empty)
+        assertThat(execSvc.shutdownNow()).isEmpty();
+    }
+
+    @Test
+    void openBlockShouldNotNotifyBlockNodeConnectionManagerWhenStreamingToBlockNodesDisabled() {
+        // Configure streamToBlockNodes to return false
+        final var mockConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
+
+        // Create a new instance
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // Call openBlock
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+
+        // Verify that blockNodeConnectionManager.openBlock was not called
+        verify(blockNodeConnectionManager, never()).openBlock(TEST_BLOCK_NUMBER);
+    }
+
+    @Test
+    void createRequestFromCurrentItemsShouldNotNotifyConnectionsWhenStreamingToBlockNodesDisabled() {
+        // Configure streamToBlockNodes to return false
+        final var mockConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
+                .withValue("blockStream.blockItemBatchSize", 3)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
+
+        // Create a new instance
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // Open a block and add items
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockHeaderItem());
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
+
+        // Get the block state
+        final BlockState blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
+
+        // Call createRequestFromCurrentItems
+        blockStreamStateManager.createRequestFromCurrentItems(blockState, true);
+
+        // Verify that blockNodeConnectionManager.notifyConnectionsOfNewRequest was not called
+        verify(blockNodeConnectionManager, never()).notifyConnectionsOfNewRequest();
+    }
+
     private static BlockItem newBlockHeaderItem() {
         return BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().build())
