@@ -415,31 +415,6 @@ class IngestCheckerTest extends AppTestBase {
         }
 
         @Test
-        @DisplayName("Throttling enabled and transaction gets throttled")
-        void throttledWhenEnabled() throws PreCheckException {
-            var batchTxn = mockBatchTxn();
-            var innerCryptoCreate = mockInnerCryptoCreate();
-            var innerCryptoTransfer = mockInnerCryptoTransfer();
-            when(synchronizedThrottleAccumulator.shouldThrottle(eq(batchTxn), any()))
-                    .thenReturn(false);
-            when(synchronizedThrottleAccumulator.shouldThrottle(eq(innerCryptoCreate), any()))
-                    .thenReturn(false);
-            when(synchronizedThrottleAccumulator.shouldThrottle(eq(innerCryptoTransfer), any()))
-                    .thenReturn(true);
-
-            assertThrows(
-                    PreCheckException.class,
-                    () -> subject.runAllChecks(
-                            state, Transaction.PROTOBUF.toBytes(batchTxn.transaction()), configuration));
-
-            // Verify capacity leaked the transaction that did not get throttled
-            verify(synchronizedThrottleAccumulator, times(1)).leakCapacityForNOfUnscaled(any(), anyInt());
-            verify(synchronizedThrottleAccumulator).leakCapacityForNOfUnscaled(CRYPTO_CREATE, 1);
-            // Verifiy crypto transfer was throttled
-            verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
-        }
-
-        @Test
         @DisplayName("Privileged transaction functionality should throw NOT_SUPPORTED for non-privileged accounts")
         void privilegedTransactionFunctionality() throws PreCheckException {
             final TransactionBody freezeTxBody = TransactionBody.newBuilder()
@@ -484,6 +459,31 @@ class IngestCheckerTest extends AppTestBase {
                     .isInstanceOf(RuntimeException.class)
                     .hasMessageContaining("shouldThrottle exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        }
+
+        @Test
+        @DisplayName("Atomic batch inner transactions leak capacity")
+        void innerTxnsLeakCapacity() throws PreCheckException {
+            var batchTxn = mockBatchTxn();
+            var innerCryptoCreate = mockInnerCryptoCreate();
+            var innerCryptoTransfer = mockInnerCryptoTransfer();
+            when(synchronizedThrottleAccumulator.shouldThrottle(eq(batchTxn), any()))
+                    .thenReturn(false);
+            when(synchronizedThrottleAccumulator.shouldThrottle(eq(innerCryptoCreate), any()))
+                    .thenReturn(false);
+            when(synchronizedThrottleAccumulator.shouldThrottle(eq(innerCryptoTransfer), any()))
+                    .thenReturn(true);
+
+            assertThrows(
+                    PreCheckException.class,
+                    () -> subject.runAllChecks(
+                            state, Transaction.PROTOBUF.toBytes(batchTxn.transaction()), configuration));
+
+            // Verify capacity leaked the transaction that did not get throttled
+            verify(synchronizedThrottleAccumulator, times(1)).leakCapacityForNOfUnscaled(any(), anyInt());
+            verify(synchronizedThrottleAccumulator).leakCapacityForNOfUnscaled(CRYPTO_CREATE, 1);
+            // Verifiy crypto transfer was throttled
+            verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
         }
     }
 
