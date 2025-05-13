@@ -2,8 +2,6 @@
 package org.hiero.otter.test;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.otter.fixtures.MarkerFilter.exclude;
-import static org.hiero.otter.fixtures.NodeFilter.without;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
 import java.time.Duration;
@@ -34,7 +32,7 @@ public class HappyPathTest {
         // Validations
         env.validator().validateRemaining(Profile.DEFAULT);
 
-        assertThat(network.getLogResults(without(network.getNodes().getFirst()), exclude(STARTUP)))
-                .noMessageWithLeverHigherThan(Level.INFO);
+        assertThat(network.getLogResults().ignore(network.getNodes().getFirst()).ignore(STARTUP))
+                .noMessageWithLevelHigherThan(Level.INFO);
     }
 }

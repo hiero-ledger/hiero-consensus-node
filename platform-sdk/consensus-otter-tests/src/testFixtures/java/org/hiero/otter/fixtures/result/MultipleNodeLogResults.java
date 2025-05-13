@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.otter.fixtures.Node;
 
 /**
  * Interface that provides access to the log results of a group of nodes that were created during a test.
@@ -18,4 +20,22 @@ public interface MultipleNodeLogResults {
      */
     @NonNull
     List<SingleNodeLogResult> results();
+
+    /**
+     * Excludes the log results of a specific node from the current results.
+     *
+     * @param node the node whose log results are to be excluded
+     * @return an updated {@code MultipleNodeLogResults} instance with the specified node's results ignored
+     */
+    @NonNull
+    MultipleNodeLogResults ignore(@NonNull Node node);
+
+    /**
+     * Excludes the log results associated with the specified log marker from the current results.
+     *
+     * @param marker the {@link LogMarker} whose associated log results are to be excluded
+     * @return an updated {@code MultipleNodeLogResults} instance with the specified log marker's results ignored
+     */
+    @NonNull
+    MultipleNodeLogResults ignore(@NonNull LogMarker marker);
 }

@@ -3,7 +3,6 @@ package org.hiero.otter.test;
 
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
-import static org.hiero.otter.fixtures.MarkerFilter.exclude;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.Validator.EventStreamConfig.ignoreNode;
 import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
@@ -60,8 +59,8 @@ public class SandboxTest {
                 .reconnectEventStream(node)
                 .validateRemaining(Profile.DEFAULT);
 
-        assertThat(network.getLogResults(exclude(SOCKET_EXCEPTIONS, TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT)))
-                .noMessageWithLeverHigherThan(Level.INFO);
+        assertThat(network.getLogResults().ignore(SOCKET_EXCEPTIONS).ignore(TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
+                .noMessageWithLevelHigherThan(Level.INFO);
     }
 
     @OtterTest

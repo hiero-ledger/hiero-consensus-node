@@ -66,7 +66,7 @@ class BirthRoundMigrationTest {
         // Validations
         env.validator().assertPlatformStatus().assertMetrics();
 
-        assertThat(network.getLogResults()).noMessageWithLeverHigherThan(WARN);
+        assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
         assertThat(network.getConsensusResult())
                 .hasAdvancedSince(freezeRound)
                 .hasEqualRoundsIgnoringLast(withPercentage(5));

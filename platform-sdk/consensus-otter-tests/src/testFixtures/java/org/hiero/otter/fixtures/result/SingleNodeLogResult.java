@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -32,6 +33,15 @@ public interface SingleNodeLogResult {
      */
     @NonNull
     List<StructuredLog> logs();
+
+    /**
+     * Excludes log entries associated with the specified {@link LogMarker} from the current log result.
+     *
+     * @param marker the {@link LogMarker} whose associated log entries are to be excluded
+     * @return an updated {@code SingleNodeLogResult} instance with the specified log marker's entries ignored
+     */
+    @NonNull
+    SingleNodeLogResult ignore(@NonNull LogMarker marker);
 
     /**
      * Returns the set of unique markers present in the log entries for this node.

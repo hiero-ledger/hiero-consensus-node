@@ -83,7 +83,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      *
      * @param level the maximum log level to allow
      */
-    public void noMessageWithLeverHigherThan(@NonNull final Level level) {
+    public void noMessageWithLevelHigherThan(@NonNull final Level level) {
         isNotNull();
         final List<StructuredLog> logs = actual.logs().stream()
                 .filter(Objects::nonNull)

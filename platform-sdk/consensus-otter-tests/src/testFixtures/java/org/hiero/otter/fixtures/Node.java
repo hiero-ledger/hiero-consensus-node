@@ -76,16 +76,10 @@ public interface Node {
     SingleNodeConsensusResult getConsensusResult();
 
     /**
-     * Gets the log results of this node filtered by the specified marker filter.
+     * Gets the log results of this node.
      *
-     * <p>The filter is applied to the logs, and only the logs that match the filter are included
-     * in the result. If no filter is provided, all logs are included in the result.
-     *
-     * @param markerFilter the filter to apply to the logs
-     * @return the log results of this node filtered by the specified marker filter
-     *
-     * @see org.hiero.otter.fixtures.MarkerFilter
+     * @return the log results of this node
      */
     @NonNull
-    SingleNodeLogResult getLogResult(@NonNull MarkerFilter markerFilter);
+    SingleNodeLogResult getLogResult();
 }

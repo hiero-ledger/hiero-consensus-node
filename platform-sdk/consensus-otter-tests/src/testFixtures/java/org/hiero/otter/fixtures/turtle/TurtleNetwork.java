@@ -34,11 +34,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
-import org.hiero.otter.fixtures.MarkerFilter;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeFilter;
-import org.hiero.otter.fixtures.OtterFilter;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -225,15 +223,9 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @NonNull
     @Override
-    public MultipleNodeLogResults getLogResults(@Nullable final OtterFilter<?>... filters) {
-        final NodeFilter combinedNodeFilter = filterAndCombineFilters(filters, NodeFilter.class, NodeFilter::andAll);
-        final MarkerFilter combinedMarkerFilter =
-                filterAndCombineFilters(filters, MarkerFilter.class, MarkerFilter::andAll);
-
-        final List<SingleNodeLogResult> results = nodes.stream()
-                .filter(combinedNodeFilter)
-                .map(node -> node.getLogResult(combinedMarkerFilter))
-                .toList();
+    public MultipleNodeLogResults getLogResults() {
+        final List<SingleNodeLogResult> results =
+                nodes.stream().map(Node::getLogResult).toList();
 
         return new MultipleNodeLogResultsImpl(results);
     }

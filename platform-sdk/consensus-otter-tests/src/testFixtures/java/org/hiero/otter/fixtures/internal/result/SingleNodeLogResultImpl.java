@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import com.swirlds.logging.legacy.LogMarker;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Objects;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -12,4 +15,24 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
  * @param nodeId the ID of the node
  * @param logs the list of log entries for the node
  */
-public record SingleNodeLogResultImpl(NodeId nodeId, List<StructuredLog> logs) implements SingleNodeLogResult {}
+public record SingleNodeLogResultImpl(NodeId nodeId, List<StructuredLog> logs) implements SingleNodeLogResult {
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public SingleNodeLogResult ignore(@NonNull final LogMarker marker) {
+        Objects.requireNonNull(marker, "marker cannot be null");
+
+        if (markers().contains(marker.getMarker())) {
+            final List<StructuredLog> filteredLogs = logs.stream()
+                    .filter(msg -> Objects.equals(msg.marker(), marker.getMarker()))
+                    .toList();
+
+            return new SingleNodeLogResultImpl(nodeId, filteredLogs);
+        }
+
+        return this;
+    }
+}

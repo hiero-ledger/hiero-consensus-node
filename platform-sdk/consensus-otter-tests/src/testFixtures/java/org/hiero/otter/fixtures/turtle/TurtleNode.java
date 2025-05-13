@@ -45,7 +45,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -57,7 +56,6 @@ import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.MarkerFilter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
@@ -241,11 +239,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @NonNull
     @Override
-    public SingleNodeLogResult getLogResult(@NonNull final MarkerFilter markerFilter) {
-        Objects.requireNonNull(markerFilter);
+    public SingleNodeLogResult getLogResult() {
         final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId.id());
-        return new SingleNodeLogResultImpl(
-                selfId, logs.stream().filter(markerFilter).toList());
+        return new SingleNodeLogResultImpl(selfId, logs);
     }
 
     /**

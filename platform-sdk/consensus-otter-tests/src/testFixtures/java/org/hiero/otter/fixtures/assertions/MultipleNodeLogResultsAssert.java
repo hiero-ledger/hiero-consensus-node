@@ -54,11 +54,11 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
      *
      * @param level the maximum log level to allow
      */
-    public void noMessageWithLeverHigherThan(@NonNull final Level level) {
+    public void noMessageWithLevelHigherThan(@NonNull final Level level) {
         isNotNull();
 
         for (final SingleNodeLogResult result : actual.results()) {
-            OtterAssertions.assertThat(result).noMessageWithLeverHigherThan(level);
+            OtterAssertions.assertThat(result).noMessageWithLevelHigherThan(level);
         }
     }
 }
