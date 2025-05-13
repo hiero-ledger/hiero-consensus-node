@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -35,6 +38,18 @@ public interface ReadableRosterStore {
      */
     @Nullable
     Roster getActiveRoster();
+
+    /**
+     * Returns if there is a pending candidate roster that changes at most the weights from the active roster.
+     */
+    default boolean candidateIsWeightRotation() {
+        final Roster candidateRoster = getCandidateRoster();
+        if (candidateRoster == null) {
+            return false;
+        } else {
+            return isWeightRotation(requireNonNull(getActiveRoster()), candidateRoster);
+        }
+    }
 
     /**
      * Get the roster based on roster hash
