@@ -278,14 +278,15 @@ public final class IngestChecker {
     /**
      * Validates throttling constraints for nested transactions while ensuring accurate capacity accounting.
      *
-     * @param state Current ledger state for throttle evaluation
-     * @param configuration System configuration parameters
+     * @param state Current network state for throttle evaluation
+     * @param configuration System configuration
      * @param innerTxnsBytes Serialized inner transactions to validate
-     * @throws PreCheckException When transaction throughput exceeds configured limits
+     * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
      */
     private void checkThrottlesForInnerTxns(
-            @NonNull final State state, @NonNull final Configuration configuration, final List<Bytes> innerTxnsBytes)
-            throws PreCheckException {
+            @NonNull final State state,
+            @NonNull final Configuration configuration,
+            final List<Bytes> innerTxnsBytes) throws PreCheckException {
 
         if (innerTxnsBytes == null || innerTxnsBytes.isEmpty()) {
             return;
@@ -293,24 +294,28 @@ public final class IngestChecker {
 
         final Map<HederaFunctionality, Integer> usedCapacity = new EnumMap<>(HederaFunctionality.class);
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        final var isThrottlingEnabled = hederaConfig.ingestThrottleEnabled();
+        final var ingestThrottleEnabled = hederaConfig.ingestThrottleEnabled();
         final var maxParseSize = maxIngestParseSize(configuration);
 
         try {
-            for (final var bytes : innerTxnsBytes) {
+            for (var bytes : innerTxnsBytes) {
                 final var innerTxn = transactionChecker.parseAndCheck(bytes, maxParseSize);
                 final var functionality = innerTxn.functionality();
-
                 assertThrottlingPreconditions(innerTxn, configuration);
-                // Track capacity before throttle check
-                usedCapacity.merge(functionality, 1, Integer::sum);
-                if (isThrottlingEnabled && synchronizedThrottleAccumulator.shouldThrottle(innerTxn, state)) {
-                    workflowMetrics.incrementThrottled(functionality);
-                    throw new PreCheckException(BUSY);
+
+                if (ingestThrottleEnabled) {
+                    if (synchronizedThrottleAccumulator.shouldThrottle(innerTxn, state)) {
+                        workflowMetrics.incrementThrottled(functionality);
+                        throw new PreCheckException(BUSY);
+                    }
+                    // Only track successfully claimed capacity
+                    usedCapacity.merge(functionality, 1, Integer::sum);
                 }
             }
         } catch (PreCheckException e) {
-            releaseAccumulatedCapacity(usedCapacity);
+            if (ingestThrottleEnabled) {
+                releaseAccumulatedCapacity(usedCapacity);
+            }
             throw e;
         }
     }
