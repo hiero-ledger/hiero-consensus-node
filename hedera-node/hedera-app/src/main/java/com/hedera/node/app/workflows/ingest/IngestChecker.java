@@ -284,9 +284,8 @@ public final class IngestChecker {
      * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
      */
     private void checkThrottlesForInnerTxns(
-            @NonNull final State state,
-            @NonNull final Configuration configuration,
-            final List<Bytes> innerTxnsBytes) throws PreCheckException {
+            @NonNull final State state, @NonNull final Configuration configuration, final List<Bytes> innerTxnsBytes)
+            throws PreCheckException {
 
         if (innerTxnsBytes == null || innerTxnsBytes.isEmpty()) {
             return;
