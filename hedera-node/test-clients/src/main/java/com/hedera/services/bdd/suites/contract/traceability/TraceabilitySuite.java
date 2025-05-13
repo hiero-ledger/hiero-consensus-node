@@ -123,7 +123,6 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -4787,10 +4786,7 @@ public class TraceabilitySuite {
                 cryptoTransfer((spec, b) -> {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(Utils.aaWith(
-                                            spec,
-                                            expectedCreate2Address.get(),
-                                            +ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(spec, expectedCreate2Address.get(), +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
                         .signedBy(DEFAULT_PAYER, PARTY)
