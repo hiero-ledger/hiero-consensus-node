@@ -14,7 +14,7 @@ import java.time.Duration;
  * @param blockNodeConnectionFileDir the directory to get the block node configuration file
  * @param blockNodeConfigFile the file containing the block nodes configurations
  * @param waitPeriodForActiveConnection the time in minutes to wait for an active connection
- * @param endOfStreamCount the limit of EndOfStream responses in a time frame
+ * @param maxEndOfStreamsAllowed the limit of EndOfStream responses allowed in a time frame
  * @param endOfStreamTimeFrame the time frame in seconds to check for EndOfStream responses
  * @param endOfStreamScheduleDelay the delay in seconds to schedule connections after the limit is reached
  */
@@ -24,6 +24,6 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "data/config") @NodeProperty String blockNodeConnectionFileDir,
         @ConfigProperty(defaultValue = "block-nodes.json") @NodeProperty String blockNodeConfigFile,
         @ConfigProperty(defaultValue = "10") @NetworkProperty long waitPeriodForActiveConnection,
-        @ConfigProperty(defaultValue = "5") @NodeProperty long endOfStreamCount,
+        @ConfigProperty(defaultValue = "5") @NodeProperty long maxEndOfStreamsAllowed,
         @ConfigProperty(defaultValue = "30s") @Min(0) @NodeProperty Duration endOfStreamTimeFrame,
         @ConfigProperty(defaultValue = "30s") @Min(0) @NodeProperty Duration endOfStreamScheduleDelay) {}

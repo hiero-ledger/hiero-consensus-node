@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -88,9 +87,6 @@ class BlockNodeConnectionTest {
     @Mock
     private StreamObserver<PublishStreamRequest> requestObserver;
 
-    @Mock
-    private ScheduledExecutorService scheduler;
-
     @Captor
     private ArgumentCaptor<Runnable> runnableCaptor;
 
@@ -124,7 +120,6 @@ class BlockNodeConnectionTest {
                 blockNodeConnectionManager,
                 blockStreamStateManager,
                 grpcServiceClient,
-                scheduler,
                 blockStreamMetrics));
 
         lenient().when(grpcServiceClient.bidi(any(), eq(connection))).thenReturn((StreamObserver) requestObserver);
@@ -152,9 +147,8 @@ class BlockNodeConnectionTest {
                         blockNodeConnectionManager,
                         blockStreamStateManager,
                         grpcServiceClient,
-                        scheduler,
                         blockStreamMetrics),
-                "nodeConfig must not be null");
+                "configProvider must not be null");
         assertThrows(
                 NullPointerException.class,
                 () -> new BlockNodeConnection(
@@ -163,7 +157,6 @@ class BlockNodeConnectionTest {
                         blockNodeConnectionManager,
                         blockStreamStateManager,
                         grpcServiceClient,
-                        scheduler,
                         blockStreamMetrics),
                 "nodeConfig must not be null");
         assertThrows(
@@ -174,7 +167,6 @@ class BlockNodeConnectionTest {
                         null,
                         blockStreamStateManager,
                         grpcServiceClient,
-                        scheduler,
                         blockStreamMetrics),
                 "blockNodeConnectionManager must not be null");
         assertThrows(
@@ -185,7 +177,6 @@ class BlockNodeConnectionTest {
                         blockNodeConnectionManager,
                         null,
                         grpcServiceClient,
-                        scheduler,
                         blockStreamMetrics),
                 "blockStreamStateManager must not be null");
         assertThrows(
@@ -196,7 +187,6 @@ class BlockNodeConnectionTest {
                         blockNodeConnectionManager,
                         blockStreamStateManager,
                         null,
-                        scheduler,
                         blockStreamMetrics),
                 "grpcServiceClient must not be null");
         assertThrows(
@@ -207,18 +197,6 @@ class BlockNodeConnectionTest {
                         blockNodeConnectionManager,
                         blockStreamStateManager,
                         grpcServiceClient,
-                        null,
-                        blockStreamMetrics),
-                "scheduler must not be null");
-        assertThrows(
-                NullPointerException.class,
-                () -> new BlockNodeConnection(
-                        configProvider,
-                        blockNodeConfig,
-                        blockNodeConnectionManager,
-                        blockStreamStateManager,
-                        grpcServiceClient,
-                        scheduler,
                         null),
                 "blockStreamMetrics must not be null");
     }
@@ -624,7 +602,6 @@ class BlockNodeConnectionTest {
                 blockNodeConnectionManager,
                 blockStreamStateManager,
                 grpcServiceClient,
-                scheduler,
                 blockStreamMetrics);
 
         assertNull(TestUtils.getInternalState(connection, "requestObserver", StreamObserver.class));
@@ -1091,7 +1068,7 @@ class BlockNodeConnectionTest {
     void onNextEndOfStreamInternalErrorWithRetryLimits(
             @NonNull final PublishStreamResponseCode code, long endOfStreamLimit, boolean expectEndOfStreamExceeded) {
         connection.setCurrentBlockNumber(BLOCK_NUMBER);
-        TestUtils.setInternalState(connection, "endOfStreamCount", endOfStreamLimit);
+        TestUtils.setInternalState(connection, "maxEndOfStreamsAllowed", endOfStreamLimit);
         final PublishStreamResponse response = createEndOfStreamResponse(code, BLOCK_NUMBER);
 
         connection.onNext(response);
@@ -1129,7 +1106,7 @@ class BlockNodeConnectionTest {
     void onNextEndOfStreamImmediateRestartWithRetryLimits(
             @NonNull final PublishStreamResponseCode code, long endOfStreamLimit, boolean expectEndOfStreamExceeded) {
         connection.setCurrentBlockNumber(BLOCK_NUMBER);
-        TestUtils.setInternalState(connection, "endOfStreamCount", endOfStreamLimit);
+        TestUtils.setInternalState(connection, "maxEndOfStreamsAllowed", endOfStreamLimit);
         final PublishStreamResponse response = createEndOfStreamResponse(code, BLOCK_NUMBER);
 
         connection.onNext(response);
@@ -1166,7 +1143,7 @@ class BlockNodeConnectionTest {
         connection.setCurrentBlockNumber(BLOCK_NUMBER);
         long restartBlock = BLOCK_NUMBER + 1;
         final PublishStreamResponse response = createEndOfStreamResponse(STREAM_ITEMS_BEHIND, BLOCK_NUMBER);
-        TestUtils.setInternalState(connection, "endOfStreamCount", endOfStreamLimit);
+        TestUtils.setInternalState(connection, "maxEndOfStreamsAllowed", endOfStreamLimit);
 
         if (!expectEndOfStreamExceeded) {
             if (blockStateAvailable) {

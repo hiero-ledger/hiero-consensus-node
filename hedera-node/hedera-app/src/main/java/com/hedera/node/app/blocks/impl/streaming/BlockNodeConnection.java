@@ -22,7 +22,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,7 +34,6 @@ import org.apache.logging.log4j.Logger;
 public class BlockNodeConnection implements StreamObserver<PublishStreamResponse> {
     public static final Duration LONGER_RETRY_DELAY = Duration.ofSeconds(30);
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
-    private final ScheduledExecutorService scheduler;
 
     private final BlockNodeConfig blockNodeConfig;
     private final GrpcServiceClient grpcServiceClient;
@@ -44,11 +42,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private BlockStreamMetrics blockStreamMetrics = null;
     private final String connectionDescriptor;
 
-    private long endOfStreamCount;
+    // The EndOfStream rate limit allowed in a time frame
+    private long maxEndOfStreamsAllowed;
     private Duration endOfStreamTimeFrame;
     private Duration endOfStreamScheduleDelay;
     private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
-    private final Object endOfStreamLock = new Object();
 
     // Locks and synchronization objects
     private final Object workerLock = new Object();
@@ -92,7 +90,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.grpcServiceClient = null;
         this.blockNodeConnectionManager = null;
         this.blockStreamStateManager = null;
-        this.scheduler = null;
         this.connectionDescriptor = null;
     }
 
@@ -104,7 +101,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param blockNodeConnectionManager the connection manager for block node connections
      * @param blockStreamStateManager the block stream state manager for block node connections
      * @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
-     * @param scheduler the scheduler for the connection
      * @param blockStreamMetrics the block stream metrics for block node connections
      */
     public BlockNodeConnection(
@@ -113,7 +109,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockStreamStateManager blockStreamStateManager,
             @NonNull final GrpcServiceClient grpcServiceClient,
-            @NonNull final ScheduledExecutorService scheduler,
             @NonNull final BlockStreamMetrics blockStreamMetrics) {
         requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
@@ -122,7 +117,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.blockStreamStateManager =
                 requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
         this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
-        this.scheduler = requireNonNull(scheduler, "scheduler must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionDescriptor = generateConnectionDescriptor(nodeConfig);
         this.connectionState = ConnectionState.UNINITIALIZED;
@@ -130,7 +124,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
 
-        this.endOfStreamCount = blockNodeConnectionConfig.endOfStreamCount();
+        this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
     }
@@ -428,7 +422,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     "[{}] Block node {} exceeded EndOfStream rate limit ({} in {} seconds). Delaying reconnection by {} seconds.",
                     Thread.currentThread().getName(),
                     connectionDescriptor,
-                    endOfStreamCount,
+                    maxEndOfStreamsAllowed,
                     endOfStreamTimeFrame.toSeconds(),
                     endOfStreamScheduleDelay.toSeconds());
 
@@ -543,22 +537,19 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     }
 
     private boolean hasExceededEndOfStreamLimit() {
-        synchronized (endOfStreamLock) {
-            final var now = Instant.now();
-            final var cutoff = now.minus(endOfStreamTimeFrame);
+        final var now = Instant.now();
+        final var cutoff = now.minus(endOfStreamTimeFrame);
 
-            // Remove expired timestamps
-            while (!endOfStreamTimestamps.isEmpty()
-                    && endOfStreamTimestamps.peek().isBefore(cutoff)) {
-                endOfStreamTimestamps.poll();
-            }
-
-            // Add current timestamp
-            endOfStreamTimestamps.offer(now);
-
-            // Check if we've exceeded the limit
-            return endOfStreamTimestamps.size() >= endOfStreamCount;
+        // Remove expired timestamps
+        while (!endOfStreamTimestamps.isEmpty() && endOfStreamTimestamps.peek().isBefore(cutoff)) {
+            endOfStreamTimestamps.poll();
         }
+
+        // Add current timestamp
+        endOfStreamTimestamps.offer(now);
+
+        // Check if we've exceeded the limit
+        return endOfStreamTimestamps.size() >= maxEndOfStreamsAllowed;
     }
 
     private String generateConnectionDescriptor(final BlockNodeConfig nodeConfig) {

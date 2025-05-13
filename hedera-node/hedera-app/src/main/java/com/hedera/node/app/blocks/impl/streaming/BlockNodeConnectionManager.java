@@ -102,11 +102,11 @@ public class BlockNodeConnectionManager {
      * @param blockNodeConfigPath the path to the block node configuration file
      * @return the configurations for all block nodes
      */
-    public List<BlockNodeConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
+    private List<BlockNodeConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
         final var configPath = Paths.get(blockNodeConfigPath, "block-nodes.json");
         try {
-            byte[] jsonConfig = Files.readAllBytes(configPath);
-            BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
+            final byte[] jsonConfig = Files.readAllBytes(configPath);
+            final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
 
             // Convert proto config to internal config objects
             return protoConfig.nodes().stream()
@@ -420,13 +420,7 @@ public class BlockNodeConnectionManager {
             // Create the connection object
             final GrpcServiceClient grpcClient = createNewGrpcClient(node);
             connection = new BlockNodeConnection(
-                    configProvider,
-                    node,
-                    this,
-                    blockStreamStateManager,
-                    grpcClient,
-                    connectionExecutor,
-                    blockStreamMetrics);
+                    configProvider, node, this, blockStreamStateManager, grpcClient, blockStreamMetrics);
 
             connections.put(node, connection);
             // Immediately schedule the FIRST connection attempt.
@@ -525,7 +519,7 @@ public class BlockNodeConnectionManager {
         private NoOpConnection() {
             // Provide minimal valid state for super constructor if needed, or make super allow nulls
             // Assuming BlockNodeConfig.DEFAULT exists and manager can be null for this placeholder
-            super(null, BlockNodeConfig.DEFAULT, null, null, null, null, null);
+            super(null, BlockNodeConfig.DEFAULT, null, null, null, null);
         }
 
         @Override
