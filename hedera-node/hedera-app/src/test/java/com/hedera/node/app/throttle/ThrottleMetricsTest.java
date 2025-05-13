@@ -209,7 +209,7 @@ class ThrottleMetricsTest {
         when(opsDurationThrottle.instantaneousPercentUsed()).thenReturn(42.0);
         // Configure such that OPS_DURATION is tracked
         final var configuration = HederaTestConfigBuilder.create()
-                .withValue("stats.hapiThrottlesToSample", "OPS_DURATION")
+                .withValue("stats.hapiThrottlesToSample", "<OPS_DURATION>")
                 .getOrCreateConfig();
         final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
 
