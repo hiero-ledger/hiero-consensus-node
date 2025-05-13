@@ -541,8 +541,10 @@ public class AtomicBatchNegativeTest {
                             .payingWith(basicPayer)
                             .via("basicTxn")
                             .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
-                    getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
-                    getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                    getAccountRecords(batchPayer)
+                            .exposingNonStakingRecordsTo(records -> assertEquals(1, records.size())),
+                    getAccountRecords(basicPayer)
+                            .exposingNonStakingRecordsTo(records -> assertEquals(1, records.size())),
                     validateChargedUsd("batchTxn", 0.001),
                     validateChargedUsd("basicTxn", 0.05, 10));
         }
@@ -609,12 +611,12 @@ public class AtomicBatchNegativeTest {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
                     // asserts
-                    getAccountRecords("Bob").exposingTo(records -> {
+                    getAccountRecords("Bob").exposingNonStakingRecordsTo(records -> {
                         assertEquals(2, records.size());
                         // validate transactionFee matches the debit in the transferList
                         validateTransactionFees(records);
                     }),
-                    getAccountRecords("Alice").exposingTo(records -> {
+                    getAccountRecords("Alice").exposingNonStakingRecordsTo(records -> {
                         assertEquals(1, records.size());
                         // validate transactionFee matches the debit in the transferList
                         validateTransactionFees(records);
@@ -642,7 +644,9 @@ public class AtomicBatchNegativeTest {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
                     // asserts
-                    getAccountRecords("Alice").exposingTo(records -> assertEquals(2, records.size())));
+                    getAccountRecords("Alice").exposingNonStakingRecordsTo(records -> {
+                        assertEquals(2, records.size());
+                    }));
         }
 
         @HapiTest
