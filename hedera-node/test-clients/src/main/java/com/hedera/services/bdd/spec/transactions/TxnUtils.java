@@ -691,6 +691,10 @@ public class TxnUtils {
         }
     }
 
+    public static List<TransactionRecord> nonStakingRecordsFrom(@NonNull final List<TransactionRecord> records) {
+        return records.stream().filter(TxnUtils::isNotEndOfStakingPeriodRecord).toList();
+    }
+
     public static boolean isEndOfStakingPeriodRecord(final TransactionRecord record) {
         return record.getMemo().startsWith("End of staking period calculation record");
     }
