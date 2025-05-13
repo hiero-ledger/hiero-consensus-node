@@ -17,6 +17,7 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils
 import com.swirlds.platform.test.fixtures.consensus.framework.OrchestratorBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.NumberOfConsensusRoundsValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventRatioValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsAddedInDifferentOrderValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsEqualityValidation;
@@ -643,5 +644,28 @@ public final class ConsensusTestDefinitions {
                         OutputEventRatioValidation.standard()
                                 .setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
         orchestrator.generateAllEvents().validateAndClear(consensusOutputValidatorWithEventRatioType2);
+    }
+
+    /**
+     * Tests the consensus freeze functionality
+     */
+    public static void consensusFreezeTests(@NonNull final TestInput input) {
+        final ConsensusOutputValidator consensusOutputValidator = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard().setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
+
+        final ConsensusTestOrchestrator orchestrator =
+                OrchestratorBuilder.builder().setTestInput(input).build();
+
+        // generate half of the events and validate
+        orchestrator.generateEvents(0.5).validateAndClear(consensusOutputValidator);
+        // freeze all the nodes
+        orchestrator.forEachNode(node -> node.getIntake().getFreezeCheckHolder().setFreezeCheckRef(i -> true));
+        // generate the rest of the events
+        orchestrator.generateEvents(0.5);
+        // validate that exactly 1 round reached consensus (the freeze round) and that its equal on all nodes
+        orchestrator.validate(new ConsensusOutputValidator(
+                Set.of(new NumberOfConsensusRoundsValidation(1), new OutputEventsEqualityValidation())));
     }
 }
