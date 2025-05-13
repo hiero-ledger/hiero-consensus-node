@@ -34,6 +34,7 @@ import org.apache.logging.log4j.Logger;
  * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
  */
 public class BlockNodeConnection implements StreamObserver<PublishStreamResponse> {
+    public static final Duration LONGER_RETRY_DELAY = Duration.ofSeconds(30);
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
     private static final int MAX_END_OF_STREAM_RESTARTS = 3;
     private static final int MAX_END_OF_STREAM_EXP_RETRIES = 10;
@@ -153,7 +154,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @return the current state of the connection
      */
     @VisibleForTesting
-    ConnectionState getConnectionState() {
+    ConnectionState getState() {
         return connectionState;
     }
 
@@ -193,7 +194,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 if (blockState == null && currentBlock != -1) {
                     long lowestAvailableBlock = blockStreamStateManager.getBlockNumber();
                     if (lowestAvailableBlock > currentBlock) {
-                        logger.trace(
+                        logger.debug(
                                 "[{}] Block {} state not found and lowest available block is {}, ending stream for node {}",
                                 Thread.currentThread().getName(),
                                 currentBlock,
@@ -470,10 +471,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     handleEndOfStreamError();
                 }
             }
-            case STREAM_ITEMS_SUCCESS,
-                    STREAM_ITEMS_TIMEOUT,
-                    STREAM_ITEMS_OUT_OF_ORDER,
-                    STREAM_ITEMS_BAD_STATE_PROOF -> {
+            case STREAM_ITEMS_TIMEOUT, STREAM_ITEMS_OUT_OF_ORDER, STREAM_ITEMS_BAD_STATE_PROOF -> {
                 // We should restart the stream at the block immediately
                 // following the block where the node fell behind.
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
@@ -488,6 +486,16 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 } else {
                     handleEndOfStreamError();
                 }
+            }
+            case STREAM_ITEMS_SUCCESS -> {
+                // The block node orderly ended the stream. In this case, no errors occurred.
+                // We should wait for a longer period before attempting to retry.
+                logger.warn(
+                        "[{}] Block node {} orderly ended the stream at block {}",
+                        Thread.currentThread().getName(),
+                        connectionDescriptor,
+                        blockNumber);
+                blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
             }
             case STREAM_ITEMS_BEHIND -> {
                 // The block node is behind us, check if we have the last verified block still available in order to
@@ -640,7 +648,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @return true if the connection is active, false otherwise
      */
     public boolean isActive() {
-        return getConnectionState() == ConnectionState.ACTIVE;
+        return getState() == ConnectionState.ACTIVE;
     }
 
     /**
@@ -816,9 +824,5 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     connectionDescriptor);
             streamCompletionInProgress.set(false);
         }
-    }
-
-    public ConnectionState getState() {
-        return connectionState;
     }
 }
