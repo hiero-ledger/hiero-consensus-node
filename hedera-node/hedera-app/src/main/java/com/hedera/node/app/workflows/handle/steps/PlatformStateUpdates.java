@@ -29,7 +29,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -106,16 +105,8 @@ public class PlatformStateUpdates {
                         final var stakingInfoStore = new ReadableStakingInfoStoreImpl(
                                 state.getReadableStates(TokenService.NAME), entityCounters);
 
-                        // update the candidate roster weights with weights from stakingNodeInfo map
-                        final Function<Long, Long> weightFunction = nodeId -> {
-                            final var stakingInfo = stakingInfoStore.get(nodeId);
-                            if (stakingInfo != null && !stakingInfo.deleted()) {
-                                return stakingInfo.stake();
-                            }
-                            // Default weight if no staking info is found or the node is deleted
-                            return 0L;
-                        };
-                        var candidateRoster = nodeStore.snapshotOfFutureRoster(weightFunction);
+                        // Get a candidate roster with the latest weights
+                        var candidateRoster = nodeStore.snapshotOfFutureRoster(stakingInfoStore.weightFunction());
                         // Ensure we don't have a candidate roster with all zero weights by preserving
                         // weights from the current roster when no HBAR is staked to any node
                         if (hasZeroWeight(candidateRoster)) {
