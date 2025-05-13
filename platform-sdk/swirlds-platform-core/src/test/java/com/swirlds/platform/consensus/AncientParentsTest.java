@@ -14,15 +14,26 @@ import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class IntakeAndConsensusTests {
+class AncientParentsTest {
+
+    public static final int FIRST_BATCH_SIZE = 5000;
+    public static final int SECOND_BATCH_SIZE = 1000;
+
     /**
      * This test creates a graph with two partitions, where one partition is small enough that it is not needed for
      * consensus. Because the small partition does not affect consensus, we can delay inserting those events and still
@@ -46,6 +57,7 @@ class IntakeAndConsensusTests {
                 .withValue(ConsensusConfig_.ROUNDS_EXPIRED, 25)
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, Boolean.toString(useBirthRounds))
                 .getOrCreateConfig();
+        final AncientMode ancientMode = configuration.getConfigData(EventConfig.class).getAncientMode();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
@@ -62,9 +74,7 @@ class IntakeAndConsensusTests {
         final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
 
         // first we generate events regularly, until we have some ancient rounds
-        final int firstBatchSize = 5000;
-        List<EventImpl> batch = generator.generateEvents(firstBatchSize);
-        for (final EventImpl event : batch) {
+        for (final EventImpl event : generator.generateEvents(FIRST_BATCH_SIZE)) {
             node1.addEvent(event.getBaseEvent().copyGossipedData());
             node2.addEvent(event.getBaseEvent().copyGossipedData());
         }
@@ -78,34 +88,39 @@ class IntakeAndConsensusTests {
         // during the partition, we will not insert the minority partition events into consensus
         // we generate just enough events to make the first event of the partition ancient, but we don't insert the
         // last event into the second consensus
-        long partitionMin = useBirthRounds ? EventConstants.BIRTH_ROUND_UNDEFINED : EventConstants.GENERATION_UNDEFINED;
-        long partitionMax = useBirthRounds ? EventConstants.BIRTH_ROUND_UNDEFINED : EventConstants.GENERATION_UNDEFINED;
+        long partitionMin = Long.MAX_VALUE;
+        long partitionMax = Long.MIN_VALUE;
         final List<EventImpl> partitionedEvents = new LinkedList<>();
         boolean succeeded = false;
         EventImpl lastEvent = null;
+        EventImpl firstEventInPartition = null;
         while (!succeeded) {
-            batch = generator.generateEvents(1);
-            lastEvent = batch.getFirst();
+            lastEvent = generator.generateEvents(1).getFirst();
             if (partitionNodes.contains((int) lastEvent.getCreatorId().id())) {
-                if (useBirthRounds) {
-                    partitionMin = partitionMin < 0
-                            ? lastEvent.getBirthRound()
-                            : Math.min(partitionMin, lastEvent.getBirthRound());
-                    partitionMax = Math.max(partitionMax, lastEvent.getBirthRound());
-                } else {
-                    partitionMin = partitionMin < 0
-                            ? lastEvent.getGeneration()
-                            : Math.min(partitionMin, lastEvent.getGeneration());
-                    partitionMax = Math.max(partitionMax, lastEvent.getGeneration());
+                // we have generated an event in the minority partition
+
+                if (firstEventInPartition == null) {
+                    // this is the first event in the partition
+                    firstEventInPartition = lastEvent;
                 }
 
+                // for now we just keep track of the min and max ancient thresholds
+                partitionMin = Math.min(partitionMin, ancientMode.selectIndicator(lastEvent.getBaseEvent()));
+                partitionMax = Math.max(partitionMax, ancientMode.selectIndicator(lastEvent.getBaseEvent()));
+
+                // we don't add these events to consensus yet, we will add them later
                 partitionedEvents.add(lastEvent);
             } else {
+                // this is an event in the majority partition
+                // we add it to node 1 always
                 node1.addEvent(lastEvent.getBaseEvent().copyGossipedData());
-                final long node1NonAncGen = node1.getOutput().getEventWindow().getAncientThreshold();
-                if (partitionMax > node1NonAncGen && partitionMin < node1NonAncGen) {
+
+                // if this event caused the first event in the partition to become ancient, then we exit this loop.
+                // we will add this event to node 2 later, after we add the partitioned events
+                final EventWindow node1Window = node1.getOutput().getEventWindow();
+                if(firstEventInPartition != null && node1Window.isAncient(firstEventInPartition.getBaseEvent())){
                     succeeded = true;
-                } else {
+                }else{
                     node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
                 }
             }
@@ -121,22 +136,36 @@ class IntakeAndConsensusTests {
         node2.addEvent(lastEvent.getBaseEvent().copyGossipedData());
         final long consRoundBeforeLastBatch =
                 node1.getConsensusRounds().getLast().getRoundNum();
+        assertEventDidNotReachConsensus(firstEventInPartition, node1, node2);
         assertConsensusEvents(node1, node2);
 
         // now the partitions rejoin
         generator.setOtherParentAffinity(OtherParentMatrixFactory.createBalancedOtherParentMatrix(numNodes));
 
         // now we generate more events and expect consensus to be the same
-        final int secondBatchSize = 1000;
-        batch = generator.generateEvents(secondBatchSize);
-        for (final EventImpl event : batch) {
+        for (final EventImpl event : generator.generateEvents(SECOND_BATCH_SIZE)) {
             node1.addEvent(event.getBaseEvent().copyGossipedData());
             node2.addEvent(event.getBaseEvent().copyGossipedData());
         }
         assertThat(node1.getConsensusRounds().getLast().getRoundNum())
-                .isGreaterThan(consRoundBeforeLastBatch)
-                .withFailMessage("consensus did not advance after the partition rejoined");
+                .withFailMessage("consensus did not advance after the partition rejoined")
+                .isGreaterThan(consRoundBeforeLastBatch);
+        assertEventDidNotReachConsensus(firstEventInPartition, node1, node2);
         assertConsensusEvents(node1, node2);
+    }
+
+    private static void assertEventDidNotReachConsensus(final EventImpl event, final TestIntake... nodes){
+        final Hash eventHash = event.getBaseHash();
+        final boolean found = Arrays.stream(nodes)
+                .map(TestIntake::getConsensusRounds)
+                .flatMap(List::stream)
+                .map(ConsensusRound::getConsensusEvents)
+                .flatMap(List::stream)
+                .map(PlatformEvent::getHash)
+                .anyMatch(eventHash::equals);
+        assertThat(found)
+                .withFailMessage("Event was not supposed to reach consensus, but it did")
+                .isFalse();
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
