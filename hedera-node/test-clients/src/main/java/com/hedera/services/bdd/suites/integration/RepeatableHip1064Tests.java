@@ -664,14 +664,16 @@ public class RepeatableHip1064Tests {
             long expectedDebit = -2 * expectedPerNode;
             if (Math.abs(expectedDebit) > nodeRewardBalance.getAsLong()) {
                 expectedDebit = -nodeRewardBalance.getAsLong();
-                expectedPerNode = nodeRewardBalance.getAsLong() / 2;
+                expectedPerNode = nodeRewardBalance.getAsLong() / 2L;
             }
             assertEquals(
-                    expectedDebit, bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount")));
+                    expectedDebit,
+                    bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount")),
+                    "Node reward account debit is not as expected");
             // node2 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(5L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(5L), "Node 2 reward is not as expected");
             // node3 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(6L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(6L), "Node 3 reward is not as expected");
         };
     }
 
