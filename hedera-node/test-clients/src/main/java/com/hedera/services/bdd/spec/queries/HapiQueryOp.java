@@ -15,7 +15,6 @@ import static java.util.stream.Collectors.toList;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.exceptions.HapiQueryCheckStateException;

@@ -1514,8 +1514,7 @@ public class AutoAccountCreationSuite {
 
     @HapiTest
     final Stream<DynamicTest> cannotAutoCreateWithTxnToLongZero() {
-        final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
-//        final AtomicReference<byte[]> evmAddress = new AtomicReference<>();
+        final AtomicReference<byte[]> evmAddress = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

@@ -204,11 +204,10 @@ public class CryptoCreateSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(true)
                         .stakedAccountId(ACCOUNT_ID),
-                withOpContext((spec, opLog) -> {
-                    final var op = getAccountInfo("civilianWORewardStakingAcc")
-                            .has(accountWith()
-                                    .isDeclinedReward(true)
-                                    .noStakingNodeId()
+                getAccountInfo("civilianWORewardStakingAcc")
+                        .has(accountWith()
+                                .isDeclinedReward(true)
+                                .noStakingNodeId()
                                 .stakedAccountId(ACCOUNT_ID)),
                 cryptoCreate("civilianWRewardStakingNode")
                         .balance(ONE_HUNDRED_HBARS)
@@ -223,11 +222,10 @@ public class CryptoCreateSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
                         .stakedAccountId(ACCOUNT_ID),
-                withOpContext((spec, opLog) -> {
-                    final var op = getAccountInfo("civilianWRewardStakingAcc")
-                            .has(accountWith()
-                                    .isDeclinedReward(false)
-                                    .noStakingNodeId()
+                getAccountInfo("civilianWRewardStakingAcc")
+                        .has(accountWith()
+                                .isDeclinedReward(false)
+                                .noStakingNodeId()
                                 .stakedAccountId(ACCOUNT_ID)),
                 /* --- sentinel values throw */
                 cryptoCreate("invalidStakedAccount")
@@ -1025,14 +1023,12 @@ public class CryptoCreateSuite {
                 cryptoCreate("control").key(key).balance(1L).hasKnownStatus(SUCCESS),
                 cryptoCreate("differentShard")
                         .key(key)
-                        .memo("differentShard!")
                         .balance(1L)
                         .shardId(ShardID.newBuilder().setShardNum(3).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID),
                 // expected realm is 2
                 cryptoCreate("differentRealm")
                         .key(key)
-                        .memo("differentRealm!")
                         .balance(1L)
                         .realmId(RealmID.newBuilder().setRealmNum(4).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
