@@ -231,6 +231,8 @@ public class CryptoCreateSuite {
                 cryptoCreate("invalidStakedAccount")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
+                        .shardId(ShardID.newBuilder().setShardNum(0).build())
+                        .realmId(RealmID.newBuilder().setRealmNum(0).build())
                         .stakedAccountId("0.0.0")
                         .hasPrecheck(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")

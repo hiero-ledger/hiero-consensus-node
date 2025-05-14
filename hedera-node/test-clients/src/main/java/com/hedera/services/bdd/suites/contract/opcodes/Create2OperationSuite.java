@@ -198,16 +198,11 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .via(CREATION)
-                            .exposingContractIdTo(id -> {
-                                factoryEvmAddress.set(asHexedSolidityAddress(
-                                        (int) id.getShardNum(), id.getRealmNum(), id.getContractNum()));
-                            });
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .via(CREATION)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(
+                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum()))),
                 sourcing(
                         () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
                                 .exposingTypedResultsTo(results -> {
