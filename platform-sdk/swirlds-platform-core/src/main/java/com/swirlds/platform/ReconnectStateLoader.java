@@ -29,9 +29,6 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.roster.RosterRetriever;
 
 // FUTURE WORK: this data should be traveling out over the wiring framework.
@@ -139,14 +136,15 @@ public class ReconnectStateLoader {
             platformWiring
                     .getSignatureCollectorStateInput()
                     .put(signedState.reserve("loading reconnect state into sig collector"));
-            final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(
-                    platformStateFacade.consensusSnapshotOf(state));
+            final ConsensusSnapshot consensusSnapshot =
+                    Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state));
             platformWiring.consensusSnapshotOverride(consensusSnapshot);
 
             final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
             platformWiring.getRosterUpdateInput().inject(new RosterUpdate(previousRoster, roster));
 
-            platformWiring.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));
+            platformWiring.updateEventWindow(
+                    EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));
 
             final RunningEventHashOverride runningEventHashOverride =
                     new RunningEventHashOverride(platformStateFacade.legacyRunningEventHashOf(state), true);

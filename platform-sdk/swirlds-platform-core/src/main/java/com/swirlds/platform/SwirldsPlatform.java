@@ -330,17 +330,15 @@ public class SwirldsPlatform implements Platform {
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
-            final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(
-                    platformStateFacade.consensusSnapshotOf(initialState.getState()));
+            final ConsensusSnapshot consensusSnapshot =
+                    Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(initialState.getState()));
             platformWiring.consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
-            platformWiring.updateEventWindow(EventWindowUtils.createEventWindow(
-                    consensusSnapshot,
-                    platformContext.getConfiguration()
-            ));
+            platformWiring.updateEventWindow(
+                    EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));
             platformWiring.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 
