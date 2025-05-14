@@ -63,7 +63,7 @@ class BlockNodeConnectionTest {
     private static final String HOST_ADDRESS = "127.0.0.1";
     private static final int PORT = 50211;
     private static final String CONNECTION_DESCRIPTOR = HOST_ADDRESS + ":" + PORT;
-    private static final long END_OF_STREAM_LIMIT = 5L;
+    private static final Integer END_OF_STREAM_LIMIT = 5;
     private static final Duration VERIFY_TIMEOUT = Duration.ofSeconds(1);
 
     @Mock
@@ -1066,7 +1066,9 @@ class BlockNodeConnectionTest {
     @MethodSource("internalErrorRetryCodes")
     @DisplayName("onNext handles EndOfStream with internal error code respecting retry limits cases")
     void onNextEndOfStreamInternalErrorWithRetryLimits(
-            @NonNull final PublishStreamResponseCode code, long endOfStreamLimit, boolean expectEndOfStreamExceeded) {
+            @NonNull final PublishStreamResponseCode code,
+            Integer endOfStreamLimit,
+            boolean expectEndOfStreamExceeded) {
         connection.setCurrentBlockNumber(BLOCK_NUMBER);
         TestUtils.setInternalState(connection, "maxEndOfStreamsAllowed", endOfStreamLimit);
         final PublishStreamResponse response = createEndOfStreamResponse(code, BLOCK_NUMBER);
@@ -1104,7 +1106,9 @@ class BlockNodeConnectionTest {
     @MethodSource("immediateRestartCodes")
     @DisplayName("onNext handles EndOfStream with immediate restart codes respecting retry limits cases")
     void onNextEndOfStreamImmediateRestartWithRetryLimits(
-            @NonNull final PublishStreamResponseCode code, long endOfStreamLimit, boolean expectEndOfStreamExceeded) {
+            @NonNull final PublishStreamResponseCode code,
+            Integer endOfStreamLimit,
+            boolean expectEndOfStreamExceeded) {
         connection.setCurrentBlockNumber(BLOCK_NUMBER);
         TestUtils.setInternalState(connection, "maxEndOfStreamsAllowed", endOfStreamLimit);
         final PublishStreamResponse response = createEndOfStreamResponse(code, BLOCK_NUMBER);
@@ -1139,7 +1143,7 @@ class BlockNodeConnectionTest {
     @MethodSource("streamItemsBehindCases")
     @DisplayName("onNext handles EndOfStream with STREAM_ITEMS_BEHIND response respecting retry limits cases")
     void OnNextHandlesStreamItemsBehind(
-            boolean blockStateAvailable, long endOfStreamLimit, boolean expectEndOfStreamExceeded) {
+            boolean blockStateAvailable, Integer endOfStreamLimit, boolean expectEndOfStreamExceeded) {
         connection.setCurrentBlockNumber(BLOCK_NUMBER);
         long restartBlock = BLOCK_NUMBER + 1;
         final PublishStreamResponse response = createEndOfStreamResponse(STREAM_ITEMS_BEHIND, BLOCK_NUMBER);

@@ -43,7 +43,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final String connectionDescriptor;
 
     // The EndOfStream rate limit allowed in a time frame
-    private final long maxEndOfStreamsAllowed;
+    private final Integer maxEndOfStreamsAllowed;
     private final Duration endOfStreamTimeFrame;
     private final Duration endOfStreamScheduleDelay;
     private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
@@ -91,9 +91,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.blockNodeConnectionManager = null;
         this.blockStreamStateManager = null;
         this.connectionDescriptor = null;
-        this.maxEndOfStreamsAllowed = 5L;
-        this.endOfStreamTimeFrame = Duration.ofSeconds(30);
-        this.endOfStreamScheduleDelay = Duration.ofSeconds(30);
+        this.maxEndOfStreamsAllowed = null;
+        this.endOfStreamTimeFrame = null;
+        this.endOfStreamScheduleDelay = null;
     }
 
     /**

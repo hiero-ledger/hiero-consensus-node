@@ -5,7 +5,6 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -24,6 +23,6 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "data/config") @NodeProperty String blockNodeConnectionFileDir,
         @ConfigProperty(defaultValue = "block-nodes.json") @NodeProperty String blockNodeConfigFile,
         @ConfigProperty(defaultValue = "10") @NetworkProperty long waitPeriodForActiveConnection,
-        @ConfigProperty(defaultValue = "5") @NodeProperty long maxEndOfStreamsAllowed,
-        @ConfigProperty(defaultValue = "30s") @Min(0) @NodeProperty Duration endOfStreamTimeFrame,
-        @ConfigProperty(defaultValue = "30s") @Min(0) @NodeProperty Duration endOfStreamScheduleDelay) {}
+        @ConfigProperty(defaultValue = "5") @NodeProperty int maxEndOfStreamsAllowed,
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamScheduleDelay) {}
