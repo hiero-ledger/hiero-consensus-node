@@ -72,7 +72,8 @@ module com.swirlds.common {
             com.swirlds.common.testing;
     exports com.swirlds.common.crypto.engine to
             com.swirlds.common.testing,
-            com.swirlds.common.test.fixtures;
+            com.swirlds.common.test.fixtures,
+            com.swirlds.state.validator;
 
     opens com.swirlds.common.crypto to
             com.fasterxml.jackson.databind;
