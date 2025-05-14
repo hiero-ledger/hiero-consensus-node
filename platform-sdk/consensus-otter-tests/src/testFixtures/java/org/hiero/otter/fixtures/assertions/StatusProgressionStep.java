@@ -70,7 +70,8 @@ public class StatusProgressionStep {
      * @return a new instance of {@link StatusProgressionStep}
      */
     public static StatusProgressionStep target(@NonNull final PlatformStatus target) {
-        return new StatusProgressionStep(target, EnumSet.noneOf(PlatformStatus.class), EnumSet.noneOf(PlatformStatus.class));
+        return new StatusProgressionStep(
+                target, EnumSet.noneOf(PlatformStatus.class), EnumSet.noneOf(PlatformStatus.class));
     }
 
     /**

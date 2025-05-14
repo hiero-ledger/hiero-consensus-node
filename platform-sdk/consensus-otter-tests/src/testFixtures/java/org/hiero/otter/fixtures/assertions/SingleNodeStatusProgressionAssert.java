@@ -61,22 +61,27 @@ public class SingleNodeStatusProgressionAssert
 
         int currentStepIndex = 0;
         final Set<PlatformStatus> observedStatuses = EnumSet.noneOf(PlatformStatus.class);
-        for (final Iterator<PlatformStatus> actualStatusesIterator = actual.statusProgression().iterator();
+        for (final Iterator<PlatformStatus> actualStatusesIterator =
+                        actual.statusProgression().iterator();
                 actualStatusesIterator.hasNext(); ) {
             final PlatformStatus actualStatus = actualStatusesIterator.next();
             final StatusProgressionStep currentStep = expectedSteps.get(currentStepIndex);
             if (actualStatus == currentStep.target()) {
-                if (! observedStatuses.containsAll(currentStep.requiredInterim())) {
-                    failWithMessage("Expected required interim statuses %s, but only got %s",
+                if (!observedStatuses.containsAll(currentStep.requiredInterim())) {
+                    failWithMessage(
+                            "Expected required interim statuses %s, but only got %s",
                             currentStep.requiredInterim(), observedStatuses);
                 }
                 currentStepIndex++;
                 if (currentStepIndex >= expectedSteps.size() && actualStatusesIterator.hasNext()) {
-                    failWithMessage("Expected only %s steps, but encountered more statuses %s", expectedSteps.size(), actual.statusProgression());
+                    failWithMessage(
+                            "Expected only %s steps, but encountered more statuses %s",
+                            expectedSteps.size(), actual.statusProgression());
                 }
                 observedStatuses.clear();
             } else {
-                if (!currentStep.optionalInterim().contains(actualStatus) && !currentStep.requiredInterim().contains(actualStatus)) {
+                if (!currentStep.optionalInterim().contains(actualStatus)
+                        && !currentStep.requiredInterim().contains(actualStatus)) {
                     failWithMessage("Unexpected status %s in step %s", actualStatus, currentStep);
                 }
                 observedStatuses.add(actualStatus);

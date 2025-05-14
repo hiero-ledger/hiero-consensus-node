@@ -41,8 +41,7 @@ public class HappyPathTest {
                         LogFilter.ignoreNodes(network.getNodes().getFirst()))
                 .validateRemaining(Profile.DEFAULT);
 
-        assertThat(network.getStatusProgression()).hasSteps(
-                target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING)
-        );
+        assertThat(network.getStatusProgression())
+                .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
     }
 }
