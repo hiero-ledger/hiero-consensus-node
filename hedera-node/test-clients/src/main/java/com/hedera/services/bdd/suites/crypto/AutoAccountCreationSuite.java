@@ -1514,7 +1514,8 @@ public class AutoAccountCreationSuite {
 
     @HapiTest
     final Stream<DynamicTest> cannotAutoCreateWithTxnToLongZero() {
-        final AtomicReference<byte[]> evmAddress = new AtomicReference<>();
+        final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
+//        final AtomicReference<byte[]> evmAddress = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -1534,6 +1535,7 @@ public class AutoAccountCreationSuite {
 
                     final var longZeroAddress =
                             ByteString.copyFrom(asSolidityAddress((int) spec.shard(), spec.realm(), 5555));
+
                     final var invalidTransferToLongZero = cryptoTransfer(
                                     tinyBarsFromTo(PAYER, longZeroAddress, ONE_HBAR))
                             .hasKnownStatusFrom(INVALID_ACCOUNT_ID, INVALID_ALIAS_KEY)

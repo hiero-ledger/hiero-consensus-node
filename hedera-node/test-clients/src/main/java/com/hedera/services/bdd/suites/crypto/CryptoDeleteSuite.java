@@ -3,8 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
@@ -218,15 +216,15 @@ public class CryptoDeleteSuite {
                                 (spec, builder) -> builder.setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(AccountAmount.newBuilder()
                                                 .setAccountID(AccountID.newBuilder()
-                                                        .setShardNum(shard)
-                                                        .setRealmNum(realm)
+                                                        .setShardNum(spec.shard())
+                                                        .setRealmNum(spec.realm())
                                                         .setAccountNum(2))
                                                 .setAmount(-ONE_HUNDRED_HBARS)
                                                 .build())
                                         .addAccountAmounts(AccountAmount.newBuilder()
                                                 .setAccountID(AccountID.newBuilder()
-                                                        .setShardNum(shard)
-                                                        .setRealmNum(realm)
+                                                        .setShardNum(spec.shard())
+                                                        .setRealmNum(spec.realm())
                                                         .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
                                                 .setAmount(ONE_HUNDRED_HBARS)
                                                 .build())
