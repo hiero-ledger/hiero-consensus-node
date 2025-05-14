@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
+import static java.util.Objects.nonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -23,6 +25,7 @@ import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
@@ -121,7 +125,26 @@ public class TipsetEventCreatorTestUtils {
         return eventCreators;
     }
 
-    public static void validateNewEvent(
+    /**
+     * Validates that @code newEvent satisfies:
+     * - if it has a null self-parent, is only during genesis scenario
+     * - if it has a null other-parent, is only during genesis scenario
+     * - the event is contained in allEvents
+     * - NGen should be max of parents plus one
+     * - Parent's birthround or generation is never higher than event's.
+     * - There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)
+     * - Except for genesis scenario, new event must have a positive advancement score.
+     * - Application Transactions of the event matches @code expectedTransactions
+     *
+     * This method produces a side effect of advancing the last AdvancementWeight of the simulatedNode
+     *
+     * @param allEvents the list of all events, where parents are going to be retrieved from and the event is going to be check against
+     * @param newEvent the event to validate
+     * @param expectedTransactions all the application transactions expected to be present in the event
+     * @param simulatedNode the node that produced the event. This object is changed after invoking this method.
+     * @param slowNode an specific mode of validation
+     */
+    public static void validateNewEventAndMaybeAdvanceCreatorScore(
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent newEvent,
             @NonNull final List<Bytes> expectedTransactions,
@@ -164,6 +187,16 @@ public class TipsetEventCreatorTestUtils {
         final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
         assertEquals(expectedGeneration, newEvent.getNGen());
 
+        assertFalse(
+                (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
+                        || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
+                "Parent's birthround should never be higher.");
+
+        assertFalse(
+                (nonNull(selfParent) && selfParent.getGeneration() > newEvent.getGeneration())
+                        || (nonNull(otherParent) && otherParent.getGeneration() > newEvent.getGeneration()),
+                "Parent's Generation should never be higher.");
+
         // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
         // with nanosecond precision for transaction.
         if (selfParent != null) {
@@ -181,7 +214,7 @@ public class TipsetEventCreatorTestUtils {
                     .addEventAndGetAdvancementWeight(descriptor)
                     .isNonZero());
         } else {
-            simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor);
+            simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor); // this has side effect
         }
 
         final List<Bytes> convertedTransactions = newEvent.getTransactions().stream()
@@ -251,17 +284,25 @@ public class TipsetEventCreatorTestUtils {
         final List<Bytes> transactions = new ArrayList<>();
 
         for (int i = 0; i < transactionCount; i++) {
-            final byte[] bytes = new byte[32];
-            random.nextBytes(bytes);
-            transactions.add(Bytes.wrap(bytes));
+            transactions.add(generateRandomTransaction(random));
         }
 
         return transactions;
     }
 
+    /**
+     * Generate a random transaction.
+     */
+    @NonNull
+    public static Bytes generateRandomTransaction(@NonNull final Random random) {
+        final byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        return Bytes.wrap(bytes);
+    }
+
     @NonNull
     public static PlatformEvent createTestEvent(
-            @NonNull final Random random, @NonNull final NodeId creator, final long nGen, final long birthRound) {
+            @NonNull final Random random, @Nullable final NodeId creator, final long nGen, final long birthRound) {
 
         final PlatformEvent selfParent =
                 new TestingEventBuilder(random).setCreatorId(creator).build();
@@ -272,5 +313,13 @@ public class TipsetEventCreatorTestUtils {
                 .setBirthRound(birthRound)
                 .setSelfParent(selfParent)
                 .build();
+    }
+
+    static void addTransactions(
+            final Random random, final AtomicReference<List<Bytes>> transactionSupplier, final int number) {
+        final List<Bytes> tenTransactions = IntStream.range(0, number)
+                .mapToObj(i -> generateRandomTransaction(random)) // Method reference
+                .toList();
+        transactionSupplier.set(tenTransactions);
     }
 }
