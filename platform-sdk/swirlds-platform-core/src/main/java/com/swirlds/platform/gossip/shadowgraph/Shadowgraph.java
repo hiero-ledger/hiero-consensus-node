@@ -6,8 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.Clearable;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,7 +26,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.Clearable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -377,13 +377,7 @@ public class Shadowgraph implements Clearable {
 
         while (oldestUnexpiredIndicator < minimumIndicatorToKeep) {
             final Set<ShadowEvent> shadowsToExpire = indicatorToShadowEvent.remove(oldestUnexpiredIndicator);
-            // shadowsToExpire should never be null, but check just in case.
-            if (shadowsToExpire == null) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "There were no events with ancient indicator {} to expire.",
-                        oldestUnexpiredIndicator);
-            } else {
+            if (shadowsToExpire != null) {
                 shadowsToExpire.forEach(this::expire);
             }
             oldestUnexpiredIndicator++;
@@ -614,7 +608,7 @@ public class Shadowgraph implements Clearable {
 
         hashToShadowEvent.put(se.getEventBaseHash(), se);
 
-        final long ancientIndicator = event.getAncientIndicator(ancientMode);
+        final long ancientIndicator = ancientMode.selectIndicator(event);
         if (!indicatorToShadowEvent.containsKey(ancientIndicator)) {
             indicatorToShadowEvent.put(ancientIndicator, new HashSet<>());
         }

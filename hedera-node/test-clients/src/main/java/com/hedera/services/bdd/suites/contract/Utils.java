@@ -5,8 +5,6 @@ import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.NUM_LONG_ZEROS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -18,8 +16,8 @@ import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -55,7 +53,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import org.apache.commons.io.FileUtils;
@@ -64,7 +64,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.bouncycastle.util.encoders.Hex;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -295,14 +295,18 @@ public class Utils {
                 .build();
     }
 
-    public static AccountAmount aaWith(final ByteString evmAddress, final long amount) {
+    public static AccountAmount aaWith(HapiSpec spec, final ByteString evmAddress, final long amount) {
         return AccountAmount.newBuilder()
-                .setAccountID(accountId(evmAddress))
+                .setAccountID(accountId(spec, evmAddress))
                 .setAmount(amount)
                 .build();
     }
 
-    public static AccountAmount aaWith(final String hexedEvmAddress, final long amount) {
+    public static AccountAmount aaWith(HapiSpec spec, final String hexedEvmAddress, final long amount) {
+        return aaWith(spec.shard(), spec.realm(), hexedEvmAddress, amount);
+    }
+
+    public static AccountAmount aaWith(long shard, long realm, final String hexedEvmAddress, final long amount) {
         return AccountAmount.newBuilder()
                 .setAccountID(accountId(shard, realm, hexedEvmAddress))
                 .setAmount(amount)
@@ -317,6 +321,10 @@ public class Utils {
                 .build();
     }
 
+    public static AccountID accountId(HapiSpec spec, final String hexedEvmAddress) {
+        return accountId(spec.shard(), spec.realm(), hexedEvmAddress);
+    }
+
     public static AccountID accountId(final long shard, final long realm, final String hexedEvmAddress) {
         return AccountID.newBuilder()
                 .setShardNum(shard)
@@ -325,15 +333,15 @@ public class Utils {
                 .build();
     }
 
-    public static AccountID accountId(final ByteString evmAddress) {
+    public static AccountID accountId(HapiSpec spec, final ByteString evmAddress) {
         return AccountID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setAlias(evmAddress)
                 .build();
     }
 
-    public static Key aliasContractIdKey(final String hexedEvmAddress) {
+    public static Key aliasContractIdKey(final long shard, final long realm, final String hexedEvmAddress) {
         return Key.newBuilder()
                 .setContractID(ContractID.newBuilder()
                         .setShardNum(shard)
@@ -342,7 +350,7 @@ public class Utils {
                 .build();
     }
 
-    public static Key aliasDelegateContractKey(final String hexedEvmAddress) {
+    public static Key aliasDelegateContractKey(final long shard, final long realm, final String hexedEvmAddress) {
         return Key.newBuilder()
                 .setDelegatableContractId(ContractID.newBuilder()
                         .setShardNum(shard)
@@ -420,9 +428,13 @@ public class Utils {
         return Address.wrap(toChecksumAddress("0x" + addr));
     }
 
-    public static Address mirrorAddrWith(final long num) {
-        return Address.wrap(
-                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress(shard, realm, num))));
+    public static Address mirrorAddrWith(HapiSpec spec, final long num) {
+        return Address.wrap(toChecksumAddress(
+                new BigInteger(1, HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), num))));
+    }
+
+    public static Function<HapiSpec, Object[]> mirrorAddrParamFunction(final long contractNum) {
+        return spec -> List.of(mirrorAddrWith(spec, contractNum)).toArray();
     }
 
     public static Address nonMirrorAddrWith(final long num) {
@@ -492,7 +504,9 @@ public class Utils {
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
             @NonNull final com.esaulpaugh.headlong.abi.Address address) {
         var addressHex = toChecksumAddress(address.value());
-        addressHex = addressHex.substring(2); // remove 0x
+        if (addressHex.startsWith("0x")) {
+            addressHex = addressHex.substring(2);
+        }
         var shard = addressHex.substring(0, 8);
         var realm = addressHex.substring(8, 24);
         var scheduleNum = addressHex.substring(24, 40);

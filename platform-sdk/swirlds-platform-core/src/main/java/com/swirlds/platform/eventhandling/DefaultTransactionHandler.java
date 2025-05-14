@@ -15,7 +15,6 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.consensus.ConsensusConfig;
@@ -37,7 +36,8 @@ import java.util.Objects;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -281,6 +281,15 @@ public class DefaultTransactionHandler implements TransactionHandler {
         final boolean isBoundary = swirldStateManager.sealConsensusRound(consensusRound);
         final ReservedSignedState reservedSignedState;
         if (isBoundary || freezeRoundReceived) {
+            if (freezeRoundReceived && !isBoundary) {
+                logger.error(
+                        EXCEPTION.getMarker(),
+                        """
+                                The freeze round {} is not a boundary round. The freeze state will be saved to disk, \
+                                but the app may not have done some work that it needs to (like finishing a block). The \
+                                app must ensure that the freeze round is always a boundary round.""",
+                        consensusRound.getRoundNum());
+            }
             handlerMetrics.setPhase(GETTING_STATE_TO_SIGN);
             final MerkleNodeState immutableStateCons = swirldStateManager.getStateForSigning();
 

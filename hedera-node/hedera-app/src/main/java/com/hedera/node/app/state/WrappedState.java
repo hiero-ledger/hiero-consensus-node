@@ -13,8 +13,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * A {@link State} that wraps another {@link State} and provides a {@link #commit()} method that

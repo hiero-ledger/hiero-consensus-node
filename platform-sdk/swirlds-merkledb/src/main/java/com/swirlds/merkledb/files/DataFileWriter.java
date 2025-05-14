@@ -7,7 +7,6 @@ import static com.swirlds.merkledb.files.DataFileCommon.createDataFilePath;
 
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.utilities.MemoryUtils;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.MappedByteBuffer;
@@ -18,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * Writer for creating a data file. A data file contains a number of data items. Each data item can
@@ -32,6 +32,9 @@ import java.util.function.Consumer;
  * <p>Protobuf schema: see {@link DataFileReader} for details.
  */
 public final class DataFileWriter {
+
+    private static final String ERROR_DATA_ITEM_TOO_LARGE =
+            "Data item is too large to write to a data file. Increase data file mapped byte buffer size";
 
     /** Mapped buffer size */
     private static final int MMAP_BUF_SIZE = PAGE_SIZE * 1024 * 64;
@@ -166,7 +169,7 @@ public final class DataFileWriter {
             }
         } catch (final BufferOverflowException e) {
             // Buffer overflow here means the mapped buffer is smaller than even a single data item
-            throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
+            throw new IOException(ERROR_DATA_ITEM_TOO_LARGE, e);
         }
         // increment data item counter
         dataItemCount++;
@@ -196,7 +199,7 @@ public final class DataFileWriter {
             ProtoWriterTools.writeDelimited(writingPbjData, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter);
         } catch (final BufferOverflowException e) {
             // Buffer overflow here means the mapped buffer is smaller than even a single data item
-            throw new IOException(DataFileCommon.ERROR_DATAITEM_TOO_LARGE, e);
+            throw new IOException(ERROR_DATA_ITEM_TOO_LARGE, e);
         }
         // increment data item counter
         dataItemCount++;

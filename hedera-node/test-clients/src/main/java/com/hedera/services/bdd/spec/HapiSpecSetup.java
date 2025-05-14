@@ -10,21 +10,24 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.bytecodePath;
 
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
+import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
+import com.hedera.services.bdd.spec.remote.RemoteNetworkSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
+import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -36,7 +39,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.commons.lang3.StringUtils;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * Aggregates the properties to be used in setting up a {@link HapiSpec}.
@@ -99,12 +102,20 @@ public class HapiSpecSetup {
         this.props = props;
     }
 
+    public PrivateKey payerKey() {
+        try {
+            return payerKeyAsEd25519();
+        } catch (Exception e) {
+            return payerKeyAsEcdsa();
+        }
+    }
+
     /**
-     * Returns the Ed25519 private key for the default payer in this spec setup.
+     * Returns the Ed25519 private key for the default payer in this spec setup.  This method will only return an Ed25519 key if the default payer key does point to an Ed25519 key
      *
      * @return the Ed25519 private key for the default payer in this spec setup
      */
-    public EdDSAPrivateKey payerKeyAsEd25519() {
+    private EdDSAPrivateKey payerKeyAsEd25519() {
         if (StringUtils.isNotEmpty(defaultPayerKey())) {
             return Ed25519Utils.keyFrom(CommonUtils.unhex(defaultPayerKey()));
         } else if (StringUtils.isNotEmpty(defaultPayerMnemonic())) {
@@ -114,6 +125,19 @@ public class HapiSpecSetup {
             return mnemonicToEd25519Key(mnemonic);
         } else {
             return Ed25519Utils.readKeyFrom(defaultPayerPemKeyLoc(), defaultPayerPemKeyPassphrase());
+        }
+    }
+
+    /**
+     * Returns the ECDSA private key for the default payer in this spec setup. This method will only return an ECDSA key if the default payer key does point to an ECDSA key.
+     *
+     * @return the ECDSA private key for the default payer in this spec setup
+     */
+    private ECPrivateKey payerKeyAsEcdsa() {
+        if (StringUtils.isNotEmpty(defaultPayerKey())) {
+            return Secp256k1Utils.readECKeyFrom(CommonUtils.unhex(defaultPayerKey()));
+        } else {
+            return Secp256k1Utils.readECKeyFrom(new File(defaultPayerPemKeyLoc()), defaultPayerPemKeyPassphrase());
         }
     }
 
@@ -298,10 +322,6 @@ public class HapiSpecSetup {
         return props.get("default.payer.name");
     }
 
-    public RealmID defaultRealm() {
-        return props.getRealm("default.realm");
-    }
-
     /**
      * Returns whether a {@link HapiSpec} should automatically take and fuzzy-match snapshots of the record stream.
      *
@@ -323,10 +343,6 @@ public class HapiSpecSetup {
 
     public boolean defaultReceiverSigRequired() {
         return props.getBoolean("default.receiverSigRequired");
-    }
-
-    public ShardID defaultShard() {
-        return props.getShard("default.shard");
     }
 
     public int defaultThresholdM() {
@@ -508,16 +524,24 @@ public class HapiSpecSetup {
         return props.getLong("status.wait.timeout.ms");
     }
 
+    public long shard() {
+        return props.getShard();
+    }
+
+    public long realm() {
+        return props.getRealm();
+    }
+
     public AccountID nodeRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "801");
+        return asAccount(shard(), realm(), 801L);
     }
 
     public AccountID stakingRewardAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "800");
+        return asAccount(shard(), realm(), 800);
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount(props.get("default.shard"), props.get("default.realm"), "802");
+        return asAccount(shard(), realm(), 802);
     }
 
     public String nodeRewardAccountName() {
@@ -597,6 +621,13 @@ public class HapiSpecSetup {
 
     public String systemUndeleteAdminName() {
         return props.get("systemUndeleteAdmin.name");
+    }
+
+    /**
+     * Returns the location of a YAML file that should be mappable to {@link RemoteNetworkSpec}.
+     */
+    public String remoteNodesYmlLoc() {
+        return props.get("nodes.remoteYml");
     }
 
     /**

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
-import static org.hiero.consensus.model.utility.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -17,14 +17,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.Hashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Hashable;
+import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.consensus.model.utility.TypedIterator;
 
 /**
  * A class used to hold information about an event throughout its lifecycle.
@@ -61,6 +61,11 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final CountDownLatch prehandleCompleted = new CountDownLatch(1);
 
     /**
+     * The non-deterministic generation. For more info, see {@link NonDeterministicGeneration}
+     */
+    private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
+
+    /**
      * Construct a new instance from an unsigned event and a signature.
      *
      * @param unsignedEvent the unsigned event
@@ -82,7 +87,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                         Objects.requireNonNull(unsignedEvent, "The unsignedEvent must not be null")
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
-                        unsignedEvent.getTransactionsBytes()),
+                        unsignedEvent.getTransactionsBytes(),
+                        unsignedEvent.getParents()),
                 unsignedEvent.getMetadata());
     }
 
@@ -181,6 +187,34 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
+     * The non-deterministic generation of this event.
+     *
+     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
+     * none has been set yet.
+     */
+    public long getNGen() {
+        return nGen;
+    }
+
+    /**
+     * Checks if the non-deterministic generation for this event has been set.
+     *
+     * @return {@code true} if the nGen has been set, {@code false} otherwise
+     */
+    public boolean hasNGen() {
+        return nGen != NonDeterministicGeneration.GENERATION_UNDEFINED;
+    }
+
+    /**
+     * Sets the non-deterministic generation of this event.
+     *
+     * @param nGen the non-deterministic generation value to set
+     */
+    public void setNGen(final long nGen) {
+        this.nGen = nGen;
+    }
+
+    /**
      * Get the birth round of the event.
      *
      * @return the birth round of the event
@@ -255,9 +289,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * @return the consensus order for this event, this will be
-     * {@link ConsensusConstants#NO_CONSENSUS_ORDER} if the event has not reached
-     * consensus
+     * @return the consensus order for this event, this will be {@link ConsensusConstants#NO_CONSENSUS_ORDER} if the
+     * event has not reached consensus
      */
     public long getConsensusOrder() {
         return consensusData.consensusOrder();
@@ -279,8 +312,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Set the consensus timestamp on the transaction wrappers for this event. This must be done after the consensus time is
-     * set for this event.
+     * Set the consensus timestamp on the transaction wrappers for this event. This must be done after the consensus
+     * time is set for this event.
      */
     public void setConsensusTimestampsOnTransactions() {
         if (this.consensusData == NO_CONSENSUS) {
@@ -324,9 +357,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * right before the birth round migration. Parents of this event may also have their birth round overridden if their
      * generation is greater or equal to the specified {@code ancientGenerationThreshold} value.
      *
-     * @param birthRound the birth round that has been assigned to this event
-     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their
-     *                                   birth round overridden
+     * @param birthRound                 the birth round that has been assigned to this event
+     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their birth
+     *                                   round overridden
      */
     public void overrideBirthRound(final long birthRound, final long ancientGenerationThreshold) {
         metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
@@ -357,6 +390,15 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @NonNull
     public List<EventDescriptorWrapper> getOtherParents() {
         return metadata.getOtherParents();
+    }
+
+    /**
+     * Check if the event has other parents.
+     *
+     * @return true if the event has other parents
+     */
+    public boolean hasOtherParents() {
+        return metadata.hasOtherParents();
     }
 
     /** @return a list of all parents, self parent (if any), + all other parents */
@@ -440,21 +482,14 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getHash();
     }
 
+    @NonNull
+    @Override
+    public Iterator<EventDescriptorWrapper> allParentsIterator() {
+        return new TypedIterator<>(metadata.getAllParents().iterator());
+    }
+
     @Override
     public void setHash(final Hash hash) {
         metadata.setHash(hash);
-    }
-
-    /**
-     * Get the value used to determine if this event is ancient or not. Will be the event's generation prior to
-     * migration, and the event's birth round after migration.
-     *
-     * @return the value used to determine if this event is ancient or not
-     */
-    public long getAncientIndicator(@NonNull final AncientMode ancientMode) {
-        return switch (ancientMode) {
-            case GENERATION_THRESHOLD -> getGeneration();
-            case BIRTH_ROUND_THRESHOLD -> getBirthRound();
-        };
     }
 }

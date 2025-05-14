@@ -85,6 +85,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Key;
@@ -212,7 +213,6 @@ public class AutoAccountCreationSuite {
         final AtomicReference<AccountID> counterId = new AtomicReference<>();
         final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
         final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
-
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 newKeyNamed(MULTI_KEY),
@@ -251,9 +251,9 @@ public class AutoAccountCreationSuite {
                     counterAlias.set(ByteString.copyFrom(asSolidityAddress(counterId.get())));
 
                     cryptoTransfer((x, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
-                                    .addTransfers(aaWith(SPONSOR, -1))
+                                    .addTransfers(aaWith(spec, SPONSOR, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))
-                                    .addTransfers(aaWith(TOKEN_TREASURY, -1))
+                                    .addTransfers(aaWith(spec, TOKEN_TREASURY, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))))
                             .signedBy(DEFAULT_PAYER, PARTY, SPONSOR)
                             .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
@@ -789,7 +789,7 @@ public class AutoAccountCreationSuite {
                                 final var funding = spec.registry().getAccountID(FUNDING);
                                 b.setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(aaWith(sponsorId, -ONE_HUNDRED_HBARS))
-                                        .addAccountAmounts(aaWith(evmAddress, +ONE_HUNDRED_HBARS))
+                                        .addAccountAmounts(aaWith(spec, evmAddress, +ONE_HUNDRED_HBARS))
                                         .addAccountAmounts(aaWith(underfundedId, -ONE_HUNDRED_HBARS))
                                         .addAccountAmounts(aaWith(funding, +ONE_HUNDRED_HBARS))
                                         .build());
@@ -1241,8 +1241,8 @@ public class AutoAccountCreationSuite {
                 }),
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(aaWith(spec, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(aaWith(spec, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
@@ -1353,8 +1353,8 @@ public class AutoAccountCreationSuite {
                     final var cryptoTransferWithLazyCreate = cryptoTransfer(
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(ftId.get())
-                                            .addTransfers(aaWith(partyAlias.get(), -500))
-                                            .addTransfers(aaWith(counterAlias.get(), +500))))
+                                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
+                                            .addTransfers(aaWith(spec, counterAlias.get(), +500))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(FT_XFER);
 
@@ -1451,7 +1451,9 @@ public class AutoAccountCreationSuite {
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(nftId.get())
                                             .addNftTransfers(ocWith(
-                                                    accountId(partyAlias.get()), accountId(counterAlias.get()), 1L))))
+                                                    accountId(spec, partyAlias.get()),
+                                                    accountId(spec, counterAlias.get()),
+                                                    1L))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(NFT_XFER);
 
@@ -1548,6 +1550,35 @@ public class AutoAccountCreationSuite {
                             .hasChildRecordCount(1)
                             .hasChildRecords(
                                     recordWith().status(SUCCESS).memo(LAZY_MEMO).alias(evmAddress.get()));
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hollowAccountCompletionWithSimultaneousPropertiesUpdate() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(LAZY_CREATE_SPONSOR).balance(INITIAL_BALANCE * ONE_HBAR),
+                cryptoCreate(CRYPTO_TRANSFER_RECEIVER).balance(INITIAL_BALANCE * ONE_HBAR),
+                withOpContext((spec, opLog) -> {
+                    final var ecdsaKey = spec.registry()
+                            .getKey(SECP_256K1_SOURCE_KEY)
+                            .getECDSASecp256K1()
+                            .toByteArray();
+                    final var evmAddress = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
+                    final var op = cryptoTransfer(tinyBarsFromTo(LAZY_CREATE_SPONSOR, evmAddress, ONE_HUNDRED_HBARS))
+                            .hasKnownStatus(SUCCESS)
+                            .via(TRANSFER_TXN);
+
+                    final HapiGetTxnRecord hapiGetTxnRecord =
+                            getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged();
+
+                    allRunFor(spec, op, hapiGetTxnRecord);
+
+                    final AccountID newAccountID = hapiGetTxnRecord
+                            .getFirstNonStakingChildRecord()
+                            .getReceipt()
+                            .getAccountID();
+                    spec.registry().saveAccountId(SECP_256K1_SOURCE_KEY, newAccountID);
                 }));
     }
 }

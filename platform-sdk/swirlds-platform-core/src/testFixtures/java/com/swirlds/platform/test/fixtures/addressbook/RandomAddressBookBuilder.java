@@ -4,16 +4,17 @@ package com.swirlds.platform.test.fixtures.addressbook;
 import static com.swirlds.platform.crypto.KeyCertPurpose.AGREEMENT;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
-import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PublicStores;
-import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * A utility for generating a random address book.
@@ -254,8 +255,8 @@ public class RandomAddressBookBuilder {
         final long unboundedWeight;
         switch (weightDistributionStrategy) {
             case BALANCED -> unboundedWeight = averageWeight;
-            case GAUSSIAN -> unboundedWeight =
-                    Math.max(0, (long) (averageWeight + random.nextGaussian() * weightStandardDeviation));
+            case GAUSSIAN ->
+                unboundedWeight = Math.max(0, (long) (averageWeight + random.nextGaussian() * weightStandardDeviation));
             default -> throw new IllegalStateException("Unexpected value: " + weightDistributionStrategy);
         }
 
@@ -274,7 +275,7 @@ public class RandomAddressBookBuilder {
                 random.nextBytes(masterKey);
 
                 final KeysAndCerts keysAndCerts =
-                        KeysAndCerts.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
+                        KeysAndCertsGenerator.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
                 privateKeys.put(nodeId, keysAndCerts);
 
                 final SerializableX509Certificate sigCert =

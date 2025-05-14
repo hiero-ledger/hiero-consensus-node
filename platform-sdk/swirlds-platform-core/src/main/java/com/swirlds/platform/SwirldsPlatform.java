@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.event.preconsensus.PcesBirthRoundMigration.migratePcesToBirthRoundMode;
 import static com.swirlds.platform.state.BirthRoundStateMigration.modifyStateForBirthRoundMigration;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
+import static org.hiero.base.CompareTo.isLessThan;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningEventHashOverride;
@@ -28,17 +27,13 @@ import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -58,7 +53,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.platform.system.events.BirthRoundMigrationShim;
 import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
@@ -75,10 +69,16 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -185,10 +185,9 @@ public class SwirldsPlatform implements Platform {
         final SignedState initialState = blocks.initialState().get();
 
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
-        final SoftwareVersion appVersion = blocks.appVersion();
+        final SemanticVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(
-                initialState, ancientMode, appVersion.getPbjSemanticVersion(), platformStateFacade);
+        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
 
         selfId = blocks.selfId();
 
@@ -263,7 +262,7 @@ public class SwirldsPlatform implements Platform {
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.isInFreezePeriodReference().set(swirldStateManager::isInFreezePeriod);
+        blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
 
         final BirthRoundMigrationShim birthRoundMigrationShim =
                 buildBirthRoundMigrationShim(initialState, ancientMode, platformStateFacade);

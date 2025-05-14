@@ -5,10 +5,10 @@ import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
@@ -20,6 +20,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
@@ -31,7 +32,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Default implementation of the {@link HintsService}.
  */
-public class HintsServiceImpl implements HintsService {
+public class HintsServiceImpl implements HintsService, OnHintsFinished {
     private static final Logger logger = LogManager.getLogger(HintsServiceImpl.class);
 
     private final HintsServiceComponent component;
@@ -40,6 +41,9 @@ public class HintsServiceImpl implements HintsService {
 
     @NonNull
     private final AtomicReference<Roster> currentRoster = new AtomicReference<>();
+
+    @Nullable
+    private OnHintsFinished cb;
 
     public HintsServiceImpl(
             @NonNull final Metrics metrics,
@@ -50,7 +54,7 @@ public class HintsServiceImpl implements HintsService {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, currentRoster, blockPeriod);
+                .create(library, appContext, executor, metrics, currentRoster, blockPeriod, this);
     }
 
     @VisibleForTesting
@@ -60,8 +64,60 @@ public class HintsServiceImpl implements HintsService {
     }
 
     @Override
+    public void initCurrentRoster(@NonNull final Roster roster) {
+        requireNonNull(roster);
+        currentRoster.set(roster);
+    }
+
+    @Override
+    public void onFinishedConstruction(@Nullable final OnHintsFinished cb) {
+        this.cb = cb;
+    }
+
+    @Override
+    public void accept(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final HintsConstruction construction,
+            @NonNull final HintsContext context) {
+        requireNonNull(hintsStore);
+        requireNonNull(construction);
+        requireNonNull(context);
+        if (cb != null) {
+            cb.accept(hintsStore, construction, context);
+        }
+    }
+
+    @Override
     public boolean isReady() {
         return component.signingContext().isReady();
+    }
+
+    @Override
+    public long schemeId() {
+        return component.signingContext().activeSchemeIdOrThrow();
+    }
+
+    @Override
+    public Bytes verificationKey() {
+        return component.signingContext().verificationKeyOrThrow();
+    }
+
+    @Override
+    public void manageRosterAdoption(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean forceHandoff) {
+        requireNonNull(hintsStore);
+        requireNonNull(previousRoster);
+        requireNonNull(adoptedRoster);
+        requireNonNull(adoptedRosterHash);
+        if (hintsStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
+            final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
+            component.signingContext().setConstruction(activeConstruction);
+            logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
+        }
     }
 
     @Override
@@ -84,7 +140,9 @@ public class HintsServiceImpl implements HintsService {
                     controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
-            case HANDOFF -> hintsStore.updateForHandoff(activeRosters);
+            case HANDOFF -> {
+                // No-op
+            }
         }
         currentRoster.set(activeRosters.findRelatedRoster(activeRosters.currentRosterHash()));
     }
@@ -120,12 +178,6 @@ public class HintsServiceImpl implements HintsService {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext(), library));
-    }
-
-    @Override
-    public void initSigningForNextScheme(@NonNull final ReadableHintsStore hintsStore) {
-        requireNonNull(hintsStore);
-        component.signingContext().setConstruction(requireNonNull(hintsStore.getNextConstruction()));
     }
 
     @Override

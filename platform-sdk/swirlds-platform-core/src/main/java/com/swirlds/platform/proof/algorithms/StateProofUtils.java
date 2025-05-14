@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.algorithms;
 
-import static org.hiero.consensus.model.crypto.DigestType.SHA_384;
+import static org.hiero.base.crypto.DigestType.SHA_384;
 
 import com.swirlds.platform.proof.SignatureVerifier;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
 import com.swirlds.platform.proof.tree.StateProofNode;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.util.Deque;
@@ -16,6 +14,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Utility methods for validating state proofs.

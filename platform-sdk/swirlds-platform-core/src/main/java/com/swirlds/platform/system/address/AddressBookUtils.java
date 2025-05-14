@@ -3,18 +3,16 @@ package com.swirlds.platform.system.address;
 
 import static com.swirlds.platform.util.BootstrapUtils.detectSoftwareUpgrade;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.address.AddressBookInitializer;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.SoftwareVersion;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -22,6 +20,10 @@ import java.text.ParseException;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A utility class for AddressBook functionality.
@@ -230,18 +232,16 @@ public class AddressBookUtils {
      */
     public static @NonNull AddressBook initializeAddressBook(
             @NonNull final NodeId selfId,
-            @NonNull final SoftwareVersion version,
+            @NonNull final SemanticVersion version,
             @NonNull final ReservedSignedState initialState,
             @NonNull final AddressBook bootstrapAddressBook,
             @NonNull final PlatformContext platformContext,
             @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        final boolean softwareUpgrade =
-                detectSoftwareUpgrade(version.getPbjSemanticVersion(), initialState.get(), platformStateFacade);
+        final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get(), platformStateFacade);
         // Initialize the address book from the configuration and platform saved state.
         final AddressBookInitializer addressBookInitializer = new AddressBookInitializer(
                 selfId,
-                version,
                 softwareUpgrade,
                 initialState.get(),
                 bootstrapAddressBook.copy(),
@@ -259,14 +259,14 @@ public class AddressBookUtils {
                 // we might as well validate this fact here just to ensure the update is correct.
                 final Roster previousRoster =
                         RosterRetriever.buildRoster(addressBookInitializer.getPreviousAddressBook());
-                if (!previousRoster.equals(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
+                final long round = platformStateFacade.roundOf(state);
+                if (!previousRoster.equals(RosterRetriever.retrieveActive(state, round))
                         && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state))) {
                     throw new IllegalStateException(
                             "The previousRoster in the AddressBookInitializer doesn't match either the active or previous roster in state."
                                     + " AddressBookInitializer previousRoster = " + RosterUtils.toString(previousRoster)
                                     + ", state currentRoster = "
-                                    + RosterUtils.toString(
-                                            RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade))
+                                    + RosterUtils.toString(RosterRetriever.retrieveActive(state, round))
                                     + ", state previousRoster = "
                                     + RosterUtils.toString(RosterRetriever.retrievePreviousRoster(state)));
                 }
@@ -283,8 +283,8 @@ public class AddressBookUtils {
         }
 
         // At this point the initial state must have the current address book set.  If not, something is wrong.
-        final AddressBook addressBook =
-                RosterUtils.buildAddressBook(RosterRetriever.retrieveActiveOrGenesisRoster(state, platformStateFacade));
+        final long round = platformStateFacade.roundOf(state);
+        final AddressBook addressBook = RosterUtils.buildAddressBook(RosterRetriever.retrieveActive(state, round));
         if (addressBook == null) {
             throw new IllegalStateException("The current address book of the initial state is null.");
         }

@@ -4,8 +4,7 @@ package com.hedera.node.app.service.file.impl.schemas;
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
-import static java.util.Spliterator.DISTINCT;
-import static org.hiero.consensus.model.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +50,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -67,8 +67,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.Spliterators;
-import java.util.stream.StreamSupport;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -195,8 +193,8 @@ public class V0490FileSchema extends Schema {
      * Given a {@link SystemContext}, dispatches a synthetic file update transaction for the given file ID and contents.
      *
      * @param systemContext the system context
-     * @param fileId the file ID
-     * @param contents the contents of the file
+     * @param fileId        the file ID
+     * @param contents      the contents of the file
      */
     public static void dispatchSynthFileUpdate(
             @NonNull final SystemContext systemContext, @NonNull final FileID fileId, @NonNull final Bytes contents) {
@@ -209,7 +207,7 @@ public class V0490FileSchema extends Schema {
 
     public Bytes nodeStoreNodeDetails(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeDetails = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        nodeStore.keys().stream()
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())
@@ -235,7 +233,7 @@ public class V0490FileSchema extends Schema {
 
     public Bytes nodeStoreAddressBook(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeAddresses = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        nodeStore.keys().stream()
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())
@@ -277,7 +275,7 @@ public class V0490FileSchema extends Schema {
      */
     public Bytes genesisFeeSchedules(@NonNull final Configuration config) {
         final var resourceName = config.getConfigData(BootstrapConfig.class).feeSchedulesJsonResource();
-        try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+        try (final var in = loadResourceInPackage(resourceName)) {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
@@ -483,7 +481,7 @@ public class V0490FileSchema extends Schema {
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (apiPermissionsContent == null) {
             final var resourceName = "api-permission.properties";
-            try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+            try (final var in = loadResourceInRoot(resourceName)) {
                 apiPermissionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("API Permissions loaded from classpath resource {}", resourceName);
             } catch (IOException | NullPointerException e) {
@@ -577,8 +575,7 @@ public class V0490FileSchema extends Schema {
 
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (throttleDefinitionsContent == null) {
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(throttleDefinitionsResource)) {
+            try (final var in = loadResourceInPackage(throttleDefinitionsResource)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("Throttle definitions loaded from classpath resource {}", throttleDefinitionsResource);
             } catch (IOException | NullPointerException e) {
@@ -590,8 +587,7 @@ public class V0490FileSchema extends Schema {
 
         if (throttleDefinitionsContent == null) {
             // Load the default throttle definitions resource
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(DEFAULT_THROTTLES_RESOURCE)) {
+            try (final var in = loadResourceInPackage(DEFAULT_THROTTLES_RESOURCE)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info(
                         "Throttle definitions loaded from default fallback classpath resource {}",
@@ -686,5 +682,19 @@ public class V0490FileSchema extends Schema {
                 .shardNum(hederaConfig.shard())
                 .fileNum(fileNum)
                 .build();
+    }
+
+    /**
+     * Loads a resource from within a package. The package must be within the loading Module or exported/opened.
+     */
+    private static InputStream loadResourceInPackage(String resourcePath) {
+        return V0490FileSchema.class.getResourceAsStream("/" + resourcePath);
+    }
+
+    /**
+     * Loads a resource from the root of any Jar file (not inside a package).
+     */
+    private static InputStream loadResourceInRoot(String resourceName) {
+        return Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName);
     }
 }

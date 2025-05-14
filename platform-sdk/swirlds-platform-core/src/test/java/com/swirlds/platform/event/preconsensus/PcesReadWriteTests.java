@@ -15,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,20 +23,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
-import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.junit.extensions.ParamName;
+import org.hiero.junit.extensions.ParamSource;
+import org.hiero.junit.extensions.ParameterCombinationExtension;
+import org.hiero.junit.extensions.UseParameterSources;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("PCES Read Write Tests")
@@ -60,22 +65,28 @@ class PcesReadWriteTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
-    protected static Stream<Arguments> ancientModeArguments() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
+    protected static List<AncientMode> ancientModeArguments() {
+        return List.of(GENERATION_THRESHOLD, BIRTH_ROUND_THRESHOLD);
     }
 
-    protected static Stream<Arguments> ancientAndBoolanArguments() {
-        return Stream.of(
-                Arguments.of(GENERATION_THRESHOLD, false),
-                Arguments.of(BIRTH_ROUND_THRESHOLD, false),
-                Arguments.of(GENERATION_THRESHOLD, true),
-                Arguments.of(BIRTH_ROUND_THRESHOLD, true));
+    protected static Iterable<PcesFileWriterType> pcesFileWriterTypeArguments() {
+        return Arrays.stream(PcesFileWriterType.values()).toList().stream().toList();
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientAndBoolanArguments")
+    protected static Iterable<Boolean> booleanArguments() {
+        return List.of(Boolean.TRUE, Boolean.FALSE);
+    }
+
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Write Then Read Test")
-    void writeThenReadTest(@NonNull final AncientMode ancientMode, final boolean useFileChannelWriter)
+    void writeThenReadTest(
+            @NonNull @ParamName("ancientMode") final AncientMode ancientMode,
+            @ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -96,7 +107,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(0, 10);
@@ -110,7 +121,7 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile(useFileChannelWriter, false);
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
@@ -126,10 +137,17 @@ class PcesReadWriteTests {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModeArguments")
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Read Files After Minimum Test")
-    void readFilesAfterMinimumTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void readFilesAfterMinimumTest(
+            @NonNull @ParamName("ancientMode") final AncientMode ancientMode,
+            @ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
+            throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final int numEvents = 100;
@@ -149,7 +167,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         final long middle = upperBound / 2;
@@ -165,7 +183,7 @@ class PcesReadWriteTests {
                 upperBound,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
@@ -177,7 +195,7 @@ class PcesReadWriteTests {
         iterator.forEachRemaining(deserializedEvents::add);
 
         // We don't want any events with an ancient indicator less than the middle
-        events.removeIf(event -> event.getAncientIndicator(ancientMode) < middle);
+        events.removeIf(event -> ancientMode.selectIndicator(event) < middle);
 
         assertEquals(events.size(), deserializedEvents.size());
         for (int i = 0; i < events.size(); i++) {
@@ -200,17 +218,25 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(PcesFileWriterType.OUTPUT_STREAM);
         mutableFile.close();
 
         final IOIterator<PlatformEvent> iterator = file.iterator(Long.MIN_VALUE);
         assertFalse(iterator.hasNext());
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientAndBoolanArguments")
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Truncated Event Test")
-    void truncatedEventTest(@NonNull final AncientMode ancientMode, final boolean truncateOnBoundary)
+    void truncatedEventTest(
+            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
+            final @ParamName("truncateOnBoundary") boolean truncateOnBoundary,
+            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -231,7 +257,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(0, 10);
@@ -247,7 +273,7 @@ class PcesReadWriteTests {
 
         final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (int i = 0; i < events.size(); i++) {
             final PlatformEvent event = events.get(i);
             mutableFile.writeEvent(event);
@@ -277,10 +303,18 @@ class PcesReadWriteTests {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModeArguments")
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Corrupted Events Test")
-    void corruptedEventsTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void corruptedEventsTest(
+            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
+            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+            throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final int numEvents = 100;
@@ -300,7 +334,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(0, 10);
@@ -316,7 +350,7 @@ class PcesReadWriteTests {
 
         final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (int i = 0; i < events.size(); i++) {
             final PlatformEvent event = events.get(i);
             mutableFile.writeEvent(event);
@@ -341,10 +375,18 @@ class PcesReadWriteTests {
         assertThrows(Exception.class, iterator::next);
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModeArguments")
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Write Invalid Event Test")
-    void writeInvalidEventTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void writeInvalidEventTest(
+            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
+            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+            throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final int numEvents = 100;
@@ -365,8 +407,8 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, event.getAncientIndicator(ancientMode));
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         // Intentionally choose minimum and maximum boundaries that do not permit all generated events
@@ -381,12 +423,12 @@ class PcesReadWriteTests {
                 restrictedUpperBound,
                 0,
                 testDirectory);
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
 
         final List<PlatformEvent> validEvents = new ArrayList<>();
         for (final PlatformEvent event : events) {
-            if (event.getAncientIndicator(ancientMode) >= restrictedLowerBound
-                    && event.getAncientIndicator(ancientMode) <= restrictedUpperBound) {
+            if (ancientMode.selectIndicator(event) >= restrictedLowerBound
+                    && ancientMode.selectIndicator(event) <= restrictedUpperBound) {
                 mutableFile.writeEvent(event);
                 validEvents.add(event);
             } else {
@@ -404,10 +446,18 @@ class PcesReadWriteTests {
         assertFalse(iterator.hasNext());
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModeArguments")
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Span Compression Test")
-    void spanCompressionTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void spanCompressionTest(
+            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
+            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+            throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed(0);
 
         final int numEvents = 100;
@@ -428,8 +478,8 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, event.getAncientIndicator(ancientMode));
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         upperBound += random.nextInt(1, 10);
@@ -443,7 +493,7 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }
@@ -470,10 +520,19 @@ class PcesReadWriteTests {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("ancientModeArguments")
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
+        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+    })
     @DisplayName("Partial Span Compression Test")
-    void partialSpanCompressionTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void partialSpanCompressionTest(
+            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
+            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+            throws IOException {
+
         final Random random = RandomUtils.getRandomPrintSeed(0);
 
         final int numEvents = 100;
@@ -494,8 +553,8 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, event.getAncientIndicator(ancientMode));
-            upperBound = Math.max(upperBound, event.getAncientIndicator(ancientMode));
+            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
         }
 
         final long maximumFileBoundary = upperBound + random.nextInt(10, 20);
@@ -510,7 +569,7 @@ class PcesReadWriteTests {
                 0,
                 testDirectory);
 
-        final PcesMutableFile mutableFile = file.getMutableFile();
+        final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
             mutableFile.writeEvent(event);
         }

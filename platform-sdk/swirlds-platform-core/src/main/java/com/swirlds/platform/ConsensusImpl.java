@@ -3,11 +3,13 @@ package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.stream.Collectors.toSet;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -21,13 +23,12 @@ import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
 import com.swirlds.platform.consensus.CountingVote;
+import com.swirlds.platform.consensus.DeGen;
 import com.swirlds.platform.consensus.InitJudges;
 import com.swirlds.platform.consensus.RoundElections;
 import com.swirlds.platform.event.EventUtils;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
-import com.swirlds.platform.roster.RosterUtils;
 import com.swirlds.platform.util.MarkerFileWriter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -39,18 +40,20 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
@@ -242,8 +245,16 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        initJudges = new InitJudges(
-                snapshot.round(), snapshot.judgeHashes().stream().map(Hash::new).collect(Collectors.toSet()));
+        final Set<Hash> judgeHashes;
+        if (!snapshot.judgeHashes().isEmpty()) {
+            // Deprecated case, we are loading from a snapshot that contains just judge hashes, no ids
+            judgeHashes = snapshot.judgeHashes().stream().map(Hash::new).collect(toSet());
+        } else {
+            judgeHashes = snapshot.judgeIds().stream()
+                    .map(judge -> new Hash(judge.judgeHash()))
+                    .collect(toSet());
+        }
+        initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
         lastConsensusTime = CommonUtils.fromPbjTimestamp(snapshot.consensusTimestamp());
@@ -347,6 +358,10 @@ public class ConsensusImpl implements Consensus {
                 // - its metadata will be unchanged
                 // - it will not vote
                 // - it will never decide a round
+
+                // The only exception to this the DeGen value. This needs to be recalculated on every round, and all
+                // descendants of decided judges will base their DeGen on them.
+                DeGen.calculateDeGen(insertedEvent);
                 continue;
             }
 
@@ -373,6 +388,9 @@ public class ConsensusImpl implements Consensus {
 
     @Nullable
     private ConsensusRound calculateAndVote(final EventImpl event) {
+        // before we calculate the round of an event, we need to calculate its DeGen value, since it might be needed
+        // to determine an event's round
+        DeGen.calculateDeGen(event);
         // find the roundCreated, and store it using event.setRoundCreated()
         round(event);
         consensusMetrics.addedEvent(event);
@@ -469,10 +487,10 @@ public class ConsensusImpl implements Consensus {
         });
         // This value is normally updated when a round gets decided, but since we are starting from
         // a snapshot, we need to set it here.
-        rounds.setConsensusRelevantGeneration(initJudges.getJudges().stream()
-                .map(EventImpl::getGeneration)
+        rounds.setConsensusRelevantNGen(initJudges.getJudges().stream()
+                .map(EventImpl::getNGen)
                 .min(Long::compareTo)
-                .orElse(EventConstants.FIRST_GENERATION));
+                .orElse(NonDeterministicGeneration.FIRST_GENERATION));
         initJudges = null;
 
         return true;
@@ -630,8 +648,9 @@ public class ConsensusImpl implements Consensus {
             @NonNull final CountingVote countingVote) {
         // a coin round. Vote randomly unless you strongly see a supermajority. Don't decide.
         consensusMetrics.coinRound();
-        final boolean vote =
-                countingVote.isSupermajority() ? countingVote.getVote() : ConsensusUtils.coin(votingWitness);
+        final boolean vote = countingVote.isSupermajority()
+                ? countingVote.getVote()
+                : ConsensusUtils.coin(votingWitness.getBaseEvent().getSignature());
 
         votingWitness.setVote(candidateWitness, vote);
     }
@@ -736,16 +755,21 @@ public class ConsensusImpl implements Consensus {
         final long nonAncientThreshold = rounds.getAncientThreshold();
         final long nonExpiredThreshold = rounds.getExpiredThreshold();
 
+        final List<JudgeId> judgeIds = judges.stream()
+                .map(event -> new JudgeId(
+                        event.getCreatorId().id(), event.getBaseHash().getBytes()))
+                .toList();
         return new ConsensusRound(
                 roster,
                 consensusEvents,
                 new EventWindow(decidedRoundNumber, nonAncientThreshold, nonExpiredThreshold, ancientMode),
                 new ConsensusSnapshot(
                         decidedRoundNumber,
-                        ConsensusUtils.getHashBytes(judges),
+                        List.of(),
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        CommonUtils.toPbjTimestamp(lastConsensusTime)),
+                        CommonUtils.toPbjTimestamp(lastConsensusTime),
+                        judgeIds),
                 pcesMode,
                 time.now());
     }
@@ -798,7 +822,7 @@ public class ConsensusImpl implements Consensus {
         // "consensus" now has all events in history with receivedRound==round
         // there will never be any more events with receivedRound<=round (not even if the address
         // book changes)
-        consensus.sort(new ConsensusSorter(whitening));
+        ConsensusSorter.sort(consensus, whitening);
 
         // Set the consensus number for every event that just became a consensus
         // event. Add more info about it to the hashgraph. Set event.lastInRoundReceived
@@ -977,8 +1001,10 @@ public class ConsensusImpl implements Consensus {
             } else {
                 final EventImpl lsop = lastSee(op, mm);
                 final EventImpl lssp = lastSee(sp, mm);
-                final long lsopGen = lsop == null ? 0 : lsop.getGeneration();
-                final long lsspGen = lssp == null ? 0 : lssp.getGeneration();
+                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this will be for events
+                // that will not affect consensus, so it makes no difference
+                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
+                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
                 if ((round(lsop) > round(lssp)) || ((lsopGen > lsspGen) && (firstSee(op, mm) == firstSee(sp, mm)))) {
                     x.setLastSee(mm, lsop);
                 } else {

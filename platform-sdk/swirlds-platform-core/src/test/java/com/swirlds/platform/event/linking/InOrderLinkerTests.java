@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -11,16 +11,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Random;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -100,7 +100,8 @@ class InOrderLinkerTests {
         for (final PlatformEvent ancientEvent : ancientEvents) {
             ancientValue = switch (ancientMode) {
                 case BIRTH_ROUND_THRESHOLD -> Math.max(ancientValue, ancientEvent.getBirthRound());
-                case GENERATION_THRESHOLD -> Math.max(ancientValue, ancientEvent.getGeneration());};
+                case GENERATION_THRESHOLD -> Math.max(ancientValue, ancientEvent.getGeneration());
+            };
         }
 
         final EventWindow eventWindow = new EventWindow(

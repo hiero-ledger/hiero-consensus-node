@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.algorithms;
 
-import static com.swirlds.common.utility.ByteUtils.intToByteArray;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
+import static org.hiero.base.utility.ByteUtils.intToByteArray;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -25,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

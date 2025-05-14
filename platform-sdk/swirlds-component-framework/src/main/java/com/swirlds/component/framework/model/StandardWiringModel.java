@@ -19,6 +19,7 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -80,6 +81,16 @@ public class StandardWiringModel extends TraceableWiringModel {
     private final Duration healthLogPeriod;
 
     /**
+     * How long between two consecutive reports when the system is healthy.
+     */
+    private final Duration healthyReportThreshold;
+
+    /**
+     * The (optional) global {@link UncaughtExceptionHandler} for the wiring framework
+     */
+    private final UncaughtExceptionHandler taskSchedulerExceptionHandler;
+
+    /**
      * Constructor.
      *
      * @param builder the builder for this model, contains all needed configuration
@@ -104,6 +115,7 @@ public class StandardWiringModel extends TraceableWiringModel {
 
         healthLogThreshold = builder.getHealthLogThreshold();
         healthLogPeriod = builder.getHealthLogPeriod();
+        healthyReportThreshold = builder.getHealthyReportThreshold();
         healthMonitorScheduler = healthMonitorSchedulerBuilder.build();
         healthMonitorInputWire = healthMonitorScheduler.buildInputWire("check system health");
         buildHeartbeatWire(builder.getHealthMonitorPeriod()).solderTo(healthMonitorInputWire);
@@ -113,6 +125,8 @@ public class StandardWiringModel extends TraceableWiringModel {
         } else {
             anchor = null;
         }
+
+        taskSchedulerExceptionHandler = builder.getTaskSchedulerExceptionHandler();
     }
 
     /**
@@ -122,7 +136,12 @@ public class StandardWiringModel extends TraceableWiringModel {
     @Override
     public final <O> TaskSchedulerBuilder<O> schedulerBuilder(@NonNull final String name) {
         throwIfStarted();
-        return new StandardTaskSchedulerBuilder<>(this.time, this.metrics, this, name, defaultPool);
+        final StandardTaskSchedulerBuilder<O> builder =
+                new StandardTaskSchedulerBuilder<>(this.time, this.metrics, this, name, defaultPool);
+        if (taskSchedulerExceptionHandler != null) {
+            builder.withUncaughtExceptionHandler(taskSchedulerExceptionHandler);
+        }
+        return builder;
     }
 
     /**
@@ -186,7 +205,8 @@ public class StandardWiringModel extends TraceableWiringModel {
             anchor.start();
         }
 
-        healthMonitor = new HealthMonitor(metrics, time, schedulers, healthLogThreshold, healthLogPeriod);
+        healthMonitor = new HealthMonitor(
+                metrics, time, schedulers, healthLogThreshold, healthLogPeriod, healthyReportThreshold);
         healthMonitorInputWire.bind(healthMonitor::checkSystemHealth);
 
         markAsStarted();

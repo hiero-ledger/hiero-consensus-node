@@ -11,14 +11,12 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
@@ -94,37 +92,6 @@ public class EndOfStakingPeriodUpdaterTest {
     }
 
     @Test
-    void skipsEndOfStakingPeriodUpdatesIfStakingNotEnabled() {
-        // Set up the staking config
-        final var context = mock(TokenContext.class);
-        given(context.configuration())
-                .willReturn(
-                        newStakingConfig().withValue("staking.isEnabled", false).getOrCreateConfig());
-        // Set up the relevant stores (and data)
-        final var stakingInfoStore = mock(WritableStakingInfoStore.class);
-        final var stakingRewardsStore = mock(WritableNetworkStakingRewardsStore.class);
-
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT);
-
-        verifyNoInteractions(stakingInfoStore, stakingRewardsStore);
-    }
-
-    @Test
-    void doesNothingWhenStakingConfigIsNotEnabled() {
-        given(context.configuration())
-                .willReturn(
-                        newStakingConfig().withValue("staking.isEnabled", false).getOrCreateConfig());
-        // Set up the relevant stores (and data)
-        final var stakingInfoStore = mock(WritableStakingInfoStore.class);
-        final var stakingRewardsStore = mock(WritableNetworkStakingRewardsStore.class);
-
-        subject.updateNodes(context, ExchangeRateSet.DEFAULT);
-
-        verifyNoInteractions(stakingInfoStore, stakingRewardsStore);
-        assertThat(logCaptor.infoLogs()).contains("Staking not enabled, nothing to do");
-    }
-
-    @Test
     void calculatesMidnightTimeCorrectly() {
         final var consensusSecs = 1653660350L;
         final var consensusNanos = 12345L;
@@ -168,7 +135,8 @@ public class EndOfStakingPeriodUpdaterTest {
         given(context.writableStore(WritableStakingInfoStore.class)).willReturn(stakingInfoStore);
 
         // Create staking reward store (with data)
-        final var backingValue = new AtomicReference<>(new NetworkStakingRewards(true, totalStakeRewardStart, 0, 0));
+        final var backingValue =
+                new AtomicReference<>(new NetworkStakingRewards(true, totalStakeRewardStart, 0, 0, Timestamp.DEFAULT));
         WritableSingletonState<NetworkStakingRewards> stakingRewardsState =
                 new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
         final var states = mock(WritableStates.class);
@@ -279,7 +247,6 @@ public class EndOfStakingPeriodUpdaterTest {
     private static TestConfigBuilder newStakingConfig() {
         return HederaTestConfigBuilder.create()
                 .withConfigDataType(StakingConfig.class)
-                .withValue("staking.isEnabled", true)
                 .withValue("staking.rewardRate", 100L)
                 .withValue("staking.sumOfConsensusWeights", SUM_OF_CONSENSUS_WEIGHTS)
                 .withValue("staking.maxStakeRewarded", Long.MAX_VALUE)

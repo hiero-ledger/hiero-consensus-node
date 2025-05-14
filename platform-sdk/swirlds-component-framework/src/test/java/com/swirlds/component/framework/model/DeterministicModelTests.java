@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomInstant;
-import static com.swirlds.common.utility.NonCryptographicHashing.hash32;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.CONCURRENT;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
@@ -14,6 +11,9 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Fail.fail;
+import static org.hiero.base.utility.NonCryptographicHashing.hash32;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.utility.NonCryptographicHashing;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -35,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import org.hiero.base.utility.NonCryptographicHashing;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -344,39 +344,31 @@ class DeterministicModelTests {
         final long meshSeed = random.nextLong();
         final long dataSeed = random.nextLong();
 
-        final long value1 = evaluateMesh(
-                dataSeed,
-                generateWiringMesh(
-                        meshSeed,
-                        WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                                .build(),
-                        enableHeartbeat),
-                () -> {
-                    try {
-                        MILLISECONDS.sleep(1);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                });
+        final WiringModel model1 =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final long value1 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model1, enableHeartbeat), () -> {
+            try {
+                MILLISECONDS.sleep(1);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        });
 
-        final long value2 = evaluateMesh(
-                dataSeed,
-                generateWiringMesh(
-                        meshSeed,
-                        WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                                .build(),
-                        enableHeartbeat),
-                () -> {
-                    try {
-                        MILLISECONDS.sleep(1);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(e);
-                    }
-                });
+        final WiringModel model2 =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final long value2 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model2, enableHeartbeat), () -> {
+            try {
+                MILLISECONDS.sleep(1);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        });
 
         assertNotEquals(value1, value2);
+        model1.stop();
+        model2.stop();
     }
 
     @Test
@@ -386,7 +378,6 @@ class DeterministicModelTests {
         final long dataSeed = random.nextLong();
 
         final FakeTime time = new FakeTime(randomInstant(random), Duration.ZERO);
-
         final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
@@ -407,6 +398,8 @@ class DeterministicModelTests {
                 });
 
         assertEquals(value1, value2);
+        deterministicWiringModel1.stop();
+        deterministicWiringModel2.stop();
     }
 
     /**

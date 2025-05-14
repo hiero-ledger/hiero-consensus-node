@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.service;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.utility.CommonUtils.fromPbjTimestamp;
+import static org.hiero.base.utility.CommonUtils.fromPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -11,7 +11,7 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Provides access to a snapshot of the platform state.

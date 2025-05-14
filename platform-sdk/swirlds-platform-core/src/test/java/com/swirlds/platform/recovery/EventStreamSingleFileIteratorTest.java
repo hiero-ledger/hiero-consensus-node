@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.generateRandomEvents;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.getFirstEventStreamFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.truncateFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -14,8 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamSingleFileIterator;
@@ -26,6 +24,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;

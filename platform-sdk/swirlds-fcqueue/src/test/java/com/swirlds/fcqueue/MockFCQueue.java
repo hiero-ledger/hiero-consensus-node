@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.fcqueue;
 
-import static com.swirlds.common.utility.ByteUtils.byteArrayToLong;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
 import static com.swirlds.fcqueue.internal.FCQHashAlgorithm.HASH_RADIX;
+import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.test.fixtures.fcqueue.FCInt;
@@ -13,8 +13,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.crypto.Hash;
-import org.hiero.consensus.model.crypto.SerializableHashable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * A thread-safe fast-copyable queue, each of whose elements is fast-copyable. Elements must always be inserted at the

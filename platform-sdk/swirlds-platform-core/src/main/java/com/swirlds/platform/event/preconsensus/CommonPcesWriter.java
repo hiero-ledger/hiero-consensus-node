@@ -7,13 +7,13 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.LongRunningAverage;
-import com.swirlds.platform.eventhandling.EventConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -24,11 +24,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  */
 public class CommonPcesWriter {
     private static final Logger logger = LogManager.getLogger(CommonPcesWriter.class);
-
-    /**
-     *  If {@code true} {@code FileChannel} is used to write to the file and if {@code false} {@code OutputStream} is used.
-     */
-    private static final boolean USE_FILE_CHANNEL_WRITER = false;
 
     /**
      * Keeps track of the event stream files on disk.
@@ -114,22 +109,21 @@ public class CommonPcesWriter {
      */
     private final AncientMode fileType;
 
-    private final boolean syncEveryEvent;
+    /**
+     * The type of writer to use
+     */
+    private final PcesFileWriterType pcesFileWriterType;
 
     /**
      * Constructor
      *
      * @param platformContext the platform context
      * @param fileManager     manages all PCES files currently on disk
-     * @param syncEveryEvent  whether to sync the file after every event
      */
     public CommonPcesWriter(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final PcesFileManager fileManager,
-            final boolean syncEveryEvent) {
+            @NonNull final PlatformContext platformContext, @NonNull final PcesFileManager fileManager) {
         Objects.requireNonNull(platformContext, "platformContext is required");
         this.fileManager = Objects.requireNonNull(fileManager, "fileManager is required");
-        this.syncEveryEvent = syncEveryEvent;
 
         final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
         final EventConfig eventConfig = platformContext.getConfiguration().getConfigData(EventConfig.class);
@@ -139,6 +133,7 @@ public class CommonPcesWriter {
         spanOverlapFactor = pcesConfig.spanOverlapFactor();
         minimumSpan = pcesConfig.minimumSpan();
         preferredFileSizeMegabytes = pcesConfig.preferredFileSizeMegabytes();
+        pcesFileWriterType = pcesConfig.pcesFileWriterType();
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
 
@@ -257,8 +252,7 @@ public class CommonPcesWriter {
     public boolean prepareOutputStream(@NonNull final PlatformEvent eventToWrite) throws IOException {
         boolean fileClosed = false;
         if (currentMutableFile != null) {
-            final boolean fileCanContainEvent =
-                    currentMutableFile.canContain(eventToWrite.getAncientIndicator(fileType));
+            final boolean fileCanContainEvent = currentMutableFile.canContain(fileType.selectIndicator(eventToWrite));
             final boolean fileIsFull =
                     UNIT_BYTES.convertTo(currentMutableFile.fileSize(), UNIT_MEGABYTES) >= preferredFileSizeMegabytes;
 
@@ -274,12 +268,12 @@ public class CommonPcesWriter {
 
         // if the block above closed the file, then we need to create a new one
         if (currentMutableFile == null) {
-            final long upperBound = nonAncientBoundary
-                    + computeNewFileSpan(nonAncientBoundary, eventToWrite.getAncientIndicator(fileType));
+            final long upperBound =
+                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, fileType.selectIndicator(eventToWrite));
 
             currentMutableFile = fileManager
                     .getNextFileDescriptor(nonAncientBoundary, upperBound)
-                    .getMutableFile(USE_FILE_CHANNEL_WRITER, syncEveryEvent);
+                    .getMutableFile(pcesFileWriterType);
         }
 
         return fileClosed;

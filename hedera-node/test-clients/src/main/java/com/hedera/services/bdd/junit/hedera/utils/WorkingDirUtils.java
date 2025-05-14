@@ -19,7 +19,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -40,6 +39,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.roster.AddressBook;
 
 public class WorkingDirUtils {
     private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
@@ -403,10 +403,11 @@ public class WorkingDirUtils {
                     final var cert = certs.get(nodeId);
                     final var metadata = NodeMetadata.newBuilder()
                             .rosterEntry(new RosterEntry(nodeId, weight, cert, gossipEndpoints));
+                    final var nodeAccount = toPbj(HapiPropertySource.asAccount(parts[9]));
                     if (onlyRoster == OnlyRoster.NO) {
                         metadata.node(new Node(
                                 nodeId,
-                                toPbj(HapiPropertySource.asAccount(parts[9])),
+                                nodeAccount,
                                 "node" + (nodeId + 1),
                                 gossipEndpoints,
                                 List.of(),
@@ -415,7 +416,9 @@ public class WorkingDirUtils {
                                 Bytes.EMPTY,
                                 weight,
                                 false,
-                                CLASSIC_ADMIN_KEY));
+                                CLASSIC_ADMIN_KEY,
+                                false,
+                                null));
                     }
                     return metadata.build();
                 })

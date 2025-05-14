@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.gossip;
 
-import com.swirlds.platform.system.address.AddressBook;
+import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -15,6 +15,8 @@ import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Connects {@link SimulatedGossip} peers in a simulated network.
@@ -64,6 +66,29 @@ public class SimulatedNetwork {
      * Constructor.
      *
      * @param random                 the random number generator to use for simulating network delays
+     * @param roster                 the roster of the network
+     * @param averageDelay           the average delay for events to travel between nodes
+     * @param standardDeviationDelay the standard deviation of the delay for events to travel between nodes
+     */
+    public SimulatedNetwork(
+            @NonNull final Random random,
+            @NonNull final Roster roster,
+            @NonNull final Duration averageDelay,
+            @NonNull final Duration standardDeviationDelay) {
+        this(
+                random,
+                roster.rosterEntries().stream()
+                        .map(RosterUtils::getNodeId)
+                        .sorted()
+                        .toList(),
+                averageDelay,
+                standardDeviationDelay);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param random                 the random number generator to use for simulating network delays
      * @param addressBook            the address book of the network
      * @param averageDelay           the average delay for events to travel between nodes
      * @param standardDeviationDelay the standard deviation of the delay for events to travel between nodes
@@ -73,10 +98,18 @@ public class SimulatedNetwork {
             @NonNull final AddressBook addressBook,
             @NonNull final Duration averageDelay,
             @NonNull final Duration standardDeviationDelay) {
+        this(random, addressBook.getNodeIdSet().stream().sorted().toList(), averageDelay, standardDeviationDelay);
+    }
+
+    private SimulatedNetwork(
+            @NonNull final Random random,
+            @NonNull final List<NodeId> nodeIds,
+            @NonNull final Duration averageDelay,
+            @NonNull final Duration standardDeviationDelay) {
 
         this.random = Objects.requireNonNull(random);
 
-        for (final NodeId nodeId : addressBook.getNodeIdSet().stream().sorted().toList()) {
+        for (final NodeId nodeId : nodeIds) {
             newlySubmittedEvents.put(nodeId, new ArrayList<>());
             sortedNodeIds.add(nodeId);
             eventsInTransit.put(nodeId, new PriorityQueue<>());

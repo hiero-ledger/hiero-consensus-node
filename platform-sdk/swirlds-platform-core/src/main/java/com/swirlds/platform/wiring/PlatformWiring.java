@@ -32,25 +32,19 @@ import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.creation.EventCreationManager;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
-import com.swirlds.platform.event.signing.SelfEventSigner;
-import com.swirlds.platform.event.stale.StaleEventDetector;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.event.validation.RosterUpdate;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.pool.TransactionPool;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
@@ -80,10 +74,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Function;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
+import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -91,7 +90,6 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
-import org.hiero.event.creator.impl.EventCreationConfig;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -109,8 +107,7 @@ public class PlatformWiring {
     private final ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring;
-    private final ComponentWiring<EventCreationManager, UnsignedEvent> eventCreationManagerWiring;
-    private final ComponentWiring<SelfEventSigner, PlatformEvent> selfEventSignerWiring;
+    private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
     private final ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring;
     private final PcesReplayerWiring pcesReplayerWiring;
@@ -192,7 +189,6 @@ public class PlatformWiring {
 
         eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, config.eventCreationManager());
-        selfEventSignerWiring = new ComponentWiring<>(model, SelfEventSigner.class, config.selfEventSigner());
 
         applicationTransactionPrehandlerWiring =
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler());
@@ -354,7 +350,8 @@ public class PlatformWiring {
          *   -> EventHasher -> InternalEventValidator ->
          */
 
-        final InputWire<PlatformEvent> hasherInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
+        final InputWire<PlatformEvent> hasherInputWire =
+                eventHasherWiring.getInputWire(EventHasher::hashEvent, "unhashed event");
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
 
         if (birthRoundMigrationShimWiring != null) {
@@ -382,14 +379,17 @@ public class PlatformWiring {
         final OutputWire<PlatformEvent> splitOrphanBufferOutput = orphanBufferWiring.getSplitOutput();
 
         splitOrphanBufferOutput.solderTo(pcesInlineWriterWiring.getInputWire(InlinePcesWriter::writeEvent));
-        // make sure that an event is persisted before being sent to consensus, this avoids the situation where we
+
+        // Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
         // reach consensus with events that might be lost due to a crash
         pcesInlineWriterWiring.getOutputWire().solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
-        // make sure events are persisted before being gossipped, this prevents accidental branching in the case
+
+        // Make sure events are persisted before being gossipped. This prevents accidental branching in the case
         // where an event is created, gossipped, and then the node crashes before the event is persisted.
-        // after restart, a node will not be aware of this event, so it can create a branch
+        // After restart, a node will not be aware of this event, so it can create a branch
         pcesInlineWriterWiring.getOutputWire().solderTo(gossipWiring.getEventInput(), INJECT);
-        // avoid using events as parents before they are persisted
+
+        // Avoid using events as parents before they are persisted
         pcesInlineWriterWiring
                 .getOutputWire()
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
@@ -418,9 +418,6 @@ public class PlatformWiring {
                 .solderTo(statusStateMachineWiring.getInputWire(StatusStateMachine::heartbeat), OFFER);
 
         eventCreationManagerWiring
-                .getOutputWire()
-                .solderTo(selfEventSignerWiring.getInputWire(SelfEventSigner::signEvent));
-        selfEventSignerWiring
                 .getOutputWire()
                 .solderTo(staleEventDetectorWiring.getInputWire(StaleEventDetector::addSelfEvent));
 
@@ -696,7 +693,6 @@ public class PlatformWiring {
         pcesReplayerWiring.bind(pcesReplayer);
         pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         eventCreationManagerWiring.bind(builder::buildEventCreationManager);
-        selfEventSignerWiring.bind(builder::buildSelfEventSigner);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);

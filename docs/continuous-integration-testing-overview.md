@@ -32,6 +32,23 @@ within a 30-minute window but which are still necessary to derive if a commit sh
 candidate. XTS are intended to complete within a given 3-hour window. These tests are described by the
 `ZXCron: Extended Test Suite` workflow.
 
+### XTS Test Suite
+
+The XTS text suite consists of the following tests:
+
+- timing-sensitive-tests
+- time-consuming-tests
+- hammer-tests
+- hapi-tests-time-consuming
+
+It also includes the following JRS Panels
+- JRS Panel:
+- Configuration file: `configs/suites/GCP-PRCheck-Abbrev-4N.json`
+- Custom job name: `Platform SDK`
+- Hedera Node JRS Panel:
+- Configuration file: `configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json`
+- Custom job name: `Abbrev Update Test`
+
 ### Dry-Running XTS Tests
 
 There is an additional workflow: `ZXF: Extended Test Suite - Dry Run` which is available for use within the

@@ -12,7 +12,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasN
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.common.primitives.Ints;
@@ -193,8 +193,8 @@ public class ConversionUtils {
     /**
      * Given a {@link TokenID}, returns its address as a headlong address.
      *
-     * @param tokenId
-     * @return
+     * @param tokenId the Token Id
+     * @return the headlong address
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final TokenID tokenId) {
         requireNonNull(tokenId);
@@ -276,7 +276,7 @@ public class ConversionUtils {
     }
 
     /**
-     * Wraps the first 32 bytes of the given SHA-384 {@link org.hiero.consensus.model.crypto.Hash hash} in a Besu {@link Hash}.
+     * Wraps the first 32 bytes of the given SHA-384 {@link org.hiero.base.crypto.Hash hash} in a Besu {@link Hash}.
      *
      * @param sha384Hash the SHA-384 hash
      * @return the first 32 bytes as a Besu {@link Hash}
@@ -742,7 +742,7 @@ public class ConversionUtils {
      * @return its long value
      */
     public static long numberOfLongZero(@NonNull final byte[] explicit) {
-        return longFrom(
+        final var number = longFrom(
                 explicit[12],
                 explicit[13],
                 explicit[14],
@@ -751,6 +751,10 @@ public class ConversionUtils {
                 explicit[17],
                 explicit[18],
                 explicit[19]);
+        if (number < 0) {
+            throw new IllegalArgumentException("Number is negative");
+        }
+        return number;
     }
 
     /**
@@ -760,7 +764,7 @@ public class ConversionUtils {
      * @return its realm value
      */
     public static long realmOfLongZero(@NonNull final byte[] explicit) {
-        return longFrom(
+        final var realm = longFrom(
                 explicit[4],
                 explicit[5],
                 explicit[6],
@@ -769,6 +773,10 @@ public class ConversionUtils {
                 explicit[9],
                 explicit[10],
                 explicit[11]);
+        if (realm < 0) {
+            throw new IllegalArgumentException("Realm is negative");
+        }
+        return realm;
     }
 
     /**
@@ -777,8 +785,12 @@ public class ConversionUtils {
      * @param explicit the explicit 20-byte address
      * @return its shard value
      */
-    public static long shardOfLongZero(@NonNull final byte[] explicit) {
-        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
+    public static int shardOfLongZero(@NonNull final byte[] explicit) {
+        final var shard = longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
+        if (shard < 0) {
+            throw new IllegalArgumentException("Shard is negative");
+        }
+        return shard;
     }
 
     // too many arguments
@@ -802,8 +814,8 @@ public class ConversionUtils {
                 | (b8 & 0xFFL);
     }
 
-    private static long longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
-        return (b1 & 0xFFL) << 24 | (b2 & 0xFFL) << 16 | (b3 & 0xFFL) << 8 | (b4 & 0xFFL);
+    private static int longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
+        return (b1 & 0xFF) << 24 | (b2 & 0xFF) << 16 | (b3 & 0xFF) << 8 | (b4 & 0xFF);
     }
 
     private static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
@@ -921,6 +933,33 @@ public class ConversionUtils {
             // OrElse(0) is needed, as an UNSET contract OneOf has null number
             return asLongZeroAddress(entityIdFactory.newAccountId(contractId.contractNumOrElse(0L)));
         }
+    }
+
+    /**
+     * Given a {@link ContractID} return the corresponding Long entity id
+     * The id can be tokenId, scheduleId, etc. Depends on what user is sending in the 'contractID' field.
+     * <p>
+     * Returns 0 if contractId in a non-long zero evm address
+     *
+     * @param entityIdFactory the entity id factory
+     * @param contractId the contract id
+     * @return the equivalent entity id (0 if contractId in a non-long zero evm address)
+     */
+    public static @NonNull Long contractIDToNum(
+            @NonNull final EntityIdFactory entityIdFactory, final ContractID contractId) {
+        final Long id;
+        // For convenience also translate a long-zero address to a entity id
+        if (contractId.hasEvmAddress()) {
+            final var evmAddress = contractId.evmAddressOrThrow().toByteArray();
+            if (isLongZeroAddress(entityIdFactory, evmAddress)) {
+                id = numberOfLongZero(evmAddress);
+            } else {
+                id = 0L;
+            }
+        } else {
+            id = contractId.contractNumOrElse(0L);
+        }
+        return id;
     }
 
     /**

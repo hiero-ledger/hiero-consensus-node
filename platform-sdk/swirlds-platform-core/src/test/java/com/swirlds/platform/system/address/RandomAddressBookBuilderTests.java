@@ -7,16 +7,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyProvider;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.Test;
 
 class RandomAddressBookBuilderTests {
@@ -96,7 +99,7 @@ class RandomAddressBookBuilderTests {
 
             final byte[] dataArray = randotron.nextByteArray(64);
             final Bytes dataBytes = Bytes.wrap(dataArray);
-            final com.swirlds.common.crypto.Signature signature = new PlatformSigner(privateKeys).sign(dataArray);
+            final Signature signature = new PlatformSigner(privateKeys).sign(dataArray);
 
             assertTrue(CryptoStatic.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
 

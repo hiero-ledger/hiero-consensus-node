@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -68,6 +69,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -105,7 +107,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         // TOPIC_FEE_105
         final Stream<DynamicTest> messageSubmitToPublicTopicWithFee1token(
                 @FungibleToken(name = "fungibleToken", initialSupply = 123456) SpecFungibleToken ft,
-                @Contract(contract = "TokenTransferContract", creationGas = 1_000_000L) SpecContract contract) {
+                @Contract(contract = "TokenTransferContract", creationGas = 4_000_000L) SpecContract contract) {
             final var collector = "collector";
             final var fee = fixedConsensusHtsFee(1, BASE_TOKEN, collector);
             return hapiTest(
@@ -1461,7 +1463,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
 
             return hapiTest(
                     cryptoCreate(collector).balance(0L),
-                    cryptoCreate("submitter").balance(ONE_HBAR),
+                    cryptoCreate("submitter").balance(10 * ONE_HBAR),
                     tokenAssociate("submitter", BASE_TOKEN),
                     tokenAssociate(collector, BASE_TOKEN),
                     createTopic(TOPIC).withConsensusCustomFee(tokenFee).withConsensusCustomFee(hbarFee),
@@ -1776,7 +1778,55 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         allRunFor(spec, record);
                     }),
                     // assert topic fee collector balance
-                    getAccountBalance("collector").hasTinyBars(10)));
+                    getAccountBalance("collector").hasTinyBars(10),
+                    validateChargedUsdWithin("submit", 0.05, 0.1)));
+        }
+
+        @HapiTest
+        @DisplayName("validate fee scales as message bytes increase")
+        final Stream<DynamicTest> validateFeeScaling() {
+            final byte[] messageBytes513 = new byte[513];
+            final byte[] messageBytes800 = new byte[800];
+            final byte[] messageBytes1000 = new byte[1000];
+            final byte[] messageBytes1024 = new byte[1024];
+            Arrays.fill(messageBytes513, (byte) 0b1);
+            Arrays.fill(messageBytes800, (byte) 0b1);
+            Arrays.fill(messageBytes1000, (byte) 0b1);
+            Arrays.fill(messageBytes1024, (byte) 0b1);
+
+            return hapiTest(flattened(
+                    newKeyNamed(SUBMIT_KEY),
+                    cryptoCreate("collector").balance(0L),
+                    createTopic(TOPIC).withConsensusCustomFee(fixedConsensusHbarFee(10, "collector")),
+                    submitMessageTo(TOPIC).message("test").payingWith(SUBMITTER).via("simpleSubmit"),
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes513)
+                            .payingWith(SUBMITTER)
+                            .via("submit513"),
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes800)
+                            .payingWith(SUBMITTER)
+                            .via("submit800"),
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes1000)
+                            .payingWith(SUBMITTER)
+                            .via("submit1000"),
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes1024)
+                            .payingWith(SUBMITTER)
+                            .via("submit1024"),
+                    submitMessageTo(TOPIC)
+                            .message("test")
+                            .signedBy(SUBMIT_KEY, SUBMITTER)
+                            .payingWith(SUBMITTER)
+                            .via("extraSigs"),
+                    getAccountBalance("collector").hasTinyBars(60),
+                    validateChargedUsdWithin("simpleSubmit", 0.05, 0.1),
+                    validateChargedUsdWithin("submit513", 0.051, 0.1),
+                    validateChargedUsdWithin("submit800", 0.055999, 0.1),
+                    validateChargedUsdWithin("submit1000", 0.06, 0.1),
+                    validateChargedUsdWithin("submit1024", 0.06, 0.1),
+                    validateChargedUsdWithin("extraSigs", 0.0792, 0.1)));
         }
 
         @HapiTest
@@ -1805,6 +1855,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                 .logged();
                         allRunFor(spec, record);
                     }),
+                    validateChargedUsdWithin("submit", 0.05, 0.1),
                     // assert topic fee collector balance
                     getAccountBalance("collector").hasTinyBars(10).hasTokenBalance("token", 1)));
         }

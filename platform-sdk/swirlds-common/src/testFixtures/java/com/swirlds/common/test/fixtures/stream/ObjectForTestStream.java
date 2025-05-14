@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.stream;
 
-import static com.swirlds.common.utility.ByteUtils.intToByteArray;
+import static org.hiero.base.utility.ByteUtils.intToByteArray;
 
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Objects;
-import org.hiero.consensus.model.crypto.AbstractHashable;
-import org.hiero.consensus.model.crypto.RunningHash;
-import org.hiero.consensus.model.crypto.RunningHashable;
-import org.hiero.consensus.model.crypto.SerializableHashable;
-import org.hiero.consensus.model.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.AbstractHashable;
+import org.hiero.base.crypto.RunningHash;
+import org.hiero.base.crypto.RunningHashable;
+import org.hiero.base.crypto.SerializableHashable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
 

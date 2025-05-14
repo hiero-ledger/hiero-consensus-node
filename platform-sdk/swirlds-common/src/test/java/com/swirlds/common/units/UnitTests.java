@@ -2,7 +2,7 @@
 package com.swirlds.common.units;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertApproximatelyEquals;
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.generateRandomEvents;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.getLastEventStreamFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.getMiddleEventStreamFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.truncateFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,8 +15,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -32,6 +30,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;

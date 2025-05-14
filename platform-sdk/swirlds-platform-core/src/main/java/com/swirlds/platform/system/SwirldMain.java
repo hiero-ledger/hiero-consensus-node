@@ -86,7 +86,7 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable {
      * @return the current version
      */
     @NonNull
-    SoftwareVersion getSoftwareVersion();
+    SemanticVersion getSemanticVersion();
 
     /**
      * Encodes a system transaction to {@link Bytes} representation of a {@link com.hedera.hapi.node.base.Transaction}.

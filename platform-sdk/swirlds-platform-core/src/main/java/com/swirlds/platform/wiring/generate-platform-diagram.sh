@@ -9,7 +9,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 # Add the flag "--less-mystery" to add back labels for mystery input wires (noisy diagram warning)
 
-pcli diagram \
+../../../../../../../../swirlds-cli/pcli.sh diagram \
     -l 'TransactionPrehandler:futures:TransactionHandler' \
     -l 'EventCreationManager:get transactions:TransactionPool' \
     -l 'ConsensusEventStream:future hash:TransactionHandler' \
@@ -32,7 +32,7 @@ pcli diagram \
     -s 'StatusStateMachine:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer' \
+    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter' \
     -g 'Consensus Engine:ConsensusEngine,ConsensusEngineSplitter,EventWindowManager,getCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumGenerationOnDisk,toStateWrittenToDiskAction,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
@@ -40,14 +40,14 @@ pcli diagram \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
     -g 'Transaction Resubmitter:TransactionResubmitter' \
     -g 'Stale Event Detector:StaleEventDetector,StaleEventDetectorSplitter,StaleEventDetectorRouter' \
-    -g 'Event Creation:EventCreationManager,TransactionPool,SelfEventSigner,Stale Event Detector,postSigner_encode_systemTransactions,Transaction Resubmitter,⚰️' \
+    -g 'Event Creation:EventCreationManager,TransactionPool,Stale Event Detector,postSigner_encode_systemTransactions,Transaction Resubmitter,⚰️' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler,getStatusAction' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
-    -g 'Consensus:Consensus Engine,🌀' \
+    -g 'Consensus:Consensus Engine,ConsensusEventStream,🌀' \
     -g 'State Verification:StateSigner,HashLogger,ISS Detector,🖋️,💥,💀' \
-    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus' \
+    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler' \
     -g 'Branch Detection:BranchDetector,BranchReporter' \
     -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,StatusStateMachine,Heartbeat,❔,🏥,❤️,💨,🚦' \
     -c 'Orphan Buffer' \

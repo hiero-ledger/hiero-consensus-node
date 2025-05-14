@@ -10,7 +10,7 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * Summarizes useful information about the nodes in the AddressBook from the Platform. In
@@ -72,6 +72,12 @@ public interface NodeInfo {
      */
     @NonNull
     List<ServiceEndpoint> hapiEndpoints();
+
+    /**
+     * Declines node reward if true
+     * @return if node declines rewards
+     */
+    boolean declineReward();
 
     /**
      * The gossip X.509 certificate of this node.

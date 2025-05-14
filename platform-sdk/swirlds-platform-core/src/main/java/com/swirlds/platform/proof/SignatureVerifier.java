@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof;
 
-import com.swirlds.common.crypto.Signature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
+import org.hiero.base.crypto.Signature;
 
 /**
  * A method that verifies a signature.

@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaGasUsed;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
@@ -147,6 +148,7 @@ class FrameBuilderTest {
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
+        assertEquals(INTRINSIC_GAS, getHederaGasUsed(frame));
     }
 
     @Test

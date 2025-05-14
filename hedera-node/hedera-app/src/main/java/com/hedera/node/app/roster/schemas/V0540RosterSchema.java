@@ -5,11 +5,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
-import com.swirlds.platform.roster.RosterRetriever;
-import com.swirlds.platform.roster.RosterUtils;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.VersionConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
-import com.swirlds.platform.state.service.WritableRosterStore;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -18,11 +16,15 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Initial {@link com.hedera.node.app.roster.RosterService} schema that registers two states,
@@ -46,9 +48,9 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
      */
     private final V0540RosterBaseSchema baseSchema = new V0540RosterBaseSchema();
     /**
-     * A callback to run when a candidate roster is adopted.
+     * A callback to invoke with an outgoing roster being replaced by a new roster hash.
      */
-    private final Runnable onAdopt;
+    private final BiConsumer<Roster, Roster> onAdopt;
     /**
      * The test to use to determine if a candidate roster may be adopted at an upgrade boundary.
      */
@@ -66,7 +68,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
     private final PlatformStateFacade platformStateFacade;
 
     public V0540RosterSchema(
-            @NonNull final Runnable onAdopt,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
             @NonNull final Supplier<State> stateSupplier,
@@ -87,7 +89,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         requireNonNull(ctx);
-        if (!RosterTransplantSchema.super.restart(ctx, rosterStoreFactory)) {
+        if (!RosterTransplantSchema.super.restart(ctx, onAdopt, rosterStoreFactory)) {
             final var startupNetworks = ctx.startupNetworks();
             final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
             final var activeRoundNumber = ctx.roundNumber() + 1;
@@ -96,20 +98,27 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
                         RosterUtils.rosterFrom(startupNetworks.genesisNetworkOrThrow(ctx.platformConfig())), 0L);
             } else if (rosterStore.getActiveRoster() == null) {
                 // (FUTURE) Once there are no production states without a roster, we can remove this branch
-                final var previousRoster = requireNonNull(
-                        RosterRetriever.retrieveActiveOrGenesisRoster(stateSupplier.get(), platformStateFacade));
+                final State state = stateSupplier.get();
+                final long round = platformStateFacade.roundOf(state);
+                final var previousRoster = requireNonNull(RosterRetriever.retrieveActive(state, round));
                 rosterStore.putActiveRoster(previousRoster, 0);
                 final var currentRoster =
                         RosterUtils.rosterFrom(startupNetworks.migrationNetworkOrThrow(ctx.platformConfig()));
                 rosterStore.putActiveRoster(currentRoster, activeRoundNumber);
-            } else if (ctx.isUpgrade(ServicesSoftwareVersion::from, ServicesSoftwareVersion::new)) {
+            } else if (ctx.isUpgrade(ctx.appConfig()
+                    .getConfigData(VersionConfig.class)
+                    .servicesVersion()
+                    .copyBuilder()
+                    .build(""
+                            + ctx.appConfig().getConfigData(HederaConfig.class).configVersion())
+                    .build())) {
                 final var candidateRoster = rosterStore.getCandidateRoster();
                 if (candidateRoster == null) {
                     log.info("No candidate roster to adopt in round {}", activeRoundNumber);
                 } else if (canAdopt.test(candidateRoster)) {
                     log.info("Adopting candidate roster in round {}", activeRoundNumber);
+                    onAdopt.accept(requireNonNull(rosterStore.getActiveRoster()), candidateRoster);
                     rosterStore.adoptCandidateRoster(activeRoundNumber);
-                    onAdopt.run();
                 } else {
                     log.info("Rejecting candidate roster in round {}", activeRoundNumber);
                 }

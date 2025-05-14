@@ -68,7 +68,7 @@ import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -462,13 +462,13 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .value(id, stakingNodeInfo)
                 .build();
         given(readableStates4.<AccountID, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
-        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4);
+        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4, readableEntityCounters);
         when(context.createStore(ReadableStakingInfoStore.class)).thenReturn(readableStakingInfoStore);
     }
 
     private void setupStakingRewardsStore() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L));
+                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L, Timestamp.DEFAULT));
         final var stakingRewardsState = new ReadableSingletonStateBase<>(NETWORK_REWARDS, backingValue::get);
         given(readableStates.getSingleton(NETWORK_REWARDS)).willReturn((ReadableSingletonState) stakingRewardsState);
         final var readableRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(readableStates);

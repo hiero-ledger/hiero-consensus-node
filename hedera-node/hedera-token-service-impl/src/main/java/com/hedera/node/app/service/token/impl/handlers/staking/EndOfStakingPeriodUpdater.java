@@ -87,10 +87,6 @@ public class EndOfStakingPeriodUpdater {
 
         // First, determine if staking is enabled. If not, there is nothing to do
         final var stakingConfig = context.configuration().getConfigData(StakingConfig.class);
-        if (!stakingConfig.isEnabled()) {
-            log.info("Staking not enabled, nothing to do");
-            return null;
-        }
 
         final var accountStore = context.readableStore(ReadableAccountStore.class);
         final var stakingRewardsStore = context.writableStore(WritableNetworkStakingRewardsStore.class);

@@ -143,6 +143,7 @@ import com.hedera.services.bdd.spec.utilops.mod.TxnModification;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
+import com.hedera.services.bdd.spec.utilops.streams.BlockStreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
@@ -226,9 +227,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 public class UtilVerbs {
@@ -371,6 +372,15 @@ public class UtilVerbs {
                 .map(Integer::parseInt)
                 .orElse(0);
         return new StreamValidationOp(proofsToWaitFor, HISTORY_PROOF_WAIT_TIMEOUT);
+    }
+
+    /**
+     * Returns an operation that validates the streams of the target network with dynamic validators
+     *
+     * @return the operation that validates the streams
+     */
+    public static BlockStreamValidationOp validateBlockStream() {
+        return new BlockStreamValidationOp();
     }
 
     /**
@@ -1198,12 +1208,19 @@ public class UtilVerbs {
     /* Stream validation. */
     public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
+        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion)
+                .withBackgroundTraffic();
+    }
+
+    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
         return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion);
     }
 
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion);
+        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion)
+                .withBackgroundTraffic();
     }
 
     /**
@@ -1215,9 +1232,37 @@ public class UtilVerbs {
      */
     public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
             @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return recordStreamMustIncludePassFrom(assertion, timeout, true);
+    }
+
+    /**
+     * Returns an operation that asserts that the record stream must include a pass from the given assertion
+     * before its timeout elapses, and that background traffic is running.
+     * @param assertion the assertion to apply to the record stream
+     * @param timeout the timeout for the assertion
+     * @return the operation that asserts a passing record stream
+     */
+    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
+        return recordStreamMustIncludePassFrom(assertion, timeout, false);
+    }
+
+    /**
+     * Returns an operation that asserts that the record stream must include a pass from the given assertion
+     * before its timeout elapses, and if the background traffic should be running.
+     * @param assertion the assertion to apply to the record stream
+     * @param timeout the timeout for the assertion
+     * @param needsBackgroundTraffic whether background traffic should be running
+     * @return the operation that asserts a passing record stream
+     */
+    private static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
+            @NonNull final Duration timeout,
+            final boolean needsBackgroundTraffic) {
         requireNonNull(assertion);
         requireNonNull(timeout);
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
+        final var result = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
+        return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
     }
 
     /**
@@ -1287,7 +1332,7 @@ public class UtilVerbs {
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator() {
-        return spec -> new ValidContractIdsAssertion();
+        return ValidContractIdsAssertion::new;
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> visibleItems(
@@ -2506,10 +2551,7 @@ public class UtilVerbs {
     }
 
     private static Object swapLongZeroToEVMAddresses(HapiSpec spec, Object arg, Address address) {
-        if (isLongZeroAddress(
-                spec.setup().defaultShard().getShardNum(),
-                spec.setup().defaultRealm().getRealmNum(),
-                explicitFromHeadlong(address))) {
+        if (isLongZeroAddress(spec.shard(), spec.realm(), explicitFromHeadlong(address))) {
             var contractNum = numberOfLongZero(explicitFromHeadlong(address));
             if (spec.registry().hasEVMAddress(String.valueOf(contractNum))) {
                 return HapiParserUtil.asHeadlongAddress(spec.registry().getEVMAddress(String.valueOf(contractNum)));

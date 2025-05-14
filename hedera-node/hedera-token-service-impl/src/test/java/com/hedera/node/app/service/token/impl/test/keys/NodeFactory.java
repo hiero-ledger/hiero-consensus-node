@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.keys;
 
-import com.swirlds.common.crypto.SignatureType;
 import java.util.List;
+import org.hiero.base.crypto.SignatureType;
 
 public interface NodeFactory {
     static NodeFactory ecdsa384Secp256k1(boolean usedToSign) {

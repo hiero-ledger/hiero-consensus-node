@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import static com.swirlds.platform.roster.RosterUtils.buildAddressBook;
 import static com.swirlds.platform.state.address.AddressBookInitializer.CONFIG_ADDRESS_BOOK_HEADER;
 import static com.swirlds.platform.state.address.AddressBookInitializer.CONFIG_ADDRESS_BOOK_USED;
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_HEADER;
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_NULL;
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_USED;
 import static com.swirlds.platform.state.address.AddressBookInitializer.USED_ADDRESS_BOOK_HEADER;
+import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -29,16 +30,12 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.AddressBookConfig_;
-import com.swirlds.platform.roster.RosterRetriever;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.address.AddressBookInitializer;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
@@ -54,6 +51,9 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterRetriever;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -83,7 +83,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState7WeightRandomAddressBook(randotron);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -115,7 +114,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState(10, null, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -144,7 +142,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState(10, null, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -173,7 +170,6 @@ class AddressBookInitializerTest {
         final SignedState signedState = getMockSignedState(7, roster, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -205,7 +201,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(buildAddressBook(signedState.getRoster()), 10);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(2),
                 // no software upgrade
                 false,
                 signedState,
@@ -252,7 +247,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(buildAddressBook(roster), 10);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(3),
                 // software upgrade
                 true,
                 signedState,
@@ -285,7 +279,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(signedStateAddressBook, 3);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(3),
                 // software upgrade
                 true,
                 signedState,
@@ -316,7 +309,6 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = copyWithWeightChanges(signedStateAddressBook, 5);
         final AddressBookInitializer initializer = new AddressBookInitializer(
                 NodeId.of(0),
-                getMockSoftwareVersion(3),
                 // software upgrade
                 true,
                 signedState,
@@ -380,24 +372,8 @@ class AddressBookInitializerTest {
      * @param version the integer software version.
      * @return the SoftwareVersion matching the input version.
      */
-    private SoftwareVersion getMockSoftwareVersion(int version) {
-        final SoftwareVersion softwareVersion = mock(SoftwareVersion.class);
-        when(softwareVersion.getVersion()).thenReturn(version);
-        final AtomicReference<SoftwareVersion> softVersion = new AtomicReference<>();
-        when(softwareVersion.compareTo(argThat(sv -> {
-                    softVersion.set(sv);
-                    return true;
-                })))
-                .thenAnswer(i -> {
-                    SoftwareVersion other = softVersion.get();
-                    if (other == null) {
-                        return 1;
-                    } else {
-                        return Integer.compare(softwareVersion.getVersion(), other.getVersion());
-                    }
-                });
-        when(softwareVersion.toString()).thenReturn(Integer.toString(version));
-        return softwareVersion;
+    private SemanticVersion getMockSoftwareVersion(int version) {
+        return SemanticVersion.newBuilder().minor(version).build();
     }
 
     /**
@@ -427,7 +403,7 @@ class AddressBookInitializerTest {
             @Nullable final AddressBook previousAddressBook,
             boolean fromGenesis) {
         final SignedState signedState = mock(SignedState.class);
-        final SemanticVersion softwareVersion = getMockSoftwareVersion(2).getPbjSemanticVersion();
+        final SemanticVersion softwareVersion = getMockSoftwareVersion(2);
         configureUpdateWeightForStateEventHandler(weightValue);
         final MerkleNodeState state = mock(MerkleNodeState.class);
         final ReadableStates readableStates = mock(ReadableStates.class);
@@ -558,21 +534,21 @@ class AddressBookInitializerTest {
         final String usedFileContent = Files.readString(usedFile.toPath());
 
         // check used AddressBook content
-        final String usedAddressBookText = usedAddressBook.toConfigText();
+        final String usedAddressBookText = addressBookConfigText(usedAddressBook);
         assertEquals(
                 usedAddressBookText,
                 usedFileContent,
                 "The used file content is not the same as the used address book.");
 
         // check debug AddressBook content
-        final String configText = CONFIG_ADDRESS_BOOK_HEADER + "\n" + configAddressBook.toConfigText();
+        final String configText = CONFIG_ADDRESS_BOOK_HEADER + "\n" + addressBookConfigText(configAddressBook);
         assertTrue(
                 debugFileContent.contains(configText),
                 "The configAddressBook content is not:\n" + configText + "\n\n debugFileContent:\n" + debugFileContent);
 
         // check stateAddressBook content
         final String stateAddressBookText =
-                (stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : stateAddressBook.toConfigText());
+                (stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : addressBookConfigText(stateAddressBook));
         final String stateText = STATE_ADDRESS_BOOK_HEADER + "\n" + stateAddressBookText;
 
         assertTrue(
@@ -586,7 +562,7 @@ class AddressBookInitializerTest {
         } else if (Objects.equals(usedAddressBook, stateAddressBook)) {
             usedText += STATE_ADDRESS_BOOK_USED;
         } else {
-            usedText += usedAddressBook.toConfigText();
+            usedText += addressBookConfigText(usedAddressBook);
         }
         assertTrue(
                 debugFileContent.contains(usedText),

@@ -8,8 +8,8 @@ import com.swirlds.common.threading.pool.StandardWorkGroup;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.hiero.consensus.model.io.SelfSerializable;
-import org.hiero.consensus.model.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * This variant of the async output stream introduces extra latency.

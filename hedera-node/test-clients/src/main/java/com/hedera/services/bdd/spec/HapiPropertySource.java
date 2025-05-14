@@ -38,9 +38,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.utility.CommonUtils;
+import org.hiero.base.utility.CommonUtils;
 
 public interface HapiPropertySource {
 
@@ -93,17 +95,28 @@ public interface HapiPropertySource {
 
     default FileID getFile(String property) {
         try {
-            return asFile(get("default.shard"), get("default.realm"), get(property));
+            return asFile(getShard(), getRealm(), Long.parseLong(get(property)));
         } catch (Exception ignore) {
         }
         return FileID.getDefaultInstance();
     }
 
     default AccountID getAccount(String property) {
+        final var value = get(property);
+
+        if (value.matches("\\d+\\.\\d+\\.\\d+")) {
+            try {
+                var parts = value.split("\\.");
+                return asAccount(parts[0], parts[1], parts[2]);
+            } catch (Exception ignore) {
+            }
+        }
+
         try {
-            return asAccount(get("default.shard"), get("default.realm"), get(property));
+            return asAccount(getShard(), getRealm(), Long.parseLong(value));
         } catch (Exception ignore) {
         }
+
         return AccountID.getDefaultInstance();
     }
 
@@ -134,12 +147,38 @@ public interface HapiPropertySource {
         return ContractID.getDefaultInstance();
     }
 
+    @Deprecated
     default RealmID getRealm(String property) {
         return RealmID.newBuilder().setRealmNum(Long.parseLong(get(property))).build();
     }
 
+    default long getRealm() {
+        return Optional.ofNullable(get("hapi.spec.default.realm"))
+                .map(Long::parseLong)
+                .orElse(realm);
+    }
+
+    @Deprecated
     default ShardID getShard(String property) {
         return ShardID.newBuilder().setShardNum(Long.parseLong(get(property))).build();
+    }
+
+    default long getShard() {
+        return Optional.ofNullable(get("hapi.spec.default.shard"))
+                .map(Long::parseLong)
+                .orElse((long) shard);
+    }
+
+    static long getConfigShard() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
+                .map(Long::parseLong)
+                .orElse((long) SHARD);
+    }
+
+    static long getConfigRealm() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
+                .map(Long::parseLong)
+                .orElse(REALM);
     }
 
     default TimeUnit getTimeUnit(String property) {
@@ -210,6 +249,7 @@ public interface HapiPropertySource {
 
     static HapiPropertySource[] asSources(Object... sources) {
         return Stream.of(sources)
+                .filter(Objects::nonNull)
                 .map(s -> (s instanceof HapiPropertySource)
                         ? s
                         : ((s instanceof Map) ? new MapPropertySource((Map) s) : new JutilPropertySource((String) s)))
@@ -239,26 +279,38 @@ public interface HapiPropertySource {
     }
 
     static AccountID asAccount(String shard, String realm, String num) {
+        return asAccount(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
+    }
+
+    static AccountID asAccount(long shard, long realm, long num) {
         return AccountID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setAccountNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setAccountNum(num)
                 .build();
     }
 
     static ContractID asContract(String shard, String realm, String num) {
+        return asContract(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
+    }
+
+    static ContractID asContract(long shard, long realm, long num) {
         return ContractID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setContractNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setContractNum(num)
                 .build();
     }
 
     static FileID asFile(String shard, String realm, String num) {
+        return asFile(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
+    }
+
+    static FileID asFile(long shard, long realm, long num) {
         return FileID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setFileNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setFileNum(num)
                 .build();
     }
 
@@ -271,10 +323,14 @@ public interface HapiPropertySource {
     }
 
     static TokenID asToken(String shard, String realm, String num) {
+        return asToken(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
+    }
+
+    static TokenID asToken(long shard, long realm, long num) {
         return TokenID.newBuilder()
-                .setShardNum(Long.parseLong(shard))
-                .setRealmNum(Long.parseLong(realm))
-                .setTokenNum(Long.parseLong(num))
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setTokenNum(num)
                 .build();
     }
 
@@ -303,13 +359,17 @@ public interface HapiPropertySource {
         }
     }
 
+    static TopicID asTopic(long shard, long realm, long num) {
+        return TopicID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setTopicNum(num)
+                .build();
+    }
+
     static TopicID asTopic(String v) {
         long[] nativeParts = asDotDelimitedLongArray(v);
-        return TopicID.newBuilder()
-                .setShardNum(nativeParts[0])
-                .setRealmNum(nativeParts[1])
-                .setTopicNum(nativeParts[2])
-                .build();
+        return asTopic(nativeParts[0], nativeParts[1], nativeParts[2]);
     }
 
     static String asTopicString(TopicID topic) {
@@ -423,11 +483,7 @@ public interface HapiPropertySource {
 
     static FileID asFile(String v) {
         long[] nativeParts = asDotDelimitedLongArray(v);
-        return FileID.newBuilder()
-                .setShardNum(nativeParts[0])
-                .setRealmNum(nativeParts[1])
-                .setFileNum(nativeParts[2])
-                .build();
+        return asFile(nativeParts[0], nativeParts[1], nativeParts[2]);
     }
 
     static EntityNumber asEntityNumber(String v) {
@@ -441,6 +497,14 @@ public interface HapiPropertySource {
     static long[] asDotDelimitedLongArray(String s) {
         String[] parts = s.split("[.]");
         return Stream.of(parts).mapToLong(Long::valueOf).toArray();
+    }
+
+    static ShardID asShard(long v) {
+        return ShardID.newBuilder().setShardNum(v).build();
+    }
+
+    static RealmID asRealm(long v) {
+        return RealmID.newBuilder().setRealmNum(v).build();
     }
 
     static byte[] asSolidityAddress(final AccountID accountId) {
@@ -518,8 +582,25 @@ public interface HapiPropertySource {
                 .build());
     }
 
-    static String asEntityString(final long num) {
+    static String asEntityString(final long shard, final long realm, final long num) {
         return String.format(ENTITY_STRING, shard, realm, num);
+    }
+
+    static String asEntityString(final long shard, final long realm, final String num) {
+        return String.format("%d.%d.%s", shard, realm, num);
+    }
+
+    @Deprecated(forRemoval = true)
+    static String asEntityString(final long num) {
+        return asEntityString(shard, realm, num);
+    }
+
+    static String asEntityString(final String shard, final String realm, final String num) {
+        return String.format("%s.%s.%s", shard, realm, num);
+    }
+
+    static String asEntityString(final AccountID id) {
+        return asEntityString(id.getShardNum(), id.getRealmNum(), id.getAccountNum());
     }
 
     static long numberOfLongZero(@NonNull final byte[] explicit) {

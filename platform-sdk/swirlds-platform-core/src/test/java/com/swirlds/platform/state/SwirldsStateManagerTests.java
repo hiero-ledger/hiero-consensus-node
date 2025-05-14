@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
 import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -22,6 +22,7 @@ import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
@@ -128,7 +129,7 @@ class SwirldsStateManagerTests {
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final MerkleNodeState state = new TestMerkleStateRoot();
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initPlatformState(state);
+        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(
                 state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());

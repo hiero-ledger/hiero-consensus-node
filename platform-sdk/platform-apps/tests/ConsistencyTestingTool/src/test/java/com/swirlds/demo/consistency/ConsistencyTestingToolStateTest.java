@@ -2,7 +2,6 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.FakeConsensusStateEventHandler.FAKE_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -17,6 +16,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -57,7 +57,7 @@ public class ConsistencyTestingToolStateTest {
     static void initState() {
         state = new ConsistencyTestingToolState();
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        FAKE_CONSENSUS_STATE_EVENT_HANDLER.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initStates(state);
     }
 
     @BeforeEach

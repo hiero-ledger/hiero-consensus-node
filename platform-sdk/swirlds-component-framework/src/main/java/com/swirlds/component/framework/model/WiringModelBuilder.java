@@ -4,6 +4,7 @@ package com.swirlds.component.framework.model;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
@@ -24,6 +25,8 @@ public class WiringModelBuilder {
     private Duration healthLogPeriod = Duration.ofMinutes(10);
     private final Metrics metrics;
     private final Time time;
+    private Duration healthyReportThreshold = Duration.ofSeconds(1);
+    private UncaughtExceptionHandler taskSchedulerExceptionHandler = null;
 
     /**
      * Create a new builder.
@@ -163,6 +166,32 @@ public class WiringModelBuilder {
     }
 
     /**
+     * Set the healthyReportThreshold.
+     * Indicates how long between two consecutive reports when the system is healthy.
+     * @return this
+     */
+    @NonNull
+    public WiringModelBuilder withHealthyReportThreshold(@NonNull final Duration healthyReportThreshold) {
+        this.healthyReportThreshold = Objects.requireNonNull(healthyReportThreshold);
+        return this;
+    }
+
+    /**
+     * Set the global {@link UncaughtExceptionHandler}. Default is {@code null}. Allows to set a global uncaught
+     * exception handler for all threads created by the wiring model. This is useful for tests and during development
+     * while in production the default handler should be used.
+     *
+     * @param taskSchedulerExceptionHandler the global uncaught exception handler
+     * @return this
+     */
+    @NonNull
+    public WiringModelBuilder withUncaughtExceptionHandler(
+            @NonNull final UncaughtExceptionHandler taskSchedulerExceptionHandler) {
+        this.taskSchedulerExceptionHandler = Objects.requireNonNull(taskSchedulerExceptionHandler);
+        return this;
+    }
+
+    /**
      * Build the wiring model.
      *
      * @param <T> the type of wiring model
@@ -172,7 +201,7 @@ public class WiringModelBuilder {
     @NonNull
     public <T extends WiringModel> T build() {
         if (deterministicModeEnabled) {
-            return (T) new DeterministicWiringModel(metrics, time);
+            return (T) new DeterministicWiringModel(metrics, time, taskSchedulerExceptionHandler);
         } else {
             return (T) new StandardWiringModel(this);
         }
@@ -273,5 +302,25 @@ public class WiringModelBuilder {
     @NonNull
     Time getTime() {
         return time;
+    }
+
+    /**
+     * Get the healthyReportThreshold.
+     * Indicates how long between two consecutive reports when the system is healthy.
+     * @return the healthyReportThreshold
+     */
+    @NonNull
+    Duration getHealthyReportThreshold() {
+        return healthyReportThreshold;
+    }
+
+    /**
+     * Get the global {@link UncaughtExceptionHandler}.
+     *
+     * @return the global {@code UncaughtExceptionHandler}
+     */
+    @NonNull
+    UncaughtExceptionHandler getTaskSchedulerExceptionHandler() {
+        return taskSchedulerExceptionHandler;
     }
 }

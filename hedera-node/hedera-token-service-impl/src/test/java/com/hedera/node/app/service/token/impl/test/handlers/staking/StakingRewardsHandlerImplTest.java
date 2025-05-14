@@ -493,6 +493,10 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .tinybarBalance(ownerBalance + accountBalance)
                 .stakedNodeId(0L)
                 .build());
+        writableAccountStore.put(Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(800).build())
+                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .build());
 
         given(context.consensusTime())
                 .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
@@ -713,6 +717,149 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void userSwitchesStakingFromAccountToNode() {
+        // payer is staked to owner, has account balance of 55L, and no rewards
+        // payer switches stake from owner to node
+        // payer should get reward from the node
+        // owner should get no reward
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakeAtStartOfLastRewardPeriod(accountBalance / 5)
+                .withStakedAccountId(ownerId)
+                .withStakedToMe(0)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withDeleted(false)
+                .build();
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(ownerBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withStakedToMe(0L)
+                .withDeleted(false)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        // transfer from payer to owner
+        // change payer stake from owner account to node 1
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedNodeId(node1Id.number())
+                .build());
+        writableAccountStore.put(ownerAccount
+                .copyBuilder()
+                .tinybarBalance(ownerBalance + HBARS_TO_TINYBARS)
+                .build());
+
+        // run forward two periods
+        final Instant nextDayInstant = originalInstant.plus(2, ChronoUnit.DAYS);
+        given(context.consensusTime()).willReturn(nextDayInstant);
+        stakePeriodManager.setCurrentStakePeriodFor(nextDayInstant);
+
+        mockEntityIdFactory();
+        final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+        assertThat(rewards).hasSize(0);
+    }
+
+    @Test
+    void userSwitchesStakingFromNothingToAccount() {
+        // payer is staked to owner, has account balance of 55L, and no rewards
+        // payer switches stake from owner to node
+        // payer should get no reward
+        // owner should get no reward
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakedNodeId(-1L)
+                .withStakedToMe(0)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(true)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore));
+
+        // transfer from payer to owner
+        // change payer stake from owner account to node 1
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedAccountId(ownerId)
+                .build());
+        writableAccountStore.put(ownerAccount
+                .copyBuilder()
+                .tinybarBalance(ownerBalance + HBARS_TO_TINYBARS)
+                .build());
+
+        // run forward two periods
+        Instant nextDayInstant = originalInstant.plus(2, ChronoUnit.DAYS);
+        given(context.consensusTime()).willReturn(nextDayInstant);
+        stakePeriodManager.setCurrentStakePeriodFor(nextDayInstant);
+
+        mockEntityIdFactory();
+        final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+        // confirm no rewards
+        assertThat(rewards).hasSize(0);
+    }
+
+    @Test
+    void userSwitchesStakingFromAccountToNothing() {
+        // payer is staked to owner, has account balance of 55L, and no rewards
+        // payer switches stake from owner to nothing (node -1)
+        // payer should get no reward
+        // owner should still get the reward from before the switch
+        final var accountBalance = 55L * HBARS_TO_TINYBARS;
+        final var ownerBalance = 11L * HBARS_TO_TINYBARS;
+        final var payerAccountBefore = new AccountCustomizer()
+                .withAccount(account)
+                .withBalance(accountBalance)
+                .withStakedAccountId(ownerId)
+                .withStakedToMe(0)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(true)
+                .build();
+        final var ownerAccountBefore = new AccountCustomizer()
+                .withAccount(ownerAccount)
+                .withBalance(ownerBalance)
+                .withStakeAtStartOfLastRewardPeriod(-1L)
+                .withStakePeriodStart(stakePeriodStart)
+                .withDeclineReward(false)
+                .withStakedNodeId(node1Id.number())
+                .withStakedToMe(0L)
+                .withDeleted(false)
+                .build();
+        addToState(Map.of(payerId, payerAccountBefore, ownerId, ownerAccountBefore));
+
+        // transfer from payer to owner
+        // change payer stake from owner account to node -1
+        writableAccountStore.put(payerAccountBefore
+                .copyBuilder()
+                .tinybarBalance(accountBalance - HBARS_TO_TINYBARS)
+                .stakedNodeId(-1) // switch to staking to nothing
+                .build());
+        writableAccountStore.put(ownerAccount
+                .copyBuilder()
+                .tinybarBalance(ownerBalance + HBARS_TO_TINYBARS)
+                .build());
+
+        // run forward two periods
+        Instant nextDayInstant = originalInstant.plus(2, ChronoUnit.DAYS);
+        given(context.consensusTime()).willReturn(nextDayInstant);
+        stakePeriodManager.setCurrentStakePeriodFor(nextDayInstant);
+
+        mockEntityIdFactory();
+        final var rewards = subject.applyStakingRewards(context, Collections.emptySet(), emptyMap());
+        // check that owner still gets reward, but payer gets nothing
+        assertThat(rewards).hasSize(1).containsEntry(ownerId, 2200L);
+    }
+
+    @Test
     void rewardsUltimateBeneficiaryInsteadOfDeletedAccount() {
         final var accountBalance = 555L * HBARS_TO_TINYBARS;
         final var ownerBalance = 111L * HBARS_TO_TINYBARS;
@@ -743,6 +890,10 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .copyBuilder()
                 .tinybarBalance(ownerBalance + accountBalance)
                 .stakedNodeId(0L)
+                .build());
+        writableAccountStore.put(Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(800).build())
+                .tinybarBalance(123L * HBARS_TO_TINYBARS)
                 .build());
 
         given(context.consensusTime())
@@ -856,6 +1007,10 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
                 .tinybarBalance(ownerBalance + accountBalance)
                 .stakedNodeId(0L)
                 .build());
+        writableAccountStore.put(Account.newBuilder()
+                .accountId(AccountID.newBuilder().accountNum(800).build())
+                .tinybarBalance(123L * HBARS_TO_TINYBARS)
+                .build());
 
         given(context.consensusTime())
                 .willReturn(LocalDate.ofEpochDay(stakePeriodStart + 2)
@@ -869,6 +1024,8 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(recordBuilder.getNumberOfDeletedAccounts()).willReturn(2);
         given(recordBuilder.getDeletedAccountBeneficiaryFor(payerId)).willReturn(ownerId);
         given(recordBuilder.getDeletedAccountBeneficiaryFor(ownerId)).willReturn(spenderId);
+        given(entityIdFactory.newAccountId(800))
+                .willReturn(AccountID.newBuilder().accountNum(800).build());
 
         assertThatThrownBy(() -> subject.applyStakingRewards(context, Collections.emptySet(), emptyMap()))
                 .isInstanceOf(IllegalStateException.class);

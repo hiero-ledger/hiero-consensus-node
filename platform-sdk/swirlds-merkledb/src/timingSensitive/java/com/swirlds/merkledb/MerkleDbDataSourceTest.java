@@ -16,14 +16,21 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.constructable.ConstructableRegistry;
+import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
+import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualKey;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
@@ -42,7 +49,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.eclipse.collections.impl.list.mutable.primitive.IntArrayList;
-import org.hiero.consensus.model.crypto.Hash;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -479,45 +487,65 @@ class MerkleDbDataSourceTest {
         final Path originalDbPath = testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType);
         final KeySerializer keySerializer = testType.dataType().getKeySerializer();
         final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
-        createAndApplyDataSource(originalDbPath, tableName, testType, count, 0, dataSource -> {
-            final int tableId = dataSource.getTableId();
-            // create some leaves
-            dataSource.saveRecords(
-                    count - 1,
-                    count * 2 - 2,
-                    IntStream.range(0, count * 2 - 1).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
-                    IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
-                    Stream.empty());
-            // create a snapshot
-            final Path snapshotDbPath =
-                    testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType + "_SNAPSHOT");
-            dataSource.getDatabase().snapshot(snapshotDbPath, dataSource);
-            // close data source
-            dataSource.close();
+        final int[] deltas = {-10, 0, 10};
+        for (int delta : deltas) {
+            createAndApplyDataSource(originalDbPath, tableName, testType, count + Math.abs(delta), 0, dataSource -> {
+                final int tableId = dataSource.getTableId();
+                // create some records
+                dataSource.saveRecords(
+                        count - 1,
+                        count * 2 - 2,
+                        IntStream.range(0, count * 2 - 1).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
+                        IntStream.range(count - 1, count * 2 - 1)
+                                .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
+                                .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                        Stream.empty());
+                if (delta != 0) {
+                    // create some more, current leaf path range shifted by delta
+                    dataSource.saveRecords(
+                            count - 1 + delta,
+                            count * 2 - 2 + 2 * delta,
+                            IntStream.range(0, count * 2 - 1 + 2 * delta)
+                                    .mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
+                            IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
+                                    .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i))
+                                    .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            Stream.empty());
+                }
+                // create a snapshot
+                final Path snapshotDbPath =
+                        testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType + "_SNAPSHOT");
+                dataSource.getDatabase().snapshot(snapshotDbPath, dataSource);
+                // close data source
+                dataSource.close();
 
-            final MerkleDb snapshotDb = MerkleDb.getInstance(snapshotDbPath, CONFIGURATION);
-            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDb.getTableDir(tableName, tableId));
-            // Delete all indices
-            Files.delete(snapshotPaths.pathToDiskLocationLeafNodesFile);
-            Files.delete(snapshotPaths.pathToDiskLocationInternalNodesFile);
-            // There is no way to use MerkleDbPaths to get bucket index file path
-            Files.deleteIfExists(snapshotPaths.keyToPathDirectory.resolve(tableName + "_bucket_index.ll"));
+                final MerkleDb snapshotDb = MerkleDb.getInstance(snapshotDbPath, CONFIGURATION);
+                final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDb.getTableDir(tableName, tableId));
+                // Delete all indices
+                Files.delete(snapshotPaths.pathToDiskLocationLeafNodesFile);
+                Files.delete(snapshotPaths.pathToDiskLocationInternalNodesFile);
+                // There is no way to use MerkleDbPaths to get bucket index file path
+                Files.deleteIfExists(snapshotPaths.keyToPathDirectory.resolve(tableName + "_bucket_index.ll"));
 
-            final MerkleDbDataSource snapshotDataSource = snapshotDb.getDataSource(tableName, false);
-            reinitializeDirectMemoryUsage();
-            IntStream.range(0, count * 2 - 1).forEach(i -> assertHash(snapshotDataSource, i, i + 1));
-            IntStream.range(count - 1, count * 2 - 1)
-                    .forEach(i ->
-                            assertLeaf(testType, keySerializer, valueSerializer, snapshotDataSource, i, i, i + 1, i));
-            // close data source
-            snapshotDataSource.close();
+                final MerkleDbDataSource snapshotDataSource = snapshotDb.getDataSource(tableName, false);
+                reinitializeDirectMemoryUsage();
+                // Check hashes
+                IntStream.range(0, count * 2 - 1 + 2 * delta).forEach(i -> assertHash(snapshotDataSource, i, i + 1));
+                assertNullHash(snapshotDataSource, count * 2 + 2 * delta);
+                // Check leaves
+                IntStream.range(0, count - 2 + delta).forEach(i -> assertNullLeaf(snapshotDataSource, i));
+                IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
+                        .forEach(i -> assertLeaf(
+                                testType, keySerializer, valueSerializer, snapshotDataSource, i, i, i + 1, i));
+                assertNullLeaf(snapshotDataSource, count * 2 + 2 * delta);
+                // close data source
+                snapshotDataSource.close();
 
-            // check db count
-            assertEventuallyEquals(
-                    0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
-        });
+                // check db count
+                assertEventuallyEquals(
+                        0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+            });
+        }
     }
 
     @Test
@@ -684,6 +712,80 @@ class MerkleDbDataSourceTest {
         });
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    void testRebuildHDHMIndex() throws Exception {
+        final String label = "testRebuildHDHMIndex";
+        final TestType testType = TestType.variable_variable;
+        final Path originalDbPath = testDirectory.resolve("merkledb-testRebuildHDHMIndex-" + testType);
+        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
+        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
+        final Path snapshotDbPath1 = testDirectory.resolve("merkledb-testRebuildHDHMIndex_SNAPSHOT1");
+        final Path snapshotDbPath2 = testDirectory.resolve("merkledb-testRebuildHDHMIndex_SNAPSHOT2");
+        createAndApplyDataSource(originalDbPath, label, testType, 100, 0, dataSource -> {
+            // Flush 1: leaf path range is [8,16]
+            dataSource.saveRecords(
+                    8,
+                    16,
+                    IntStream.range(0, 17).mapToObj(i -> createVirtualInternalRecord(i, 2 * i)),
+                    IntStream.range(8, 17)
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i))
+                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                    Stream.empty());
+            // Flush 2: leaf path range is [9,18]. Note that the list of deleted leaves is empty, so one of the leaves
+            // becomes stale in the database. This is not what we have in production, but it will let test rebuilding
+            // HDHM bucket index
+            dataSource.saveRecords(
+                    9,
+                    18,
+                    IntStream.range(0, 19).mapToObj(i -> createVirtualInternalRecord(i, 2 * i)),
+                    IntStream.range(9, 19)
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i))
+                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                    Stream.empty());
+            // Create snapshots
+            dataSource.getDatabase().snapshot(snapshotDbPath1, dataSource);
+            dataSource.getDatabase().snapshot(snapshotDbPath2, dataSource);
+            // close data source
+            dataSource.close();
+        });
+
+        // Load snapshot 1 with empty tablesToRepairHdhm config. It's expected to contain a stale key
+        final Configuration config1 = ConfigurationBuilder.create()
+                .withConfigDataType(MerkleDbConfig.class)
+                .withConfigDataType(VirtualMapConfig.class)
+                .withConfigDataType(TemporaryFileConfig.class)
+                .withConfigDataType(StateCommonConfig.class)
+                .withConfigDataType(FileSystemManagerConfig.class)
+                .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", ""))
+                .build();
+        final MerkleDb snapshotDb1 = MerkleDb.getInstance(snapshotDbPath1, config1);
+        final MerkleDbDataSource snapshotDataSource1 = snapshotDb1.getDataSource(label, false);
+        IntStream.range(9, 19)
+                .forEach(i ->
+                        assertLeaf(testType, keySerializer, valueSerializer, snapshotDataSource1, i, i, 2 * i, 3 * i));
+        final VirtualKey staleKey = testType.dataType().createVirtualLongKey(8);
+        assertEquals(8, snapshotDataSource1.findKey(keySerializer.toBytes(staleKey), staleKey.hashCode()));
+        snapshotDataSource1.close();
+
+        // Now load snapshot 2, but with HDHM bucket index rebuilt. There must be no stale keys there
+        final Configuration config2 = ConfigurationBuilder.create()
+                .withConfigDataType(MerkleDbConfig.class)
+                .withConfigDataType(VirtualMapConfig.class)
+                .withConfigDataType(TemporaryFileConfig.class)
+                .withConfigDataType(StateCommonConfig.class)
+                .withConfigDataType(FileSystemManagerConfig.class)
+                .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", label))
+                .build();
+        final MerkleDb snapshotDb2 = MerkleDb.getInstance(snapshotDbPath2, config2);
+        final MerkleDbDataSource snapshotDataSource2 = snapshotDb2.getDataSource(config2, label, false);
+        IntStream.range(9, 19)
+                .forEach(i ->
+                        assertLeaf(testType, keySerializer, valueSerializer, snapshotDataSource2, i, i, 2 * i, 3 * i));
+        assertEquals(-1, snapshotDataSource2.findKey(keySerializer.toBytes(staleKey), staleKey.hashCode()));
+        snapshotDataSource2.close();
+    }
+
     @Test
     void copyStatisticsTest() throws Exception {
         // This test simulates what happens on reconnect and makes sure that MerkleDb stats are reported
@@ -789,7 +891,16 @@ class MerkleDbDataSourceTest {
         try {
             assertEqualsAndPrint(hash(i), dataSource.loadHash(path));
         } catch (final Exception e) {
-            e.printStackTrace();
+            e.printStackTrace(System.err);
+            fail("Exception should not have been thrown here!");
+        }
+    }
+
+    public static void assertNullHash(final MerkleDbDataSource dataSource, final long path) {
+        try {
+            assertNull(dataSource.loadHash(path));
+        } catch (final Exception e) {
+            e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");
         }
     }
@@ -824,6 +935,15 @@ class MerkleDbDataSourceTest {
             assertEqualsAndPrint(
                     expectedRecord.toBytes(keySerializer, valueSerializer), dataSource.loadLeafRecord(path));
             assertEquals(hash(hashIndex), dataSource.loadHash(path), "unexpected Hash value for path " + path);
+        } catch (final Exception e) {
+            e.printStackTrace(System.err);
+            fail("Exception should not have been thrown here!");
+        }
+    }
+
+    public static void assertNullLeaf(final MerkleDbDataSource dataSource, final long path) {
+        try {
+            assertNull(dataSource.loadLeafRecord(path));
         } catch (final Exception e) {
             e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");

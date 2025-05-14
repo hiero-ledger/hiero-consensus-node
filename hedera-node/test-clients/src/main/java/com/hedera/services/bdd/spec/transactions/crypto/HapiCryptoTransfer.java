@@ -12,7 +12,7 @@ import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.reducing;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toList;
-import static org.hiero.consensus.model.utility.CommonUtils.unhex;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
@@ -299,7 +299,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
             final String from, final String to, final long amount) {
         return spec -> {
             final var fromId = asId(from, spec);
-            final var toId = spec.registry().keyAliasIdFor(to);
+            final var toId = spec.registry().keyAliasIdFor(spec, to);
             return xFromTo(fromId, toId, amount);
         };
     }
@@ -318,7 +318,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                         .build();
                 return xFromTo(fromId, toAccId, amount);
             }
-            final var toId = spec.registry().keyAliasIdFor(to);
+            final var toId = spec.registry().keyAliasIdFor(spec, to);
             return xFromTo(fromId, toId, amount);
         };
     }
