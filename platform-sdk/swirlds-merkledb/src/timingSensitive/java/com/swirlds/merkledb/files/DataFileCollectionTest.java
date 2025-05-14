@@ -151,7 +151,8 @@ class DataFileCollectionTest {
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
-            final DataFileReader newFile = fileCollection.endWriting(0, count + 100);
+            fileCollection.updateValidKeyRange(0, count + 100);
+            final DataFileReader newFile = fileCollection.endWriting();
             assertEquals(new KeyRange(0, count + 100), fileCollection.getValidKeyRange(), "Range should be this");
             assertEquals(Files.size(newFile.getPath()), newFile.getSize());
             count += 100;
@@ -456,6 +457,7 @@ class DataFileCollectionTest {
     @EnumSource(FilesTestType.class)
     void changeSomeData(final FilesTestType testType) throws Exception {
         final DataFileCollection fileCollection = fileCollectionMap.get(testType);
+        fileCollection.updateValidKeyRange(0, 1000);
         final LongListHeap storedOffsets = storedOffsetsMap.get(testType);
         fileCollection.startWriting();
         // put in 1000 items
@@ -473,7 +475,7 @@ class DataFileCollectionTest {
             // store in file
             storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
         }
-        fileCollection.endWriting(0, 1000);
+        fileCollection.endWriting();
         // check we now have 2 files
         try (Stream<Path> list = Files.list(tempFileDir.resolve(testType.name()))) {
             assertEquals(
@@ -695,7 +697,8 @@ class DataFileCollectionTest {
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
-            fileCollection.endWriting(0, count + 100);
+            fileCollection.updateValidKeyRange(0, count + 100);
+            fileCollection.endWriting();
             count += 100;
         }
     }

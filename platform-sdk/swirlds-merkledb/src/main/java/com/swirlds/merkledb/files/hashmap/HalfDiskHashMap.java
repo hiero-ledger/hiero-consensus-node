@@ -18,6 +18,7 @@ import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
+import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -296,6 +297,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         fileCollection = new DataFileCollection(
                 // Need: propagate MerkleDb merkleDbConfig from the database
                 merkleDbConfig, storeDir, storeName, legacyStoreName, loadedDataCallback);
+        fileCollection.updateValidKeyRange(0, numOfBuckets.get() - 1);
     }
 
     private void writeMetadata(final Path dir) throws IOException {
@@ -602,10 +604,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     throw new IOException(exceptionOccurred.get());
                 }
                 // close files session
-                dataFileReader = fileCollection.endWriting(0, numOfBuckets.get() - 1);
+                dataFileReader = fileCollection.endWriting();
                 logger.info(
                         MERKLE_DB.getMarker(),
-                        "{} Finished writing, newFile={}, numOfFiles={}, minimumValidKey={}, maximumValidKey={}",
+                        "Finished writing to {}, newFile={}, numOfFiles={}, minimumValidKey={}, maximumValidKey={}",
                         storeName,
                         dataFileReader.getIndex(),
                         fileCollection.getNumOfFiles(),
@@ -750,7 +752,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to read / update bucket " + bucketIndex, t);
+            logger.error(
+                    MERKLE_DB.getMarker(),
+                    "Failed to read / update bucket {}, location {}",
+                    bucketIndex,
+                    DataFileCommon.dataLocationToString(bucketIndexToBucketLocation.get(bucketIndex)),
+                    t);
             exceptionOccurred.set(t);
             // Make sure the writing thread is resumed
             notifyTaskRef.get().completeExceptionally(t);
@@ -901,10 +908,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         // even faster, let's consider copying index batches and/or parallel index updates
         for (int i = 0; i < oldSize; i++) {
             final long value = bucketIndexToBucketLocation.get(i);
-            if (value != 0) {
+            if (value != DataFileCommon.NON_EXISTENT_DATA_LOCATION) {
                 bucketIndexToBucketLocation.put(i + oldSize, value);
             }
         }
+        fileCollection.updateValidKeyRange(0, newSize - 1);
 
         setNumberOfBuckets(newSize);
         logger.info(MERKLE_DB.getMarker(), "Resize HDHM {} to {} buckets done", storeName, newSize);

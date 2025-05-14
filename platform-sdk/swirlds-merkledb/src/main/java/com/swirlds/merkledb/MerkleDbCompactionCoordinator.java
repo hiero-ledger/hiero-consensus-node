@@ -186,7 +186,8 @@ class MerkleDbCompactionCoordinator {
      * @return {@code true} if compaction with this name is currently running, {@code false} otherwise
      */
     public boolean isCompactionRunning(final String key) {
-        return futuresByName.containsKey(key);
+        final Future<?> f = futuresByName.get(key);
+        return (f != null) && !f.isDone();
     }
 
     boolean isCompactionEnabled() {
