@@ -2,9 +2,9 @@
 package com.hedera.services.bdd.spec.transactions.util;
 
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -31,9 +31,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
-
+    private static final Logger log = LogManager.getLogger(HapiAtomicBatch.class);
     private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
     private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
     private final Map<TransactionID, HapiTxnOp<?>> operationsMap = new HashMap<>();
@@ -75,10 +77,18 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                         AtomicBatchTransactionBody.class, b -> {
                             for (HapiTxnOp<?> op : operationsToBatch) {
                                 try {
-                                    // If the node num is not set, set the ID to 0.0.0
-                                    setInnerTxnNodeID(spec, op);
+                                    // set node account id to 0.0.0 if not set
+                                    if (op.getNode().isEmpty()) {
+                                        op.setNode(DEFAULT_NODE_ACCOUNT_ID);
+                                    }
                                     // create a transaction for each operation
                                     final var transaction = op.signedTxnFor(spec);
+                                    if (!loggingOff) {
+                                        log.info(
+                                                "{} add inner transaction to batch - {}",
+                                                spec.logPrefix(),
+                                                txnToString(transaction));
+                                    }
                                     // save transaction id
                                     final var txnId = extractTxnId(transaction);
                                     operationsMap.put(txnId, op);
@@ -162,17 +172,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
             if (consensus2.getNanos() <= consensus1.getNanos()) {
                 throw new IllegalArgumentException("Invalid execution order");
             }
-        }
-    }
-
-    private void setInnerTxnNodeID(HapiSpec spec, HapiTxnOp<?> op) {
-        // Set node ID for inner transactions
-        if (op.getNodeNum().isPresent()) {
-            op.setNodeId(asId(op.getNodeNum().get(), spec));
-        }
-        // set node account id to 0.0.0 if not set
-        if (op.getNode().isEmpty()) {
-            op.setNodeId(asId(DEFAULT_NODE_ACCOUNT_ID, spec));
         }
     }
 }

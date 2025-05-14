@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -26,7 +25,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class QueryPaymentSuite {
 
-    private static final String NODE = asEntityString(3);
+    private static final String NODE = "3";
 
     /*
      * 1. multiple payers pay amount to node as well as one more beneficiary. But node gets less query payment fee
@@ -129,7 +128,7 @@ public class QueryPaymentSuite {
         return TransferList.newBuilder()
                 .addAccountAmounts(adjust(spec.registry().getAccountID(first), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(second), -amount / 2))
-                .addAccountAmounts(adjust(asAccount(NODE), amount))
+                .addAccountAmounts(adjust(asAccount(spec.shard(), spec.realm(), Long.parseLong(NODE)), amount))
                 .build();
     }
 
@@ -147,7 +146,7 @@ public class QueryPaymentSuite {
                 .addAccountAmounts(adjust(spec.registry().getAccountID(first), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(second), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(beneficiary), amount - queryFee))
-                .addAccountAmounts(adjust(asAccount(NODE), queryFee))
+                .addAccountAmounts(adjust(asAccount(spec.shard(), spec.realm(), Long.parseLong(NODE)), queryFee))
                 .build();
     }
 

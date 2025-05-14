@@ -3,7 +3,14 @@ package org.hiero.otter.test;
 
 import static org.apache.logging.log4j.Level.WARN;
 import static org.assertj.core.data.Percentage.withPercentage;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
+import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_VERSION;
 
 import java.time.Duration;
@@ -13,7 +20,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.Validator.LogFilter;
 
 class BirthRoundMigrationTest {
 
@@ -65,13 +71,17 @@ class BirthRoundMigrationTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator()
-                .assertPlatformStatus()
-                .assertLogs(LogFilter.maxLogLevel(WARN))
-                .assertMetrics();
+        env.validator().assertPlatformStatus().assertMetrics();
 
+        assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
         assertThat(network.getConsensusResult())
                 .hasAdvancedSince(freezeRound)
                 .hasEqualRoundsIgnoringLast(withPercentage(5));
+
+        assertThat(network.getStatusProgression())
+                .hasSteps(
+                        target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
+                        target(FREEZE_COMPLETE).requiringInterim(FREEZING),
+                        target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
     }
 }
