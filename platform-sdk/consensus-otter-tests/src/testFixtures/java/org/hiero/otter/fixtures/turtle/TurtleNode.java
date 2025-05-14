@@ -44,9 +44,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -58,7 +60,11 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
@@ -237,6 +243,16 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     /**
      * {@inheritDoc}
      */
+    @NonNull
+    @Override
+    public SingleNodeLogResult getLogResult() {
+        final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId.id());
+        return new SingleNodeLogResultImpl(selfId, logs);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @NonNull
     public SingleNodeStatusProgression getStatusProgression() {
@@ -335,6 +351,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
+                .withUncaughtExceptionHandler((t, e) -> {
+                    Assertions.fail("Unexpected exception in wiring framework", e);
+                })
                 .build();
         final SemanticVersion version =
                 currentConfiguration.getValue(TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class);
