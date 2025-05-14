@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.commands.nodes;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.commands.nodes.CreateCommand.allBytesAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
@@ -102,11 +103,12 @@ public class UpdateCommand implements Callable<Integer> {
             newAccountId = null;
             feeAccountKeyLoc = null;
         } else {
-            newAccountId = validatedAccountId(accountId);
+            newAccountId = validatedAccountId(
+                    config.shard().getShardNum(), config.realm().getRealmNum(), accountId);
             final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + newAccountId.getAccountNum());
             feeAccountKeyLoc = feeAccountKeyFile.map(File::getPath).orElse(null);
             if (feeAccountKeyLoc == null) {
-                COMMON_MESSAGES.warn("No key on disk for account 0.0." + newAccountId.getAccountNum()
+                COMMON_MESSAGES.warn("No key on disk for account " + newAccountId.getAccountNum()
                         + ", payer and admin key signatures must meet its signing requirements");
             }
         }
@@ -144,7 +146,7 @@ public class UpdateCommand implements Callable<Integer> {
             newHapiCertificateHash = null;
         }
         final var delegate = new UpdateNodeSuite(
-                config.asSpecConfig(),
+                config,
                 targetNodeId,
                 newAccountId,
                 feeAccountKeyLoc,
@@ -176,14 +178,17 @@ public class UpdateCommand implements Callable<Integer> {
         }
     }
 
-    private AccountID validatedAccountId(@NonNull final String accountNum) {
+    private AccountID validatedAccountId(final long shard, final long realm, @NonNull final String accountNum) {
         try {
             return AccountID.newBuilder()
+                    .setShardNum(shard)
+                    .setRealmNum(realm)
                     .setAccountNum(Long.parseLong(accountNum))
                     .build();
         } catch (NumberFormatException e) {
             throw new CommandLine.ParameterException(
-                    nodesCommand.getYahcli().getSpec().commandLine(), "Invalid account number '" + accountNum + "'");
+                    nodesCommand.getYahcli().getSpec().commandLine(),
+                    "Invalid account number '" + asEntityString(shard, realm, accountNum) + "'");
         }
     }
 }

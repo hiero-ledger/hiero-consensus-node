@@ -13,6 +13,7 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,8 +34,14 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeFilter;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeStatusProgressionImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
 
 /**
@@ -198,13 +205,39 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         }
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters) {
+    @NonNull
+    public MultipleNodeConsensusResults getConsensusResult(@Nullable NodeFilter... filters) {
         final NodeFilter combined = NodeFilter.andAll(filters);
         final List<SingleNodeConsensusResult> results =
                 nodes.stream().filter(combined).map(Node::getConsensusResult).toList();
         return new MultipleNodeConsensusResultsImpl(results);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public MultipleNodeLogResults getLogResults() {
+        final List<SingleNodeLogResult> results =
+                nodes.stream().map(Node::getLogResult).toList();
+
+        return new MultipleNodeLogResultsImpl(results);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodeStatusProgression getStatusProgression() {
+        final List<SingleNodeStatusProgression> statusProgressions =
+                nodes.stream().map(Node::getStatusProgression).toList();
+        return new MultipleNodeStatusProgressionImpl(statusProgressions);
     }
 
     /**
