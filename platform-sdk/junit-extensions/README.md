@@ -31,3 +31,9 @@ This module contains tailored made Junit Extensions for general use.
       invokedParameters.add(new UsedParams(username, lastName, age));
   }
   ```
+
+## Related to Java Module System at Runtime
+
+Some of the extensions will need access to the module where is being instructed to execute code on:
+Make sure to open the module to
+`opensTo("org.hiero.junit.extensions")`
