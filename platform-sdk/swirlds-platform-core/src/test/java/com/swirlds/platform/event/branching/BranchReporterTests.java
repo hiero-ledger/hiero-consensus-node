@@ -16,6 +16,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -38,7 +39,7 @@ class BranchReporterTests {
 
         int ancientThreshold = randotron.nextInt(1, 1000);
         reporter.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (final NodeId nodeId : roster.rosterEntries().stream()
@@ -53,19 +54,19 @@ class BranchReporterTests {
             if (randotron.nextBoolean(0.1)) {
                 ancientThreshold++;
                 reporter.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
             if (randotron.nextBoolean(0.1)) {
                 reporter.clear();
                 reporter.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
         }
 
         // Advance ancient window very far into the future
         ancientThreshold += 1000;
         reporter.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
     }
 
     @Test
@@ -81,7 +82,7 @@ class BranchReporterTests {
 
         int ancientThreshold = randotron.nextInt(1, 1000);
         reporter.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (final NodeId nodeId : roster.rosterEntries().stream()
@@ -96,14 +97,14 @@ class BranchReporterTests {
             if (randotron.nextBoolean(0.01)) {
                 ancientThreshold++;
                 reporter.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
         }
 
         // Advance ancient window very far into the future
         ancientThreshold += 1000;
         reporter.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
     }
 
     @Test

@@ -25,6 +25,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -112,11 +113,7 @@ class ConsensusEventLinkerTests {
                     continue;
                 }
 
-                eventWindow = new EventWindow(
-                        ROUND_FIRST /* ignored in this test */,
-                        ancientMode.selectIndicator(event),
-                        ancientMode.getGenesisIndicator() /* ignored in this test */,
-                        ancientMode);
+                eventWindow = EventWindowBuilder.builder().setAncientMode(ancientMode).setAncientThreshold(ancientMode.selectIndicator(event)).build();
                 linker.setEventWindow(eventWindow);
 
                 // All ancient events should have their parents nulled out

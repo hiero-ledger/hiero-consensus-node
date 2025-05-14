@@ -21,6 +21,7 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -212,10 +213,10 @@ class EventCreationManagerTests {
     }
 
     private EventWindow createEventWindow(final long latestConsensusRound) {
-        return new EventWindow(latestConsensusRound, 1, 1, AncientMode.BIRTH_ROUND_THRESHOLD);
+        return EventWindowBuilder.birthRoundMode().setLatestConsensusRound(latestConsensusRound).build();
     }
 
     private EventWindow createEventWindow(final long latestConsensusRound, final long ancientThreshold) {
-        return new EventWindow(latestConsensusRound, ancientThreshold, 1, AncientMode.BIRTH_ROUND_THRESHOLD);
+        return EventWindowBuilder.birthRoundMode().setLatestConsensusRound(latestConsensusRound).setAncientThreshold(ancientThreshold).build();
     }
 }
