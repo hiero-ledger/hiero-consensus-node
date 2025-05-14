@@ -261,14 +261,9 @@ class HandleHederaOperationsTest {
 
     @Test
     void collectHtsFeeUsesTheContextAndDoesNotReplay() {
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        given(context.savepointStack()).willReturn(stack);
-
-        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
         subject.collectHtsFee(NON_SYSTEM_ACCOUNT_ID, 123L);
 
-        verify(tokenServiceApi).chargeFee(NON_SYSTEM_ACCOUNT_ID, 123L, streamBuilder, null);
+        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
 
         subject.replayGasChargingIn(feeChargingContext);
         verifyNoInteractions(feeChargingContext);

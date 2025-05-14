@@ -239,9 +239,8 @@ public class HandleHederaOperations implements HederaOperations {
      */
     @Override
     public void collectHtsFee(@NonNull final AccountID payerId, final long amount) {
-        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-
-        tokenServiceApi.chargeFee(payerId, amount, context.savepointStack().getBaseBuilder(StreamBuilder.class), null);
+        requireNonNull(payerId);
+        context.tryToCharge(payerId, amount);
     }
 
     @Override
