@@ -66,8 +66,6 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Order(6)
 @Tag(INTEGRATION)
@@ -75,8 +73,6 @@ import org.slf4j.LoggerFactory;
 @TargetEmbeddedMode(REPEATABLE)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableHip1064Tests {
-    private static final Logger log = LoggerFactory.getLogger(RepeatableHip1064Tests.class);
-
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
@@ -121,10 +117,10 @@ public class RepeatableHip1064Tests {
                 // First get any node fees already collected at the end of this block
                 sleepForBlockPeriod(),
                 cryptoCreate(CIVILIAN_PAYER),
-                EmbeddedVerbs.<NodeRewards>viewSingleton(TokenService.NAME, "NODE_REWARDS", (nodeRewards) -> {
-                    preCollectionNodeFees.set(nodeRewards.nodeFeesCollected());
-                    log.info("Pre-collection node fees: {}", preCollectionNodeFees.get());
-                }),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(
+                        TokenService.NAME,
+                        "NODE_REWARDS",
+                        (nodeRewards) -> preCollectionNodeFees.set(nodeRewards.nodeFeesCollected())),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
                         .payingWith(CIVILIAN_PAYER)
@@ -228,13 +224,12 @@ public class RepeatableHip1064Tests {
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
                 // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
-                getTxnRecord("notFree").exposingTo(r -> {
-                    expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                            .filter(a -> a.getAccountID().getAccountNum() == 3L)
-                            .findFirst()
-                            .orElseThrow()
-                            .getAmount());
-                }),
+                getTxnRecord("notFree")
+                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
                 // validate all network fees go to 0.0.801
                 validateRecordFees("notFree", List.of(3L, 801L)),
                 doWithStartupConfig(
@@ -591,13 +586,12 @@ public class RepeatableHip1064Tests {
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
                 // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
-                getTxnRecord("notFree").exposingTo(r -> {
-                    expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                            .filter(a -> a.getAccountID().getAccountNum() == 3L)
-                            .findFirst()
-                            .orElseThrow()
-                            .getAmount());
-                }),
+                getTxnRecord("notFree")
+                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
                 // validate all network fees go to 0.0.801
                 validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
                 doWithStartupConfig(
