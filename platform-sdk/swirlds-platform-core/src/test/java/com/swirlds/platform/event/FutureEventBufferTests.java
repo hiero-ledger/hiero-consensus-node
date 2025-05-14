@@ -485,7 +485,7 @@ class FutureEventBufferTests {
         }
 
         public EventWindow getEventWindowForMaxBirthRound() {
-            return new EventWindow(3, ROUND_FIRST, ROUND_FIRST, BIRTH_ROUND_THRESHOLD);
+            return EventWindowBuilder.birthRoundMode().setLatestConsensusRound(3).build();
         }
 
         /**
@@ -496,7 +496,7 @@ class FutureEventBufferTests {
          * @return the event window
          */
         public EventWindow eventWindowForPendingRound(final long newPendingRound) {
-            return new EventWindow(newPendingRound - 1, ROUND_FIRST, ROUND_FIRST, BIRTH_ROUND_THRESHOLD);
+            return EventWindowBuilder.birthRoundMode().setLatestConsensusRound(newPendingRound-1).build();
         }
     }
 }
