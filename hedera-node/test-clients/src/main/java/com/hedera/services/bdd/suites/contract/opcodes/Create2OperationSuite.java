@@ -202,9 +202,9 @@ public class Create2OperationSuite {
                     final var op = contractCreate(contract)
                             .payingWith(GENESIS)
                             .via(CREATION)
-                            .exposingNumTo(num -> {
-                                factoryEntityNum.set(num);
-                                factoryEvmAddress.set(asHexedSolidityAddress((int) spec.shard(), spec.realm(), num));
+                            .exposingContractIdTo(id -> {
+                                factoryEvmAddress.set(
+                                        asHexedSolidityAddress((int) spec.shard(), spec.realm(), id.getContractNum()));
                             });
                     allRunFor(spec, op);
                 }),

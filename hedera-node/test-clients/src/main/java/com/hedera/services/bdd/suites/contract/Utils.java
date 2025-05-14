@@ -339,15 +339,6 @@ public class Utils {
                 .build();
     }
 
-    @Deprecated
-    public static AccountID accountIdFromEvmAddress(final ByteString evmAddress) {
-        return AccountID.newBuilder()
-                .setShardNum(shard)
-                .setRealmNum(realm)
-                .setAlias(evmAddress)
-                .build();
-    }
-
     public static AccountID accountIdFromEvmAddress(final HapiSpec spec, final ByteString evmAddress) {
         return AccountID.newBuilder()
                 .setShardNum(spec.shard())
