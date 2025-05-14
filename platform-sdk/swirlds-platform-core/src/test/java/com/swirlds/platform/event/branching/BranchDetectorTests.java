@@ -2,6 +2,7 @@
 package com.swirlds.platform.event.branching;
 
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -19,6 +20,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.Test;
 
 class BranchDetectorTests {
@@ -95,7 +97,7 @@ class BranchDetectorTests {
 
         final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         for (final PlatformEvent event : events) {
             if (event.getBirthRound() > ancientThreshold + 5 && randotron.nextBoolean(0.1)) {
@@ -103,7 +105,7 @@ class BranchDetectorTests {
 
                 ancientThreshold++;
                 branchDetector.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
             assertFalse(event.getBirthRound() < ancientThreshold);
 
@@ -113,7 +115,7 @@ class BranchDetectorTests {
             if (randotron.nextBoolean(0.01)) {
                 branchDetector.clear();
                 branchDetector.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
         }
     }
@@ -168,7 +170,7 @@ class BranchDetectorTests {
 
         final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         boolean branchingEventAdded = false;
 
@@ -177,7 +179,7 @@ class BranchDetectorTests {
                 // Randomly advance the ancient threshold, but don't let it advance past where we are adding events.
                 ancientThreshold++;
                 branchDetector.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
             assertFalse(event.getBirthRound() < ancientThreshold);
 
@@ -259,14 +261,14 @@ class BranchDetectorTests {
 
         final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         for (final PlatformEvent event : events) {
             if (event.getBirthRound() > ancientThreshold + 5 && randotron.nextBoolean(0.1)) {
                 // Randomly advance the ancient threshold, but don't let it advance past where we are adding events.
                 ancientThreshold++;
                 branchDetector.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
             assertFalse(event.getBirthRound() < ancientThreshold);
 
@@ -335,14 +337,14 @@ class BranchDetectorTests {
 
         final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         for (final PlatformEvent event : events) {
             if (event.getBirthRound() > ancientThreshold + 5 && randotron.nextBoolean(0.1)) {
                 // Randomly advance the ancient threshold, but don't let it advance past where we are adding events.
                 ancientThreshold++;
                 branchDetector.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
             assertFalse(event.getBirthRound() < ancientThreshold);
 
@@ -354,7 +356,7 @@ class BranchDetectorTests {
         if (ancientThreshold <= branchingEvent.getBirthRound()) {
             ancientThreshold = branchingEvent.getBirthRound() + 1;
             branchDetector.updateEventWindow(
-                    new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                    EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
         }
 
         assertNull(branchDetector.checkForBranches(branchingEvent));
@@ -406,14 +408,14 @@ class BranchDetectorTests {
 
         final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         for (final PlatformEvent event : events) {
             if (event.getBirthRound() > ancientThreshold + 5 && randotron.nextBoolean(0.1)) {
                 // Randomly advance the ancient threshold, but don't let it advance past where we are adding events.
                 ancientThreshold++;
                 branchDetector.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
             assertFalse(event.getBirthRound() < ancientThreshold);
 
@@ -424,7 +426,7 @@ class BranchDetectorTests {
         // Ensure that all ancestors of the branching event are ancient.
         ancientThreshold = branchingEvent.getBirthRound();
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         assertNull(branchDetector.checkForBranches(branchingEvent));
     }
@@ -479,14 +481,14 @@ class BranchDetectorTests {
 
         final BranchDetector branchDetector = new DefaultBranchDetector(roster);
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         for (final PlatformEvent event : events) {
             if (event.getBirthRound() > ancientThreshold + 5 && randotron.nextBoolean(0.1)) {
                 // Randomly advance the ancient threshold, but don't let it advance past where we are adding events.
                 ancientThreshold++;
                 branchDetector.updateEventWindow(
-                        new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                        EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
             }
             assertFalse(event.getBirthRound() < ancientThreshold);
 
@@ -497,7 +499,7 @@ class BranchDetectorTests {
         // Advance the ancient threshold to "hide the evidence"
         ancientThreshold = branchingEvent.getBirthRound();
         branchDetector.updateEventWindow(
-                new EventWindow(1 /* ignored */, ancientThreshold, 1 /* ignored */, BIRTH_ROUND_THRESHOLD));
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(ancientThreshold).build());
 
         assertNull(branchDetector.checkForBranches(branchingEvent));
     }
