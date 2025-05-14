@@ -6,8 +6,8 @@ The general handling of Maintainer rights and all groups in this GitHub org is d
 
 Maintainers are assigned the following scopes in this repository:
 
-| Scope      | Definition               | GitHub Role | GitHub Team                        |
-| ---------- | ------------------------ | ----------- | ---------------------------------- |
+|   Scope    |        Definition        | GitHub Role |            GitHub Team             |
+|------------|--------------------------|-------------|------------------------------------|
 | Maintainer | The GitHub Maintain role | Maintain    | `hiero-consensus-node-maintainers` |
 
 ## Active Maintainers
@@ -15,14 +15,13 @@ Maintainers are assigned the following scopes in this repository:
 <!-- Please keep this sorted alphabetically by github -->
 
 | Name | GitHub ID | Scope | LFID | Discord ID | Email | Company Affiliation |
-|----- | --------- | ----- | ---- | ---------- | ----- | ------------------- |
+|------|-----------|-------|------|------------|-------|---------------------|
 |      |           |       |      |            |       |                     |
-
 
 ## Emeritus Maintainers
 
 | Name | GitHub ID | Scope | LFID | Discord ID | Email | Company Affiliation |
-|----- | --------- | ----- | ---- | ---------- | ----- | ------------------- |
+|------|-----------|-------|------|------------|-------|---------------------|
 |      |           |       |      |            |       |                     |
 
 ## The Duties of a Maintainer
@@ -44,8 +43,8 @@ Maintainers are expected to perform the following duties for this repository. Th
   give guidance and encouragement to those wanting to contribute to the product, and those wanting to become maintainers.
 - Contribute to the product via GitHub Pull Requests.
 - Monitor requests from the LF Decentralized Trust Technical Advisory Council about the
-contents and management of LFDT repositories, such as branch handling,
-required files in repositories and so on.
+  contents and management of LFDT repositories, such as branch handling,
+  required files in repositories and so on.
 - Contribute to the LFDT Project's Quarterly Report.
 
 ## Becoming a Maintainer
