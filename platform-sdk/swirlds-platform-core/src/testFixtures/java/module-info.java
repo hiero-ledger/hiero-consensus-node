@@ -9,6 +9,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.config.extensions.test.fixtures;
     requires transitive com.swirlds.merkle;
+    requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl.test.fixtures;
@@ -22,6 +23,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires com.swirlds.base.test.fixtures;
+    requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.api.test.fixtures;
@@ -61,4 +63,5 @@ open module com.swirlds.platform.core.test.fixtures {
     exports com.swirlds.platform.test.fixtures.turtle.consensus;
     exports com.swirlds.platform.test.fixtures.turtle.gossip;
     exports com.swirlds.platform.test.fixtures.turtle.runner;
+    exports com.swirlds.platform.test.fixtures.virtualmap;
 }

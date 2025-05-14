@@ -12,6 +12,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.swirlds.state.State;
 import java.util.List;
@@ -35,12 +36,15 @@ class SavepointStackImplBlocksStreamModeTest {
     @Mock
     private KVStateChangeListener kvStateChangeListener;
 
+    @Mock
+    private QueueStateChangeListener queueStateChangeListener;
+
     private SavepointStackImpl subject;
 
     @BeforeEach
     void setUp() {
         subject = SavepointStackImpl.newRootStack(
-                state, 3, 50, boundaryStateChangeListener, kvStateChangeListener, BLOCKS);
+                state, 3, 50, boundaryStateChangeListener, kvStateChangeListener, queueStateChangeListener, BLOCKS);
     }
 
     @Test

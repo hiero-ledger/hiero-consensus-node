@@ -39,6 +39,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
@@ -142,6 +143,7 @@ public class HandleWorkflow {
     private final HistoryService historyService;
     private final ConfigProvider configProvider;
     private final KVStateChangeListener kvStateChangeListener;
+    private final QueueStateChangeListener queueStateChangeListener;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
@@ -179,6 +181,7 @@ public class HandleWorkflow {
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final ParentTxnFactory parentTxnFactory,
             @NonNull final KVStateChangeListener kvStateChangeListener,
+            @NonNull final QueueStateChangeListener queueStateChangeListener,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ScheduleService scheduleService,
             @NonNull final HintsService hintsService,
@@ -208,6 +211,7 @@ public class HandleWorkflow {
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.configProvider = requireNonNull(configProvider);
         this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
+        this.queueStateChangeListener = requireNonNull(queueStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
@@ -283,6 +287,17 @@ public class HandleWorkflow {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
+
+            // write to blockstream after commit
+            final var queueChanges = queueStateChangeListener.getStateChanges();
+            if (!queueChanges.isEmpty()) {
+                final var stateChangesItem = BlockItem.newBuilder()
+                        .stateChanges(new StateChanges(
+                                boundaryStateChangeListener.boundaryTimestampOrThrow(), new ArrayList<>(queueChanges)))
+                        .build();
+                queueStateChangeListener.reset();
+                blockStreamManager.writeItem(stateChangesItem);
+            }
         }
         try {
             reconcileTssState(state, round.getConsensusTimestamp());
@@ -557,6 +572,7 @@ public class HandleWorkflow {
                     }
                     final var handleOutput = executeScheduled(state, nextTime, creatorInfo, executableTxn);
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+
                     if (streamMode == BOTH) {
                         final var records =
                                 ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
@@ -805,10 +821,10 @@ public class HandleWorkflow {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = kvStateChangeListener.getStateChanges();
-            if (!changes.isEmpty()) {
+            final var kvChanges = kvStateChangeListener.getStateChanges();
+            if (!kvChanges.isEmpty()) {
                 final var stateChangesItem = BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(asTimestamp(now), new ArrayList<>(changes)))
+                        .stateChanges(new StateChanges(asTimestamp(now), new ArrayList<>(kvChanges)))
                         .build();
                 blockStreamManager.writeItem(stateChangesItem);
             }

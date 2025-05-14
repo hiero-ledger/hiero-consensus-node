@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
-import static com.swirlds.state.spi.DeferringListener.agreedDeferCommitOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,16 +16,16 @@ import java.util.function.Predicate;
  * @param <E> The type of element in the queue.
  */
 public abstract class WritableQueueStateBase<E> implements WritableQueueState<E> {
-    /** The state key */
-    private final String stateKey;
+
     /** Each element that has been read. At the moment these are not exposed, but could be. */
     private final List<E> readElements = new ArrayList<>();
-    /** Each element that has been added to the queue, but not yet committed */
+
+    /** Each element that has been added to the queue, but not yet committed. */
     private final List<E> addedElements = new ArrayList<>();
-    /**
-     * Listeners to be notified when the queue changes.
-     */
+
+    /** Listeners to be notified when the queue changes. */
     private final List<QueueChangeListener<E>> listeners = new ArrayList<>();
+
     /**
      * The current index into {@link #addedElements} that we have read from.
      *
@@ -35,13 +34,22 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
      * {@link #addedElements} list. This index keeps track of where we have read from it.
      */
     private int currentAddedElementIndex = 0;
+
     /** An iterator from the backing datasource for reading data */
     private Iterator<E> dsIterator = null;
+
     /** The cached most recent peeked element */
     private E peekedElement = null;
 
+    /** The service name. */
+    protected final String serviceName;
+
+    /** The state key. */
+    protected final String stateKey;
+
     /** Create a new instance */
-    protected WritableQueueStateBase(@NonNull final String stateKey) {
+    protected WritableQueueStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+        this.serviceName = requireNonNull(serviceName);
         this.stateKey = requireNonNull(stateKey);
     }
 
@@ -67,26 +75,11 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     }
 
     /**
-     * Recreates the state of this queue in the given {@link WritableQueueStateBase} instance.
-     * @param that the queue to recreate the state in
-     */
-    public void recreateIn(@NonNull final WritableQueueStateBase<E> that) {
-        addedElements.forEach(element -> that.add(element));
-        for (int i = 0, n = readElements.size(); i < n; i++) {
-            that.poll();
-        }
-    }
-
-    /**
      * Flushes all changes into the underlying data store. This method should <strong>ONLY</strong>
      * be called by the code that created the {@link WritableQueueStateBase} instance or owns it. Don't
      * cast and commit unless you own the instance!
      */
     public final void commit() {
-        if (agreedDeferCommitOrThrow(listeners)) {
-            listeners.forEach(QueueChangeListener::commitDeferred);
-            return;
-        }
         // We only want to remove from the data source elements we actually read from there; not
         // any elements we read from the list of items added in this changeset; if we have peeked
         // a non-zero number of elements from the added list, then we need to subtract one if the
@@ -122,6 +115,12 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     @Override
     public String getStateKey() {
         return stateKey;
+    }
+
+    @Override
+    @NonNull
+    public final String getServiceName() {
+        return serviceName;
     }
 
     @Nullable
@@ -166,15 +165,7 @@ public abstract class WritableQueueStateBase<E> implements WritableQueueState<E>
     @Override
     public Iterator<E> iterator() {
         final var iterator = iterateOnDataSource();
-        final int numReadFromAdded =
-                currentAddedElementIndex > 0 ? currentAddedElementIndex - (peekedElement == null ? 0 : 1) : 0;
-        for (int i = 0, n = readElements.size() - numReadFromAdded; i < n; i++) {
-            iterator.next();
-        }
         final var addedElementsIterator = addedElements.iterator();
-        for (int i = 0; i < numReadFromAdded; i++) {
-            addedElementsIterator.next();
-        }
         final var numAddedElements = addedElements.size();
         return new Iterator<>() {
             @Override

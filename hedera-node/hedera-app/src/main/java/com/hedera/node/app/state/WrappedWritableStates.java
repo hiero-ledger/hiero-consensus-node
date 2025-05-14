@@ -99,15 +99,18 @@ public class WrappedWritableStates implements WritableStates {
     /**
      * Writes all modifications to the underlying {@link WritableStates}.
      */
-    public void commit() {
+    public void commit(boolean commitSingletons) {
         for (WrappedWritableKVState<?, ?> kvState : writableKVStateMap.values()) {
             kvState.commit();
         }
         for (WrappedWritableQueueState<?> queueState : writableQueueStateMap.values()) {
             queueState.commit();
         }
-        for (WrappedWritableSingletonState<?> singletonState : writableSingletonStateMap.values()) {
-            singletonState.commit();
+
+        if (commitSingletons) {
+            for (WrappedWritableSingletonState<?> singletonState : writableSingletonStateMap.values()) {
+                singletonState.commit();
+            }
         }
 
         if (delegate instanceof CommittableWritableStates terminalStates) {

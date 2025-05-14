@@ -18,6 +18,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -25,7 +26,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.state.State;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
@@ -60,7 +61,7 @@ class SavepointStackImplTest extends StateTestBase {
             G_KEY, GRAPE);
 
     @Mock(strictness = LENIENT)
-    private State baseState;
+    private MerkleNodeState baseState;
 
     @Mock
     private SavepointStackImpl parent;
@@ -74,11 +75,14 @@ class SavepointStackImplTest extends StateTestBase {
     @Mock
     private KVStateChangeListener kvStateChangeListener;
 
+    @Mock
+    private QueueStateChangeListener queueStateChangeListener;
+
     private StreamMode streamMode;
 
     @BeforeEach
     void setup() {
-        final var baseKVState = new MapWritableKVState<>(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+        final var baseKVState = new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
         final var writableStates =
                 MapWritableStates.builder().state(baseKVState).build();
         when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(writableStates);
@@ -94,7 +98,13 @@ class SavepointStackImplTest extends StateTestBase {
                 .transactionValidStart(VALID_START)
                 .build();
         final var subject = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                kvStateChangeListener,
+                queueStateChangeListener,
+                StreamMode.BOTH);
         subject.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
 
         final var firstPresetId = subject.nextPresetTxnId(false);
@@ -115,7 +125,13 @@ class SavepointStackImplTest extends StateTestBase {
                 .transactionValidStart(VALID_START)
                 .build();
         final var parent = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                kvStateChangeListener,
+                queueStateChangeListener,
+                StreamMode.BOTH);
         parent.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
         final var subject = SavepointStackImpl.newChildStack(
                 parent, REVERSIBLE, SCHEDULED, NOOP_TRANSACTION_CUSTOMIZER, StreamMode.BOTH);
@@ -133,7 +149,13 @@ class SavepointStackImplTest extends StateTestBase {
                 .nonce(-53)
                 .build();
         final var subject = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                kvStateChangeListener,
+                queueStateChangeListener,
+                StreamMode.BOTH);
         subject.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
         assertThatThrownBy(() -> subject.nextPresetTxnId(false))
                 .isInstanceOf(HandleException.class)
@@ -143,7 +165,13 @@ class SavepointStackImplTest extends StateTestBase {
     @Test
     void topLevelPermitsStakingRewards() {
         final var subject = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                kvStateChangeListener,
+                queueStateChangeListener,
+                StreamMode.BOTH);
         assertThat(subject.permitsStakingRewards()).isTrue();
     }
 
@@ -184,7 +212,13 @@ class SavepointStackImplTest extends StateTestBase {
     void testConstructor() {
         // when
         final var stack = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                kvStateChangeListener,
+                queueStateChangeListener,
+                streamMode);
 
         // then
         assertThat(stack.depth()).isEqualTo(1);
@@ -199,7 +233,13 @@ class SavepointStackImplTest extends StateTestBase {
     @Test
     void testConstructorWithInvalidParameters() {
         assertThatThrownBy(() -> SavepointStackImpl.newRootStack(
-                        null, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode))
+                        null,
+                        3,
+                        50,
+                        roundStateChangeListener,
+                        kvStateChangeListener,
+                        queueStateChangeListener,
+                        streamMode))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -207,7 +247,13 @@ class SavepointStackImplTest extends StateTestBase {
     void testModification() {
         // given
         final var stack = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                kvStateChangeListener,
+                queueStateChangeListener,
+                streamMode);
         final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
         final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -238,7 +284,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testInitialCreatedSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -262,7 +314,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testModifiedSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -295,7 +353,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testMultipleSavepoints() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -335,7 +399,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommittedSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -365,7 +435,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testModificationsAfterCommit() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -399,7 +475,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testNewSavepointAfterCommit() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -434,7 +516,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testMultipleCommits() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -475,7 +563,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitInitialStackFails() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
 
             // then
             assertThatThrownBy(stack::commit).isInstanceOf(IllegalStateException.class);
@@ -485,7 +579,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testTooManyCommitsFail() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             stack.createSavepoint();
             stack.createSavepoint();
 
@@ -503,7 +603,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testRolledBackSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -530,7 +636,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testModificationsAfterRollback() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -562,7 +674,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testNewSavepointAfterRollback() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -595,7 +713,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testMultipleRollbacks() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -632,7 +756,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testRollbackInitialStackFails() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
 
             // then
             assertThatThrownBy(stack::rollback).isInstanceOf(IllegalStateException.class);
@@ -642,7 +772,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testTooManyRollbacksFail() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             stack.createSavepoint();
             stack.createSavepoint();
 
@@ -660,7 +796,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitFullStack() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
             writableState.put(A_KEY, ACAI);
             stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
@@ -682,7 +824,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitFullStackAfterSingleCommit() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             stack.createSavepoint();
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
             writableState.put(A_KEY, ACAI);
@@ -706,7 +854,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitFullStackAfterRollback() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             stack.createSavepoint();
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
             writableState.put(A_KEY, ACAI);
@@ -727,7 +881,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testStackAfterCommitFullStack() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
 
             // when
             stack.commitFullStack();
@@ -744,7 +904,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testReuseAfterCommitFullStack() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    kvStateChangeListener,
+                    queueStateChangeListener,
+                    streamMode);
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
             writableState.put(A_KEY, ACAI);
             final var newData = new HashMap<>(BASE_DATA);

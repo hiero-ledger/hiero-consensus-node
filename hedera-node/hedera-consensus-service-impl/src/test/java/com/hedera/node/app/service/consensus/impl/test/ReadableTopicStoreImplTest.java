@@ -15,6 +15,7 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
@@ -75,7 +76,8 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
     @Test
     void missingTopicIsNull() {
         readableTopicState.reset();
-        final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_KEY).build();
+        final var state = MapReadableKVState.<Long, Topic>builder(ConsensusService.NAME, TOPICS_KEY)
+                .build();
         given(readableStates.<Long, Topic>get(TOPICS_KEY)).willReturn(state);
         subject = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 

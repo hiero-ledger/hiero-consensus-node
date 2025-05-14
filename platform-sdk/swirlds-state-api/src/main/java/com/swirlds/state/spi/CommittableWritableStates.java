@@ -11,4 +11,6 @@ public interface CommittableWritableStates {
      * Commits all changes.
      */
     void commit();
+
+    void commitSingletons();
 }

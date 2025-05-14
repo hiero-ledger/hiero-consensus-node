@@ -18,10 +18,11 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.stateNameOf;
-import static com.hedera.services.bdd.junit.support.validators.block.ChildHashUtils.hashesByName;
+import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -153,6 +154,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         NO
     }
 
+    private final PlatformStateFacade platformStateFacade;
+
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
                 .resolve(workingDirFor(0, "hapi"))
@@ -270,9 +273,10 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade());
-        this.state = hedera.newStateRoot();
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        this.platformStateFacade = new PlatformStateFacade();
+        final var hedera = ServicesMain.newHedera(metrics, platformStateFacade, platformConfig);
+        this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
@@ -315,6 +319,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                 this.state = stateToBeCopied.copy();
                 startOfStateHash =
                         CRYPTO.digestTreeSync(stateToBeCopied.getRoot()).getBytes();
+                logger.error(
+                        EXCEPTION.getMarker(),
+                        "Block: {}\n Full info: {}",
+                        block,
+                        platformStateFacade.getInfoString(stateToBeCopied, 5));
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
@@ -388,26 +397,27 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state.getWritableStates(EntityIdService.NAME).<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
         assertEntityCountsMatch(entityCounts);
 
+        // To make sure that VirtualMapState is persisted after all changes from the block stream were applied
+        state.copy();
         CRYPTO.digestTreeSync(state.getRoot());
         final var rootHash = requireNonNull(state.getHash()).getBytes();
+
         if (!expectedRootHash.equals(rootHash)) {
-            final var expectedHashes = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
-            if (expectedHashes == null) {
-                throw new AssertionError("No expected hashes found in " + pathToNode0SwirldsLog);
+            final var expectedRootMnemonic = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
+            if (expectedRootMnemonic == null) {
+                throw new AssertionError("No expected root mnemonic found in " + pathToNode0SwirldsLog);
             }
-            final var actualHashes = hashesFor(state.getRoot());
+            final var actualRootMnemonic = rootMnemonicFor(state.getRoot());
             final var errorMsg = new StringBuilder("Hashes did not match for the following states,");
-            expectedHashes.forEach((stateName, expectedHash) -> {
-                final var actualHash = actualHashes.get(stateName);
-                if (!expectedHash.equals(actualHash)) {
-                    errorMsg.append("\n    * ")
-                            .append(stateName)
-                            .append(" - expected ")
-                            .append(expectedHash)
-                            .append(", was ")
-                            .append(actualHash);
-                }
-            });
+
+            if (!expectedRootMnemonic.equals(actualRootMnemonic)) {
+                errorMsg.append("\n    * ")
+                        .append("root mnemonic ")
+                        .append(" - expected ")
+                        .append(expectedRootMnemonic)
+                        .append(", was ")
+                        .append(actualRootMnemonic);
+            }
             Assertions.fail(errorMsg.toString());
         }
     }
@@ -532,11 +542,11 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
     }
 
-    private Map<String, String> hashesFor(@NonNull final MerkleNode state) {
+    private String rootMnemonicFor(@NonNull final MerkleNode state) {
         final var sb = new StringBuilder();
         new MerkleTreeVisualizer(state).setDepth(VISUALIZATION_HASH_DEPTH).render(sb);
         logger.info("Replayed hashes:\n{}", sb);
-        return hashesByName(sb.toString());
+        return extractRootMnemonic(sb.toString());
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
@@ -769,29 +779,22 @@ public class StateChangesValidator implements BlockStreamValidator {
                 && NUMBER_PATTERN.matcher(path.getFileName().toString()).matches();
     }
 
-    private static @Nullable Map<String, String> getMaybeLastHashMnemonics(final Path path) {
-        StringBuilder sb = null;
-        boolean sawAllChildHashes = false;
+    private static @Nullable String getMaybeLastHashMnemonics(final Path path) {
+        String rootMnemonicLine = null;
         try {
             final var lines = Files.readAllLines(path);
             for (final var line : lines) {
                 if (line.startsWith("(root)")) {
-                    sb = new StringBuilder();
-                    sawAllChildHashes = false;
-                } else if (sb != null) {
-                    final var childStateMatcher = CHILD_STATE_PATTERN.matcher(line);
-                    sawAllChildHashes |= !childStateMatcher.matches();
-                    if (!sawAllChildHashes) {
-                        sb.append(line).append('\n');
-                    }
+                    rootMnemonicLine = line;
+                    break;
                 }
             }
         } catch (IOException e) {
-            logger.error("Could not read hashes from {}", path, e);
+            logger.error("Could not read root mnemonic from {}", path, e);
             return null;
         }
-        logger.info("Read hashes:\n{}", sb);
-        return sb == null ? null : hashesByName(sb.toString());
+        logger.info("Read root mnemonic:\n{}", rootMnemonicLine);
+        return rootMnemonicLine == null ? null : extractRootMnemonic(rootMnemonicLine);
     }
 
     private static Object singletonPutFor(@NonNull final SingletonUpdateChange singletonUpdateChange) {

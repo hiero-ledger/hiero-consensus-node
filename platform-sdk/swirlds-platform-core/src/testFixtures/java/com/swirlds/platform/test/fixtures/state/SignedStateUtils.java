@@ -16,6 +16,7 @@ public class SignedStateUtils {
         return randomSignedState(new Random(seed));
     }
 
+    // FUTURE WORK: use TestNewMerkleStateRoot
     public static SignedState randomSignedState(Random random) {
         TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         MerkleNodeState root = new TestMerkleStateRoot();

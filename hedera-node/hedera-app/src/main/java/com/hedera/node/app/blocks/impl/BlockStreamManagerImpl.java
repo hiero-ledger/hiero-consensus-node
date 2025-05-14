@@ -27,6 +27,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.HederaNewStateRoot;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -102,6 +103,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
+    private final QueueStateChangeListener queueStateChangeListener;
     private final PlatformStateFacade platformStateFacade;
 
     private final Lifecycle lifecycle;
@@ -196,6 +198,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final QueueStateChangeListener queueStateChangeListener,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
@@ -206,6 +209,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
+        this.queueStateChangeListener = requireNonNull(queueStateChangeListener);
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
@@ -374,8 +378,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
+            if (state instanceof HederaNewStateRoot hederaNewStateRoot) {
+                hederaNewStateRoot.commitAllSingletons();
+            }
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(boundaryStateChangeListener.summarizeCommittedChanges());
+            worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
             final var inputHash = inputTreeHasher.rootHash().join();
@@ -410,7 +417,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     asTimestamp(lastHandleTime)));
             ((CommittableWritableStates) writableState).commit();
 
-            worker.addItem(boundaryStateChangeListener.summarizeCommittedChanges());
+            worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
             final var outputHash = outputTreeHasher.rootHash().join();

@@ -45,7 +45,7 @@ class BirthRoundStateMigrationTests {
     }
 
     @NonNull
-    private SignedState generateSignedState(@NonNull final Random random) {
+    private SignedState generateSignedState(@NonNull final Random random, boolean calculateHash) {
 
         final long round = random.nextLong(1, 1_000_000);
 
@@ -81,14 +81,14 @@ class BirthRoundStateMigrationTests {
         return new RandomSignedStateGenerator(random)
                 .setConsensusSnapshot(snapshot)
                 .setRound(round)
-                .setCalculateHash(true)
+                .setCalculateHash(calculateHash)
                 .build();
     }
 
     @Test
     void generationModeTest() {
         final Random random = getRandomPrintSeed();
-        final SignedState signedState = generateSignedState(random);
+        final SignedState signedState = generateSignedState(random, true);
         final Hash originalHash = signedState.getState().getHash();
 
         final SemanticVersion previousSoftwareVersion =
@@ -111,7 +111,7 @@ class BirthRoundStateMigrationTests {
     void alreadyMigratedTest() {
         final Random random = getRandomPrintSeed();
 
-        final SignedState signedState = generateSignedState(random);
+        final SignedState signedState = generateSignedState(random, false);
 
         final SemanticVersion previousSoftwareVersion =
                 platformStateFacade.creationSoftwareVersionOf(signedState.getState());
@@ -146,8 +146,7 @@ class BirthRoundStateMigrationTests {
     @Test
     void migrationTest() {
         final Random random = getRandomPrintSeed();
-        final SignedState signedState = generateSignedState(random);
-        final Hash originalHash = signedState.getState().getHash();
+        final SignedState signedState = generateSignedState(random, false);
 
         final SemanticVersion previousSoftwareVersion =
                 platformStateFacade.creationSoftwareVersionOf(signedState.getState());
@@ -163,7 +162,7 @@ class BirthRoundStateMigrationTests {
         BirthRoundStateMigration.modifyStateForBirthRoundMigration(
                 signedState, AncientMode.BIRTH_ROUND_THRESHOLD, newSoftwareVersion, platformStateFacade);
 
-        assertNotEquals(originalHash, signedState.getState().getHash());
+        rehashTree(TestMerkleCryptoFactory.getInstance(), signedState.getState().getRoot());
 
         // We expect these fields to be populated at the migration boundary
         assertEquals(newSoftwareVersion, platformStateFacade.firstVersionInBirthRoundModeOf(signedState.getState()));

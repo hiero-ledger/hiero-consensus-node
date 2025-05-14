@@ -26,6 +26,7 @@ class WrappedReadableKVStateTest extends StateTestBase {
     @BeforeEach
     void setUp() {
         openMocks(this);
+        when(delegate.getServiceName()).thenReturn(FRUIT_SERVICE_NAME);
         when(delegate.getStateKey()).thenReturn(FRUIT_STATE_KEY);
         state = new WrappedReadableKVState<>(delegate);
     }

@@ -26,6 +26,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
@@ -92,6 +93,7 @@ public class ParentTxnFactory {
 
     private final ConfigProvider configProvider;
     private final KVStateChangeListener kvStateChangeListener;
+    private final QueueStateChangeListener queueStateChangeListener;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final PreHandleWorkflow preHandleWorkflow;
     private final Authorizer authorizer;
@@ -113,6 +115,7 @@ public class ParentTxnFactory {
     public ParentTxnFactory(
             @NonNull final ConfigProvider configProvider,
             @NonNull final KVStateChangeListener kvStateChangeListener,
+            @NonNull final QueueStateChangeListener queueStateChangeListener,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final PreHandleWorkflow preHandleWorkflow,
             @NonNull final Authorizer authorizer,
@@ -130,6 +133,7 @@ public class ParentTxnFactory {
             @NonNull final TransactionChecker transactionChecker) {
         this.configProvider = requireNonNull(configProvider);
         this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
+        this.queueStateChangeListener = requireNonNull(queueStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.preHandleWorkflow = requireNonNull(preHandleWorkflow);
         this.authorizer = requireNonNull(authorizer);
@@ -410,6 +414,7 @@ public class ParentTxnFactory {
                 consensusConfig.handleMaxFollowingRecords(),
                 boundaryStateChangeListener,
                 kvStateChangeListener,
+                queueStateChangeListener,
                 blockStreamConfig.streamMode());
     }
 

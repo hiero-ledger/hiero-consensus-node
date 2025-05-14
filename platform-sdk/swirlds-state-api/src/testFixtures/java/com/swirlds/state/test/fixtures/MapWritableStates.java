@@ -117,6 +117,11 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     }
 
     @Override
+    public void commitSingletons() {
+        // do nothing
+    }
+
+    @Override
     public String toString() {
         return "MapWritableStates{" + "states=" + states + '}';
     }

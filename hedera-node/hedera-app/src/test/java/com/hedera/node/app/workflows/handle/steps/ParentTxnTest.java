@@ -30,6 +30,7 @@ import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
 import com.hedera.node.app.blocks.impl.PairedStreamBuilder;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -95,6 +96,9 @@ class ParentTxnTest {
 
     @Mock
     private KVStateChangeListener kvStateChangeListener;
+
+    @Mock
+    private QueueStateChangeListener queueStateChangeListener;
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
@@ -259,6 +263,7 @@ class ParentTxnTest {
         return new ParentTxnFactory(
                 configProvider,
                 kvStateChangeListener,
+                queueStateChangeListener,
                 boundaryStateChangeListener,
                 preHandleWorkflow,
                 authorizer,
