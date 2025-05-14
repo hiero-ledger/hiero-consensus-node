@@ -29,6 +29,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -321,5 +322,9 @@ public class TipsetEventCreatorTestUtils {
                 .mapToObj(i -> generateRandomTransaction(random)) // Method reference
                 .toList();
         transactionSupplier.set(tenTransactions);
+    }
+
+    public static List<Boolean> booleanValues() {
+        return Arrays.asList(Boolean.FALSE, Boolean.TRUE);
     }
 }
