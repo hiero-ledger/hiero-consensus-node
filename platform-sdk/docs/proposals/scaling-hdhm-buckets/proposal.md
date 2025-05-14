@@ -10,11 +10,11 @@ stored in `HalfDiskHashMap`. All requests like `VirtualMap.get(key)` first get a
 and then retrieve the value using this path.
 
 `HalfDiskHashMap` stores key/path mappings in buckets. Every bucket contain the following info:
-  * bucket ID: 0 to N-1, where N is the number of buckets
-  * set of bucket entries, where an entry is
-    * key hash code
-    * key bytes
-    * value (path)
+* bucket ID: 0 to N-1, where N is the number of buckets
+* set of bucket entries, where an entry is
+* key hash code
+* key bytes
+* value (path)
 
 When a key is added to `HalfDiskHashMap`, the bucket to add it to is found using key's hash code.
 The number of buckets is always a power of two, so the operation is very cheap and straightforward,
@@ -64,13 +64,13 @@ equal to bucket ID. X+1 lower bits may or may not be equal to bucket ID.
 ### Key lookups after index expanding
 
 How key/path lookups in HDHM work today:
-  * Get key hash code
-  * Take X lower bits of the hash code, this will be bucket ID
-  * Look up data location for the bucket ID
-  * Load the bucket from disk
-  * Iterate over all bucket entries
-  * For every entry, check the hash code and key bytes. If they are equal to the key in question,
-    return entry value (path) to the caller, otherwise proceed to the next entry
+* Get key hash code
+* Take X lower bits of the hash code, this will be bucket ID
+* Look up data location for the bucket ID
+* Load the bucket from disk
+* Iterate over all bucket entries
+* For every entry, check the hash code and key bytes. If they are equal to the key in question,
+return entry value (path) to the caller, otherwise proceed to the next entry
 
 No changes are needed to these steps after the bucket index is expanded.
 
@@ -135,5 +135,3 @@ wrong hash code (doesn't correspond to bucket ID, with the current bucket mask) 
 example, every bucket may have a field with the latest bucket mask this bucket was written to.
 All hash codes combined with this mask must match the bucket ID. The mask may or may not be
 the current HDHM bucket mask.
-
-
