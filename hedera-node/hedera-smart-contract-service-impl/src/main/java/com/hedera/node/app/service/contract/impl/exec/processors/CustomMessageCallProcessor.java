@@ -16,8 +16,6 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.recordBuilderFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.DEFAULT_PRECOMPILE_DURATION;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.DEFAULT_SYSTEM_CONTRACT_DURATION;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -223,7 +221,9 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             frame.decrementRemainingGas(gasRequirement);
             final var precompileDuration = hederaOpsDuration
                     .getPrecompileDuration()
-                    .getOrDefault(frame.getContractAddress().getInt(0), DEFAULT_PRECOMPILE_DURATION);
+                    .getOrDefault(
+                            frame.getContractAddress().getInt(0),
+                            Math.round(gasRequirement * hederaOpsDuration.precompileDurationMultiplier()));
             incrementOpsDuration(frame, precompileDuration);
             result = precompile.computePrecompile(frame.getInputData(), frame);
             if (result.isRefundGas()) {
@@ -264,10 +264,8 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         } else {
             if (!fullResult.isRefundGas()) {
                 frame.decrementRemainingGas(gasRequirement);
-                final var systemContractDuration = hederaOpsDuration
-                        .getSystemContractDuration()
-                        .getOrDefault(frame.getInputData().getInt(0), DEFAULT_SYSTEM_CONTRACT_DURATION);
-                incrementOpsDuration(frame, systemContractDuration);
+                incrementOpsDuration(
+                        frame, Math.round(gasRequirement * hederaOpsDuration.systemContractDurationMultiplier()));
             }
             result = fullResult.result();
         }

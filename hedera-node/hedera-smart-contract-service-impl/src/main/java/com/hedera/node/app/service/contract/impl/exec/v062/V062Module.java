@@ -138,11 +138,7 @@ public interface V062Module {
         customOps.forEach(operationRegistry::put);
         // Create a return a custom HederaEVM instance
         return new HederaEVM(
-                operationRegistry,
-                gasCalculator,
-                evmConfiguration,
-                EvmSpecVersion.CANCUN,
-                hederaOpsDuration.getOpsDuration());
+                operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN, hederaOpsDuration);
     }
 
     @Provides

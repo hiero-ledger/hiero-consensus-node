@@ -16,7 +16,7 @@ class HederaOpsDurationTest {
     void testAllDurationsAreLoaded() {
         String json = "{\"opsDuration\":{\"1\":100},"
                 + "\"precompileDuration\":{\"2\":200},"
-                + "\"systemContractDuration\":{\"3\":300}}";
+                + "\"gasBasedDurationMultiplier\":{\"ops\":5.66}}";
         Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(json.getBytes());
         HederaOpsDuration opsDuration = new HederaOpsDuration(streamSupplier, new ObjectMapper());
 
@@ -24,7 +24,7 @@ class HederaOpsDurationTest {
 
         assertEquals(100, opsDuration.getOpsDuration().get(1));
         assertEquals(200, opsDuration.getPrecompileDuration().get(2));
-        assertEquals(300, opsDuration.getSystemContractDuration().get(3));
+        assertEquals(5.66, opsDuration.opsDurationMultiplier());
     }
 
     @Test

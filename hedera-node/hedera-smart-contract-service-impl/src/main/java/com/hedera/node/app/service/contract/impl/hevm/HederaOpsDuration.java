@@ -13,9 +13,9 @@ import java.util.function.Supplier;
  */
 public class HederaOpsDuration {
     public static final String HEDERA_OPS_DURATION = "hedera-ops-duration.json";
-    public static final long DEFAULT_OPS_DURATION = 10000;
-    public static final long DEFAULT_PRECOMPILE_DURATION = 20000;
-    public static final long DEFAULT_SYSTEM_CONTRACT_DURATION = 30000;
+    public static final String OP_DURATION_MULTIPLIER_KEY = "ops";
+    public static final String PRECOMPILE_MULTIPLIER_KEY = "precompile";
+    public static final String SYSTEM_CONTRACT_MULTIPLIER_KEY = "systemContract";
 
     private final Supplier<InputStream> source;
     private final ObjectMapper mapper;
@@ -43,7 +43,19 @@ public class HederaOpsDuration {
         return requireNonNull(hederaOpsDurationData).getPrecompileDuration();
     }
 
-    public Map<Integer, Long> getSystemContractDuration() {
-        return requireNonNull(hederaOpsDurationData).getSystemContractDuration();
+    public Map<String, Double> getGasBasedDurationMultiplier() {
+        return requireNonNull(hederaOpsDurationData).getGasBasedDurationMultiplier();
+    }
+
+    public double opsDurationMultiplier() {
+        return getGasBasedDurationMultiplier().getOrDefault(OP_DURATION_MULTIPLIER_KEY, 1.0);
+    }
+
+    public double precompileDurationMultiplier() {
+        return getGasBasedDurationMultiplier().getOrDefault(PRECOMPILE_MULTIPLIER_KEY, 1.0);
+    }
+
+    public double systemContractDurationMultiplier() {
+        return getGasBasedDurationMultiplier().getOrDefault(SYSTEM_CONTRACT_MULTIPLIER_KEY, 1.0);
     }
 }

@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.DEFAULT_OPS_DURATION;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Optional;
 import org.hyperledger.besu.evm.EVM;
@@ -64,20 +64,22 @@ public class HederaEVM extends EVM {
     private final EvmSpecVersion evmSpecVersion;
     private final boolean enableShanghai;
     private final Map<Integer, Long> opsDurationValueMap;
+    private final double opsDurationMultiplier;
 
     public HederaEVM(
-            OperationRegistry operations,
-            GasCalculator gasCalculator,
-            EvmConfiguration evmConfiguration,
-            EvmSpecVersion evmSpecVersion,
-            Map<Integer, Long> opsDurationValueMap) {
+            @NonNull final OperationRegistry operations,
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final EvmConfiguration evmConfiguration,
+            @NonNull final EvmSpecVersion evmSpecVersion,
+            @NonNull final HederaOpsDuration opsDuration) {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
         this.operations = operations;
         this.gasCalculator = gasCalculator;
         this.endOfScriptStop = new VirtualOperation(new StopOperation(gasCalculator));
         this.evmSpecVersion = evmSpecVersion;
         this.enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
-        this.opsDurationValueMap = opsDurationValueMap;
+        this.opsDurationValueMap = opsDuration.getOpsDuration();
+        this.opsDurationMultiplier = opsDuration.opsDurationMultiplier();
     }
 
     @Override
@@ -199,7 +201,8 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                usedOpsDuration += opsDurationValueMap.getOrDefault(opcode, DEFAULT_OPS_DURATION);
+                usedOpsDuration += opsDurationValueMap.getOrDefault(
+                        opcode, Math.round(result.getGasCost() * opsDurationMultiplier));
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {
