@@ -59,7 +59,9 @@ public class SandboxTest {
                 .reconnectEventStream(node)
                 .validateRemaining(Profile.DEFAULT);
 
-        assertThat(network.getLogResults().ignore(SOCKET_EXCEPTIONS).ignore(TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
+        assertThat(network.getLogResults()
+                        .ignoring(SOCKET_EXCEPTIONS)
+                        .ignoring(TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
                 .noMessageWithLevelHigherThan(Level.INFO);
     }
 

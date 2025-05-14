@@ -14,19 +14,15 @@ import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.lang.reflect.Array;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -228,38 +224,6 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
                 nodes.stream().map(Node::getLogResult).toList();
 
         return new MultipleNodeLogResultsImpl(results);
-    }
-
-    /**
-     * Filters and combines the provided filters of a specific type into a single filter.
-     *
-     * <p>This method extracts filters of the specified type from the given array, combines them
-     * using the provided combiner function, and returns the resulting filter. If no filters
-     * of the specified type are found, the combiner is applied with a {@code null} array.
-     *
-     * @param filters the array of filters to process (can be {@code null})
-     * @param type the class type of the filters to extract
-     * @param combiner the function to combine the extracted filters
-     * @param <T> the type of the filters to extract and combine
-     * @return the combined filter of the specified type
-     */
-    @SuppressWarnings("unchecked")
-    private static <T> T filterAndCombineFilters(
-            @Nullable final Object[] filters, @NonNull final Class<T> type, @NonNull final Function<T[], T> combiner) {
-        Objects.requireNonNull(type, "type must not be null");
-        Objects.requireNonNull(combiner, "combiner must not be null");
-        if (filters == null) {
-            return combiner.apply(null);
-        }
-
-        // The cast is safe because the array is created using the provided type and only contains elements of that
-        // type.
-        final T[] typed = Stream.of(filters)
-                .filter(type::isInstance)
-                .map(type::cast)
-                .toArray(size -> (T[]) Array.newInstance(type, size));
-
-        return combiner.apply(typed);
     }
 
     /**

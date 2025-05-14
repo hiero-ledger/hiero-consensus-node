@@ -25,17 +25,17 @@ public interface MultipleNodeLogResults {
      * Excludes the log results of a specific node from the current results.
      *
      * @param node the node whose log results are to be excluded
-     * @return an updated {@code MultipleNodeLogResults} instance with the specified node's results ignored
+     * @return a new {@code MultipleNodeLogResults} instance with the specified node's results removed
      */
     @NonNull
-    MultipleNodeLogResults ignore(@NonNull Node node);
+    MultipleNodeLogResults ignoring(@NonNull Node node);
 
     /**
      * Excludes the log results associated with the specified log marker from the current results.
      *
      * @param marker the {@link LogMarker} whose associated log results are to be excluded
-     * @return an updated {@code MultipleNodeLogResults} instance with the specified log marker's results ignored
+     * @return a new {@code MultipleNodeLogResults} instance with the specified log marker's results removed
      */
     @NonNull
-    MultipleNodeLogResults ignore(@NonNull LogMarker marker);
+    MultipleNodeLogResults ignoring(@NonNull LogMarker marker);
 }

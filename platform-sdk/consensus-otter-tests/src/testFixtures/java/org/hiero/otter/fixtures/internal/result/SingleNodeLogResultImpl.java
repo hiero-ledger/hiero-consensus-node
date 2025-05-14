@@ -15,14 +15,15 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
  * @param nodeId the ID of the node
  * @param logs the list of log entries for the node
  */
-public record SingleNodeLogResultImpl(NodeId nodeId, List<StructuredLog> logs) implements SingleNodeLogResult {
+public record SingleNodeLogResultImpl(@NonNull NodeId nodeId, @NonNull List<StructuredLog> logs)
+        implements SingleNodeLogResult {
 
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    public SingleNodeLogResult ignore(@NonNull final LogMarker marker) {
+    public SingleNodeLogResult ignoring(@NonNull final LogMarker marker) {
         Objects.requireNonNull(marker, "marker cannot be null");
 
         if (markers().contains(marker.getMarker())) {

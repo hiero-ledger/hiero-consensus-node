@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.assertions;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.logging.log4j.Level;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.otter.fixtures.OtterAssertions;
@@ -21,7 +22,7 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
      *
      * @param actual the actual {@link MultipleNodeLogResults} to assert
      */
-    protected MultipleNodeLogResultsAssert(final MultipleNodeLogResults actual) {
+    protected MultipleNodeLogResultsAssert(@Nullable final MultipleNodeLogResults actual) {
         super(actual, MultipleNodeLogResultsAssert.class);
     }
 
@@ -31,7 +32,8 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
      * @param actual the actual {@link MultipleNodeLogResults} to assert
      * @return a new instance of {@link MultipleNodeLogResultsAssert}
      */
-    public static MultipleNodeLogResultsAssert assertThat(final MultipleNodeLogResults actual) {
+    @NonNull
+    public static MultipleNodeLogResultsAssert assertThat(@Nullable final MultipleNodeLogResults actual) {
         return new MultipleNodeLogResultsAssert(actual);
     }
 
@@ -41,7 +43,7 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
      * @param first the first marker to check
      * @param rest additional markers to check
      */
-    public void noMessageWithMarkers(@NonNull final LogMarker first, @NonNull final LogMarker... rest) {
+    public void noMessageWithMarkers(@NonNull final LogMarker first, @Nullable final LogMarker... rest) {
         isNotNull();
 
         for (final SingleNodeLogResult result : actual.results()) {

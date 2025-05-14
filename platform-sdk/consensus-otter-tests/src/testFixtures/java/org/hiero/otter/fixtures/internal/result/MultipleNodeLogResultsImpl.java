@@ -14,13 +14,13 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
  *
  * @param results the list of log results for individual nodes
  */
-public record MultipleNodeLogResultsImpl(List<SingleNodeLogResult> results) implements MultipleNodeLogResults {
+public record MultipleNodeLogResultsImpl(@NonNull List<SingleNodeLogResult> results) implements MultipleNodeLogResults {
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
-    public MultipleNodeLogResults ignore(@NonNull final Node node) {
+    public MultipleNodeLogResults ignoring(@NonNull final Node node) {
         Objects.requireNonNull(node, "node cannot be null");
         final List<SingleNodeLogResult> filteredResults = results.stream()
                 .filter(res -> Objects.equals(res.nodeId(), node.getSelfId()))
@@ -34,10 +34,10 @@ public record MultipleNodeLogResultsImpl(List<SingleNodeLogResult> results) impl
      */
     @NonNull
     @Override
-    public MultipleNodeLogResults ignore(@NonNull final LogMarker marker) {
+    public MultipleNodeLogResults ignoring(@NonNull final LogMarker marker) {
         Objects.requireNonNull(marker, "marker cannot be null");
         final List<SingleNodeLogResult> filteredResults =
-                results.stream().map(res -> res.ignore(marker)).toList();
+                results.stream().map(res -> res.ignoring(marker)).toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
     }

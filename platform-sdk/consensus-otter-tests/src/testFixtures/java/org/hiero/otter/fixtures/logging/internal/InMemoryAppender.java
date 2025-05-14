@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;
@@ -86,16 +87,6 @@ public class InMemoryAppender extends AbstractAppender {
     }
 
     /**
-     * Returns an unmodifiable list of all captured log statements
-     *
-     * @return an unmodifiable list of all captured log statements
-     */
-    @NonNull
-    public static List<StructuredLog> getLogs() {
-        return Collections.unmodifiableList(logs);
-    }
-
-    /**
      * Returns an unmodifiable list of all captured log statements for a specific node
      *
      * @param nodeId nodeId of the node
@@ -104,7 +95,10 @@ public class InMemoryAppender extends AbstractAppender {
      */
     @NonNull
     public static List<StructuredLog> getLogs(final long nodeId) {
-        return logs.stream().filter(l -> l.nodeId() == nodeId).toList();
+        return logs.stream()
+                .filter(Objects::nonNull)
+                .filter(log -> log.nodeId() == nodeId)
+                .toList();
     }
 
     /**

@@ -38,10 +38,10 @@ public interface SingleNodeLogResult {
      * Excludes log entries associated with the specified {@link LogMarker} from the current log result.
      *
      * @param marker the {@link LogMarker} whose associated log entries are to be excluded
-     * @return an updated {@code SingleNodeLogResult} instance with the specified log marker's entries ignored
+     * @return a new {@code SingleNodeLogResult} instance with the specified log marker's entries removed
      */
     @NonNull
-    SingleNodeLogResult ignore(@NonNull LogMarker marker);
+    SingleNodeLogResult ignoring(@NonNull LogMarker marker);
 
     /**
      * Returns the set of unique markers present in the log entries for this node.

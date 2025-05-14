@@ -3,10 +3,9 @@ package org.hiero.otter.fixtures.assertions;
 
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -28,7 +27,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      *
      * @param actual the actual {@link SingleNodeLogResult} to assert
      */
-    protected SingleNodeLogResultAssert(final SingleNodeLogResult actual) {
+    protected SingleNodeLogResultAssert(@Nullable final SingleNodeLogResult actual) {
         super(actual, SingleNodeLogResultAssert.class);
     }
 
@@ -38,7 +37,8 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @param actual the actual {@link SingleNodeLogResult} to assert
      * @return a new instance of {@link SingleNodeLogResultAssert}
      */
-    public static SingleNodeLogResultAssert assertThat(final SingleNodeLogResult actual) {
+    @NonNull
+    public static SingleNodeLogResultAssert assertThat(@Nullable final SingleNodeLogResult actual) {
         return new SingleNodeLogResultAssert(actual);
     }
 
@@ -48,24 +48,20 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @param first the first marker to check
      * @param rest additional markers to check
      */
-    public void noMessageWithMarkers(@NonNull final LogMarker first, @NonNull final LogMarker... rest) {
+    public void noMessageWithMarkers(@NonNull final LogMarker first, @Nullable final LogMarker... rest) {
         isNotNull();
 
-        final Set<Marker> markers = Stream.concat(Stream.of(first), Arrays.stream(rest))
+        final Stream<LogMarker> restStream = rest == null ? Stream.empty() : Arrays.stream(rest);
+        final Set<Marker> markers = Stream.concat(Stream.of(first), restStream).toList().stream()
                 .map(LogMarker::getMarker)
                 .collect(Collectors.toSet());
 
-        final List<Marker> foundMarkers = new ArrayList<>();
-        final List<StructuredLog> foundLogs = new ArrayList<>();
-        for (final Marker marker : markers) {
-            if (actual.markers().contains(marker)) {
-                foundMarkers.add(marker);
-                final List<StructuredLog> messages = actual.logs().stream()
-                        .filter(l -> Objects.equals(l.marker(), marker))
-                        .toList();
-                foundLogs.addAll(messages);
-            }
-        }
+        final List<StructuredLog> foundLogs = actual.logs().stream()
+                .filter(log -> markers.contains(log.marker()))
+                .collect(Collectors.toList());
+        final Set<Marker> foundMarkers =
+                foundLogs.stream().map(StructuredLog::marker).collect(Collectors.toSet());
+
         final StringBuilder message = new StringBuilder();
         message.append("Expected to find no message with marker");
         foundMarkers.forEach(marker -> {
@@ -86,8 +82,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
     public void noMessageWithLevelHigherThan(@NonNull final Level level) {
         isNotNull();
         final List<StructuredLog> logs = actual.logs().stream()
-                .filter(Objects::nonNull)
-                .filter(l -> l.level().intLevel() < level.intLevel())
+                .filter(log -> log.level().intLevel() < level.intLevel())
                 .toList();
         if (!logs.isEmpty()) {
             final String message = String.format("Expected to find no message with lever higher than '%s'", level);
@@ -103,12 +98,13 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      */
     private void failWithMessage(@NonNull final String message, @NonNull final List<StructuredLog> logs) {
         final StringBuilder logStatements = new StringBuilder();
+        logStatements.append(message);
         logStatements.append("\n****************\n");
         logStatements.append(" ->  Log messages found:\n");
         logStatements.append("****************\n");
         logs.forEach(log -> logStatements.append(log.toString()));
         logStatements.append("****************\n");
 
-        failWithMessage("%s %s", message, logStatements.toString());
+        failWithMessage(logStatements.toString());
     }
 }
