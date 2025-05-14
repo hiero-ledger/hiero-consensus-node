@@ -47,6 +47,7 @@ import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -318,6 +319,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)
+                .withUncaughtExceptionHandler((t, e) -> {
+                    Assertions.fail("Unexpected exception in wiring framework", e);
+                })
                 .build();
         final SemanticVersion version =
                 currentConfiguration.getValue(TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class);
