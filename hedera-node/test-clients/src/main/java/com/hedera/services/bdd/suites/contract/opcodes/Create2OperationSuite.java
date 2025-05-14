@@ -203,8 +203,8 @@ public class Create2OperationSuite {
                             .payingWith(GENESIS)
                             .via(CREATION)
                             .exposingContractIdTo(id -> {
-                                factoryEvmAddress.set(
-                                        asHexedSolidityAddress((int) spec.shard(), spec.realm(), id.getContractNum()));
+                                factoryEvmAddress.set(asHexedSolidityAddress(
+                                        (int) id.getShardNum(), id.getRealmNum(), id.getContractNum()));
                             });
                     allRunFor(spec, op);
                 }),

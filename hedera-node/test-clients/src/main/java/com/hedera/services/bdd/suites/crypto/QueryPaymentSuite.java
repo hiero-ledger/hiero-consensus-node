@@ -46,7 +46,7 @@ public class QueryPaymentSuite {
                             .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
                                             innerSpec, "a", "b", "c", 1_000L, 2L))
                                     .payingWith("a"))
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE);
                     allRunFor(spec, op);
                 }),
@@ -55,7 +55,7 @@ public class QueryPaymentSuite {
                             .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
                                             innerSpec, "d", "b", "c", 5000, 200L))
                                     .payingWith("a"))
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE);
                     allRunFor(spec, op);
                 }),
@@ -64,7 +64,7 @@ public class QueryPaymentSuite {
                             .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
                                             innerSpec, "d", GENESIS, "c", 5000, 200L))
                                     .payingWith("a"))
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE);
                     allRunFor(spec, op);
                 }));
@@ -86,7 +86,7 @@ public class QueryPaymentSuite {
                     final var op = getAccountInfo(GENESIS)
                             .withPayment(cryptoTransfer(innerSpec ->
                                     multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 1_000L, 200L)))
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .hasAnswerOnlyPrecheck(OK);
                     allRunFor(spec, op);
                 }),
@@ -94,7 +94,7 @@ public class QueryPaymentSuite {
                     final var op = getAccountInfo(GENESIS)
                             .withPayment(cryptoTransfer(innerSpec ->
                                     multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 900, 200L)))
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .payingWith("a")
                             .hasAnswerOnlyPrecheck(OK);
                     allRunFor(spec, op);
@@ -103,7 +103,7 @@ public class QueryPaymentSuite {
                     final var op = getAccountInfo(GENESIS)
                             .withPayment(cryptoTransfer(innerSpec ->
                                     multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 1200, 200L)))
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .payingWith("a")
                             .fee(10L)
                             .hasAnswerOnlyPrecheck(OK);
@@ -119,14 +119,11 @@ public class QueryPaymentSuite {
                 cryptoCreate("b").balance(1_234L),
                 cryptoCreate("c").balance(1_234L),
                 withOpContext((spec, opLog) -> {
-                    var op1 = getAccountInfo(GENESIS)
-                            .fee(100L)
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
-                            .hasAnswerOnlyPrecheck(OK);
+                    var op1 = getAccountInfo(GENESIS).fee(100L).setNode(NODE).hasAnswerOnlyPrecheck(OK);
                     var op2 = getAccountInfo(GENESIS)
                             .payingWith("a")
                             .nodePayment(Long.MAX_VALUE)
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE);
                     var op3 = getAccountInfo(GENESIS)
                             .withPayment(cryptoTransfer(
@@ -148,7 +145,7 @@ public class QueryPaymentSuite {
                             .withPayment(
                                     cryptoTransfer(innerSpec -> invalidPaymentToNode(innerSpec, "a", "b", "c", 1200))
                                             .payingWith("a"))
-                            .setNode(spec.shard(), spec.realm(), NODE_ACCT_NUM)
+                            .setNode(NODE)
                             .fee(10L)
                             .hasAnswerOnlyPrecheck(INVALID_RECEIVING_NODE_ACCOUNT);
                     allRunFor(spec, op);
