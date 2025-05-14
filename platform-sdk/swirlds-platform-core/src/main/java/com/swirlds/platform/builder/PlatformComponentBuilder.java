@@ -17,8 +17,6 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.event.DefaultFutureEventBuffer;
-import com.swirlds.platform.event.FutureEventBuffer;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
@@ -75,6 +73,7 @@ import java.util.Objects;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -1226,19 +1225,6 @@ public class PlatformComponentBuilder {
             latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
         }
         return latestCompleteStateNotifier;
-    }
-
-    /**
-     * Builds the {@link FutureEventBuffer} if it has not yet been built and returns it.
-     *
-     * @return the future event buffer
-     */
-    @NonNull
-    public FutureEventBuffer buildFutureEventBuffer() {
-        if (futureEventBuffer == null) {
-            futureEventBuffer = new DefaultFutureEventBuffer(blocks.platformContext());
-        }
-        return futureEventBuffer;
     }
 
     /**
