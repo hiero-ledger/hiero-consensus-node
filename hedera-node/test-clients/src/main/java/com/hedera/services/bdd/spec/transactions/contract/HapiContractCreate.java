@@ -49,7 +49,9 @@ import java.util.function.Supplier;
 import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreate> {
-    static final ContractID.Builder DEPRECATED_CID = ContractID.newBuilder().setContractNum(1_234L);
+    static final Key DEPRECATED_CID_ADMIN_KEY = Key.newBuilder()
+            .setContractID(ContractID.newBuilder().setShardNum(0).setRealmNum(0).setContractNum(1_234L))
+            .build();
 
     public HapiContractCreate(String contract) {
         super(contract);
@@ -343,11 +345,7 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                 .<ContractCreateTransactionBody, ContractCreateTransactionBody.Builder>body(
                         ContractCreateTransactionBody.class, b -> {
                             if (useDeprecatedAdminKey) {
-                                b.setAdminKey(Key.newBuilder()
-                                        .setContractID(DEPRECATED_CID
-                                                .setShardNum(spec.shard())
-                                                .setRealmNum(spec.realm()))
-                                        .build());
+                                b.setAdminKey(DEPRECATED_CID_ADMIN_KEY);
                             } else if (omitAdminKey) {
                                 if (makeImmutable) {
                                     b.setAdminKey(Key.newBuilder().setKeyList(KeyList.getDefaultInstance()));
