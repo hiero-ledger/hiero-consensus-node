@@ -173,7 +173,6 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
 
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        fixNodeFor(spec);
         configureTlsFor(spec);
 
         Transaction payment = Transaction.getDefaultInstance();
@@ -434,7 +433,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
     }
 
     public T setNode(String accountNum) {
-        nodeNum = Optional.of(accountNum);
+        node = Optional.of(accountNum);
         return self();
     }
 
