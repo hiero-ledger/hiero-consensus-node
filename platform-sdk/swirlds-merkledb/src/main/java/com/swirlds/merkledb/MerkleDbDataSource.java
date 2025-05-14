@@ -28,7 +28,6 @@ import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
 import com.swirlds.merkledb.collections.LongListOffHeap;
-import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCompactor;
