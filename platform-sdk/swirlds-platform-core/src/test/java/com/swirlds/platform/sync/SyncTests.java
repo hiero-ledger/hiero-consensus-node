@@ -4,10 +4,8 @@ package com.swirlds.platform.sync;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
-import static org.hiero.base.CompareTo.max;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -849,12 +847,11 @@ public class SyncTests {
         final SyncPhaseParallelExecutor parallelExecutor = new SyncPhaseParallelExecutor(
                 getStaticThreadManager(),
                 () -> executor.getCaller()
-                        .updateEventWindow(
-                                EventWindowBuilder.builder()
-                                        .setAncientMode(params.getAncientMode())
-                                        .setAncientThreshold(maximumIndicator.get() + 2)
-                                        .setExpiredThreshold(maximumIndicator.get() + 1)
-                                        .build()),
+                        .updateEventWindow(EventWindowBuilder.builder()
+                                .setAncientMode(params.getAncientMode())
+                                .setAncientThreshold(maximumIndicator.get() + 2)
+                                .setExpiredThreshold(maximumIndicator.get() + 1)
+                                .build()),
                 null,
                 true);
         executor.setExecutorSupplier(() -> parallelExecutor);

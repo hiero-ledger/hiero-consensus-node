@@ -31,7 +31,6 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
@@ -211,15 +210,13 @@ class EventDeduplicatorTests {
                 minimumGenerationNonAncient++;
                 minimumRoundNonAncient++;
                 if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-                    deduplicator.setEventWindow(
-                            EventWindowBuilder.birthRoundMode()
-                                    .setAncientThreshold(minimumRoundNonAncient)
-                                    .build());
+                    deduplicator.setEventWindow(EventWindowBuilder.birthRoundMode()
+                            .setAncientThreshold(minimumRoundNonAncient)
+                            .build());
                 } else {
-                    deduplicator.setEventWindow(
-                            EventWindowBuilder.generationMode()
-                                    .setAncientThreshold(minimumGenerationNonAncient)
-                                    .build());
+                    deduplicator.setEventWindow(EventWindowBuilder.generationMode()
+                            .setAncientThreshold(minimumGenerationNonAncient)
+                            .build());
                 }
             }
         }

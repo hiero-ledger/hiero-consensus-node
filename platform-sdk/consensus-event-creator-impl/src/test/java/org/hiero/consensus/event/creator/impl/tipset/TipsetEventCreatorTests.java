@@ -755,7 +755,10 @@ class TipsetEventCreatorTests {
 
         final EventCreator eventCreator =
                 buildEventCreator(random, time, roster, nodeA, Collections::emptyList, ancientMode);
-        eventCreator.setEventWindow(EventWindowBuilder.builder().setAncientMode(ancientMode).setAncientThreshold(100).build());
+        eventCreator.setEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setAncientThreshold(100)
+                .build());
 
         // Since there are no other parents available, the next event created would have a generation of 0
         // (if event creation were permitted). Since the current minimum generation non ancient is 100,
@@ -814,9 +817,10 @@ class TipsetEventCreatorTests {
 
                     // Set non-ancientEventWindow after creating genesis event from each node.
                     eventCreator.setEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(useBirthRoundForAncient
-                                    ? AncientMode.BIRTH_ROUND_THRESHOLD
-                                    : AncientMode.GENERATION_THRESHOLD)
+                            .setAncientMode(
+                                    useBirthRoundForAncient
+                                            ? AncientMode.BIRTH_ROUND_THRESHOLD
+                                            : AncientMode.GENERATION_THRESHOLD)
                             .setLatestConsensusRound(pendingConsensusRound - 1)
                             .setAncientThreshold(ancientThreshold)
                             .build());

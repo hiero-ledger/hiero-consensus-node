@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.test.fixtures.hashgraph;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,18 +16,17 @@ public class EventWindowBuilder {
     private Long expiredThreshold;
     private AncientMode ancientMode;
 
-    private EventWindowBuilder() {
-    }
+    private EventWindowBuilder() {}
 
-    public static EventWindowBuilder builder(){
+    public static EventWindowBuilder builder() {
         return new EventWindowBuilder();
     }
 
-    public static EventWindowBuilder birthRoundMode(){
+    public static EventWindowBuilder birthRoundMode() {
         return new EventWindowBuilder().setAncientMode(AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 
-    public static EventWindowBuilder generationMode(){
+    public static EventWindowBuilder generationMode() {
         return new EventWindowBuilder().setAncientMode(AncientMode.GENERATION_THRESHOLD);
     }
 
@@ -59,7 +59,7 @@ public class EventWindowBuilder {
      * @return the builder instance
      */
     public EventWindowBuilder setAncientThresholdOrGenesis(final long ancientThreshold) {
-        if(ancientMode == null){
+        if (ancientMode == null) {
             throw new IllegalArgumentException("Ancient mode must be set");
         }
         this.ancientThreshold = Math.max(ancientMode.getGenesisIndicator(), ancientThreshold);
@@ -84,7 +84,7 @@ public class EventWindowBuilder {
      * @return the builder instance
      */
     public @NonNull EventWindowBuilder setExpiredThresholdOrGenesis(final long expiredThreshold) {
-        if(ancientMode == null){
+        if (ancientMode == null) {
             throw new IllegalArgumentException("Ancient mode must be set");
         }
         this.expiredThreshold = Math.max(ancientMode.getGenesisIndicator(), expiredThreshold);
@@ -109,7 +109,7 @@ public class EventWindowBuilder {
      * @throws IllegalArgumentException if any required fields are invalid
      */
     public EventWindow build() {
-        if(this.ancientMode == null){
+        if (this.ancientMode == null) {
             throw new IllegalArgumentException("Ancient mode must be set");
         }
         return new EventWindow(

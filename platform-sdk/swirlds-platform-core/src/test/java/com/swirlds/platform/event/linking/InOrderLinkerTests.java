@@ -108,7 +108,7 @@ class InOrderLinkerTests {
         final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setAncientMode(ancientMode)
                 /* one more than the ancient value, so that the events are ancient */
-                .setAncientThreshold(ancientValue+1)
+                .setAncientThreshold(ancientValue + 1)
                 .build();
 
         for (final PlatformEvent ancientEvent : ancientEvents) {
@@ -250,11 +250,10 @@ class InOrderLinkerTests {
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
         inOrderLinkerSetup(ancientMode);
 
-        inOrderLinker.setEventWindow(
-                EventWindowBuilder.builder()
-                        .setAncientMode(ancientMode)
-                        .setAncientThreshold(3)
-                        .build());
+        inOrderLinker.setEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setAncientThreshold(3)
+                .build());
 
         final PlatformEvent child1 = new TestingEventBuilder(random)
                 .setCreatorId(selfId)

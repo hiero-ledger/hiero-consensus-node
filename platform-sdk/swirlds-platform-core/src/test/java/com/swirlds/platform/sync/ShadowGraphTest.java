@@ -151,7 +151,9 @@ class ShadowgraphTest {
 
         final long expireBelowGen = random.nextInt(10) + 1;
 
-        final EventWindow eventWindow = EventWindowBuilder.generationMode().setExpiredThreshold(expireBelowGen).build();
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(expireBelowGen)
+                .build();
 
         shadowgraph.updateEventWindow(eventWindow);
 
@@ -273,7 +275,9 @@ class ShadowgraphTest {
         final long expireBelowGen = FIRST_GENERATION + 1;
 
         final ReservedEventWindow r1 = shadowgraph.reserve();
-        final EventWindow eventWindow = EventWindowBuilder.generationMode().setExpiredThreshold(expireBelowGen).build();
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(expireBelowGen)
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         final ReservedEventWindow r2 = shadowgraph.reserve();
@@ -334,7 +338,9 @@ class ShadowgraphTest {
         initShadowgraph(random, numEvents, numNodes);
 
         final long expireBelowGen = random.nextInt((int) maxGen) + 2;
-        final EventWindow eventWindow = EventWindowBuilder.generationMode().setExpiredThreshold(expireBelowGen).build();
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(expireBelowGen)
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         assertEventsBelowGenAreExpired(expireBelowGen);
@@ -375,9 +381,13 @@ class ShadowgraphTest {
 
         final ReservedEventWindow r0 = shadowgraph.reserve();
 
-        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode().setExpiredThreshold(FIRST_GENERATION+1).build());
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 1)
+                .build());
         final ReservedEventWindow r1 = shadowgraph.reserve();
-        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode().setExpiredThreshold(FIRST_GENERATION+2).build());
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 2)
+                .build());
         final ReservedEventWindow r2 = shadowgraph.reserve();
 
         // release the middle reservation to ensure that generations
@@ -389,13 +399,17 @@ class ShadowgraphTest {
         r2.close();
 
         // Attempt to expire everything up to
-        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode().setExpiredThreshold(FIRST_GENERATION+2).build());
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 2)
+                .build());
 
         // No event should have been expired because the first generation is reserved
         assertEventsBelowGenAreExpired(0);
 
         r0.close();
-        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode().setExpiredThreshold(FIRST_GENERATION+2).build());
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 2)
+                .build());
 
         // Now that the reservation is closed, ensure that the events in the below generation 2 are expired
         assertEventsBelowGenAreExpired(FIRST_GENERATION + 2);
@@ -528,7 +542,9 @@ class ShadowgraphTest {
         initShadowgraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
         final EventImpl newEvent = emitter.emitEvent();
-        final EventWindow eventWindow = EventWindowBuilder.generationMode().setExpiredThreshold(newEvent.getGeneration()).build();
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(newEvent.getGeneration())
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         assertDoesNotThrow(
@@ -657,7 +673,9 @@ class ShadowgraphTest {
         final int numTipsBeforeExpiry = shadowgraph.getTips().size();
         assertTrue(numTipsBeforeExpiry > 0, "Shadow graph should have tips after events are added.");
 
-        final EventWindow eventWindow = EventWindowBuilder.generationMode().setExpiredThreshold(oldestTipGen + 1).build();
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(oldestTipGen + 1)
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         assertEquals(

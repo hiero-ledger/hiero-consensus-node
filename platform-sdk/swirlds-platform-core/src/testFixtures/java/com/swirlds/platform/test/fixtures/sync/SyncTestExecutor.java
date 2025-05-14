@@ -31,7 +31,6 @@ import java.util.function.Supplier;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 
 /**
@@ -223,12 +222,11 @@ public class SyncTestExecutor {
                 callerAncientThreshold++;
             }
 
-            caller.updateEventWindow(
-                    EventWindowBuilder.builder()
-                            .setAncientMode(ancientMode)
-                            .setAncientThresholdOrGenesis(callerAncientThreshold)
-                            .setExpiredThresholdOrGenesis(callerExpiredThreshold)
-                            .build());
+            caller.updateEventWindow(EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThresholdOrGenesis(callerAncientThreshold)
+                    .setExpiredThresholdOrGenesis(callerExpiredThreshold)
+                    .build());
 
             listener.updateEventWindow(EventWindowBuilder.builder()
                     .setAncientMode(ancientMode)

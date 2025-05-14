@@ -174,7 +174,10 @@ class TipsetTrackerTests {
                 : EventConstants.FIRST_GENERATION;
         while (tracker.size() > 0) {
             ancientThreshold += random.nextInt(1, 5);
-            final EventWindow eventWindow = EventWindowBuilder.builder().setAncientMode(ancientMode).setAncientThreshold(ancientThreshold).build();
+            final EventWindow eventWindow = EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThreshold(ancientThreshold)
+                    .build();
             tracker.setEventWindow(eventWindow);
             assertEquals(eventWindow, tracker.getEventWindow());
             for (final EventDescriptorWrapper descriptor : expectedTipsets.keySet()) {

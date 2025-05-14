@@ -156,7 +156,9 @@ class ShadowgraphByBirthRoundTests {
 
         final long expireBelowBirthRound = random.nextInt(10) + 1;
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode().setExpiredThreshold(expireBelowBirthRound).build();
+        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(expireBelowBirthRound)
+                .build();
 
         shadowGraph.updateEventWindow(eventWindow);
 
@@ -279,7 +281,9 @@ class ShadowgraphByBirthRoundTests {
         final long expireBelowBirthRound = ROUND_FIRST + 1;
 
         final ReservedEventWindow r1 = shadowGraph.reserve();
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode().setExpiredThreshold(expireBelowBirthRound).build();
+        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(expireBelowBirthRound)
+                .build();
         shadowGraph.updateEventWindow(eventWindow);
 
         final ReservedEventWindow r2 = shadowGraph.reserve();
@@ -340,7 +344,9 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(random, numEvents, numNodes);
 
         final long expireBelowBirthRound = random.nextInt((int) maxBirthRound) + 2;
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode().setExpiredThreshold(expireBelowBirthRound).build();
+        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(expireBelowBirthRound)
+                .build();
         shadowGraph.updateEventWindow(eventWindow);
 
         assertEventsBelowBirthRoundAreExpired(expireBelowBirthRound);
@@ -380,9 +386,13 @@ class ShadowgraphByBirthRoundTests {
         SyncTestUtils.printEvents("generated events", generatedEvents);
 
         final ReservedEventWindow r0 = shadowGraph.reserve();
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode().setExpiredThreshold(ROUND_FIRST + 1).build());
+        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(ROUND_FIRST + 1)
+                .build());
         final ReservedEventWindow r1 = shadowGraph.reserve();
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode().setExpiredThreshold(ROUND_FIRST + 2).build());
+        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(ROUND_FIRST + 2)
+                .build());
         final ReservedEventWindow r2 = shadowGraph.reserve();
 
         // release the middle reservation to ensure that birth rounds
@@ -394,13 +404,17 @@ class ShadowgraphByBirthRoundTests {
         r2.close();
 
         // Attempt to expire everything up to
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode().setExpiredThreshold(ROUND_FIRST + 2).build());
+        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(ROUND_FIRST + 2)
+                .build());
 
         // No event should have been expired because the first birth round is reserved
         assertEventsBelowBirthRoundAreExpired(0);
 
         r0.close();
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode().setExpiredThreshold(ROUND_FIRST + 2).build());
+        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(ROUND_FIRST + 2)
+                .build());
 
         // Now that the reservation is closed, ensure that the events below birth round 2 are expired
         assertEventsBelowBirthRoundAreExpired(ROUND_FIRST + 2);
@@ -511,7 +525,9 @@ class ShadowgraphByBirthRoundTests {
     void testAddEventWithExpiredBirthRound() {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode().setExpiredThreshold(ROUND_FIRST + 1).build());
+        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(ROUND_FIRST + 1)
+                .build());
         birthRoundToShadows.get(ROUND_FIRST).forEach(shadow -> {
             shadowGraph.addEvent(shadow.getEvent());
             assertNull(shadowGraph.getEvent(shadow.getEvent().getHash()));
@@ -547,7 +563,9 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
         final EventImpl newEvent = emitter.emitEvent();
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode().setExpiredThreshold(BIRTH_ROUND_THRESHOLD.selectIndicator(newEvent.getBaseEvent())).build();
+        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(BIRTH_ROUND_THRESHOLD.selectIndicator(newEvent.getBaseEvent()))
+                .build();
         shadowGraph.updateEventWindow(eventWindow);
 
         assertDoesNotThrow(
@@ -676,7 +694,9 @@ class ShadowgraphByBirthRoundTests {
         final int numTipsBeforeExpiry = shadowGraph.getTips().size();
         assertTrue(numTipsBeforeExpiry > 0, "Shadow graph should have tips after events are added.");
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode().setExpiredThreshold(oldestTipBirthRound + 1).build();
+        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+                .setExpiredThreshold(oldestTipBirthRound + 1)
+                .build();
         shadowGraph.updateEventWindow(eventWindow);
 
         assertEquals(

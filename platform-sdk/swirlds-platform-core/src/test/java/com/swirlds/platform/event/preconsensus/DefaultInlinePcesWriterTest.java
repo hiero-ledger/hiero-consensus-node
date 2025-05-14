@@ -20,7 +20,6 @@ import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
@@ -112,11 +111,11 @@ class DefaultInlinePcesWriterTest {
             writer.writeEvent(event);
             lowerBound = Math.max(lowerBound, ancientMode.selectIndicator(event) - stepsUntilAncient);
 
-            writer.updateNonAncientEventBoundary(
-                    EventWindowBuilder.builder().setAncientMode(ancientMode)
-                            .setAncientThreshold(lowerBound)
-                            .setExpiredThreshold(lowerBound)
-                            .build());
+            writer.updateNonAncientEventBoundary(EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThreshold(lowerBound)
+                    .setExpiredThreshold(lowerBound)
+                    .build());
 
             if (ancientMode.selectIndicator(event) < lowerBound) {
                 // Although it's not common, it's actually possible that the generator will generate
@@ -128,11 +127,11 @@ class DefaultInlinePcesWriterTest {
         if (lowerBound > ancientMode.selectIndicator(ancientEvent)) {
             // This is probably not possible... but just in case make sure this event is ancient
             try {
-                writer.updateNonAncientEventBoundary(
-                        EventWindowBuilder.builder().setAncientMode(ancientMode)
-                                .setAncientThreshold(ancientMode.selectIndicator(ancientEvent) + 1)
-                                .setExpiredThreshold(ancientMode.selectIndicator(ancientEvent) + 1)
-                                .build());
+                writer.updateNonAncientEventBoundary(EventWindowBuilder.builder()
+                        .setAncientMode(ancientMode)
+                        .setAncientThreshold(ancientMode.selectIndicator(ancientEvent) + 1)
+                        .setExpiredThreshold(ancientMode.selectIndicator(ancientEvent) + 1)
+                        .build());
             } catch (final IllegalArgumentException e) {
                 // ignore, more likely than not this event is way older than the actual ancient threshold
             }

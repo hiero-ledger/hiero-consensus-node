@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.linking;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -113,7 +112,10 @@ class ConsensusEventLinkerTests {
                     continue;
                 }
 
-                eventWindow = EventWindowBuilder.builder().setAncientMode(ancientMode).setAncientThreshold(ancientMode.selectIndicator(event)).build();
+                eventWindow = EventWindowBuilder.builder()
+                        .setAncientMode(ancientMode)
+                        .setAncientThreshold(ancientMode.selectIndicator(event))
+                        .build();
                 linker.setEventWindow(eventWindow);
 
                 // All ancient events should have their parents nulled out

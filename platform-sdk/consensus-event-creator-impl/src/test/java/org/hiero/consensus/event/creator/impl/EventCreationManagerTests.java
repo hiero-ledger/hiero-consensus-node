@@ -17,7 +17,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -213,10 +212,15 @@ class EventCreationManagerTests {
     }
 
     private EventWindow createEventWindow(final long latestConsensusRound) {
-        return EventWindowBuilder.birthRoundMode().setLatestConsensusRound(latestConsensusRound).build();
+        return EventWindowBuilder.birthRoundMode()
+                .setLatestConsensusRound(latestConsensusRound)
+                .build();
     }
 
     private EventWindow createEventWindow(final long latestConsensusRound, final long ancientThreshold) {
-        return EventWindowBuilder.birthRoundMode().setLatestConsensusRound(latestConsensusRound).setAncientThreshold(ancientThreshold).build();
+        return EventWindowBuilder.birthRoundMode()
+                .setLatestConsensusRound(latestConsensusRound)
+                .setAncientThreshold(ancientThreshold)
+                .build();
     }
 }

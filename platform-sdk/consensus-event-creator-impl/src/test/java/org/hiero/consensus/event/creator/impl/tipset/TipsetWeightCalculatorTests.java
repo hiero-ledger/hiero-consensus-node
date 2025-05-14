@@ -558,7 +558,8 @@ class TipsetWeightCalculatorTests {
 
         // FUTURE WORK: Change the test to use birthRound instead of generation for ancient.
         // Mark generation 0 as ancient.
-        final EventWindow eventWindow = EventWindowBuilder.generationMode().setAncientThreshold(1).build();
+        final EventWindow eventWindow =
+                EventWindowBuilder.generationMode().setAncientThreshold(1).build();
         builder.setEventWindow(eventWindow);
         childlessEventTracker.pruneOldEvents(eventWindow);
 
