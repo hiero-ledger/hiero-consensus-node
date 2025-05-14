@@ -1,13 +1,58 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import static java.util.Collections.unmodifiableList;
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
+import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
  * Default implementation of {@link org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert}
  */
-public record MultipleNodeConsensusResultsImpl(@NonNull List<SingleNodeConsensusResult> results)
-        implements MultipleNodeConsensusResults {}
+public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusResults {
+
+    private final List<SingleNodeConsensusResult> results;
+    private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
+
+    public MultipleNodeConsensusResultsImpl(@NonNull final List<SingleNodeConsensusResult> results) {
+        this.results = unmodifiableList(requireNonNull(results));
+
+        // The subscription mechanism is a bit tricky, because we have two levels of subscriptions.
+        // A subscriber A can subscribe to this class. It will be notified if any of the nodes has new rounds.
+        // To implement this, we define a meta-subscriber that will be subscribed to the results of all nodes.
+        // This meta-subscriber will notify all child-subscribers to this class (among them A).
+        // If a child-subscriber wants to be unsubscribed, it will return SubscriberAction.UNSUBSCRIBE.
+        final ConsensusRoundSubscriber subscriber = (nodeId, rounds) -> {
+            // iterate over all child-subscribers and evtl. remove the ones that wish to be unsubscribed
+            consensusRoundSubscribers.removeIf(
+                    current -> current.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+            return SubscriberAction.CONTINUE;
+        };
+        for (final SingleNodeConsensusResult result : results) {
+            result.subscribe(subscriber);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public List<SingleNodeConsensusResult> results() {
+        return results;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void subscribe(@NonNull ConsensusRoundSubscriber subscriber) {
+        consensusRoundSubscribers.add(subscriber);
+    }
+}
