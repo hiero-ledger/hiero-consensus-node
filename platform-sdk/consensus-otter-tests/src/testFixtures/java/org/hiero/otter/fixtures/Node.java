@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 
 /**
  * Interface representing a node in the network.
@@ -73,4 +74,12 @@ public interface Node {
      */
     @NonNull
     SingleNodeConsensusResult getConsensusResult();
+
+    /**
+     * Gets the status progression of the node.
+     *
+     * @return the status progression of the node
+     */
+    @NonNull
+    SingleNodeStatusProgression getStatusProgression();
 }

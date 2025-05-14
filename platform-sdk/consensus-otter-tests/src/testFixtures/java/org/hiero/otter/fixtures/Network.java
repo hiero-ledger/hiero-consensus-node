@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
 
 /**
  * Interface representing a network of nodes.
@@ -79,4 +80,12 @@ public interface Network {
      */
     @NonNull
     MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters);
+
+    /**
+     * Gets the status progression of all nodes in the network.
+     *
+     * @return the status progression of the nodes
+     */
+    @NonNull
+    MultipleNodeStatusProgression getStatusProgression();
 }
