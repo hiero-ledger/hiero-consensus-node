@@ -63,8 +63,6 @@ class AncientParentsTest {
                 .withConfiguration(configuration)
                 .build();
 
-        // the generated events are first fed into consensus so that round created is calculated before we start
-        // using them
         final List<EventSource> eventSources = Stream.generate(StandardEventSource::new)
                 .map(ses -> (EventSource) ses)
                 .limit(numNodes)
@@ -73,7 +71,7 @@ class AncientParentsTest {
         final TestIntake node1 = new TestIntake(platformContext, generator.getRoster());
         final TestIntake node2 = new TestIntake(platformContext, generator.getRoster());
 
-        // first we generate events regularly, until we have some ancient rounds
+        // first, we generate events regularly, until we have some ancient rounds
         for (final EventImpl event : generator.generateEvents(FIRST_BATCH_SIZE)) {
             node1.addEvent(event.getBaseEvent().copyGossipedData());
             node2.addEvent(event.getBaseEvent().copyGossipedData());
