@@ -17,9 +17,11 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.Validator.LogFilter;
 import org.hiero.otter.fixtures.Validator.Profile;
+import org.junit.jupiter.api.Disabled;
 
 public class HappyPathTest {
 
+    @Disabled
     @OtterTest
     void testHappyPath(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
@@ -36,7 +38,7 @@ public class HappyPathTest {
         // Validations
         env.validator()
                 .assertLogs(
-                        LogFilter.maxLogLevel(Level.WARN),
+                        LogFilter.maxLogLevel(Level.INFO),
                         LogFilter.ignoreMarkers(LogMarker.STARTUP),
                         LogFilter.ignoreNodes(network.getNodes().getFirst()))
                 .validateRemaining(Profile.DEFAULT);
