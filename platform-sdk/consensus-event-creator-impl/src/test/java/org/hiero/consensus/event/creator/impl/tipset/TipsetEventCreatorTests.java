@@ -40,6 +40,7 @@ import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -754,7 +755,7 @@ class TipsetEventCreatorTests {
 
         final EventCreator eventCreator =
                 buildEventCreator(random, time, roster, nodeA, Collections::emptyList, ancientMode);
-        eventCreator.setEventWindow(new EventWindow(1, 100, 1 /* ignored in this context */, ancientMode));
+        eventCreator.setEventWindow(EventWindowBuilder.builder().setAncientMode(ancientMode).setAncientThreshold(100).build());
 
         // Since there are no other parents available, the next event created would have a generation of 0
         // (if event creation were permitted). Since the current minimum generation non ancient is 100,
@@ -812,13 +813,13 @@ class TipsetEventCreatorTests {
                     }
 
                     // Set non-ancientEventWindow after creating genesis event from each node.
-                    eventCreator.setEventWindow(new EventWindow(
-                            pendingConsensusRound - 1,
-                            ancientThreshold,
-                            1 /* ignored in this context */,
-                            useBirthRoundForAncient
+                    eventCreator.setEventWindow(EventWindowBuilder.builder()
+                            .setAncientMode(useBirthRoundForAncient
                                     ? AncientMode.BIRTH_ROUND_THRESHOLD
-                                    : AncientMode.GENERATION_THRESHOLD));
+                                    : AncientMode.GENERATION_THRESHOLD)
+                            .setLatestConsensusRound(pendingConsensusRound - 1)
+                            .setAncientThreshold(ancientThreshold)
+                            .build());
                 }
 
                 final PlatformEvent event = eventCreator.maybeCreateEvent();
