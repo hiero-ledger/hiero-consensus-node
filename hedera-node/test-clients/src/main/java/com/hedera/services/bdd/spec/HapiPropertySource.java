@@ -28,7 +28,6 @@ import com.hederahashgraph.api.proto.java.EntityNumber;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ScheduleID;
-import com.hederahashgraph.api.proto.java.SemanticVersion;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TopicID;
@@ -188,7 +187,7 @@ public interface HapiPropertySource {
     }
 
     private static long getSpecDefaultRealm() {
-        return Integer.parseInt(defaultSource.get("default.realm"));
+        return Long.parseLong(defaultSource.get("default.realm"));
     }
 
     default TimeUnit getTimeUnit(String property) {
@@ -478,15 +477,6 @@ public interface HapiPropertySource {
 
     static String asScheduleString(ScheduleID schedule) {
         return String.format(ENTITY_STRING, schedule.getShardNum(), schedule.getRealmNum(), schedule.getScheduleNum());
-    }
-
-    static SemanticVersion asSemVer(String v) {
-        long[] nativeParts = asDotDelimitedLongArray(v);
-        return SemanticVersion.newBuilder()
-                .setMajor((int) nativeParts[0])
-                .setMinor((int) nativeParts[1])
-                .setPatch((int) nativeParts[2])
-                .build();
     }
 
     static FileID asFile(String v) {
