@@ -46,7 +46,9 @@ class SyncTestUtilsTest {
         knownSet.add(e3);
         knownSet.add(e1);
 
-        final EventWindow eventWindow = EventWindowBuilder.generationMode().build();
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setAncientThreshold(1)
+                .build();
 
         final Predicate<ShadowEvent> unknownNonAncient =
                 SyncUtils.unknownNonAncient(knownSet, eventWindow, eventWindow, GENERATION_THRESHOLD);

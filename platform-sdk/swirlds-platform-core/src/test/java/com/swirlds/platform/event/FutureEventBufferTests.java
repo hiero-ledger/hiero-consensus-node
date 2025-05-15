@@ -95,7 +95,7 @@ class FutureEventBufferTests {
                 newPendingConsensusRound++) {
 
             final EventWindow newEventWindow = EventWindowBuilder.birthRoundMode()
-                    .setLatestConsensusRound(pendingConsensusRound - 1)
+                    .setLatestConsensusRound(newPendingConsensusRound - 1)
                     .setAncientThreshold(nonAncientBirthRound)
                     .build();
 
