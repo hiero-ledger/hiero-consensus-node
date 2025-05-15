@@ -146,28 +146,35 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     }
 
     private static Stream<Arguments> buildArguments() {
-        final List<Arguments> arguments = new ArrayList<>();
+        final List<RandomOperationsConfig> operationsConfigs = new ArrayList<>();
 
-        arguments.add(Arguments.of(
-                new RandomOperationsConfig("Small tree, random operations", 100, 200, 100, 10, 3, 1, 1, 1)));
+        operationsConfigs.add(
+                new RandomOperationsConfig("Small tree, random operations", 100, 200, 100, 10, 3, 1, 1, 1));
 
-        arguments.add(Arguments.of(
-                new RandomOperationsConfig("Medium tree, random operations", 1_000, 2_000, 1_000, 100, 3, 1, 1, 1)));
+        operationsConfigs.add(
+                new RandomOperationsConfig("Medium tree, random operations", 1_000, 2_000, 1_000, 100, 3, 1, 1, 1));
 
-        arguments.add(Arguments.of(
-                new RandomOperationsConfig("Medium tree, many insertions", 1_000, 2_000, 1_000, 100, 3, 2, 1, 1)));
+        operationsConfigs.add(
+                new RandomOperationsConfig("Medium tree, many insertions", 1_000, 2_000, 1_000, 100, 3, 2, 1, 1));
 
-        arguments.add(Arguments.of(
-                new RandomOperationsConfig("Medium tree, many updates", 1_000, 2_000, 1_000, 100, 3, 1, 2, 1)));
+        operationsConfigs.add(
+                new RandomOperationsConfig("Medium tree, many updates", 1_000, 2_000, 1_000, 100, 3, 1, 2, 1));
 
-        arguments.add(Arguments.of(new RandomOperationsConfig(
-                "Large tree, random operations", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 1)));
+        operationsConfigs.add(
+                new RandomOperationsConfig("Large tree, random operations", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 1));
 
-        arguments.add(Arguments.of(
-                new RandomOperationsConfig("Large tree, many deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 2)));
+        operationsConfigs.add(
+                new RandomOperationsConfig("Large tree, many deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 2));
 
-        arguments.add(Arguments.of(new RandomOperationsConfig(
-                "Large tree, mostly just deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 10)));
+        operationsConfigs.add(new RandomOperationsConfig(
+                "Large tree, mostly just deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 10));
+
+        List<Arguments> arguments = new ArrayList<>();
+        for (Boolean vmAsRoot : List.of(false, true)) {
+            for (RandomOperationsConfig operationsConfig : operationsConfigs) {
+                arguments.add(Arguments.of(vmAsRoot, operationsConfig));
+            }
+        }
 
         return arguments.stream();
     }
@@ -175,7 +182,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     @ParameterizedTest
     @MethodSource("buildArguments")
     @DisplayName("Random Operations Reconnect Test")
-    void randomOperationsReconnectTest(final RandomOperationsConfig config) throws Exception {
+    void randomOperationsReconnectTest(final Boolean vmAsRoot, final RandomOperationsConfig config) throws Exception {
         final Random random = getRandomPrintSeed();
 
         // validation of input variables
@@ -242,16 +249,33 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             }
         }
 
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
-        final VirtualMap copy = teacherMap.copy(); // ensure teacherMap is immutable
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        final VirtualMap afterMap;
+        final MerkleInternal teacherTree;
+        final VirtualMap copy;
+        final MerkleInternal learnerTree;
+        DummyMerkleInternal afterSyncLearnerTree = null;
+        if (vmAsRoot) {
+            teacherTree = teacherMap;
+            copy = teacherMap.copy(); // ensure teacherMap is immutable
+            learnerTree = learnerMap;
 
-        // reconnect happening
-        final DummyMerkleInternal afterSyncLearnerTree =
-                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+            learnerTree.reserve();
+            teacherTree.reserve();
 
-        final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap afterMap = node.getChild(3);
+            // reconnect happening
+            afterMap = MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+        } else {
+            teacherTree = createTreeForMap(teacherMap);
+            copy = teacherMap.copy(); // ensure teacherMap is immutable
+            learnerTree = createTreeForMap(learnerMap);
+
+            // reconnect happening
+            afterSyncLearnerTree =
+                    MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+
+            final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
+            afterMap = node.getChild(3);
+        }
 
         for (final String key : removedKeys) {
             try {
@@ -270,7 +294,9 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             copiesQueue.remove().release();
         }
 
-        afterSyncLearnerTree.release();
+        if (afterSyncLearnerTree != null) {
+            afterSyncLearnerTree.release();
+        }
         copy.release();
         teacherTree.release();
         learnerTree.release();

@@ -1310,6 +1310,16 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * {@inheritDoc}
      */
     @Override
+    public CustomReconnectRoot<Long, Long> createNewRoot() {
+        final VirtualMap newRoot = new VirtualMap(configuration);
+        newRoot.setupWithOriginalNode(this);
+        return newRoot;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public LearnerTreeView<Long> buildLearnerView(
             final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         assert originalMap != null;

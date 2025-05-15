@@ -115,7 +115,11 @@ public class LearningSynchronizer implements ReconnectNodeCount {
 
         rootsToReceive = new LinkedList<>();
         viewsToInitialize = new LinkedList<>();
-        rootsToReceive.add(root);
+        if (root instanceof CustomReconnectRoot<?, ?> customReconnectRoot) {
+            rootsToReceive.add(customReconnectRoot.createNewRoot());
+        } else {
+            rootsToReceive.add(root);
+        }
 
         this.breakConnection = breakConnection;
 
