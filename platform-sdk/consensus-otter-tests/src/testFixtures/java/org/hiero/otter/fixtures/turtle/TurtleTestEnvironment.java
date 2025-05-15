@@ -59,7 +59,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * Constructor for the {@link TurtleTestEnvironment} class.
      */
     public TurtleTestEnvironment() {
-        final Randotron randotron = Randotron.create();
+        final Randotron randotron = Randotron.create(1737912318257130493L);
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
 
