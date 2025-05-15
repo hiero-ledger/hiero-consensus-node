@@ -39,8 +39,8 @@ public record EventWindow(
     public EventWindow {
         if (latestConsensusRound < ROUND_NEGATIVE_INFINITY) {
             throw new IllegalArgumentException(
-                    "The latest consensus round cannot be less than ROUND_NEGATIVE_INFINITY (%d).".formatted(
-                            ROUND_NEGATIVE_INFINITY));
+                    "The latest consensus round cannot be less than ROUND_NEGATIVE_INFINITY (%d)."
+                            .formatted(ROUND_NEGATIVE_INFINITY));
         }
 
         if (eventBirthRound < ROUND_FIRST) {
@@ -67,7 +67,6 @@ public record EventWindow(
                         "the minimum round non-expired cannot be lower than the first round of consensus.");
             }
         }
-
     }
 
     /**

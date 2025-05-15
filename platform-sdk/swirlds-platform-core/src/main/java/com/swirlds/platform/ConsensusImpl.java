@@ -762,9 +762,10 @@ public class ConsensusImpl implements Consensus {
         return new ConsensusRound(
                 roster,
                 consensusEvents,
-                new EventWindow(decidedRoundNumber,
+                new EventWindow(
+                        decidedRoundNumber,
                         // by default, we set the birth round to the pending round
-                        decidedRoundNumber+1,
+                        decidedRoundNumber + 1,
                         nonAncientThreshold,
                         nonExpiredThreshold,
                         ancientMode),

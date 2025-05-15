@@ -34,7 +34,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -785,13 +784,10 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final AncientMode ancientMode = useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                ancientMode);
+        final AncientMode ancientMode =
+                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
+        final Map<NodeId, SimulatedNode> nodes =
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 

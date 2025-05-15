@@ -203,9 +203,7 @@ class ShadowgraphByBirthRoundTests {
 
         final ReservedEventWindow r1 = shadowGraph.reserve();
         assertEquals(
-                ROUND_FIRST,
-                r1.getEventWindow().expiredThreshold(),
-                "First reservation should reserve birth round 1");
+                ROUND_FIRST, r1.getEventWindow().expiredThreshold(), "First reservation should reserve birth round 1");
         assertEquals(
                 1,
                 r1.getReservationCount(),
@@ -238,9 +236,7 @@ class ShadowgraphByBirthRoundTests {
         final ReservedEventWindow r2 = shadowGraph.reserve();
         assertEquals(r1.getEventWindow(), r2.getEventWindow());
         assertEquals(
-                ROUND_FIRST,
-                r2.getEventWindow().expiredThreshold(),
-                "Second reservation should reserve birth round 1");
+                ROUND_FIRST, r2.getEventWindow().expiredThreshold(), "Second reservation should reserve birth round 1");
         assertEquals(2, r2.getReservationCount(), "The second call to reserve() should result in 2 reservations.");
 
         r2.close();

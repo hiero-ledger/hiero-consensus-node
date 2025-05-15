@@ -89,7 +89,10 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
         eventCreationRules = AggregateEventCreationRules.of(rules);
-        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics(), FutureEventBufferingOption.EVENT_BIRTH_ROUND);
+        futureEventBuffer = new FutureEventBuffer(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 
         phase = new PhaseTimerBuilder<>(
                         platformContext, platformContext.getTime(), "platform", EventCreationStatus.class)

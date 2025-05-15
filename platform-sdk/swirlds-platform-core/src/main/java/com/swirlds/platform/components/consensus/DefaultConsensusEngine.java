@@ -78,7 +78,10 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
         linker = new ConsensusLinker(platformContext, selfId);
-        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
+        futureEventBuffer = new FutureEventBuffer(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
         ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)

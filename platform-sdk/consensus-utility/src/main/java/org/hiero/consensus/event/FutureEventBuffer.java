@@ -49,7 +49,9 @@ public class FutureEventBuffer {
     /**
      * Constructor.
      */
-    public FutureEventBuffer(@NonNull final Configuration configuration, @NonNull final Metrics metrics,
+    public FutureEventBuffer(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final FutureEventBufferingOption bufferingOption) {
         this.bufferingOption = bufferingOption;
         final AncientMode ancientMode =
@@ -121,5 +123,4 @@ public class FutureEventBuffer {
     public void clear() {
         futureEvents.clear();
     }
-
 }

@@ -16,8 +16,7 @@ public final class EventWindowUtils {
     /**
      * Private constructor to prevent instantiation.
      */
-    private EventWindowUtils() {
-    }
+    private EventWindowUtils() {}
 
     /**
      * Same as {@link #createEventWindow(ConsensusSnapshot, AncientMode, int)} but uses the configuration to get the
@@ -44,9 +43,10 @@ public final class EventWindowUtils {
             @NonNull final AncientMode ancientMode,
             final int roundsNonAncient) {
         final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
-        return new EventWindow(snapshot.round(),
+        return new EventWindow(
+                snapshot.round(),
                 // by default, we set the birth round to the pending round
-                snapshot.round()+1,
+                snapshot.round() + 1,
                 ancientThreshold,
                 ancientThreshold,
                 ancientMode);

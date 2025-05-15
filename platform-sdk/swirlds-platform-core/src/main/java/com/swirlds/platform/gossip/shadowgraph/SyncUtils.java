@@ -312,9 +312,9 @@ public final class SyncUtils {
                             // we are done reading event, tell the writer thread to send a COMM_SYNC_DONE
                             eventReadingDone.countDown();
                         }
-                            // while we are waiting for the peer to tell us they are done, they might send
-                            // COMM_SYNC_ONGOING
-                            // if they are still busy reading events
+                        // while we are waiting for the peer to tell us they are done, they might send
+                        // COMM_SYNC_ONGOING
+                        // if they are still busy reading events
                         case ByteConstants.COMM_SYNC_ONGOING -> {
                             // peer is still reading events, waiting for them to finish
                             if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
@@ -333,8 +333,10 @@ public final class SyncUtils {
                             }
                             return eventsRead;
                         }
-                        default -> throw new SyncException(
-                                connection, String.format("while reading events, received unexpected byte %02x", next));
+                        default ->
+                            throw new SyncException(
+                                    connection,
+                                    String.format("while reading events, received unexpected byte %02x", next));
                     }
                 }
             } finally {
@@ -597,9 +599,10 @@ public final class SyncUtils {
         final long ancientThreshold = in.readLong();
         final long expiredThreshold = in.readLong();
 
-        return new EventWindow(latestConsensusRound,
+        return new EventWindow(
+                latestConsensusRound,
                 // by default, we set the birth round to the pending round
-                latestConsensusRound + 1 ,
+                latestConsensusRound + 1,
                 ancientThreshold,
                 expiredThreshold,
                 ancientMode);
