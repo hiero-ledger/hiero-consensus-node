@@ -15,7 +15,6 @@ import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
@@ -236,7 +235,6 @@ public class DiskStartupNetworks implements StartupNetworks {
             @NonNull final AddressBook addressBook, @NonNull final VersionedConfiguration configuration) {
         final var roster = buildRoster(addressBook);
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
         return Network.newBuilder()
                 .nodeMetadata(roster.rosterEntries().stream()
                         .map(rosterEntry -> {

@@ -60,7 +60,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class DefaultKeyVerifierTest {
-    private static final int LEGACY_FEE_CALC_NETWORK_VPT = 13;
     private static final Key ECDSA_X1 = FAKE_ECDSA_KEY_INFOS[1].publicKey();
     private static final Key ECDSA_X2 = FAKE_ECDSA_KEY_INFOS[2].publicKey();
     private static final Key ED25519_X1 = FAKE_ED25519_KEY_INFOS[1].publicKey();
@@ -82,10 +81,9 @@ class DefaultKeyVerifierTest {
         final var key = ALICE.keyInfo().publicKey();
 
         // then
-        assertThatThrownBy(() -> new DefaultKeyVerifier(0, null, keyVerifications))
+        assertThatThrownBy(() -> new DefaultKeyVerifier(null, keyVerifications))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new DefaultKeyVerifier(0, HEDERA_CONFIG, null))
-                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new DefaultKeyVerifier(HEDERA_CONFIG, null)).isInstanceOf(NullPointerException.class);
 
         assertThatThrownBy(() -> verifier.verificationFor((Key) null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> verifier.verificationFor(null, verificationAssistant))
@@ -95,9 +93,12 @@ class DefaultKeyVerifierTest {
     }
 
     @Test
-    void reportsLegacyVptAsNumSigsVerified() {
-        final var verifier = createVerifier(emptyMap());
-        assertThat(verifier.numSignaturesVerified()).isEqualTo(LEGACY_FEE_CALC_NETWORK_VPT);
+    void reportsNumSignsVerified() {
+        final Map<Key, SignatureVerificationFuture> keyVerifications = new HashMap<>();
+        final var key = ALICE.keyInfo().publicKey();
+        keyVerifications.put(key, goodFuture(key));
+        final var verifier = createVerifier(keyVerifications);
+        assertThat(verifier.numSignaturesVerified()).isEqualTo(1);
     }
 
     /**
@@ -198,8 +199,7 @@ class DefaultKeyVerifierTest {
         @ParameterizedTest
         @MethodSource("variousValidityScenarios")
         void exactlyKeysWithValidKeysAreReturned(@NonNull final Map<Key, Boolean> keysAndPassFail) {
-            final var subject = new DefaultKeyVerifier(
-                    LEGACY_FEE_CALC_NETWORK_VPT, HEDERA_CONFIG, verificationResults(keysAndPassFail));
+            final var subject = new DefaultKeyVerifier(HEDERA_CONFIG, verificationResults(keysAndPassFail));
             final var expectedKeys = keysAndPassFail.entrySet().stream()
                     .filter(Entry::getValue)
                     .map(Entry::getKey)
@@ -1134,8 +1134,9 @@ class DefaultKeyVerifierTest {
                 case KEY_LIST -> allVerifications(key.keyListOrThrow());
                 case THRESHOLD_KEY -> allVerifications(key.thresholdKeyOrThrow().keysOrThrow());
                 case ED25519, ECDSA_SECP256K1 -> new HashMap<>(Map.of(key, goodFuture(key))); // make mutable
-                default -> throw new IllegalArgumentException(
-                        "Unsupported key type: " + key.key().kind());
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported key type: " + key.key().kind());
             };
         }
 
@@ -1184,8 +1185,9 @@ class DefaultKeyVerifierTest {
                         map.remove(key);
                     }
                 }
-                default -> throw new IllegalArgumentException(
-                        "Unsupported key type: " + key.key().kind());
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported key type: " + key.key().kind());
             }
         }
 
@@ -1218,8 +1220,9 @@ class DefaultKeyVerifierTest {
                         map.put(key, badFuture(key));
                     }
                 }
-                default -> throw new IllegalArgumentException(
-                        "Unsupported key type: " + key.key().kind());
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported key type: " + key.key().kind());
             }
         }
     }
@@ -1286,7 +1289,7 @@ class DefaultKeyVerifierTest {
     }
 
     private AppKeyVerifier createVerifier(@NonNull final Map<Key, SignatureVerificationFuture> map) {
-        return new DefaultKeyVerifier(LEGACY_FEE_CALC_NETWORK_VPT, HEDERA_CONFIG, map);
+        return new DefaultKeyVerifier(HEDERA_CONFIG, map);
     }
 
     /** Convenience method for creating a key list */

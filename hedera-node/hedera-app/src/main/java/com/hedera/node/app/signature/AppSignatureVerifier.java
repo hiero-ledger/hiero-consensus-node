@@ -58,7 +58,7 @@ public class AppSignatureVerifier implements SignatureVerifier {
         final Set<ExpandedSignaturePair> sigPairs = new HashSet<>();
         signatureExpander.expand(key, signatureMap.sigPair(), sigPairs);
         final var results = signatureVerifier.verify(bytes, sigPairs, messageType);
-        final var verifier = new DefaultKeyVerifier(0, hederaConfig, results);
+        final var verifier = new DefaultKeyVerifier(hederaConfig, results);
         return simpleKeyVerifier == null
                 ? verifier.verificationFor(key).passed()
                 // The "verification assistant" callback here receives a simple key and its cryptographic
@@ -84,10 +84,8 @@ public class AppSignatureVerifier implements SignatureVerifier {
             case ED25519 -> counts[EDDSA_COUNT_INDEX]++;
             case ECDSA_SECP256K1 -> counts[ECDSA_COUNT_INDEX]++;
             case KEY_LIST -> key.keyListOrThrow().keys().forEach(k -> countSimpleKeys(k, counts));
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow()
-                    .keysOrThrow()
-                    .keys()
-                    .forEach(k -> countSimpleKeys(k, counts));
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrThrow().keys().forEach(k -> countSimpleKeys(k, counts));
             default -> {
                 // No-op, we only count these two key types
             }

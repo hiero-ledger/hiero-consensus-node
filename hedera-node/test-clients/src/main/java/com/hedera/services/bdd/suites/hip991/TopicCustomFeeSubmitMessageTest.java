@@ -1817,7 +1817,8 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .via("submit1024"),
                     submitMessageTo(TOPIC)
                             .message("test")
-                            .signedBy(SUBMIT_KEY, SUBMITTER)
+                            .signedBy(SUBMITTER, SUBMIT_KEY)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(SUBMITTER, SUBMIT_KEY))
                             .payingWith(SUBMITTER)
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
