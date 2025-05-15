@@ -31,12 +31,18 @@ jobs:
 
       # Get the `build-XXXXX' tag (latest tag) to run the performance test
       # use it later as ${{ steps.tag.outputs.tag }}
-#      - name: Get Build Tag
-#        id: tag
-#        run: |
-#          ref="${GITHUB_REF#refs/tags/}"
-#          echo "Tag pushed: $ref"
-#          echo "tag=$ref" >> $GITHUB_OUTPUT
+      - name: Get Build Tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Triggered by tag push
+            tag_name="${GITHUB_REF#refs/tags/}"
+          else
+            # Triggered by workflow_dispatch
+            tag_name="${{ github.event.inputs.tag-to-run }}"
+          fi
+          echo "Using tag: $tag_name"
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
 
       # Clone the perf analysis automation repo
       - name: Checkout the performance analysis automation repo
@@ -47,12 +53,11 @@ jobs:
           repository: swirldslabs/performance-analysis-automation
           token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
 
-      - name: Confirm checkout
+      - name: Confirm checkout of performance analyis automation repo
         run: |
           echo "Current director is:"
           pwd
           echo "Current folder contents are:"
           ls -la
-
 
       # Call the performance workflow with appropriate input version
