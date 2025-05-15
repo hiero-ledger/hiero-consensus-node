@@ -9,6 +9,9 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: read
+
 jobs:
   run-citr-performance-test:
     name: Run Single Day Performance Test
@@ -20,7 +23,13 @@ jobs:
           egress-policy: audit
 
       # Get the `build-XXXXX' tag (latest tag) to run the performance test
-
+      # use it later as ${{ steps.tag.outputs.tag }}
+      - name: Get Build Tag
+        id: tag
+        run: |
+          ref="${GITHUB_REF#refs/tags/}"
+          echo "Tag pushed: $ref"
+          echo "tag=$ref" >> $GITHUB_OUTPUT
       # Clone the perf analysis automation repo
 
       # Call the performance workflow with appropriate input version
