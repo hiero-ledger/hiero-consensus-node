@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.numberOfLongZero;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -54,7 +55,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
@@ -835,9 +835,8 @@ public class CreatePrecompileSuite {
                         contractCall(
                                         TOKEN_CREATE_CONTRACT,
                                         CREATE_NFT_WITH_KEYS_AND_EXPIRY_FUNCTION,
-                                        HapiParserUtil.asHeadlongAddress((byte[]) ArrayUtils.toPrimitive(
-                                                Utils.asSolidityAddress(
-                                                        (int) spec.shard(), spec.realm(), 999_999_999L))),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                (byte[]) ArrayUtils.toPrimitive(asSolidityAddress(spec, 999_999_999L))),
                                         spec.registry()
                                                 .getKey(ED25519KEY)
                                                 .getEd25519()
