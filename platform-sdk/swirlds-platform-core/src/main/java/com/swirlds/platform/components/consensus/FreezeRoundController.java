@@ -68,16 +68,14 @@ public class FreezeRoundController {
                 round.getEventWindow().latestConsensusRound(),
                 round.getEventWindow().ancientThreshold(),
                 round.getEventWindow().expiredThreshold(),
-                round.getEventWindow().ancientMode()
-        );
+                round.getEventWindow().ancientMode());
         return new ConsensusRound(
                 round.getConsensusRoster(),
                 round.getConsensusEvents(),
                 modifiedWindow,
                 round.getSnapshot(),
                 round.isPcesRound(),
-                round.getReachedConsTimestamp()
-        );
+                round.getReachedConsTimestamp());
     }
 
     /**
