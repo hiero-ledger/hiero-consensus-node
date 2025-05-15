@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - 'build-*'
+      - 'test-*'
+  workflow_dispatch:
+    inputs:
+      tag-to-run:
+        description: "The tag to run CITR SDPT against"
+        required: true
+        default: 'build-00099'
+
 
 defaults:
   run:
@@ -24,12 +32,20 @@ jobs:
 
       # Get the `build-XXXXX' tag (latest tag) to run the performance test
       # use it later as ${{ steps.tag.outputs.tag }}
-      - name: Get Build Tag
-        id: tag
-        run: |
-          ref="${GITHUB_REF#refs/tags/}"
-          echo "Tag pushed: $ref"
-          echo "tag=$ref" >> $GITHUB_OUTPUT
+#      - name: Get Build Tag
+#        id: tag
+#        run: |
+#          ref="${GITHUB_REF#refs/tags/}"
+#          echo "Tag pushed: $ref"
+#          echo "tag=$ref" >> $GITHUB_OUTPUT
+
       # Clone the perf analysis automation repo
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: main
+          repository: swirldslabs/performance-analysis-automation
+          token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
+
 
       # Call the performance workflow with appropriate input version
