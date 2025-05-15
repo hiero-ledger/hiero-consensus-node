@@ -7,8 +7,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -100,19 +98,16 @@ public class QueryPaymentSuite {
                 cryptoCreate("a").balance(500_000_000L),
                 cryptoCreate("b").balance(1_234L),
                 cryptoCreate("c").balance(1_234L),
-                withOpContext((spec, opLog) -> {
-                    var op1 = getAccountInfo(GENESIS).fee(100L).setNode(NODE).hasAnswerOnlyPrecheck(OK);
-                    var op2 = getAccountInfo(GENESIS)
-                            .payingWith("a")
-                            .nodePayment(Long.MAX_VALUE)
-                            .setNode(NODE)
-                            .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE);
-                    var op3 = getAccountInfo(GENESIS)
-                            .withPayment(cryptoTransfer(
-                                    innerSpec -> multiAccountPaymentToNode003(innerSpec, "a", "b", 1_000L)))
-                            .hasAnswerOnlyPrecheck(OK);
-                    allRunFor(spec, op1, op2, op3);
-                }));
+                getAccountInfo(GENESIS).fee(100L).setNode(NODE).hasAnswerOnlyPrecheck(OK),
+                getAccountInfo(GENESIS)
+                        .payingWith("a")
+                        .nodePayment(Long.MAX_VALUE)
+                        .setNode(NODE)
+                        .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                getAccountInfo(GENESIS)
+                        .withPayment(
+                                cryptoTransfer(innerSpec -> multiAccountPaymentToNode003(innerSpec, "a", "b", 1_000L)))
+                        .hasAnswerOnlyPrecheck(OK));
     }
 
     // Check if payment is not done to node
