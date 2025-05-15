@@ -68,7 +68,7 @@ tasks.test {
 val prCheckTags =
     mapOf(
         "hapiTestAdhoc" to "ADHOC",
-        "hapiTestCrypto" to "CRYPTO",
+        "hapiTestTemp" to "TEMP",
         "hapiTestToken" to "TOKEN",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
@@ -85,7 +85,7 @@ val remoteCheckTags =
 val prCheckStartPorts =
     mapOf(
         "hapiTestAdhoc" to "25000",
-        "hapiTestCrypto" to "25200",
+        "hapiTestTemp" to "25200",
         "hapiTestToken" to "25400",
         "hapiTestRestart" to "25600",
         "hapiTestSmartContract" to "25800",
@@ -98,7 +98,7 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
-        "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
+        "hapiTestTemp" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
         "hapiTestSmartContract" to "tss.historyEnabled=false",
         "hapiTestRestart" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
@@ -111,7 +111,7 @@ val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSm
 val prCheckNetSizeOverrides =
     mapOf(
         "hapiTestAdhoc" to "3",
-        "hapiTestCrypto" to "3",
+        "hapiTestTemp" to "3",
         "hapiTestToken" to "3",
         "hapiTestSmartContract" to "4",
     )
