@@ -42,7 +42,6 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.SingletonChangeListener;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.state.spi.WritableQueueState;
@@ -141,6 +140,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private final RuntimeObjectRecord registryRecord;
 
     /**
+     * Used to track the status of the Platform.
+     * It is set to {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}
+     */
+    private boolean startupMode = true;
+
+    /**
      * Create a new instance. This constructor must be used for all creations of this class.
      *
      */
@@ -161,18 +166,19 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      *
      * @param from The other state to fast-copy from. Cannot be null.
      */
-    @SuppressWarnings("rawtypes,unchecked")
     protected MerkleStateRoot(@NonNull final MerkleStateRoot<T> from) {
         // Copy the Merkle route from the source instance
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
         this.listeners.addAll(from.listeners);
         this.roundSupplier = from.roundSupplier;
+        this.startupMode = from.startupMode;
 
         // Copy over the metadata
         for (final var entry : from.services.entrySet()) {
             this.services.put(entry.getKey(), new HashMap<>(entry.getValue()));
         }
+
         // Copy the non-null Merkle children from the source (should also be handled by super, TBH).
         // Note we don't "compress" -- null children remain in here unless we manually remove them
         // (which would cause massive re-hashing).
@@ -182,27 +188,26 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 setChild(childIndex, childToCopy.copy());
             }
         }
+    }
 
-        // If the source state was deferring commits for queues and singletons, merge
-        // those in-progress base states into our writable states map
-        if (listeners.stream().anyMatch(StateChangeListener::deferCommits)) {
-            for (final var entry : from.writableStatesMap.entrySet()) {
-                final var serviceName = entry.getKey();
-                final var writableStates = getWritableStates(serviceName);
-                final var metadata = services.get(serviceName);
-                metadata.forEach((stateKey, m) -> {
-                    if (m.stateDefinition().queue()) {
-                        final var fromQueue =
-                                (WritableQueueStateBase) entry.getValue().getQueue(stateKey);
-                        fromQueue.recreateIn((WritableQueueStateBase) writableStates.getQueue(stateKey));
-                    } else if (m.stateDefinition().singleton()) {
-                        final var singletonState = writableStates.getSingleton(stateKey);
-                        singletonState.put(
-                                entry.getValue().getSingleton(stateKey).get());
-                    }
-                });
-            }
-        }
+    public void disableStartupMode() {
+        startupMode = false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isStartUpMode() {
+        return startupMode;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isHashed() {
+        return getHash() != null;
     }
 
     @Override
@@ -809,8 +814,10 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             for (final ReadableKVState kv : kvInstances.values()) {
                 ((WritableKVStateBase) kv).commit();
             }
-            for (final ReadableSingletonState s : singletonInstances.values()) {
-                ((WritableSingletonStateBase) s).commit();
+            if (startupMode) {
+                for (final ReadableSingletonState s : singletonInstances.values()) {
+                    ((WritableSingletonStateBase) s).commit();
+                }
             }
             for (final ReadableQueueState q : queueInstances.values()) {
                 ((WritableQueueStateBase) q).commit();
@@ -837,51 +844,24 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 @NonNull final String serviceName,
                 @NonNull final WritableSingletonStateBase<V> singletonState,
                 @NonNull final StateChangeListener listener) {
-            final var stateKey = singletonState.getStateKey();
-            final var stateId = listener.stateIdFor(serviceName, stateKey);
-            singletonState.registerListener(new SingletonChangeListener<V>() {
-                @Override
-                public void singletonUpdateChange(@NonNull V value) {
-                    listener.singletonUpdateChange(stateId, serviceName, stateKey, value);
-                }
-
-                @Override
-                public boolean deferCommits() {
-                    return listener.deferCommits();
-                }
-
-                @Override
-                public void commitDeferred() {
-                    listener.commitDeferredFor(serviceName);
-                }
-            });
+            final var stateId = listener.stateIdFor(serviceName, singletonState.getStateKey());
+            singletonState.registerListener(value -> listener.singletonUpdateChange(stateId, value));
         }
 
         private <V> void registerQueueListener(
                 @NonNull final String serviceName,
                 @NonNull final WritableQueueStateBase<V> queueState,
                 @NonNull final StateChangeListener listener) {
-            final var stateKey = queueState.getStateKey();
-            final var stateId = listener.stateIdFor(serviceName, stateKey);
+            final var stateId = listener.stateIdFor(serviceName, queueState.getStateKey());
             queueState.registerListener(new QueueChangeListener<>() {
                 @Override
                 public void queuePushChange(@NonNull final V value) {
-                    listener.queuePushChange(stateId, serviceName, stateKey, value);
+                    listener.queuePushChange(stateId, value);
                 }
 
                 @Override
                 public void queuePopChange() {
-                    listener.queuePopChange(stateId, serviceName, stateKey);
-                }
-
-                @Override
-                public boolean deferCommits() {
-                    return listener.deferCommits();
-                }
-
-                @Override
-                public void commitDeferred() {
-                    listener.commitDeferredFor(serviceName);
+                    listener.queuePopChange(stateId);
                 }
             });
         }
@@ -906,6 +886,23 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @NonNull
     private static String extractStateKey(@NonNull final StateMetadata<?, ?> md) {
         return md.stateDefinition().stateKey();
+    }
+
+    /**
+     * Commit all singleton states for every registered service.
+     */
+    public void commitSingletons() {
+        for (String serviceKey : services.keySet()) {
+            final var service = services.get(serviceKey);
+            for (String stateKey : service.keySet()) {
+                StateMetadata<?, ?> stateMetadata = service.get(stateKey);
+                if (stateMetadata.stateDefinition().singleton()) {
+                    WritableStates writableStates = getWritableStates(serviceKey);
+                    final var writableSingleton = (WritableSingletonStateBase<?>) writableStates.getSingleton(stateKey);
+                    writableSingleton.commit();
+                }
+            }
+        }
     }
 
     /**

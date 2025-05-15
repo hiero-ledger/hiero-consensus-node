@@ -48,7 +48,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.specOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
@@ -183,7 +182,6 @@ public class FileUpdateSuite {
         }
         return hapiTest(
                 updateSpecialFile(GENESIS, specialFile, specialFileContents, BYTES_4K, appendsPerBurst),
-                waitUntilNextBlock(),
                 getFileInfo(specialFile).hasMemo(CommonUtils.hex(expectedHash)));
     }
 

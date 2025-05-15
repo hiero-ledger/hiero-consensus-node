@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -723,16 +722,21 @@ class MerkleStateRootTest extends MerkleTestBase {
         private StateChangeListener kvListener;
 
         @Mock
-        private StateChangeListener nonKvListener;
+        private StateChangeListener singletonListener;
+
+        @Mock
+        private StateChangeListener queueListener;
 
         @BeforeEach
         void setUp() {
             given(kvListener.stateTypes()).willReturn(EnumSet.of(MAP));
-            given(nonKvListener.stateTypes()).willReturn(EnumSet.of(QUEUE, SINGLETON));
+            given(singletonListener.stateTypes()).willReturn(EnumSet.of(SINGLETON));
+            given(queueListener.stateTypes()).willReturn(EnumSet.of(QUEUE));
             given(kvListener.stateIdFor(FIRST_SERVICE, FRUIT_STATE_KEY)).willReturn(FRUIT_STATE_ID);
             given(kvListener.stateIdFor(FIRST_SERVICE, ANIMAL_STATE_KEY)).willReturn(ANIMAL_STATE_ID);
-            given(nonKvListener.stateIdFor(FIRST_SERVICE, COUNTRY_STATE_KEY)).willReturn(COUNTRY_STATE_ID);
-            given(nonKvListener.stateIdFor(FIRST_SERVICE, STEAM_STATE_KEY)).willReturn(STEAM_STATE_ID);
+            given(singletonListener.stateIdFor(FIRST_SERVICE, COUNTRY_STATE_KEY))
+                    .willReturn(COUNTRY_STATE_ID);
+            given(queueListener.stateIdFor(FIRST_SERVICE, STEAM_STATE_KEY)).willReturn(STEAM_STATE_ID);
 
             setupAnimalMerkleMap();
             setupFruitVirtualMap();
@@ -753,7 +757,8 @@ class MerkleStateRootTest extends MerkleTestBase {
             stateRoot.putServiceStateIfAbsent(steamMetadata, () -> steamQueue);
 
             stateRoot.registerCommitListener(kvListener);
-            stateRoot.registerCommitListener(nonKvListener);
+            stateRoot.registerCommitListener(singletonListener);
+            stateRoot.registerCommitListener(queueListener);
 
             final var states = stateRoot.getWritableStates(FIRST_SERVICE);
             final var animalState = states.get(ANIMAL_STATE_KEY);
@@ -775,13 +780,13 @@ class MerkleStateRootTest extends MerkleTestBase {
             verify(kvListener).mapDeleteChange(FRUIT_STATE_ID, C_KEY);
             verify(kvListener).mapUpdateChange(ANIMAL_STATE_ID, A_KEY, AARDVARK);
             verify(kvListener).mapDeleteChange(ANIMAL_STATE_ID, C_KEY);
-            verify(nonKvListener).singletonUpdateChange(COUNTRY_STATE_ID, FIRST_SERVICE, COUNTRY_STATE_KEY, ESTONIA);
-            verify(nonKvListener).queuePushChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY, BIOLOGY);
-            verify(nonKvListener).queuePopChange(STEAM_STATE_ID, FIRST_SERVICE, STEAM_STATE_KEY);
-            verify(nonKvListener, times(2)).deferCommits();
+            verify(singletonListener).singletonUpdateChange(COUNTRY_STATE_ID, ESTONIA);
+            verify(queueListener).queuePushChange(STEAM_STATE_ID, BIOLOGY);
+            verify(queueListener).queuePopChange(STEAM_STATE_ID);
 
             verifyNoMoreInteractions(kvListener);
-            verifyNoMoreInteractions(nonKvListener);
+            verifyNoMoreInteractions(singletonListener);
+            verifyNoMoreInteractions(queueListener);
         }
     }
 

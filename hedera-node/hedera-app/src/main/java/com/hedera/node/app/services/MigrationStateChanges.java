@@ -4,10 +4,12 @@ package com.hedera.node.app.services;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.config.api.Configuration;
@@ -22,7 +24,8 @@ import java.util.List;
 public class MigrationStateChanges {
     private final List<List<StateChange>> stateChanges = new ArrayList<>();
     private final KVStateChangeListener kvStateChangeListener = new KVStateChangeListener();
-    private final BoundaryStateChangeListener boundaryStateChangeListener;
+    private final QueueStateChangeListener queueStateChangeListener = new QueueStateChangeListener();
+    private final BoundaryStateChangeListener roundStateChangeListener;
     private final State state;
 
     /**
@@ -40,15 +43,18 @@ public class MigrationStateChanges {
         requireNonNull(storeMetricsService);
 
         this.state = requireNonNull(state);
-        this.boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, () -> config);
+        this.roundStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, () -> config);
         if (config.getConfigData(BlockStreamConfig.class).streamMode() != RECORDS) {
             state.registerCommitListener(kvStateChangeListener);
-            state.registerCommitListener(boundaryStateChangeListener);
+            state.registerCommitListener(queueStateChangeListener);
+            state.registerCommitListener(roundStateChangeListener);
         }
     }
 
     /**
-     * If any changes have been made since the last call, captures them.
+     * If any key/value and queue changes have been made since the last call, inserts a {@link BlockItem}
+     * boundary into the state changes, necessary so that block nodes can commit the same
+     * transactional units into {@link com.swirlds.state.spi.WritableKVState} instances.
      */
     public void trackCommit() {
         final var maybeKvChanges = kvStateChangeListener.getStateChanges();
@@ -56,10 +62,10 @@ public class MigrationStateChanges {
             stateChanges.add(new ArrayList<>(maybeKvChanges));
             kvStateChangeListener.reset();
         }
-        final var maybeBoundaryChanges = boundaryStateChangeListener.allStateChanges();
-        if (!maybeBoundaryChanges.isEmpty()) {
-            stateChanges.add(new ArrayList<>(maybeBoundaryChanges));
-            boundaryStateChangeListener.reset();
+        final var maybeQueueChanges = queueStateChangeListener.getStateChanges();
+        if (!maybeQueueChanges.isEmpty()) {
+            stateChanges.add(new ArrayList<>(maybeQueueChanges));
+            queueStateChangeListener.reset();
         }
     }
 
@@ -69,8 +75,14 @@ public class MigrationStateChanges {
      * @return the state changes that occurred during the migration
      */
     public List<StateChanges.Builder> getStateChanges() {
+        final var roundChanges = roundStateChangeListener.allStateChanges();
+        if (!roundChanges.isEmpty()) {
+            stateChanges.add(roundChanges);
+        }
         state.unregisterCommitListener(kvStateChangeListener);
-        state.unregisterCommitListener(boundaryStateChangeListener);
+        state.unregisterCommitListener(queueStateChangeListener);
+        state.unregisterCommitListener(roundStateChangeListener);
+
         return stateChanges.stream()
                 .map(changes -> StateChanges.newBuilder().stateChanges(changes))
                 .toList();

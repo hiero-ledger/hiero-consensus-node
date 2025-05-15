@@ -325,7 +325,7 @@ class VirtualMapHashingTest {
             map.put(TestKey.longToKey(2), new TestValue("b"), TestValueCodec.INSTANCE);
 
             VirtualMap copy = map.copy();
-            final Hash hash1 = map.getLeft().getHash(); // virtual root node hash
+            final Hash hash1 = map.getHash(); // virtual root node hash
             map.release();
             map = copy;
 
@@ -333,7 +333,7 @@ class VirtualMapHashingTest {
             map.remove(TestKey.longToKey(2));
 
             copy = map.copy();
-            final Hash hash2 = map.getLeft().getHash(); // virtual root node hash
+            final Hash hash2 = map.getHash(); // virtual root node hash
             map.release();
             map = copy;
 
@@ -343,7 +343,7 @@ class VirtualMapHashingTest {
             map.remove(TestKey.longToKey(1));
 
             copy = map.copy();
-            final Hash hash3 = map.getLeft().getHash(); // virtual root node hash
+            final Hash hash3 = map.getHash(); // virtual root node hash
             map.release();
             map = copy;
 
@@ -355,7 +355,7 @@ class VirtualMapHashingTest {
             map.put(TestKey.longToKey(2), new TestValue("b"), TestValueCodec.INSTANCE);
 
             copy = map.copy();
-            final Hash hash4 = map.getLeft().getHash(); // virtual root node hash
+            final Hash hash4 = map.getHash(); // virtual root node hash
             map.release();
             map = copy;
 
@@ -363,7 +363,7 @@ class VirtualMapHashingTest {
             map.remove(TestKey.longToKey(1));
 
             copy = map.copy();
-            final Hash hash5 = map.getLeft().getHash(); // virtual root node hash
+            final Hash hash5 = map.getHash(); // virtual root node hash
             map.release();
             map = copy;
 
@@ -373,7 +373,7 @@ class VirtualMapHashingTest {
             map.remove(TestKey.longToKey(2));
 
             copy = map.copy();
-            final Hash hash6 = map.getLeft().getHash(); // virtual root node hash
+            final Hash hash6 = map.getHash(); // virtual root node hash
             map.release();
             map = copy;
 

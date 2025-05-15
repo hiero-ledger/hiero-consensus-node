@@ -3,13 +3,10 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.QueuePopChange;
-import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -25,7 +22,6 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
@@ -43,9 +39,7 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -54,9 +48,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.SortedSet;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -65,11 +57,9 @@ import java.util.function.Supplier;
  * them in bulk. In the current system, these are the singleton and queue updates.
  */
 public class BoundaryStateChangeListener implements StateChangeListener {
-    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON, QUEUE);
+    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON);
 
-    private final SortedSet<String> servicesWithDeferredCommits = new TreeSet<>();
     private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
-    private final SortedMap<Integer, List<StateChange>> queueUpdates = new TreeMap<>();
     private static final int ENTITY_COUNTS_STATE_ID =
             BlockImplUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
@@ -88,27 +78,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private long nodeFeesCollected;
 
     /**
-     * The mode the listener is in.
-     */
-    private enum Mode {
-        /**
-         * The listener is tracking all mutations but signaling to the state that their commits should be deferred.
-         */
-        DEFERRING_COMMITS,
-        /**
-         * The listener is not deferring commits and only tracking the implied state changes, not the mutations.
-         */
-        COMMITTING,
-    }
-
-    /**
-     * The current mode.
-     */
-    private Mode mode = Mode.COMMITTING;
-
-    /**
      * Constructor for the {@link BoundaryStateChangeListener} class.
-     *
      * @param storeMetricsService the store metrics service
      * @param configurationSupplier the configuration
      */
@@ -135,7 +105,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     /**
      * Tracks the collected node fees.
-     *
      * @param nodeFeesCollected the node fees collected
      */
     public void trackCollectedNodeFees(final long nodeFeesCollected) {
@@ -166,52 +135,27 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Resets the state of the listener to avoid ony contamination from migration state changes done
-     * during state initialization outside of {@code handleTransaction}.
+     * Resets the state of the listener.
      */
     public void reset() {
         boundaryTimestamp = null;
         lastConsensusTime = null;
         singletonUpdates.clear();
-        queueUpdates.clear();
-        servicesWithDeferredCommits.clear();
-        mode = Mode.COMMITTING;
-    }
-
-    /**
-     * Updates the listener to start deferring commits.
-     */
-    public void startDeferringCommits() {
-        mode = Mode.DEFERRING_COMMITS;
-    }
-
-    /**
-     * Commits all deferred mutations to the given state.
-     */
-    public void flushDeferredCommits(@NonNull final State state) {
-        requireNonNull(state);
-        mode = Mode.COMMITTING;
-        servicesWithDeferredCommits.forEach(
-                service -> ((CommittableWritableStates) state.getWritableStates(service)).commit());
-        servicesWithDeferredCommits.clear();
     }
 
     /**
      * Returns a {@link BlockItem} containing all the state changes that have been accumulated.
-     *
      * @return the block item
      */
-    public BlockItem summarizeCommittedChanges() {
+    public BlockItem flushChanges() {
         requireNonNull(boundaryTimestamp);
         final var stateChanges = new StateChanges(boundaryTimestamp, allStateChanges());
         singletonUpdates.clear();
-        queueUpdates.clear();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 
     /**
      * Returns all the state changes that have been accumulated.
-     *
      * @return the state changes
      */
     public List<StateChange> allStateChanges() {
@@ -219,15 +163,11 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         for (final var entry : singletonUpdates.entrySet()) {
             allStateChanges.add(entry.getValue());
         }
-        for (final var entry : queueUpdates.entrySet()) {
-            allStateChanges.addAll(entry.getValue());
-        }
         return allStateChanges;
     }
 
     /**
      * Sets the last used consensus time in the round.
-     *
      * @param lastUsedConsensusTime the last used consensus time
      */
     public void setBoundaryTimestamp(@NonNull final Instant lastUsedConsensusTime) {
@@ -241,88 +181,21 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     @Override
-    public boolean deferCommits() {
-        return mode == Mode.DEFERRING_COMMITS;
-    }
-
-    @Override
-    public void commitDeferredFor(@NonNull final String serviceName) {
-        requireNonNull(serviceName);
-        if (mode == Mode.COMMITTING) {
-            throw new IllegalStateException("Commits should not have been deferred for '" + serviceName + "' here");
-        }
-        servicesWithDeferredCommits.add(serviceName);
-    }
-
-    @Override
     public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
         return BlockImplUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override
-    public <V> void queuePushChange(
-            final int stateId,
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
-            @NonNull final V value) {
-        requireNonNull(value);
-        requireNonNull(serviceName);
-        requireNonNull(stateKey);
-        switch (mode) {
-            case DEFERRING_COMMITS ->
-                throw new IllegalStateException(
-                        "Queue push should have been deferred for " + serviceName + "." + stateKey);
-            case COMMITTING -> {
-                final var stateChange = StateChange.newBuilder()
-                        .stateId(stateId)
-                        .queuePush(new QueuePushChange(queuePushChangeValueFor(value)))
-                        .build();
-                queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
-            }
-        }
-    }
+    public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
+        requireNonNull(value, "value must not be null");
 
-    @Override
-    public void queuePopChange(final int stateId, @NonNull final String serviceName, @NonNull final String stateKey) {
-        requireNonNull(serviceName);
-        requireNonNull(stateKey);
-        switch (mode) {
-            case DEFERRING_COMMITS ->
-                throw new IllegalStateException(
-                        "Queue pop should have been deferred for " + serviceName + "." + stateKey);
-            case COMMITTING -> {
-                final var stateChange = StateChange.newBuilder()
-                        .stateId(stateId)
-                        .queuePop(new QueuePopChange())
-                        .build();
-                queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
-            }
-        }
-    }
-
-    @Override
-    public <V> void singletonUpdateChange(
-            final int stateId,
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
-            @NonNull final V value) {
-        requireNonNull(value);
-        requireNonNull(serviceName);
-        requireNonNull(stateKey);
-        switch (mode) {
-            case DEFERRING_COMMITS ->
-                throw new IllegalStateException(
-                        "Singleton update should have been deferred for " + serviceName + "." + stateKey);
-            case COMMITTING -> {
-                final var stateChange = StateChange.newBuilder()
-                        .stateId(stateId)
-                        .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
-                        .build();
-                singletonUpdates.put(stateId, stateChange);
-                if (stateId == ENTITY_COUNTS_STATE_ID) {
-                    updateEntityCountsMetrics((EntityCounts) value);
-                }
-            }
+        final var stateChange = StateChange.newBuilder()
+                .stateId(stateId)
+                .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
+                .build();
+        singletonUpdates.put(stateId, stateChange);
+        if (stateId == ENTITY_COUNTS_STATE_ID) {
+            updateEntityCountsMetrics((EntityCounts) value);
         }
     }
 
@@ -381,22 +254,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                 configuration.getConfigData(TokensConfig.class).maxNumber();
         final var tokenMetrics = storeMetricsService.get(StoreMetricsService.StoreType.TOKEN, tokenCapacity);
         tokenMetrics.updateCount(entityCounts.numTokens());
-    }
-
-    private static <V> OneOf<QueuePushChange.ValueOneOfType> queuePushChangeValueFor(@NonNull final V value) {
-        switch (value) {
-            case ProtoBytes protoBytesElement -> {
-                return new OneOf<>(QueuePushChange.ValueOneOfType.PROTO_BYTES_ELEMENT, protoBytesElement.value());
-            }
-            case TransactionReceiptEntries transactionReceiptEntriesElement -> {
-                return new OneOf<>(
-                        QueuePushChange.ValueOneOfType.TRANSACTION_RECEIPT_ENTRIES_ELEMENT,
-                        transactionReceiptEntriesElement);
-            }
-            default ->
-                throw new IllegalArgumentException(
-                        "Unknown value type " + value.getClass().getName());
-        }
     }
 
     public static <V> @NonNull OneOf<SingletonUpdateChange.NewValueOneOfType> singletonUpdateChangeValueFor(

@@ -27,6 +27,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
@@ -114,6 +115,9 @@ class HandleWorkflowTest {
 
     @Mock
     private KVStateChangeListener kvStateChangeListener;
+
+    @Mock
+    private QueueStateChangeListener queueStateChangeListener;
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
@@ -467,6 +471,7 @@ class HandleWorkflowTest {
                 migrationStateChanges,
                 parentTxnFactory,
                 kvStateChangeListener,
+                queueStateChangeListener,
                 boundaryStateChangeListener,
                 scheduleService,
                 hintsService,

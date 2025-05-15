@@ -306,7 +306,6 @@ public class SystemTransactions {
                         .serviceEndpoint(hapiEndpoints)
                         .declineReward(true)
                         .build();
-                log.info("Creating node{} via {}", nodeInfo.nodeId(), nodeCreate);
                 b.nodeCreate(nodeCreate);
             });
         }
@@ -439,11 +438,7 @@ public class SystemTransactions {
                 .map(NodeInfo::accountId)
                 .toList();
         if (activeNodeAccountIds.isEmpty() && (minNodeReward <= 0 || inactiveNodeAccountIds.isEmpty())) {
-            log.info(
-                    "Skipping reward payments (no active nodes and {})",
-                    inactiveNodeAccountIds.isEmpty()
-                            ? "no inactive nodes to receive a minimum reward"
-                            : "no minimum reward");
+            // No eligible rewards to distribute
             return;
         }
         log.info("Found active node accounts {}", activeNodeAccountIds);
@@ -460,7 +455,7 @@ public class SystemTransactions {
 
         if (rewardAccountBalance <= activeTotal) {
             final long activeNodeReward = rewardAccountBalance / activeNodeAccountIds.size();
-            log.info("Balance insufficient for all, rewarding active nodes only {} tinybars each", activeNodeReward);
+            log.info("Balance insufficient for all, rewarding active nodes only: {} tinybars each", activeNodeReward);
             if (activeNodeReward > 0) {
                 dispatchSynthNodeRewards(systemContext, activeNodeAccountIds, nodeRewardsAccountId, activeNodeReward);
             }
