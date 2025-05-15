@@ -141,16 +141,14 @@ class EventCreationManagerTests {
 
     @Test
     void nonFutureEventsAreNotBuffered() {
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                .setEventBirthRound(2)
-                .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(2).build());
         final PlatformEvent e2 = eventWithBirthRound(2);
         manager.registerEvent(e2);
         verify(creator, times(1)).registerEvent(e2);
 
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                .setEventBirthRound(3)
-                .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(3).build());
         final PlatformEvent e1 = eventWithBirthRound(1);
         final PlatformEvent e3 = eventWithBirthRound(3);
         manager.registerEvent(e1);
@@ -161,9 +159,8 @@ class EventCreationManagerTests {
 
     @Test
     void futureEventsAreBuffered() {
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                        .setEventBirthRound(2)
-                        .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(2).build());
 
         final PlatformEvent e3 = eventWithBirthRound(3);
         final PlatformEvent e4 = eventWithBirthRound(4);
@@ -175,19 +172,16 @@ class EventCreationManagerTests {
         manager.registerEvent(e5);
         verify(creator, times(0)).registerEvent(any(PlatformEvent.class));
 
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                .setEventBirthRound(3)
-                .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(3).build());
         verify(creator, times(1)).registerEvent(e3);
 
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                .setEventBirthRound(4)
-                .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(4).build());
         verify(creator, times(1)).registerEvent(e4);
 
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                .setEventBirthRound(5)
-                .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(5).build());
         verify(creator, times(1)).registerEvent(e5);
     }
 
@@ -204,9 +198,8 @@ class EventCreationManagerTests {
 
     @Test
     void testClear() {
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                .setEventBirthRound(2)
-                .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(2).build());
 
         final PlatformEvent e3 = eventWithBirthRound(3);
         final PlatformEvent e4 = eventWithBirthRound(4);
@@ -218,9 +211,8 @@ class EventCreationManagerTests {
         manager.registerEvent(e5);
 
         manager.clear();
-        manager.setEventWindow(EventWindowBuilder.birthRoundMode()
-                .setEventBirthRound(5)
-                .build());
+        manager.setEventWindow(
+                EventWindowBuilder.birthRoundMode().setEventBirthRound(5).build());
         verify(creator, times(0)).registerEvent(any(PlatformEvent.class));
     }
 
