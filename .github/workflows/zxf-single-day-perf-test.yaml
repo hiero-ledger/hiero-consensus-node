@@ -39,12 +39,20 @@ jobs:
 #          echo "tag=$ref" >> $GITHUB_OUTPUT
 
       # Clone the perf analysis automation repo
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Checkout the performance analysis automation repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
           ref: main
           repository: swirldslabs/performance-analysis-automation
           token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
+
+      - name: Confirm checkout
+        run: |
+          echo "Current director is:"
+          pwd
+          echo "Current folder contents are:"
+          ls -la
 
 
       # Call the performance workflow with appropriate input version
