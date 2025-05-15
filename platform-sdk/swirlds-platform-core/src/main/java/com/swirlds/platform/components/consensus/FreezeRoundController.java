@@ -59,6 +59,12 @@ public class FreezeRoundController {
         return modifiedRounds;
     }
 
+    /**
+     * Modifies the freeze round to change the event birth round to the latest consensus round. This is to ensure that
+     * events created pre-upgrade and post-upgrade can be distinguished in case some migration logic is needed.
+     * @param round the round to modify
+     * @return the modified round
+     */
     private static ConsensusRound modifyFreezeRound(@NonNull final ConsensusRound round) {
         final EventWindow modifiedWindow = new EventWindow(
                 round.getEventWindow().latestConsensusRound(),
