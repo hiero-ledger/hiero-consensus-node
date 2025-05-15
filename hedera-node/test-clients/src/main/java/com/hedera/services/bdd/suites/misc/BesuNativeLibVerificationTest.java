@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.misc;
 
+import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.FakeNmt.restartNetwork;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
@@ -21,7 +22,9 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
+@Tag(LONG_RUNNING)
 // Order to be last as it will restart the network and halt if the lib is not present
 @Order(Integer.MAX_VALUE)
 public class BesuNativeLibVerificationTest implements LifecycleTest {
