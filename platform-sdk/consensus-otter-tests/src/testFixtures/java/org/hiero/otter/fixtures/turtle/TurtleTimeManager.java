@@ -41,10 +41,9 @@ public class TurtleTimeManager implements TimeManager {
     }
 
     /**
-     * Returns the time source for this simulation.
-     *
-     * @return the time source
+     * {@inheritDoc}
      */
+    @Override
     public Time time() {
         return time;
     }
