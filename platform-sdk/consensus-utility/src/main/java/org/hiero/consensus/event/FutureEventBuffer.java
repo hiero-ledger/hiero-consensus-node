@@ -76,7 +76,7 @@ public class FutureEventBuffer {
         if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
             return null;
-        } else if (event.getBirthRound() <= bufferingOption.getMaximumAllowedRound(eventWindow)) {
+        } else if (event.getBirthRound() <= bufferingOption.getMaximumReleasableRound(eventWindow)) {
             // this is not a future event, no need to buffer it
             return event;
         }

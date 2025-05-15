@@ -430,7 +430,12 @@ class FutureEventBufferTests {
         assertThat(actualOutputOrder).isEqualTo(expectedOutputOrder);
     }
 
+    /**
+     * The future event buffer has two options for buffering events, this test verifies that both options work as
+     * expected.
+     */
     @Test
+    @DisplayName("Tests both future event buffering options")
     void eventBufferingOptions() {
         final FutureEventBuffer pendingBuffer = new FutureEventBuffer(CONFIGURATION, METRICS, PENDING_CONSENSUS_ROUND);
         final FutureEventBuffer birthRoundBuffer = new FutureEventBuffer(CONFIGURATION, METRICS, EVENT_BIRTH_ROUND);
@@ -462,9 +467,15 @@ class FutureEventBufferTests {
 
         // validate the events
         assertThat(pendingBufferEvents)
+                .withFailMessage(
+                        "Events in the buffer configured with the PENDING_CONSENSUS_ROUND options should have a birth round less than or equal to %d"
+                                .formatted(pendingRound))
                 .map(PlatformEvent::getBirthRound)
                 .allMatch(birthRound -> birthRound <= pendingRound);
         assertThat(birthRoundBufferEvents)
+                .withFailMessage(
+                        "Events in the buffer configured with the EVENT_BIRTH_ROUND options should have a birth round less than or equal to %d"
+                                .formatted(eventBirthRound))
                 .map(PlatformEvent::getBirthRound)
                 .allMatch(birthRound -> birthRound <= eventBirthRound);
     }
