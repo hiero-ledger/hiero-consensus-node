@@ -48,8 +48,10 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+    requires("org.hiero.junit.extensions")
 
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
+    opensTo("org.hiero.junit.extensions")
 }
 
 timingSensitiveModuleInfo {
@@ -58,6 +60,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
 }

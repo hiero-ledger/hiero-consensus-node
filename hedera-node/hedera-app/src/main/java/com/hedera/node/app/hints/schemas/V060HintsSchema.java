@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
@@ -69,27 +70,30 @@ public class V060HintsSchema extends Schema {
         if (nextConstructionState.get() == null) {
             nextConstructionState.put(HintsConstruction.DEFAULT);
         }
-        final var crsState = states.<CRSState>getSingleton(CRS_STATE_KEY);
-        if (crsState.get() == null) {
-            crsState.put(CRSState.DEFAULT);
+        final var crsStateSingleton = states.<CRSState>getSingleton(CRS_STATE_KEY);
+        if (crsStateSingleton.get() == null) {
+            crsStateSingleton.put(CRSState.DEFAULT);
         }
 
         // And now if hinTS is enabled, ensure everything is ready for that
         final var tssConfig = ctx.appConfig().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
-            if (requireNonNull(crsState.get()).equals(CRSState.DEFAULT)) {
+            final var crsState = requireNonNull(crsStateSingleton.get());
+            if (crsState.equals(CRSState.DEFAULT)) {
                 log.info("Initializing CRS for {} parties", tssConfig.initialCrsParties());
                 final var initialCrs = library.newCrs(tssConfig.initialCrsParties());
-                crsState.put(CRSState.newBuilder()
+                crsStateSingleton.put(CRSState.newBuilder()
                         .stage(GATHERING_CONTRIBUTIONS)
                         .nextContributingNodeId(0L)
                         .crs(initialCrs)
                         .build());
+            } else if (crsState.stage() == COMPLETED) {
+                signingContext.setCrs(crsState.crs());
             }
             final var activeConstruction = states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
                     .get();
             if (requireNonNull(activeConstruction).hasHintsScheme()) {
-                signingContext.setConstructions(activeConstruction);
+                signingContext.setConstruction(activeConstruction);
             }
         }
     }

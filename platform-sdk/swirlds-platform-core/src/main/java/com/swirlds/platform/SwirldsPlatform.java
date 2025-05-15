@@ -262,7 +262,7 @@ public class SwirldsPlatform implements Platform {
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.isInFreezePeriodReference().set(swirldStateManager::isInFreezePeriod);
+        blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
 
         final BirthRoundMigrationShim birthRoundMigrationShim =
                 buildBirthRoundMigrationShim(initialState, ancientMode, platformStateFacade);

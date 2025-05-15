@@ -5,8 +5,6 @@ import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.PropertySource.asAccount;
 import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
@@ -213,7 +211,6 @@ public class AutoAccountCreationSuite {
         final AtomicReference<AccountID> counterId = new AtomicReference<>();
         final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
         final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
-
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 newKeyNamed(MULTI_KEY),
@@ -252,9 +249,9 @@ public class AutoAccountCreationSuite {
                     counterAlias.set(ByteString.copyFrom(asSolidityAddress(counterId.get())));
 
                     cryptoTransfer((x, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
-                                    .addTransfers(aaWith(SPONSOR, -1))
+                                    .addTransfers(aaWith(spec, SPONSOR, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))
-                                    .addTransfers(aaWith(TOKEN_TREASURY, -1))
+                                    .addTransfers(aaWith(spec, TOKEN_TREASURY, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))))
                             .signedBy(DEFAULT_PAYER, PARTY, SPONSOR)
                             .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
@@ -1520,7 +1517,6 @@ public class AutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> cannotAutoCreateWithTxnToLongZero() {
         final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
-        final var longZeroAddress = ByteString.copyFrom(asSolidityAddress(shard, realm, 5555));
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -1537,6 +1533,9 @@ public class AutoAccountCreationSuite {
                     final var validTransfer = cryptoTransfer(tinyBarsFromTo(PAYER, evmAddress.get(), ONE_HBAR))
                             .hasKnownStatus(SUCCESS)
                             .via("passedTxn");
+
+                    final var longZeroAddress =
+                            ByteString.copyFrom(asSolidityAddress((int) spec.shard(), spec.realm(), 5555));
 
                     final var invalidTransferToLongZero = cryptoTransfer(
                                     tinyBarsFromTo(PAYER, longZeroAddress, ONE_HBAR))

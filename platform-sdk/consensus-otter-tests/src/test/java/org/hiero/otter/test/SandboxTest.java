@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
+import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
+import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.Validator.EventStreamConfig.ignoreNode;
-import static org.hiero.otter.fixtures.Validator.LogFilter.ignoreMarkers;
 import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
 
-import com.swirlds.logging.legacy.LogMarker;
 import java.time.Duration;
 import java.util.List;
+import org.apache.logging.log4j.Level;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -52,12 +54,15 @@ public class SandboxTest {
 
         // Validations
         env.validator()
-                .assertLogs(
-                        ignoreMarkers(LogMarker.SOCKET_EXCEPTIONS, LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
                 .assertStdOut()
                 .eventStream(ignoreNode(node))
                 .reconnectEventStream(node)
                 .validateRemaining(Profile.DEFAULT);
+
+        assertThat(network.getLogResults()
+                        .ignoring(SOCKET_EXCEPTIONS)
+                        .ignoring(TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
+                .noMessageWithLevelHigherThan(Level.INFO);
     }
 
     @OtterTest

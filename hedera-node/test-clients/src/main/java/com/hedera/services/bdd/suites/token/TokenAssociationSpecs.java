@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.NoTokenTransfers.emptyTokenTransfers;
@@ -90,7 +89,7 @@ public class TokenAssociationSpecs {
     final Stream<DynamicTest> canHandleInvalidAssociateTransactions() {
         final String alice = "ALICE";
         final String bob = "BOB";
-        final String unknownID = asEntityString(Long.MAX_VALUE);
+        final String unknownID = String.valueOf(Long.MAX_VALUE);
         return defaultHapiSpec("CanHandleInvalidAssociateTransactions")
                 .given(
                         newKeyNamed(MULTI_KEY),

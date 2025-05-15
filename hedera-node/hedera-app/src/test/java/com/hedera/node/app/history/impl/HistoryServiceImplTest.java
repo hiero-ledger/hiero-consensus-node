@@ -5,7 +5,6 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -104,20 +103,10 @@ class HistoryServiceImplTest {
     }
 
     @Test
-    void updatesActiveProofAfterEffectiveHandoff() {
+    void handoffIsNoop() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
-        given(store.purgeStateAfterHandoff(activeRosters)).willReturn(true);
-        final var currentVk = Bytes.wrap("Z");
-        final var construction = HistoryProofConstruction.newBuilder()
-                .targetProof(HistoryProof.newBuilder()
-                        .targetHistory(History.newBuilder().metadata(currentVk)))
-                .build();
-        given(store.getConstructionFor(activeRosters)).willReturn(construction);
-
-        subject.reconcile(activeRosters, currentVk, store, CONSENSUS_NOW, tssConfig, true);
-
-        assertDoesNotThrow(() -> subject.getCurrentProof(currentVk));
+        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, tssConfig, true);
     }
 
     @Test
