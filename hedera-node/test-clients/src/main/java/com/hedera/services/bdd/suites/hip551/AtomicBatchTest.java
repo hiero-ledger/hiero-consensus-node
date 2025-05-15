@@ -61,7 +61,6 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -328,75 +327,6 @@ public class AtomicBatchTest {
                     atomicBatch(cryptoCreate("foo").batchKey(aliceKey))
                             .payingWith(payer)
                             .signedBy(payer, aliceKey));
-        }
-
-        @Disabled // No longer relevant, after implementing ingest throttle for the inner transactions
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
-        @DisplayName("Update throttles should take effect to following inner txns")
-        //  BATCH_08
-        public Stream<DynamicTest> throttlesShouldTakeEffect() {
-            final var contract = "CalldataSize";
-            final var function = "callme";
-            final var payload = new byte[100];
-            final var payer = "payer";
-            final var batchOperator = "batchOperator";
-            return hapiTest(
-                    cryptoCreate(batchOperator),
-                    cryptoCreate(payer).balance(ONE_HBAR),
-                    uploadInitCode(contract),
-                    contractCreate(contract),
-                    // seth contract call to 6 TPS
-                    overridingThrottles("testSystemFiles/artificial-limits.json"),
-                    // create batch with 6 contract calls
-                    atomicBatch(
-                                    fileUpdate(THROTTLE_DEFS)
-                                            .batchKey(batchOperator)
-                                            .noLogging()
-                                            .payingWith(GENESIS)
-                                            .contents(protoDefsFromResource("testSystemFiles/mainnet-throttles.json")
-                                                    .toByteArray()),
-                                    // call more than 6 times
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    fileUpdate(THROTTLE_DEFS)
-                                            .batchKey(batchOperator)
-                                            .noLogging()
-                                            .payingWith(GENESIS)
-                                            .contents(protoDefsFromResource("testSystemFiles/artificial-limits.json")
-                                                    .toByteArray()))
-                            .signedByPayerAnd(batchOperator)
-                            .payingWith(payer));
         }
 
         @HapiTest
