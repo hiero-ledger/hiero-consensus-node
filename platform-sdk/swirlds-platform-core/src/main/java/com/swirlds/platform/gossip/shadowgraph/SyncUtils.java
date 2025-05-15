@@ -597,6 +597,11 @@ public final class SyncUtils {
         final long ancientThreshold = in.readLong();
         final long expiredThreshold = in.readLong();
 
-        return new EventWindow(latestConsensusRound, ancientThreshold, expiredThreshold, ancientMode);
+        return new EventWindow(latestConsensusRound,
+                // by default, we set the birth round to the pending round
+                latestConsensusRound + 1 ,
+                ancientThreshold,
+                expiredThreshold,
+                ancientMode);
     }
 }

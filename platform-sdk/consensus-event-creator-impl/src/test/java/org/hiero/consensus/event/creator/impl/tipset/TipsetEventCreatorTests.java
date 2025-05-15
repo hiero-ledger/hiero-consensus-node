@@ -785,12 +785,13 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
+        final AncientMode ancientMode = useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
                 random,
                 time,
                 roster,
                 transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+                ancientMode);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -807,22 +808,12 @@ class TipsetEventCreatorTests {
 
                 final long pendingConsensusRound = eventIndex + 2;
                 if (eventIndex > 0) {
-
-                    final long ancientThreshold;
-                    if (useBirthRoundForAncient) {
-                        ancientThreshold = Math.max(EventConstants.MINIMUM_ROUND_CREATED, eventIndex - 26);
-                    } else {
-                        ancientThreshold = Math.max(EventConstants.FIRST_GENERATION, eventIndex - 26);
-                    }
-
                     // Set non-ancientEventWindow after creating genesis event from each node.
                     eventCreator.setEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(
-                                    useBirthRoundForAncient
-                                            ? AncientMode.BIRTH_ROUND_THRESHOLD
-                                            : AncientMode.GENERATION_THRESHOLD)
+                            .setAncientMode(ancientMode)
                             .setLatestConsensusRound(pendingConsensusRound - 1)
-                            .setAncientThreshold(ancientThreshold)
+                            .setEventBirthRound(pendingConsensusRound)
+                            .setAncientThresholdOrGenesis(eventIndex - 26)
                             .build());
                 }
 

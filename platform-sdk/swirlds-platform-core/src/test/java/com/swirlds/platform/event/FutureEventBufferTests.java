@@ -4,6 +4,7 @@ package com.swirlds.platform.event;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.consensus.event.FutureEventBufferingOption.PENDING_CONSENSUS_ROUND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -20,6 +21,7 @@ import java.util.Queue;
 import java.util.Random;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -46,7 +48,7 @@ class FutureEventBufferTests {
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
 
-        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics());
+        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics(), PENDING_CONSENSUS_ROUND);
 
         final long nonAncientBirthRound = 100;
         final long pendingConsensusRound = nonAncientBirthRound * 2;
@@ -129,7 +131,7 @@ class FutureEventBufferTests {
                 .getOrCreateConfig();
 
         final StaticTestInput testInput = new StaticTestInput();
-        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics());
+        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics(), PENDING_CONSENSUS_ROUND);
         testInput.allTestEvents().forEach(futureEventBuffer::addEvent);
         futureEventBuffer.clear();
         assertThat(futureEventBuffer.updateEventWindow(testInput.getEventWindowForMaxBirthRound()))
@@ -148,7 +150,7 @@ class FutureEventBufferTests {
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
 
-        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics());
+        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics(), PENDING_CONSENSUS_ROUND);
 
         final long nonAncientBirthRound = 100;
         final long pendingConsensusRound = nonAncientBirthRound * 2;
@@ -208,7 +210,7 @@ class FutureEventBufferTests {
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
 
-        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics());
+        final FutureEventBuffer futureEventBuffer = new FutureEventBuffer(configuration, new NoOpMetrics(), PENDING_CONSENSUS_ROUND);
 
         final long pendingConsensusRound = random.nextLong(100, 1_000);
         final long nonAncientBirthRound = pendingConsensusRound / 2;
@@ -303,7 +305,7 @@ class FutureEventBufferTests {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, "true")
                 .getOrCreateConfig();
-        return new FutureEventBuffer(configuration, new NoOpMetrics());
+        return new FutureEventBuffer(configuration, new NoOpMetrics(), PENDING_CONSENSUS_ROUND);
     }
 
     /**

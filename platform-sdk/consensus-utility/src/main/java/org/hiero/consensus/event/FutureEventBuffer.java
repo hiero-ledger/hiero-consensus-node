@@ -37,6 +37,8 @@ public class FutureEventBuffer {
      */
     private static final Function<Long, List<PlatformEvent>> BUILD_LIST = x -> new ArrayList<>();
 
+    private final FutureEventBufferingOption bufferingOption;
+
     private EventWindow eventWindow;
 
     private final SequenceMap<Long /* birth round */, List<PlatformEvent>> futureEvents =
@@ -47,7 +49,9 @@ public class FutureEventBuffer {
     /**
      * Constructor.
      */
-    public FutureEventBuffer(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+    public FutureEventBuffer(@NonNull final Configuration configuration, @NonNull final Metrics metrics,
+            @NonNull final FutureEventBufferingOption bufferingOption) {
+        this.bufferingOption = bufferingOption;
         final AncientMode ancientMode =
                 configuration.getConfigData(EventConfig.class).getAncientMode();
 
@@ -96,7 +100,7 @@ public class FutureEventBuffer {
         // We want to release all events with birth rounds less than or equal to the pending consensus round.
         // In order to do that, we tell the sequence map to shift its window to the oldest round that we want
         // to keep within the buffer.
-        final long oldestRoundToBuffer = eventWindow.getPendingConsensusRound() + 1;
+        final long oldestRoundToBuffer = eventWindow.getPendingConsensusRound() + 1;//TODO
 
         final List<PlatformEvent> events = new ArrayList<>();
         futureEvents.shiftWindow(oldestRoundToBuffer, (round, roundEvents) -> {
@@ -117,4 +121,5 @@ public class FutureEventBuffer {
     public void clear() {
         futureEvents.clear();
     }
+
 }

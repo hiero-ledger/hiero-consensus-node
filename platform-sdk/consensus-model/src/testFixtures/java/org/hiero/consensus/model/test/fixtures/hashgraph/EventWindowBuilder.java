@@ -12,21 +12,34 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 public class EventWindowBuilder {
 
     private Long latestConsensusRound;
+    private Long eventBirthRound;
     private Long ancientThreshold;
     private Long expiredThreshold;
     private AncientMode ancientMode;
 
     private EventWindowBuilder() {}
 
-    public static EventWindowBuilder builder() {
+    /**
+     * Creates a new instance
+     * @return a new instance of {@link EventWindowBuilder}
+     */
+    public static @NonNull EventWindowBuilder builder() {
         return new EventWindowBuilder();
     }
 
-    public static EventWindowBuilder birthRoundMode() {
+    /**
+     * Creates a new instance with the ancient mode set to birth round threshold.
+     * @return a new instance of {@link EventWindowBuilder} with birth round mode
+     */
+    public static @NonNull EventWindowBuilder birthRoundMode() {
         return new EventWindowBuilder().setAncientMode(AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 
-    public static EventWindowBuilder generationMode() {
+    /**
+     * Creates a new instance with the ancient mode set to generation threshold.
+     * @return a new instance of {@link EventWindowBuilder} with generation mode
+     */
+    public static @NonNull EventWindowBuilder generationMode() {
         return new EventWindowBuilder().setAncientMode(AncientMode.GENERATION_THRESHOLD);
     }
 
@@ -42,13 +55,13 @@ public class EventWindowBuilder {
     }
 
     /**
-     * Sets the ancient threshold.
+     * Sets the event birth round.
      *
-     * @param ancientThreshold the minimum ancient indicator value for an event to be considered non-ancient
+     * @param eventBirthRound the birth round of newly created events
      * @return the builder instance
      */
-    public EventWindowBuilder setAncientThreshold(final long ancientThreshold) {
-        this.ancientThreshold = ancientThreshold;
+    public @NonNull EventWindowBuilder setEventBirthRound(final long eventBirthRound) {
+        this.eventBirthRound = eventBirthRound;
         return this;
     }
 
@@ -58,7 +71,20 @@ public class EventWindowBuilder {
      * @param ancientThreshold the minimum ancient indicator value for an event to be considered non-ancient
      * @return the builder instance
      */
-    public EventWindowBuilder setAncientThresholdOrGenesis(final long ancientThreshold) {
+    public @NonNull EventWindowBuilder setAncientThreshold(final long ancientThreshold) {
+        this.ancientThreshold = ancientThreshold;
+        return this;
+    }
+
+    /**
+     * Sets the ancient threshold. If the supplied threshold is less than the genesis indicator of the ancient mode,
+     * it will be set to the genesis indicator.
+     *
+     * @param ancientThreshold the minimum ancient indicator value for an event to be considered non-ancient
+     * @return the builder instance
+     * @throws IllegalArgumentException if the ancient mode is not set
+     */
+    public @NonNull EventWindowBuilder setAncientThresholdOrGenesis(final long ancientThreshold) {
         if (ancientMode == null) {
             throw new IllegalArgumentException("Ancient mode must be set");
         }
@@ -78,10 +104,12 @@ public class EventWindowBuilder {
     }
 
     /**
-     * Sets the expired threshold.
+     * Sets the expired threshold. If the supplied threshold is less than the genesis indicator of the ancient mode,
+     * it will be set to the genesis indicator.
      *
      * @param expiredThreshold the minimum ancient indicator value for an event to be considered not expired
      * @return the builder instance
+     * @throws IllegalArgumentException if the ancient mode is not set
      */
     public @NonNull EventWindowBuilder setExpiredThresholdOrGenesis(final long expiredThreshold) {
         if (ancientMode == null) {
@@ -108,12 +136,13 @@ public class EventWindowBuilder {
      * @return a new {@link EventWindow} instance
      * @throws IllegalArgumentException if any required fields are invalid
      */
-    public EventWindow build() {
+    public @NonNull EventWindow build() {
         if (this.ancientMode == null) {
             throw new IllegalArgumentException("Ancient mode must be set");
         }
         return new EventWindow(
                 latestConsensusRound == null ? ConsensusConstants.ROUND_FIRST : latestConsensusRound,
+                eventBirthRound == null ? ConsensusConstants.ROUND_FIRST : eventBirthRound,
                 ancientThreshold == null ? ancientMode.getGenesisIndicator() : ancientThreshold,
                 expiredThreshold == null ? ancientMode.getGenesisIndicator() : expiredThreshold,
                 ancientMode);

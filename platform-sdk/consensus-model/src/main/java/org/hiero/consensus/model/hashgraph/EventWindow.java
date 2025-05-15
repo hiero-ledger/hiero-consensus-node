@@ -19,6 +19,7 @@ public class EventWindow {
 
     private final AncientMode ancientMode;
     private final long latestConsensusRound;
+    private final long eventBirthRound;
 
     private final long ancientThreshold;
     private final long expiredThreshold;
@@ -38,13 +39,19 @@ public class EventWindow {
      */
     public EventWindow(
             final long latestConsensusRound,
+            final long eventBirthRound,
             final long ancientThreshold,
             final long expiredThreshold,
             @NonNull final AncientMode ancientMode) {
 
         if (latestConsensusRound < ROUND_NEGATIVE_INFINITY) {
             throw new IllegalArgumentException(
-                    "The latest consensus round cannot be less than 0 (ROUND_NEGATIVE_INFINITY).");
+                    "The latest consensus round cannot be less than ROUND_NEGATIVE_INFINITY (%d).".formatted(ROUND_NEGATIVE_INFINITY));
+        }
+
+        if (eventBirthRound < ROUND_FIRST) {
+            throw new IllegalArgumentException(
+                    "The event birth round cannot be less than the first round (%d)".formatted(ROUND_FIRST));
         }
 
         if (ancientMode == GENERATION_THRESHOLD) {
@@ -68,6 +75,7 @@ public class EventWindow {
         }
 
         this.latestConsensusRound = latestConsensusRound;
+        this.eventBirthRound = eventBirthRound;
         this.ancientMode = ancientMode;
         this.ancientThreshold = ancientThreshold;
         this.expiredThreshold = expiredThreshold;
@@ -82,7 +90,7 @@ public class EventWindow {
     @NonNull
     public static EventWindow getGenesisEventWindow(@NonNull final AncientMode ancientMode) {
         final long firstIndicator = ancientMode == GENERATION_THRESHOLD ? FIRST_GENERATION : ROUND_FIRST;
-        return new EventWindow(ROUND_NEGATIVE_INFINITY, firstIndicator, firstIndicator, ancientMode);
+        return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, firstIndicator, firstIndicator, ancientMode);
     }
 
     /**
@@ -107,6 +115,15 @@ public class EventWindow {
      */
     public long getLatestConsensusRound() {
         return latestConsensusRound;
+    }
+
+    /**
+     * The round that newly created events should use as a birth round.
+     *
+     * @return the current birth round of events
+     */
+    public long getEventBirthRound() {
+        return eventBirthRound;
     }
 
     /**

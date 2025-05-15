@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -77,7 +78,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
         linker = new ConsensusLinker(platformContext, selfId);
-        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
+        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
         ancientMode = platformContext
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
