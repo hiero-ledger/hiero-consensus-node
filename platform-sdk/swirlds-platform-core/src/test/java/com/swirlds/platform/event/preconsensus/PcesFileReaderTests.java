@@ -35,8 +35,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 @DisplayName("PcesFileReader Tests")
 class PcesFileReaderTests {
@@ -70,12 +69,8 @@ class PcesFileReaderTests {
         FileUtils.deleteDirectory(fileSystemDirectory);
     }
 
-    static Stream<Arguments> ancientModes() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Files In Order Test")
     void readFilesInOrderTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -102,7 +97,7 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Files In Order With Gap allowed Test")
     void readFilesInOrderGapTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -121,7 +116,7 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Files In Order Gap Not allowed Test")
     void readFilesInOrderGapsNotAllowedTest(@NonNull final AncientMode ancientMode) throws IOException {
         PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -139,7 +134,7 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Files From Middle Test")
     void readFilesFromMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -193,7 +188,7 @@ class PcesFileReaderTests {
      * handle elegantly.
      */
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Files From Middle Repeating Boundaries Test")
     void readFilesFromMiddleRepeatingBoundariesTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -244,7 +239,7 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Files From High ancient indicator Test")
     void readFilesFromHighAncientIdentifierTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -267,7 +262,7 @@ class PcesFileReaderTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Files From Empty Stream Test")
     void readFilesFromEmptyStreamTest(@NonNull final AncientMode ancientMode) {
         assertThrows(
@@ -295,7 +290,7 @@ class PcesFileReaderTests {
      *  * readFilesFromDisk is asked to read a non-existent origin block
      */
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Start And First File Discontinuity In Middle Test")
     void startAtFirstFileDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -353,7 +348,7 @@ class PcesFileReaderTests {
      * before the discontinuity, but it isn't the first file in the stream.
      */
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Start At Middle File Discontinuity In Middle Test")
     void startAtMiddleFileDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -415,7 +410,7 @@ class PcesFileReaderTests {
      * In this test, a discontinuity is placed in the middle of the stream, and we begin iterating on that exact file.
      */
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Start At Middle File Discontinuity In Middle Test")
     void startAtDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -477,7 +472,7 @@ class PcesFileReaderTests {
      * In this test, a discontinuity is placed in the middle of the stream, and we begin iterating after that file.
      */
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Start After Discontinuity In Middle Test")
     void startAfterDiscontinuityInMiddleTest(@NonNull final AncientMode ancientMode) throws IOException {
 

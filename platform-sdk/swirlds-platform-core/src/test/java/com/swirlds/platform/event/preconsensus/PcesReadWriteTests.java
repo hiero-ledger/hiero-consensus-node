@@ -5,7 +5,6 @@ import static com.swirlds.common.test.fixtures.io.FileManipulation.corruptFile;
 import static com.swirlds.common.test.fixtures.io.FileManipulation.truncateFile;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +41,7 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 @DisplayName("PCES Read Write Tests")
 class PcesReadWriteTests {
@@ -65,23 +63,25 @@ class PcesReadWriteTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
-    protected static List<AncientMode> ancientModeArguments() {
-        return List.of(GENERATION_THRESHOLD, BIRTH_ROUND_THRESHOLD);
-    }
-
-    protected static Iterable<PcesFileWriterType> pcesFileWriterTypeArguments() {
-        return Arrays.stream(PcesFileWriterType.values()).toList().stream().toList();
-    }
-
     protected static Iterable<Boolean> booleanArguments() {
         return List.of(Boolean.TRUE, Boolean.FALSE);
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param pcesFileWriterType PCesFileWriterType.values()
+     */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
-        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
+        @ParamSource(
+                param = "pcesFileWriterType",
+                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                method = "values")
     })
     @DisplayName("Write Then Read Test")
     void writeThenReadTest(
@@ -137,11 +137,21 @@ class PcesReadWriteTests {
         }
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param pcesFileWriterType PCesFileWriterType.values()
+     */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
-        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
+        @ParamSource(
+                param = "pcesFileWriterType",
+                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                method = "values")
     })
     @DisplayName("Read Files After Minimum Test")
     void readFilesAfterMinimumTest(
@@ -203,8 +213,11 @@ class PcesReadWriteTests {
         }
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     */
     @ParameterizedTest
-    @MethodSource("ancientModeArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("Read Empty File Test")
     void readEmptyFileTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -225,12 +238,23 @@ class PcesReadWriteTests {
         assertFalse(iterator.hasNext());
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param truncateOnBoundary {@link PcesReadWriteTests#booleanArguments()}
+     * @param pcesFileWriterType PCesFileWriterType.values()
+     */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
-        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+        @ParamSource(
+                param = "pcesFileWriterType",
+                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                method = "values")
     })
     @DisplayName("Truncated Event Test")
     void truncatedEventTest(
@@ -303,12 +327,22 @@ class PcesReadWriteTests {
         }
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param pcesFileWriterType PCesFileWriterType.values()
+     */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
-        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+        @ParamSource(
+                param = "pcesFileWriterType",
+                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                method = "values")
     })
     @DisplayName("Corrupted Events Test")
     void corruptedEventsTest(
@@ -375,12 +409,22 @@ class PcesReadWriteTests {
         assertThrows(Exception.class, iterator::next);
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param pcesFileWriterType PCesFileWriterType.values()
+     */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
-        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+        @ParamSource(
+                param = "pcesFileWriterType",
+                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                method = "values")
     })
     @DisplayName("Write Invalid Event Test")
     void writeInvalidEventTest(
@@ -446,12 +490,22 @@ class PcesReadWriteTests {
         assertFalse(iterator.hasNext());
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param pcesFileWriterType PCesFileWriterType.values()
+     */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
-        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+        @ParamSource(
+                param = "pcesFileWriterType",
+                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                method = "values")
     })
     @DisplayName("Span Compression Test")
     void spanCompressionTest(
@@ -520,12 +574,22 @@ class PcesReadWriteTests {
         }
     }
 
+    /**
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param pcesFileWriterType PCesFileWriterType.values()
+     */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(param = "ancientMode", method = "ancientModeArguments"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
-        @ParamSource(param = "pcesFileWriterType", method = "pcesFileWriterTypeArguments")
+        @ParamSource(
+                param = "pcesFileWriterType",
+                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                method = "values")
     })
     @DisplayName("Partial Span Compression Test")
     void partialSpanCompressionTest(
@@ -599,7 +663,7 @@ class PcesReadWriteTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModeArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("Empty File Test")
     void emptyFileTest(@NonNull final AncientMode ancientMode) throws IOException {
         final PcesFile file = PcesFile.of(ancientMode, Instant.now(), 0, 0, 100, 0, testDirectory);
