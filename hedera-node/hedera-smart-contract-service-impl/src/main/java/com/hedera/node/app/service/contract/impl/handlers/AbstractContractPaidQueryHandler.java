@@ -57,21 +57,21 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
         var account = store.getContractById(contractId);
         if (account == null) {
             final var accountId =
-                    entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
+                    entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(contractId));
             account = store.getAccountById(accountId);
         }
         return account;
     }
 
     protected @Nullable Token tokenFrom(@NonNull final QueryContext context, @NonNull final ContractID contractId) {
-        final var tokenID = entityIdFactory.newTokenId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
+        final var tokenID = entityIdFactory.newTokenId(ConversionUtils.contractIDToNum(contractId));
         return context.createStore(ReadableTokenStore.class).get(tokenID);
     }
 
     protected @Nullable Schedule scheduleFrom(
             @NonNull final QueryContext context, @NonNull final ContractID contractId) {
         final var scheduleId =
-                entityIdFactory.newScheduleId(ConversionUtils.contractIDToNum(entityIdFactory, contractId));
+                entityIdFactory.newScheduleId(ConversionUtils.contractIDToNum(contractId));
         return context.createStore(ReadableScheduleStore.class).get(scheduleId);
     }
 }

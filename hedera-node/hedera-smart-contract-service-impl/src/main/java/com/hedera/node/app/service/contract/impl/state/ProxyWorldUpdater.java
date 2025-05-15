@@ -153,7 +153,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 return entityIdFactory().newContractId(pendingCreation.number());
             } else {
                 if (!contractMustBePresent) {
-                    return isLongZero(entityIdFactory(), address)
+                    return isLongZero(address)
                             ? asNumberedContractId(entityIdFactory(), address)
                             : asEvmContractId(entityIdFactory(), address);
                 }
@@ -347,14 +347,14 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                     .createContract(
                             number,
                             requireNonNull(pendingCreation.body()),
-                            pendingCreation.aliasIfApplicable(entityIdFactory()));
+                            pendingCreation.aliasIfApplicable());
         } else {
             enhancement
                     .operations()
                     .createContract(
                             number,
                             pendingCreation.parentNumber(),
-                            pendingCreation.aliasIfApplicable(entityIdFactory()));
+                            pendingCreation.aliasIfApplicable());
         }
         return evmFrameState.getMutableAccount(pendingCreation.address());
     }
@@ -364,7 +364,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     @Override
     public void deleteAccount(@NonNull final Address address) {
-        if (isLongZero(entityIdFactory(), address)) {
+        if (isLongZero(address)) {
             enhancement.operations().deleteUnaliasedContract(numberOfLongZero(address));
         } else {
             enhancement.operations().deleteAliasedContract(aliasFrom(address));

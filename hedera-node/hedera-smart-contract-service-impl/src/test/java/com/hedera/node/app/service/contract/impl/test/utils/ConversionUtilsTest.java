@@ -293,29 +293,29 @@ class ConversionUtilsTest {
 
     @Test
     void isLongZeroAddressTest() {
-        assertThat(isLongZeroAddress(entityIdFactory, LONG_ZERO_ADDRESS_BYTES.toByteArray()))
+        assertThat(isLongZeroAddress(LONG_ZERO_ADDRESS_BYTES.toByteArray()))
                 .isTrue();
     }
 
     @Test
     void isLongZeroAddressWrongTest() {
-        assertThat(isLongZeroAddress(entityIdFactory, NON_LONG_ZERO_ADDRESS_BYTES.toByteArray()))
+        assertThat(isLongZeroAddress(NON_LONG_ZERO_ADDRESS_BYTES.toByteArray()))
                 .isFalse();
     }
 
     @Test
     void evmContractIDToNumTest() {
-        assertThat(contractIDToNum(entityIdFactory, LONG_ZERO_CONTRACT_ID)).isEqualTo(291);
+        assertThat(contractIDToNum(LONG_ZERO_CONTRACT_ID)).isEqualTo(291);
     }
 
     @Test
     void evmContractIDToNumZeroTest() {
-        assertThat(contractIDToNum(entityIdFactory, INVALID_CONTRACT_ADDRESS)).isEqualTo(0);
+        assertThat(contractIDToNum(INVALID_CONTRACT_ADDRESS)).isEqualTo(0);
     }
 
     @Test
     void evmContractIDToNumNonLongZeroTest() {
-        assertThat(contractIDToNum(entityIdFactory, VALID_CONTRACT_ADDRESS)).isEqualTo(0);
+        assertThat(contractIDToNum(VALID_CONTRACT_ADDRESS)).isEqualTo(0);
     }
 
     @Test

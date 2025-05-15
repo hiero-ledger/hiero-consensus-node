@@ -23,7 +23,7 @@ public record PendingCreation(
     }
 
     @Nullable
-    public Bytes aliasIfApplicable(@NonNull final EntityIdFactory entityIdFactory) {
-        return isLongZero(entityIdFactory, address) ? null : aliasFrom(address);
+    public Bytes aliasIfApplicable() {
+        return isLongZero(address) ? null : aliasFrom(address);
     }
 }

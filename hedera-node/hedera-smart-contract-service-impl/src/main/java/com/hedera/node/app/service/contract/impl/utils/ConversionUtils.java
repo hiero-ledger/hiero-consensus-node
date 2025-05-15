@@ -364,7 +364,7 @@ public class ConversionUtils {
      * @return the id number of the given address's Hedera id
      */
     private static long hederaIdNumberIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
-        return isLongZero(entityIdFactory(frame), address)
+        return isLongZero(address)
                 ? numberOfLongZero(address)
                 : proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow();
     }
@@ -440,44 +440,38 @@ public class ConversionUtils {
     /**
      * Given an Besu EVM address, returns whether it is long-zero.
      *
-     * @param entityIdFactory the entity id factory
      * @param address the EVM address (as a BESU {@link org.hyperledger.besu.datatypes.Address})
      * @return whether it is long-zero
      */
-    public static boolean isLongZero(@NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
-        return isLongZeroAddress(entityIdFactory, address.toArrayUnsafe());
+    public static boolean isLongZero(@NonNull final Address address) {
+        return isLongZeroAddress(address.toArrayUnsafe());
     }
 
     /**
      * Given an headlong EVM address, returns whether it is long-zero.
      *
-     * @param entityIdFactory the entity id factory
      * @param address the EVM address (as a headlong {@link com.esaulpaugh.headlong.abi.Address})
      * @return whether it is long-zero
      */
     public static boolean isLongZero(
-            @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        return isLongZeroAddress(entityIdFactory, explicitFromHeadlong(address));
+        return isLongZeroAddress(explicitFromHeadlong(address));
     }
 
     /**
      * Given an explicit 20-byte array, returns whether it is a long-zero address.
-     * True if the first 4 bytes matches the shard and if the next 8 bytes match the realm.
+     * True if the first 12 bytes are 0.
      *
-     * @param entityIdFactory the entity id factory
      * @param explicit the explicit 20-byte array
      * @return whether it is a long-zero address
      */
-    public static boolean isLongZeroAddress(@NonNull final EntityIdFactory entityIdFactory, final byte[] explicit) {
-        // check if first bytes are matching the shard and the realm
-        final var zeroAddress = unhex(entityIdFactory.hexLongZero(0));
-
+    public static boolean isLongZeroAddress(final byte[] explicit) {
         for (int i = 0; i < NUM_LONG_ZEROS; i++) {
-            if (explicit[i] != zeroAddress[i]) {
+            if (explicit[i] != 0) {
                 return false;
             }
         }
+
         return true;
     }
 
@@ -544,7 +538,7 @@ public class ConversionUtils {
      */
     public static AccountID asNumberedAccountId(
             @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
-        if (!isLongZero(entityIdFactory, address)) {
+        if (!isLongZero(address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return entityIdFactory.newAccountId(numberOfLongZero(address));
@@ -559,7 +553,7 @@ public class ConversionUtils {
      */
     public static ContractID asNumberedContractId(
             @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
-        if (!isLongZero(entityIdFactory, address)) {
+        if (!isLongZero(address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return entityIdFactory.newContractId(numberOfLongZero(address));
@@ -575,7 +569,7 @@ public class ConversionUtils {
     public static ScheduleID addressToScheduleID(
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        if (!isLongZero(entityIdFactory, address)) {
+        if (!isLongZero(address)) {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
 
@@ -824,7 +818,7 @@ public class ConversionUtils {
     }
 
     private static Address longZeroAddressIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
-        return isLongZero(entityIdFactory(frame), address)
+        return isLongZero(address)
                 ? address
                 : asLongZeroAddress(
                         entityIdFactory(frame),
@@ -833,7 +827,7 @@ public class ConversionUtils {
 
     private static long maybeMissingNumberOf(
             @NonNull final byte[] explicit, @NonNull final HederaNativeOperations nativeOperations) {
-        if (isLongZeroAddress(nativeOperations.entityIdFactory(), explicit)) {
+        if (isLongZeroAddress(explicit)) {
             return longFrom(
                     explicit[12],
                     explicit[13],
@@ -941,17 +935,15 @@ public class ConversionUtils {
      * <p>
      * Returns 0 if contractId in a non-long zero evm address
      *
-     * @param entityIdFactory the entity id factory
      * @param contractId the contract id
      * @return the equivalent entity id (0 if contractId in a non-long zero evm address)
      */
-    public static @NonNull Long contractIDToNum(
-            @NonNull final EntityIdFactory entityIdFactory, final ContractID contractId) {
+    public static @NonNull Long contractIDToNum(final ContractID contractId) {
         final Long id;
         // For convenience also translate a long-zero address to a entity id
         if (contractId.hasEvmAddress()) {
             final var evmAddress = contractId.evmAddressOrThrow().toByteArray();
-            if (isLongZeroAddress(entityIdFactory, evmAddress)) {
+            if (isLongZeroAddress(evmAddress)) {
                 id = numberOfLongZero(evmAddress);
             } else {
                 id = 0L;

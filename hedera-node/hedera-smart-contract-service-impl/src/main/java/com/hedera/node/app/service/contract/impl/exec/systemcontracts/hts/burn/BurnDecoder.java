@@ -72,7 +72,7 @@ public class BurnDecoder {
         Token maybeToken = null;
         long tokenNum = 0;
         // try to look up the token by address, if it is a long zero
-        if (isLongZero(attempt.nativeOperations().entityIdFactory(), tokenAddress)) {
+        if (isLongZero(tokenAddress)) {
             final var explicit = explicitFromHeadlong(tokenAddress);
 
             maybeToken = attempt.linkedToken(

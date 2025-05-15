@@ -446,7 +446,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull final Address address) {
-        if (isLongZero(nativeOperations.entityIdFactory(), address)) {
+        if (isLongZero(address)) {
             return Optional.of(INVALID_ALIAS_KEY);
         }
         final var number = maybeMissingNumberOf(address, nativeOperations);

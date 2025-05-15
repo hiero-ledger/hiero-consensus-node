@@ -85,7 +85,7 @@ public class CustomCallOperation extends CallOperation {
     }
 
     private boolean impliesLazyCreation(@NonNull final MessageFrame frame, @NonNull final Address toAddress) {
-        return !isLongZero(entityIdFactory(frame), toAddress)
+        return !isLongZero(toAddress)
                 && value(frame).greaterThan(Wei.ZERO)
                 && !addressChecks.isPresent(toAddress, frame);
     }
