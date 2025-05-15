@@ -219,12 +219,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             frame.decrementRemainingGas(gasRequirement);
-            final var precompileDuration = hederaOpsDuration
-                    .getPrecompileDuration()
-                    .getOrDefault(
-                            frame.getContractAddress().getInt(0),
-                            Math.round(gasRequirement * hederaOpsDuration.precompileDurationMultiplier()));
-            incrementOpsDuration(frame, precompileDuration);
+            incrementOpsDuration(frame, Math.round(gasRequirement * hederaOpsDuration.precompileDurationMultiplier()));
             result = precompile.computePrecompile(frame.getInputData(), frame);
             if (result.isRefundGas()) {
                 frame.incrementRemainingGas(gasRequirement);

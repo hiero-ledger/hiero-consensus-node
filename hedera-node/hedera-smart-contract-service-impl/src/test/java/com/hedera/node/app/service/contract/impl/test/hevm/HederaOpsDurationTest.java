@@ -14,16 +14,13 @@ import org.junit.jupiter.api.Test;
 class HederaOpsDurationTest {
     @Test
     void testAllDurationsAreLoaded() {
-        String json = "{\"opsDuration\":{\"1\":100},"
-                + "\"precompileDuration\":{\"2\":200},"
-                + "\"gasBasedDurationMultiplier\":{\"ops\":5.66}}";
+        String json = "{\"opsDuration\":{\"1\":100}," + "\"gasBasedDurationMultiplier\":{\"ops\":5.66}}";
         Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(json.getBytes());
         HederaOpsDuration opsDuration = new HederaOpsDuration(streamSupplier, new ObjectMapper());
 
         opsDuration.loadOpsDuration();
 
         assertEquals(100, opsDuration.getOpsDuration().get(1));
-        assertEquals(200, opsDuration.getPrecompileDuration().get(2));
         assertEquals(5.66, opsDuration.opsDurationMultiplier());
     }
 

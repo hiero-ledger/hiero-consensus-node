@@ -39,10 +39,6 @@ public class HederaOpsDuration {
         return requireNonNull(hederaOpsDurationData).getOpsDuration();
     }
 
-    public Map<Integer, Long> getPrecompileDuration() {
-        return requireNonNull(hederaOpsDurationData).getPrecompileDuration();
-    }
-
     public Map<String, Double> getGasBasedDurationMultiplier() {
         return requireNonNull(hederaOpsDurationData).getGasBasedDurationMultiplier();
     }

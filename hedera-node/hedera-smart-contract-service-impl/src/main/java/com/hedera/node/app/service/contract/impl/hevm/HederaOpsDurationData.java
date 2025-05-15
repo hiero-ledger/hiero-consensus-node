@@ -7,7 +7,6 @@ import java.util.Map;
 
 public class HederaOpsDurationData {
     private Map<Integer, Long> opsDuration;
-    private Map<Integer, Long> precompileDuration;
     private Map<String, Double> gasBasedDurationMultiplier;
 
     // Public no‑arg constructor for Jackson
@@ -16,10 +15,8 @@ public class HederaOpsDurationData {
     @JsonCreator
     public HederaOpsDurationData(
             @JsonProperty("opsDuration") Map<Integer, Long> opsDuration,
-            @JsonProperty("precompileDuration") Map<Integer, Long> precompileDuration,
             @JsonProperty("gasBasedDurationMultiplier") Map<String, Double> gasBasedDurationMultiplier) {
         this.opsDuration = opsDuration;
-        this.precompileDuration = precompileDuration;
         this.gasBasedDurationMultiplier = gasBasedDurationMultiplier;
     }
 
@@ -29,14 +26,6 @@ public class HederaOpsDurationData {
 
     public void setOpsDuration(Map<Integer, Long> opsDuration) {
         this.opsDuration = opsDuration;
-    }
-
-    public Map<Integer, Long> getPrecompileDuration() {
-        return precompileDuration;
-    }
-
-    public void setPrecompileDuration(Map<Integer, Long> precompileDuration) {
-        this.precompileDuration = precompileDuration;
     }
 
     public Map<String, Double> getGasBasedDurationMultiplier() {
