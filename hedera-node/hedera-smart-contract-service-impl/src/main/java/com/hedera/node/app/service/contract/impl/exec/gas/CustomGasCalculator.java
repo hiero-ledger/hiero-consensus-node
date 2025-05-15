@@ -42,8 +42,11 @@ public class CustomGasCalculator extends CancunGasCalculator {
         // Dagger2
     }
 
+    // We won't use the baseline cost for now
+    // should revisit with the Pectra support epic
     @Override
-    public long transactionIntrinsicGasCost(final Bytes payload, final boolean isContractCreate) {
+    public long transactionIntrinsicGasCost(
+            final Bytes payload, final boolean isContractCreate, final long baselineCost) {
         int zeros = 0;
         for (int i = 0; i < payload.size(); i++) {
             if (payload.get(i) == 0) {
