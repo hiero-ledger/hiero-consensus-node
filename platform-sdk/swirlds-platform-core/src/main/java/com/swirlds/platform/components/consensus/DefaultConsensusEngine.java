@@ -58,7 +58,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final AddedEventMetrics eventAddedMetrics;
 
-    private final FreezeRoundFilter freezeRoundFilter;
+    private final FreezeRoundController freezeRoundController;
 
     /**
      * Constructor
@@ -92,7 +92,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 .roundsNonAncient();
 
         eventAddedMetrics = new AddedEventMetrics(selfId, platformContext.getMetrics());
-        this.freezeRoundFilter = new FreezeRoundFilter(freezeChecker);
+        this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
     /**
@@ -111,7 +111,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
-        if (freezeRoundFilter.isFrozen()) {
+        if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
             return List.of();
         }
@@ -151,9 +151,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
-        freezeRoundFilter.filter(allConsensusRounds);
-
-        return allConsensusRounds;
+        return freezeRoundController.filterAndModify(allConsensusRounds);
     }
 
     /**
