@@ -621,8 +621,9 @@ public final class ConsensusTestDefinitions {
         orchestrator.validate(new ConsensusOutputValidator(
                 Set.of(new NumberOfConsensusRoundsValidation(1), new OutputEventsEqualityValidation())));
 
-        orchestrator.forEachNode(n ->{
-            final ConsensusRound lastConsensusRound = n.getIntake().getConsensusRounds().getLast();
+        orchestrator.forEachNode(n -> {
+            final ConsensusRound lastConsensusRound =
+                    n.getIntake().getConsensusRounds().getLast();
             Assertions.assertThat(lastConsensusRound.getEventWindow().eventBirthRound())
                     .withFailMessage("The event birth round should be equal to the freeze round")
                     .isEqualTo(lastConsensusRound.getRoundNum());
