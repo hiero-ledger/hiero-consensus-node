@@ -463,7 +463,7 @@ public final class SyncUtils {
         // since those events may be unlinked and could cause race conditions if accessed.
 
         final long minimumSearchThreshold =
-                Math.max(myEventWindow.getExpiredThreshold(), theirEventWindow.getAncientThreshold());
+                Math.max(myEventWindow.expiredThreshold(), theirEventWindow.ancientThreshold());
         return s -> ancientMode.selectIndicator(s.getEvent()) >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
@@ -575,9 +575,9 @@ public final class SyncUtils {
             @NonNull final SerializableDataOutputStream out, @NonNull final EventWindow eventWindow)
             throws IOException {
 
-        out.writeLong(eventWindow.getLatestConsensusRound());
-        out.writeLong(eventWindow.getAncientThreshold());
-        out.writeLong(eventWindow.getExpiredThreshold());
+        out.writeLong(eventWindow.latestConsensusRound());
+        out.writeLong(eventWindow.ancientThreshold());
+        out.writeLong(eventWindow.expiredThreshold());
 
         // Intentionally don't bother writing ancient mode, the peer will always be using the same ancient mode as us
     }

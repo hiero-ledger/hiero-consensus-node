@@ -198,7 +198,7 @@ class ShadowgraphTest {
         final ReservedEventWindow r1 = shadowgraph.reserve();
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "First reservation should reserve generation 1");
         assertEquals(
                 1,
@@ -208,11 +208,11 @@ class ShadowgraphTest {
         r1.close();
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "Closing the second reservation should decrement the number of reservations.");
     }
 
@@ -233,7 +233,7 @@ class ShadowgraphTest {
         assertEquals(r1.getEventWindow(), r2.getEventWindow());
         assertEquals(
                 FIRST_GENERATION,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "Second reservation should reserve generation 1");
         assertEquals(2, r2.getReservationCount(), "The second call to reserve() should result in 2 reservations.");
 
@@ -241,7 +241,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 1,
@@ -252,7 +252,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -288,7 +288,7 @@ class ShadowgraphTest {
                         + "instance.");
         assertEquals(
                 expireBelowGen,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "Reservation after call to expire() should reserve the expired generation + 1");
         assertEquals(
                 1, r2.getReservationCount(), "The first reservation after expire() should result in 1 reservation.");
@@ -297,7 +297,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 expireBelowGen,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -306,7 +306,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 1,
@@ -317,7 +317,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -622,7 +622,7 @@ class ShadowgraphTest {
         r0 = shadowgraph.reserve();
         assertEquals(
                 0,
-                r0.getEventWindow().getExpiredThreshold(),
+                r0.getEventWindow().expiredThreshold(),
                 "The first reservation after clearing should reserve generation 0.");
         assertEquals(
                 1, r0.getReservationCount(), "The first reservation after clearing should have a single reservation.");

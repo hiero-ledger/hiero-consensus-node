@@ -267,7 +267,7 @@ public class SyncNode {
     public void expireBelow(final long expirationThreshold) {
         this.expirationThreshold = expirationThreshold;
 
-        final long ancientThreshold = Math.max(shadowGraph.getEventWindow().getAncientThreshold(), expirationThreshold);
+        final long ancientThreshold = Math.max(shadowGraph.getEventWindow().ancientThreshold(), expirationThreshold);
 
         final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setAncientMode(ancientMode)
@@ -346,7 +346,7 @@ public class SyncNode {
     }
 
     public long getCurrentAncientThreshold() {
-        return shadowGraph.getEventWindow().getAncientThreshold();
+        return shadowGraph.getEventWindow().ancientThreshold();
     }
 
     public long getExpirationThreshold() {

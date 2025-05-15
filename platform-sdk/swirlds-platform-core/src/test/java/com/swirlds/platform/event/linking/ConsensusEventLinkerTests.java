@@ -107,7 +107,7 @@ class ConsensusEventLinkerTests {
 
             // Once in a while, advance the ancient window so that the most recent event is barely non-ancient.
             if (random.nextDouble() < 0.01) {
-                if (ancientMode.selectIndicator(event) <= eventWindow.getAncientThreshold()) {
+                if (ancientMode.selectIndicator(event) <= eventWindow.ancientThreshold()) {
                     // Advancing the window any further would make the most recent event ancient. Skip.
                     continue;
                 }

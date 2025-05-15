@@ -10,7 +10,14 @@ public enum FutureEventBufferingOption {
     public long getOldestRoundToBuffer(@NonNull final EventWindow eventWindow) {
         return switch (this) {
             case PENDING_CONSENSUS_ROUND -> eventWindow.getPendingConsensusRound() + 1;
-            case EVENT_BIRTH_ROUND -> eventWindow.getEventBirthRound() + 1;
+            case EVENT_BIRTH_ROUND -> eventWindow.eventBirthRound() + 1;
+        };
+    }
+
+    public long getMaximumAllowedRound(@NonNull final EventWindow eventWindow) {
+        return switch (this) {
+            case PENDING_CONSENSUS_ROUND -> eventWindow.getPendingConsensusRound();
+            case EVENT_BIRTH_ROUND -> eventWindow.eventBirthRound();
         };
     }
 }

@@ -21,10 +21,10 @@ import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 
 /**
- * Buffers events from the future (i.e. events with a birth round that is greater than the round that consensus is
- * currently working on). It is important to note that the future event buffer is only used to store events from the
- * near future that can be fully validated. Events from beyond the event horizon (i.e. far future events that cannot be
- * immediately validated) are never stored by any part of the system.
+ * Buffers events from the future (i.e. events with a birth round that is greater than the configured round). It is
+ * important to note that the future event buffer is only used to store events from the near future that can be fully
+ * validated. Events from beyond the event horizon (i.e. far future events that cannot be immediately validated) are
+ * never stored by any part of the system.
  * <p>
  * Output from the future event buffer is guaranteed to preserve topological ordering, as long as the input to the
  * buffer is topologically ordered.
@@ -74,7 +74,7 @@ public class FutureEventBuffer {
         if (eventWindow.isAncient(event)) {
             // we can safely ignore ancient events
             return null;
-        } else if (event.getBirthRound() <= eventWindow.getPendingConsensusRound()) {
+        } else if (event.getBirthRound() <= bufferingOption.getMaximumAllowedRound(eventWindow)) {
             // this is not a future event, no need to buffer it
             return event;
         }
@@ -97,10 +97,10 @@ public class FutureEventBuffer {
     public List<PlatformEvent> updateEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
-        // We want to release all events with birth rounds less than or equal to the pending consensus round.
+        // We want to release all events with birth rounds less than the oldest round to buffer.
         // In order to do that, we tell the sequence map to shift its window to the oldest round that we want
         // to keep within the buffer.
-        final long oldestRoundToBuffer = eventWindow.getPendingConsensusRound() + 1;//TODO
+        final long oldestRoundToBuffer = bufferingOption.getOldestRoundToBuffer(eventWindow);
 
         final List<PlatformEvent> events = new ArrayList<>();
         futureEvents.shiftWindow(oldestRoundToBuffer, (round, roundEvents) -> {

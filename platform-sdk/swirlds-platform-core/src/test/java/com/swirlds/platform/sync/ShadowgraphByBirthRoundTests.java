@@ -204,7 +204,7 @@ class ShadowgraphByBirthRoundTests {
         final ReservedEventWindow r1 = shadowGraph.reserve();
         assertEquals(
                 ROUND_FIRST,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "First reservation should reserve birth round 1");
         assertEquals(
                 1,
@@ -214,7 +214,7 @@ class ShadowgraphByBirthRoundTests {
         r1.close();
         assertEquals(
                 ROUND_FIRST,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The birth round should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -239,7 +239,7 @@ class ShadowgraphByBirthRoundTests {
         assertEquals(r1.getEventWindow(), r2.getEventWindow());
         assertEquals(
                 ROUND_FIRST,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "Second reservation should reserve birth round 1");
         assertEquals(2, r2.getReservationCount(), "The second call to reserve() should result in 2 reservations.");
 
@@ -247,7 +247,7 @@ class ShadowgraphByBirthRoundTests {
 
         assertEquals(
                 ROUND_FIRST,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The birth round should not be affected by a reservation being closed.");
         assertEquals(
                 1,
@@ -258,7 +258,7 @@ class ShadowgraphByBirthRoundTests {
 
         assertEquals(
                 ROUND_FIRST,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The birth round should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -294,7 +294,7 @@ class ShadowgraphByBirthRoundTests {
                         + "instance.");
         assertEquals(
                 expireBelowBirthRound,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "Reservation after call to expire() should reserve the expired birth round + 1");
         assertEquals(
                 1, r2.getReservationCount(), "The first reservation after expire() should result in 1 reservation.");
@@ -303,7 +303,7 @@ class ShadowgraphByBirthRoundTests {
 
         assertEquals(
                 expireBelowBirthRound,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "The birth round should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -312,7 +312,7 @@ class ShadowgraphByBirthRoundTests {
 
         assertEquals(
                 ROUND_FIRST,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The birth round should not be affected by a reservation being closed.");
         assertEquals(
                 1,
@@ -323,7 +323,7 @@ class ShadowgraphByBirthRoundTests {
 
         assertEquals(
                 ROUND_FIRST,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The birth round should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -643,7 +643,7 @@ class ShadowgraphByBirthRoundTests {
         r0 = shadowGraph.reserve();
         assertEquals(
                 1,
-                r0.getEventWindow().getExpiredThreshold(),
+                r0.getEventWindow().expiredThreshold(),
                 "The first reservation after clearing should reserve birth round 1.");
         assertEquals(
                 1, r0.getReservationCount(), "The first reservation after clearing should have a single reservation.");
