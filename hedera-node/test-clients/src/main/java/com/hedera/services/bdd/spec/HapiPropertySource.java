@@ -43,8 +43,6 @@ import org.hiero.base.utility.CommonUtils;
 
 public interface HapiPropertySource {
     HapiPropertySource defaultSource = initializeDefaultSource();
-    String ENTITY_STRING = "%d.%d.%d";
-
     String NODE_BLOCK_STREAM_DIR = String.format("block-%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
     String NODE_RECORD_STREAM_DIR = String.format("record%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
 
@@ -148,20 +146,10 @@ public interface HapiPropertySource {
         return ContractID.getDefaultInstance();
     }
 
-    @Deprecated
-    default RealmID getRealm(String property) {
-        return RealmID.newBuilder().setRealmNum(Long.parseLong(get(property))).build();
-    }
-
     default long getRealm() {
         return Optional.ofNullable(get("hapi.spec.default.realm"))
                 .map(Long::parseLong)
                 .orElse(getSpecDefaultRealm());
-    }
-
-    @Deprecated
-    default ShardID getShard(String property) {
-        return ShardID.newBuilder().setShardNum(Long.parseLong(get(property))).build();
     }
 
     default long getShard() {
@@ -273,7 +261,7 @@ public interface HapiPropertySource {
     }
 
     static String asTokenString(TokenID token) {
-        return String.format(ENTITY_STRING, token.getShardNum(), token.getRealmNum(), token.getTokenNum());
+        return asEntityString(token.getShardNum(), token.getRealmNum(), token.getTokenNum());
     }
 
     static AccountID asAccount(String v) {
@@ -354,7 +342,7 @@ public interface HapiPropertySource {
     }
 
     static String asAccountString(AccountID account) {
-        return String.format(ENTITY_STRING, account.getShardNum(), account.getRealmNum(), account.getAccountNum());
+        return asEntityString(account.getShardNum(), account.getRealmNum(), account.getAccountNum());
     }
 
     static String asAliasableAccountString(final AccountID account) {
@@ -380,7 +368,7 @@ public interface HapiPropertySource {
     }
 
     static String asTopicString(TopicID topic) {
-        return String.format(ENTITY_STRING, topic.getShardNum(), topic.getRealmNum(), topic.getTopicNum());
+        return asEntityString(topic.getShardNum(), topic.getRealmNum(), topic.getTopicNum());
     }
 
     /**
@@ -463,7 +451,7 @@ public interface HapiPropertySource {
     }
 
     static String asContractString(ContractID contract) {
-        return String.format(ENTITY_STRING, contract.getShardNum(), contract.getRealmNum(), contract.getContractNum());
+        return asEntityString(contract.getShardNum(), contract.getRealmNum(), contract.getContractNum());
     }
 
     static ScheduleID asSchedule(String v) {
@@ -476,7 +464,7 @@ public interface HapiPropertySource {
     }
 
     static String asScheduleString(ScheduleID schedule) {
-        return String.format(ENTITY_STRING, schedule.getShardNum(), schedule.getRealmNum(), schedule.getScheduleNum());
+        return asEntityString(schedule.getShardNum(), schedule.getRealmNum(), schedule.getScheduleNum());
     }
 
     static FileID asFile(String v) {
@@ -489,7 +477,7 @@ public interface HapiPropertySource {
     }
 
     static String asFileString(FileID file) {
-        return String.format(ENTITY_STRING, file.getShardNum(), file.getRealmNum(), file.getFileNum());
+        return asEntityString(file.getShardNum(), file.getRealmNum(), file.getFileNum());
     }
 
     static long[] asDotDelimitedLongArray(String s) {
@@ -581,7 +569,7 @@ public interface HapiPropertySource {
     }
 
     static String asEntityString(final long shard, final long realm, final long num) {
-        return String.format(ENTITY_STRING, shard, realm, num);
+        return String.format("%d.%d.%d", shard, realm, num);
     }
 
     static String asEntityString(final long shard, final long realm, final String num) {
