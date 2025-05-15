@@ -110,7 +110,7 @@ public class CryptoCreateSuite {
         final String key2 = "key2";
 
         System.out.println("Doing some changes to trigger codecov report");
-        
+
         return hapiTest(
                 newKeyNamed(ecKey).shape(SECP_256K1_SHAPE),
                 newKeyNamed(key1),
