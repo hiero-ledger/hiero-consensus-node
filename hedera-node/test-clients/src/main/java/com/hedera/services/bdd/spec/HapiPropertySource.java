@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
 import static java.lang.System.arraycopy;
@@ -45,11 +43,19 @@ import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
 
 public interface HapiPropertySource {
-
+    HapiPropertySource defaultSource = initializeDefaultSource();
     String ENTITY_STRING = "%d.%d.%d";
 
-    String NODE_BLOCK_STREAM_DIR = String.format("block-%d.%d.3", SHARD, REALM);
-    String NODE_RECORD_STREAM_DIR = String.format("record%d.%d.3", SHARD, REALM);
+    String NODE_BLOCK_STREAM_DIR = String.format("block-%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
+    String NODE_RECORD_STREAM_DIR = String.format("record%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
+
+    private static HapiPropertySource initializeDefaultSource() {
+        final var source = new JutilPropertySource("spec-default.properties");
+        // Validate the default shard/realm properties
+        Objects.requireNonNull(source.get("default.shard"), "Missing default.shard in spec-default.properties");
+        Objects.requireNonNull(source.get("default.realm"), "Missing default.realm in spec-default.properties");
+        return source;
+    }
 
     static byte[] explicitBytesOf(@NonNull final Address address) {
         var asBytes = address.value().toByteArray();
@@ -151,7 +157,7 @@ public interface HapiPropertySource {
     default long getRealm() {
         return Optional.ofNullable(get("hapi.spec.default.realm"))
                 .map(Long::parseLong)
-                .orElse(REALM);
+                .orElse(getSpecDefaultRealm());
     }
 
     @Deprecated
@@ -162,19 +168,27 @@ public interface HapiPropertySource {
     default long getShard() {
         return Optional.ofNullable(get("hapi.spec.default.shard"))
                 .map(Long::parseLong)
-                .orElse((long) SHARD);
+                .orElse(getSpecDefaultShard());
     }
 
     static long getConfigShard() {
         return Optional.ofNullable(System.getProperty("hapi.spec.default.shard"))
                 .map(Long::parseLong)
-                .orElse((long) SHARD);
+                .orElse(getSpecDefaultShard());
     }
 
     static long getConfigRealm() {
         return Optional.ofNullable(System.getProperty("hapi.spec.default.realm"))
                 .map(Long::parseLong)
-                .orElse(REALM);
+                .orElse(getSpecDefaultRealm());
+    }
+
+    private static long getSpecDefaultShard() {
+        return Integer.parseInt(defaultSource.get("default.shard"));
+    }
+
+    private static long getSpecDefaultRealm() {
+        return Integer.parseInt(defaultSource.get("default.realm"));
     }
 
     default TimeUnit getTimeUnit(String property) {
@@ -246,9 +260,7 @@ public interface HapiPropertySource {
     static HapiPropertySource[] asSources(Object... sources) {
         return Stream.of(sources)
                 .filter(Objects::nonNull)
-                .map(s -> (s instanceof HapiPropertySource)
-                        ? s
-                        : ((s instanceof Map) ? new MapPropertySource((Map) s) : new JutilPropertySource((String) s)))
+                .map(HapiPropertySource::toHapiPropertySource)
                 .toArray(HapiPropertySource[]::new);
     }
 
@@ -351,7 +363,7 @@ public interface HapiPropertySource {
             return asAccountString(account);
         } else {
             final var literalAlias = account.getAlias().toString();
-            return String.format(ENTITY_STRING, account.getShardNum(), account.getRealmNum(), literalAlias);
+            return asEntityString(account.getShardNum(), account.getRealmNum(), literalAlias);
         }
     }
 
@@ -554,7 +566,7 @@ public interface HapiPropertySource {
     static ContractID contractIdFromHexedMirrorAddress(final String hexedEvm) {
         byte[] unhex = CommonUtils.unhex(hexedEvm);
         return ContractID.newBuilder()
-                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
+                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(requireNonNull(unhex), 0, 4)))
                 .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
                 .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build();
@@ -563,7 +575,7 @@ public interface HapiPropertySource {
     static AccountID accountIdFromHexedMirrorAddress(final String hexedEvm) {
         byte[] unhex = CommonUtils.unhex(hexedEvm);
         return AccountID.newBuilder()
-                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
+                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(requireNonNull(unhex), 0, 4)))
                 .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
                 .setAccountNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build();
@@ -572,7 +584,7 @@ public interface HapiPropertySource {
     static String literalIdFromHexedMirrorAddress(final String hexedEvm) {
         byte[] unhex = CommonUtils.unhex(hexedEvm);
         return HapiPropertySource.asContractString(ContractID.newBuilder()
-                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
+                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(requireNonNull(unhex), 0, 4)))
                 .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
                 .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build());
@@ -606,20 +618,19 @@ public interface HapiPropertySource {
                 explicit[19]);
     }
 
-    public static long realmOfLongZero(@NonNull final byte[] explicit) {
-        return longFrom(
-                explicit[4],
-                explicit[5],
-                explicit[6],
-                explicit[7],
-                explicit[8],
-                explicit[9],
-                explicit[10],
-                explicit[11]);
-    }
-
-    public static long shardOfLongZero(@NonNull final byte[] explicit) {
-        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
+    private static HapiPropertySource toHapiPropertySource(Object s) {
+        if (s instanceof HapiPropertySource hps) {
+            return hps;
+        }
+        if (s instanceof Map<?, ?> map) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> typedMap = (Map<String, String>) map;
+            return new MapPropertySource(typedMap);
+        }
+        if (s instanceof String str) {
+            return new JutilPropertySource(str);
+        }
+        throw new IllegalArgumentException("Unsupported source type: " + s.getClass());
     }
 
     private static long longFrom(
@@ -639,9 +650,5 @@ public interface HapiPropertySource {
                 | (b6 & 0xFFL) << 16
                 | (b7 & 0xFFL) << 8
                 | (b8 & 0xFFL);
-    }
-
-    private static long longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
-        return (b1 & 0xFFL) << 24 | (b2 & 0xFFL) << 16 | (b3 & 0xFFL) << 8 | (b4 & 0xFFL);
     }
 }
