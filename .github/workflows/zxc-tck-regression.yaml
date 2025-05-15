@@ -96,7 +96,7 @@ jobs:
 
       # currently not working on consensus node use local node
       - name: Install Local Node
-        run: npm install -g @hashgraph/hedera-local
+        run: npm install -g @hashgraph/solo
 
       - name: Pull JS TCK Server
         run: |
@@ -107,6 +107,7 @@ jobs:
           docker pull ivaylogarnev/tck-client:latest
 
       # I would rather run the node from hiero-consensus-node
+      # let's use solo to do this instead
       - name: Start Local Node
         run: |
           npx @hashgraph/hedera-local start -d --network local --network-tag=0.61.1
