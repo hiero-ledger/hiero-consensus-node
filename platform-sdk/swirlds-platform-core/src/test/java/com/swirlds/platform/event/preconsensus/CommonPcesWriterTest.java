@@ -85,7 +85,7 @@ class CommonPcesWriterTest {
     @Test
     void testUpdateNonAncientEventBoundary() {
         EventWindow mockWindow = mock(EventWindow.class);
-        when(mockWindow.getAncientThreshold()).thenReturn(100L);
+        when(mockWindow.ancientThreshold()).thenReturn(100L);
 
         commonPcesWriter.updateNonAncientEventBoundary(mockWindow);
 

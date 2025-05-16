@@ -101,7 +101,7 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
 
         final List<PlatformEvent> staleEvents = new ArrayList<>();
         currentEventWindow = consensusRound.getEventWindow();
-        selfEvents.shiftWindow(currentEventWindow.getAncientThreshold(), (descriptor, event) -> staleEvents.add(event));
+        selfEvents.shiftWindow(currentEventWindow.ancientThreshold(), (descriptor, event) -> staleEvents.add(event));
 
         final List<RoutableData<StaleEventDetectorOutput>> output = new ArrayList<>(staleEvents.size());
         for (final PlatformEvent event : staleEvents) {
@@ -118,7 +118,7 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
     @Override
     public void setInitialEventWindow(@NonNull final EventWindow initialEventWindow) {
         this.currentEventWindow = Objects.requireNonNull(initialEventWindow);
-        selfEvents.shiftWindow(currentEventWindow.getAncientThreshold());
+        selfEvents.shiftWindow(currentEventWindow.ancientThreshold());
     }
 
     /**

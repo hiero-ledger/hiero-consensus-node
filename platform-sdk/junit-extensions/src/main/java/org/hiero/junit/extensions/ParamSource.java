@@ -14,5 +14,7 @@ import java.lang.annotation.Target;
 public @interface ParamSource {
     String param();
 
+    String fullyQualifiedClass() default "";
+
     String method();
 }

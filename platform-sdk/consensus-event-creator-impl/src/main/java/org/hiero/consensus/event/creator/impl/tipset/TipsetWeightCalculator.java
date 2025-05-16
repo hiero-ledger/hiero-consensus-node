@@ -222,7 +222,7 @@ public class TipsetWeightCalculator {
                                     + "consider ancient parents that are not self parents. "
                                     + "Parent ID = {}, parent ancient threshold = {}, minimum threshold non-ancient = {}",
                             parent.creator(),
-                            tipsetTracker.getEventWindow().getAncientMode().selectIndicator(parent.eventDescriptor()),
+                            tipsetTracker.getEventWindow().ancientMode().selectIndicator(parent.eventDescriptor()),
                             tipsetTracker.getEventWindow());
                 }
                 continue;

@@ -138,7 +138,7 @@ abstract class AbstractInOrderLinker implements InOrderLinker {
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
-        parentDescriptorMap.shiftWindow(eventWindow.getAncientThreshold(), (descriptor, event) -> {
+        parentDescriptorMap.shiftWindow(eventWindow.ancientThreshold(), (descriptor, event) -> {
             parentHashMap.remove(descriptor.hash());
             eventHasBecomeAncient(event);
         });
