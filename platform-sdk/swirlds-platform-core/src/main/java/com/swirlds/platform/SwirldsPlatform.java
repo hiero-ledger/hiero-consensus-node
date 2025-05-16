@@ -30,7 +30,10 @@ import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.EventCounter;
+import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
+import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
+import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
@@ -157,8 +160,8 @@ public class SwirldsPlatform implements Platform {
     private final PlatformWiring platformWiring;
 
     /**
-     * Flag to indicate whether PCES events were migrated to use birth rounds instead of generation-based ancient
-     * age. True indicates events were migrated.
+     * Flag to indicate whether PCES events were migrated to use birth rounds instead of generation-based ancient age.
+     * True indicates events were migrated.
      */
     private final boolean wereEventsMigratedToBirthRound;
 
@@ -166,6 +169,8 @@ public class SwirldsPlatform implements Platform {
      * Indicates how ancient events are determined, e.g. based on the event's birth round or generation.
      */
     private final AncientMode ancientMode;
+
+    private final long pcesReplayLowerBound;
 
     /**
      * Constructor.
@@ -193,6 +198,11 @@ public class SwirldsPlatform implements Platform {
 
         selfId = blocks.selfId();
 
+        // This will be initialized to a non-null value if birth round migration is performed. This is necessary
+        // in order to ensure that new PCES file writer detects the special migrated PCES file and starts new files with
+        // the correct sequence number.
+        InlinePcesWriter inlinePcesWriter = null;
+
         if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
             try {
                 // This method is a no-op if we have already completed birth round migration or if we are at genesis.
@@ -207,6 +217,17 @@ public class SwirldsPlatform implements Platform {
                 final Path databaseDir = PcesUtilities.getDatabaseDirectory(platformContext, selfId);
                 initialPcesFiles = PcesFileReader.readFilesFromDisk(
                         platformContext, databaseDir, initialState.getRound(), pcesConfig.permitGaps(), ancientMode);
+
+                if (wereEventsMigratedToBirthRound) {
+                    final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
+                            blocks.platformContext(),
+                            initialPcesFiles,
+                            blocks.selfId(),
+                            blocks.initialState().get().getRound());
+                    inlinePcesWriter = new DefaultInlinePcesWriter(
+                            blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
+                }
+
             } catch (final IOException e) {
                 throw new UncheckedIOException("Birth round migration failed during PCES migration.", e);
             }
@@ -279,6 +300,7 @@ public class SwirldsPlatform implements Platform {
                 stateSignatureCollector,
                 eventWindowManager,
                 birthRoundMigrationShim,
+                inlinePcesWriter,
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,
                 savedStateController,
@@ -359,6 +381,20 @@ public class SwirldsPlatform implements Platform {
         blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
         blocks.clearAllPipelinesForReconnectReference().set(platformWiring::clear);
         blocks.latestImmutableStateProviderReference().set(latestImmutableStateNexus::getState);
+
+        if (!initialState.isGenesisState()) {
+            final long lastRoundBeforeBirthRoundMode =
+                    platformStateFacade.lastRoundBeforeBirthRoundModeOf(initialState.getState());
+            final long ancientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
+            if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD && lastRoundBeforeBirthRoundMode >= ancientThreshold) {
+                // events were migrated so set the lower bound to 0 such that all PCES events will be read
+                pcesReplayLowerBound = 0;
+            } else {
+                pcesReplayLowerBound = initialAncientThreshold;
+            }
+        } else {
+            pcesReplayLowerBound = 0;
+        }
     }
 
     /**
@@ -454,16 +490,13 @@ public class SwirldsPlatform implements Platform {
     private void replayPreconsensusEvents() {
         platformWiring.getStatusActionSubmitter().submitStatusAction(new StartedReplayingEventsAction());
 
-        final long lowerBound = wereEventsMigratedToBirthRound
-                ? 0L // events were migrated so set the lower bound to 0 such that all PCES events will be read
-                : initialAncientThreshold;
-
-        final IOIterator<PlatformEvent> iterator = initialPcesFiles.getEventIterator(lowerBound, startingRound);
+        final IOIterator<PlatformEvent> iterator =
+                initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
 
         logger.info(
                 STARTUP.getMarker(),
                 "replaying preconsensus event stream starting at {} ({})",
-                lowerBound,
+                pcesReplayLowerBound,
                 ancientMode);
 
         platformWiring.getPcesReplayerIteratorInput().inject(iterator);
