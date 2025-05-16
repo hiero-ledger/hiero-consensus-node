@@ -29,35 +29,54 @@ jobs:
         with:
           egress-policy: audit
 
-      # Get the `build-XXXXX' tag (latest tag) to run the performance test
-      # use it later as ${{ steps.tag.outputs.tag }}
-      - name: Get Build Tag
-        id: tag
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            # Triggered by tag push
-            tag_name="${GITHUB_REF#refs/tags/}"
-          else
-            # Triggered by workflow_dispatch
-            tag_name="${{ github.event.inputs.tag-to-run }}"
-          fi
-          echo "Using tag: $tag_name"
-          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
-
-      # Clone the perf analysis automation repo
-      - name: Checkout the performance analysis automation repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          repository: swirldslabs/performance-analysis-automation
-          token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
-
-      - name: Confirm checkout of performance analyis automation repo
-        run: |
-          echo "Current director is:"
-          pwd
-          echo "Current folder contents are:"
-          ls -la
+#      # Get the `build-XXXXX' tag (latest tag) to run the performance test
+#      # use it later as ${{ steps.tag.outputs.tag }}
+#      - name: Get Build Tag
+#        id: tag
+#        run: |
+#          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+#            # Triggered by tag push
+#            tag_name="${GITHUB_REF#refs/tags/}"
+#          else
+#            # Triggered by workflow_dispatch
+#            tag_name="${{ github.event.inputs.tag-to-run }}"
+#          fi
+#          echo "Using tag: $tag_name"
+#          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+#
+#      # Clone the perf analysis automation repo
+#      - name: Checkout the performance analysis automation repo
+#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#        with:
+#          fetch-depth: "1"
+#          ref: main
+#          repository: swirldslabs/performance-analysis-automation
+#          token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
+#
+#      - name: Confirm checkout of performance analysis automation repo
+#        run: |
+#          echo "Current director is:"
+#          pwd
+#          echo "Current folder contents are:"
+#          ls -la
 
       # Call the performance workflow with appropriate input version
+      - name: Call CITR Performance Workflow
+        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
+        with:
+          workflow: .github/workflows/performance-CITR.yml
+          repo: swirldslabs/performance-analysis-automation # ensure we are executing in the perf analysis automation repo
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
+          inputs: '{ 
+            "namespace": "Latitude3",
+            "hederaversion": "main",
+            "soloversion": "latest_tested_solo-charts0.59",
+            "NLG_Accounts": "100000000",
+            "NLG_Time": "330m",
+            "NLG_Time3": "2h",
+            "AddAppProps": "",
+            "AddSettings": "",
+            "CryptoBenchMerkleDb_javaargs": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
+            "CryptoBenchMerkleDb_testparams": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+          }'
