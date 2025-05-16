@@ -8,15 +8,15 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeStatusProgressionAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
-import org.hiero.otter.fixtures.assertions.SingleNodeFilesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeStatusProgressionAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodeFilesResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 
 /**
@@ -93,13 +93,13 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
-     * Creates an assertion for the given {@link SingleNodeFilesResult}.
+     * Creates an assertion for the given {@link SingleNodePcesResult}.
      *
-     * @param actual the {@link SingleNodeFilesResult} to assert
-     * @return an assertion for the given {@link SingleNodeFilesResult}
+     * @param actual the {@link SingleNodePcesResult} to assert
+     * @return an assertion for the given {@link SingleNodePcesResult}
      */
     @NonNull
-    public static SingleNodeFilesResultAssert assertThat(@Nullable final SingleNodeFilesResult actual) {
-        return SingleNodeFilesResultAssert.assertThat(actual);
+    public static SingleNodePcesResultAssert assertThat(@Nullable final SingleNodePcesResult actual) {
+        return SingleNodePcesResultAssert.assertThat(actual);
     }
 }

@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
@@ -15,7 +14,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -31,12 +29,10 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -46,7 +42,6 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -54,8 +49,6 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -67,16 +60,13 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
-import org.hiero.otter.fixtures.internal.result.PcesFilesResultImpl;
-import org.hiero.otter.fixtures.internal.result.SavedStateResultImpl;
-import org.hiero.otter.fixtures.internal.result.SingleNodeFilesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
-import org.hiero.otter.fixtures.result.SavedStateResult;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodeFilesResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
@@ -278,30 +268,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     @NonNull
-    public SingleNodeFilesResult getFilesResult() {
-        checkLifeCycle(LifeCycle.INIT, "Node has not been started yet.");
-
-        final Configuration configuration = platformContext.getConfiguration();
-        final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
-        final AncientMode ancientMode = eventConfig.getAncientMode();
-        final StateCommonConfig stateCommonConfig = configuration.getConfigData(StateCommonConfig.class);
-
-        final Path databaseDirectory;
-        try {
-            databaseDirectory = getDatabaseDirectory(platformContext, selfId);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Exception while accessing database directory", e);
-        }
-
-        final PcesFileTracker pcesFileTracker =
-                PcesFilesResultImpl.createPcesFileTracker(platformContext, databaseDirectory);
-
-        final List<SavedStateResult> savedStates = new SignedStateFilePath(stateCommonConfig)
-                .getSavedStateFiles(APP_NAME, selfId, SWIRLD_NAME).stream()
-                        .map(info -> SavedStateResultImpl.createSavedStateResult(platformContext, info))
-                        .toList();
-
-        return new SingleNodeFilesResultImpl(selfId, pcesFileTracker, ancientMode, savedStates);
+    public SingleNodePcesResult getPcesResult() {
+        return new SingleNodePcesResultImpl(selfId, platformContext);
     }
 
     /**
