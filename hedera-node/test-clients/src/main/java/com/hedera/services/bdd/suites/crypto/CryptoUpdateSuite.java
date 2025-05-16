@@ -238,10 +238,7 @@ public class CryptoUpdateSuite {
         final var stakedAccountId = 20;
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate("user")
-                        .key(ADMIN_KEY)
-                        .stakedAccountId(stakedAccountId)
-                        .declinedReward(true),
+                cryptoCreate("user").key(ADMIN_KEY).stakedAccountId(20).declinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
                                 .stakedAccountId(stakedAccountId)
@@ -254,10 +251,7 @@ public class CryptoUpdateSuite {
                 cryptoUpdate("user").newStakedNodeId(-25L).hasKnownStatus(INVALID_STAKING_ID),
                 getAccountInfo("user")
                         .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(false)),
-                cryptoUpdate("user")
-                        .key(ADMIN_KEY)
-                        .newStakedAccountId(stakedAccountId)
-                        .newDeclinedReward(true),
+                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("20").newDeclinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
                                 .stakedAccountId(stakedAccountId)
