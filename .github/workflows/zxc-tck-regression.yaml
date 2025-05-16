@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: TCK Regression"
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job."
+        required: false
+        type: string
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job."
+        required: false
+        type: string
+    secrets:
+      access-token:
+        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: platform-sdk
+
+permissions:
+  id-token: write
+  checks: write
+  contents: read
+
+jobs:
+  tck-regression:
+    name: ${{ inputs.custom-job-name || 'Standard' }}
+    runs-on: hiero-network-node-linux-large
+    if: ${{ !github.event.workflow_call.repository.fork }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Platform Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 0
+
+      - name: Checkout Regression Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: ${{ github.event_name == 'workflow_call' }}
+        with:
+          path: platform-sdk/regression
+          repository: hiero-ledger/hiero-sdk-tck
+          token: ${{ secrets.access-token }}
+          fetch-depth: "1"
+
+      - name: Checkout Regression Code (workflow_dispatch)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        with:
+          path: platform-sdk/regression
+          repository: hiero-ledger/hiero-sdk-tck
+          token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }} # secret needs to be added
+          fetch-depth: "1"
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21.0.6
+
+      - name: Setup NodeJS Environment
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Install NodeJS Dependencies
+        run: |
+          npm install --prefer-offline --no-audit --progress=false
+          npm cache clean --force
+        working-directory: platform-sdk/regression
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244 # v4.3.1
+
+      - name: Build hiero-consensus-node
+        run: ./gradlew assemble
+
+      # currently not working on consensus node use local node
+      - name: Install Local Node
+        run: npm install -g @hashgraph/hedera-local
+
+      - name: Pull JS TCK Server
+        run: |
+          docker pull ivaylogarnev/js-tck-server-amd:latest
+
+      - name: Pull TCK Client
+        run: |
+          docker pull ivaylogarnev/tck-client:latest
+
+      # I would rather run the node from hiero-consensus-node
+      - name: Start Local Node
+        run: |
+          npx @hashgraph/hedera-local start -d --network local --network-tag=0.61.1
+          sleep 30 # Wait for the local node to start
+
+      # had to modify the docker compose file to run locally on mac.
+      - name: Start tck-server
+        run: |
+          TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
+        working-directory: platform-sdk/regression # required
+
+      - name: Wait for TCK server
+        run: |
+          echo "Waiting for TCK server on port 8544..."
+          until bash -c 'exec 3>/dev/tcp/localhost/8544'; do
+            echo "Still waiting..."
+            sleep 1
+          done
+          echo "TCK server is ready!"
+
+      - name: Run TCK tests
+        run: |
+          docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/tck-client
+
+      - name: Stop tck-server
+        run: |
+          docker compose -f ./docker-compose.yml down
+        working-directory: platform-sdk/regression
+
+      - name: Stop the local node
+        run: npx @hashgraph/hedera-local stop
