@@ -38,6 +38,8 @@ import com.hedera.node.app.service.contract.impl.state.WritableContractStateStor
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -45,15 +47,17 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -72,7 +76,6 @@ public class HandleHederaOperations implements HederaOperations {
                     .key(IMMUTABILITY_SENTINEL_KEY);
 
     private final TinybarValues tinybarValues;
-    private final LedgerConfig ledgerConfig;
     private final ContractsConfig contractsConfig;
     private final SystemContractGasCalculator gasCalculator;
     private final HederaConfig hederaConfig;
@@ -81,10 +84,34 @@ public class HandleHederaOperations implements HederaOperations {
     private final PendingCreationMetadataRef pendingCreationMetadataRef;
     private final AccountsConfig accountsConfig;
     private final EntityIdFactory entityIdFactory;
+    private final List<GasChargingEvent> gasChargingEvents = new ArrayList<>(1);
+
+    /**
+     * The types of events that occur when charging gas.
+     */
+    private enum GasChargingAction {
+        /**
+         * An account is charged for gas.
+         */
+        CHARGE,
+        /**
+         * An account is refunded for unused gas.
+         */
+        REFUND,
+    }
+
+    /**
+     * An event that occurs when charging gas.
+     * @param action the action that occurred
+     * @param accountId the account that was charged or refunded
+     * @param amount the amount of gas charged or refunded
+     * @param withNonceIncrement whether the account's nonce was incremented
+     */
+    private record GasChargingEvent(
+            GasChargingAction action, AccountID accountId, long amount, boolean withNonceIncrement) {}
 
     @Inject
     public HandleHederaOperations(
-            @NonNull final LedgerConfig ledgerConfig,
             @NonNull final ContractsConfig contractsConfig,
             @NonNull final HandleContext context,
             @NonNull final TinybarValues tinybarValues,
@@ -94,7 +121,6 @@ public class HandleHederaOperations implements HederaOperations {
             @NonNull final PendingCreationMetadataRef pendingCreationMetadataRef,
             @NonNull final AccountsConfig accountsConfig,
             @NonNull final EntityIdFactory entityIdFactory) {
-        this.ledgerConfig = requireNonNull(ledgerConfig);
         this.contractsConfig = requireNonNull(contractsConfig);
         this.context = requireNonNull(context);
         this.tinybarValues = requireNonNull(tinybarValues);
@@ -209,22 +235,44 @@ public class HandleHederaOperations implements HederaOperations {
      * {@inheritDoc}
      */
     @Override
-    public void collectFee(@NonNull final AccountID payerId, final long amount) {
+    public void collectHtsFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
-        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        final var coinbaseId = entityIdFactory.newAccountId(ledgerConfig.fundingAccount());
-        tokenServiceApi.transferFromTo(payerId, coinbaseId, amount);
+        context.tryToCharge(payerId, amount);
+    }
+
+    @Override
+    public void collectGasFee(@NonNull final AccountID payerId, final long amount, final boolean withNonceIncrement) {
+        requireNonNull(payerId);
+        context.tryToCharge(payerId, amount);
+        gasChargingEvents.add(new GasChargingEvent(GasChargingAction.CHARGE, payerId, amount, withNonceIncrement));
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void refundFee(@NonNull final AccountID payerId, final long amount) {
+    public void refundGasFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
-        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        final var coinbaseId = entityIdFactory.newAccountId(ledgerConfig.fundingAccount());
-        tokenServiceApi.transferFromTo(coinbaseId, payerId, amount);
+        context.refundBestEffort(payerId, amount);
+        gasChargingEvents.add(new GasChargingEvent(GasChargingAction.REFUND, payerId, amount, false));
+    }
+
+    @Override
+    public void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
+        requireNonNull(feeChargingContext);
+        final Map<AccountID, Long> netCharges = new LinkedHashMap<>();
+        for (final var event : gasChargingEvents) {
+            if (event.action() == GasChargingAction.CHARGE) {
+                netCharges.merge(event.accountId(), event.amount(), Long::sum);
+                if (event.withNonceIncrement()) {
+                    final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+                    tokenServiceApi.incrementSenderNonce(event.accountId());
+                }
+            } else {
+                netCharges.merge(event.accountId(), -event.amount(), Long::sum);
+            }
+        }
+        netCharges.forEach((payerId, amount) -> feeChargingContext.charge(payerId, new Fees(0, amount, 0), null));
     }
 
     /**

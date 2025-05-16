@@ -40,12 +40,10 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                123L,
                 ContractActions.DEFAULT,
                 stateChanges);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
-        verify(subject).transactionFee(123L);
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
         verify(subject).addContractStateChanges(stateChanges, false);
         assertSame(subject, builder);
@@ -57,12 +55,10 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                123L,
                 null,
                 ContractStateChanges.DEFAULT);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
-        verify(subject).transactionFee(123L);
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());
         assertSame(subject, builder);

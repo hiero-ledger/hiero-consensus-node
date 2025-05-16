@@ -21,7 +21,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param result the result of the call
  * @param status the resolved status of the call
  * @param recipientId if known, the Hedera id of the contract that was called
- * @param tinybarGasPrice the tinybar-denominated gas price used for the call
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
  */
@@ -29,7 +28,6 @@ public record CallOutcome(
         @NonNull ContractFunctionResult result,
         @NonNull ResponseCodeEnum status,
         @Nullable ContractID recipientId,
-        long tinybarGasPrice,
         @Nullable ContractActions actions,
         @Nullable ContractStateChanges stateChanges) {
 
@@ -51,7 +49,6 @@ public record CallOutcome(
                 result,
                 hevmResult.finalStatus(),
                 hevmResult.recipientId(),
-                hevmResult.gasPrice(),
                 hevmResult.actions(),
                 hevmResult.stateChanges());
     }
@@ -63,15 +60,13 @@ public record CallOutcome(
      */
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
-        return new CallOutcome(
-                result, hevmResult.finalStatus(), hevmResult.recipientId(), hevmResult.gasPrice(), null, null);
+        return new CallOutcome(result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null);
     }
 
     /**
      * @param result the result of the call
      * @param status the resolved status of the call
      * @param recipientId if known, the Hedera id of the contract that was called
-     * @param tinybarGasPrice the tinybar-denominated gas price used for the call
      * @param actions any contract actions that should be externalized in a sidecar
      * @param stateChanges any contract state changes that should be externalized in a sidecar
      */
@@ -90,17 +85,26 @@ public record CallOutcome(
     }
 
     /**
-     * Adds the call details to the given record builder.
+     * Adds the call details to the given stream builder.
      *
-     * @param recordBuilder the record builder
+     * @param streamBuilder the stream builder
      */
-    public void addCallDetailsTo(@NonNull final ContractCallStreamBuilder recordBuilder) {
-        requireNonNull(recordBuilder);
+    public void addCallDetailsTo(@NonNull final ContractCallStreamBuilder streamBuilder) {
+        requireNonNull(streamBuilder);
+        addCalledContractIfNotAborted(streamBuilder);
+        streamBuilder.contractCallResult(result);
+        streamBuilder.withCommonFieldsSetFrom(this);
+    }
+
+    /**
+     * Adds the called contract ID to the given stream builder if the call was not aborted.
+     * @param streamBuilder the stream builder
+     */
+    public void addCalledContractIfNotAborted(@NonNull final ContractCallStreamBuilder streamBuilder) {
+        requireNonNull(streamBuilder);
         if (!callWasAborted()) {
-            recordBuilder.contractID(recipientId);
+            streamBuilder.contractID(recipientId);
         }
-        recordBuilder.contractCallResult(result);
-        recordBuilder.withCommonFieldsSetFrom(this);
     }
 
     /**
@@ -113,16 +117,6 @@ public record CallOutcome(
         recordBuilder.contractID(recipientIdIfCreated());
         recordBuilder.contractCreateResult(result);
         recordBuilder.withCommonFieldsSetFrom(this);
-    }
-
-    /**
-     * Returns the gas cost of the call in tinybar (always zero if the call was aborted before constructing
-     * the initial {@link org.hyperledger.besu.evm.frame.MessageFrame}).
-     *
-     * @return the gas cost of the call in tinybar
-     */
-    public long tinybarGasCost() {
-        return tinybarGasPrice * result.gasUsed();
     }
 
     /**

@@ -79,15 +79,6 @@ class QueryModuleTest {
     }
 
     @Test
-    void feesOnlyUpdaterIsProxyUpdater() {
-        final var enhancement =
-                new HederaWorldUpdater.Enhancement(hederaOperations, hederaNativeOperations, systemContractOperations);
-        assertInstanceOf(
-                ProxyWorldUpdater.class,
-                QueryModule.provideFeesOnlyUpdater(enhancement, factory).get());
-    }
-
-    @Test
     void providesExpectedHederaEvmContext() {
         assertInstanceOf(
                 HederaEvmContext.class,
