@@ -318,7 +318,7 @@ public class DataFileCompactor {
      * @throws IOException If an I/O error occurs
      */
     private void finishCurrentCompactionFile() throws IOException {
-        currentWriter.get().finishWriting();
+        currentWriter.get().close();
         currentWriter.set(null);
         // Now include the file in future compactions
         currentReader.get().setFileCompleted();
