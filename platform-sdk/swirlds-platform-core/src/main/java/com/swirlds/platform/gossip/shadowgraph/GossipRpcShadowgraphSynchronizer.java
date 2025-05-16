@@ -224,6 +224,11 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
                 return;
             }
 
+            if (intakeEventCounter.hasUnprocessedEvents(otherNodeId)) {
+                syncMetrics.doNotSyncIntakeCounter();
+                return;
+            }
+
             if (this.mySyncData == null) {
                 //                logger.info(LogMarker.RECONNECT.getMarker(), "Started sync with {}", otherNodeId);
                 sendSyncData();
