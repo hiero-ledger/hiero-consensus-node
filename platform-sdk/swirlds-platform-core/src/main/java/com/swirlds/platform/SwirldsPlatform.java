@@ -168,6 +168,8 @@ public class SwirldsPlatform implements Platform {
      */
     private final AncientMode ancientMode;
 
+    private final long pcesReplayLowerBound;
+
     /**
      * Constructor.
      *
@@ -376,6 +378,20 @@ public class SwirldsPlatform implements Platform {
         blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
         blocks.clearAllPipelinesForReconnectReference().set(platformWiring::clear);
         blocks.latestImmutableStateProviderReference().set(latestImmutableStateNexus::getState);
+
+        if (!initialState.isGenesisState()) {
+            final long lastRoundBeforeBirthRoundMode = platformStateFacade.lastRoundBeforeBirthRoundModeOf(
+                    initialState.getState());
+            final long ancientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
+            if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD && lastRoundBeforeBirthRoundMode >= ancientThreshold) {
+                // events were migrated so set the lower bound to 0 such that all PCES events will be read
+                pcesReplayLowerBound = 0;
+            } else {
+                pcesReplayLowerBound = initialAncientThreshold;
+            }
+        } else {
+            pcesReplayLowerBound = 0;
+        }
     }
 
     /**
@@ -471,16 +487,12 @@ public class SwirldsPlatform implements Platform {
     private void replayPreconsensusEvents() {
         platformWiring.getStatusActionSubmitter().submitStatusAction(new StartedReplayingEventsAction());
 
-        final long lowerBound = wereEventsMigratedToBirthRound
-                ? 0L // events were migrated so set the lower bound to 0 such that all PCES events will be read
-                : initialAncientThreshold;
-
-        final IOIterator<PlatformEvent> iterator = initialPcesFiles.getEventIterator(lowerBound, startingRound);
+        final IOIterator<PlatformEvent> iterator = initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
 
         logger.info(
                 STARTUP.getMarker(),
                 "replaying preconsensus event stream starting at {} ({})",
-                lowerBound,
+                pcesReplayLowerBound,
                 ancientMode);
 
         platformWiring.getPcesReplayerIteratorInput().inject(iterator);
