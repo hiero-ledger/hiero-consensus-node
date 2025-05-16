@@ -11,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
@@ -123,23 +124,46 @@ public interface HederaOperations {
     long valueInTinybars(long tinycents);
 
     /**
-     * Collects the given fee from the given account. The caller should have already
-     * verified that the account exists and has sufficient balance to pay the fee, so
-     * this method surfaces any problem by throwing an exception.
+     * Collects the given fee from the given account, within a stack frame that on
+     * revert should have all side effects discarded.
+     * <p>
+     * The caller should have already verified that the account exists and has
+     * sufficient balance to pay the fee, so this method surfaces any problem by
+     * throwing an exception.
      *
      * @param payerId the account to collect the fee from
      * @param amount the amount to collect
      * @throws IllegalArgumentException if the collection fails for any reason
      */
-    void collectFee(@NonNull AccountID payerId, final long amount);
+    void collectHtsFee(@NonNull AccountID payerId, long amount);
+
+    /**
+     * Collects the given fee from the given account, for initial gas charging, so
+     * it can be replayed on revert.
+     * <p>
+     * The caller should have already verified that the account exists and has
+     * sufficient balance to pay the fee, so this method surfaces any problem by
+     * throwing an exception.
+     *
+     * @param payerId the account to collect the fee from
+     * @param amount the amount to collect
+     * @param withNonceIncrement whether the nonce should be incremented
+     * @throws IllegalArgumentException if the collection fails for any reason
+     */
+    void collectGasFee(@NonNull AccountID payerId, long amount, boolean withNonceIncrement);
 
     /**
      * Refunds the given {@code amount} of fees from the given {@code fromEntityNumber}.
      *
      * @param payerId the address of the account to refund the fees to
-     * @param amount          the amount of fees to collect
+     * @param amount the amount of fees to collect
      */
-    void refundFee(@NonNull AccountID payerId, final long amount);
+    void refundGasFee(@NonNull AccountID payerId, long amount);
+
+    /**
+     * Replays gas charging (and possible refunding) in the given context.
+     */
+    void replayGasChargingIn(FeeCharging.Context feeChargingContext);
 
     /**
      * Attempts to charge the given {@code amount} of rent to the given {@code contractNumber}, with
@@ -150,7 +174,7 @@ public interface HederaOperations {
      * @param amount                 the amount to charge
      * @param itemizeStoragePayments whether to itemize storage payments in the record
      */
-    void chargeStorageRent(ContractID contractID, final long amount, final boolean itemizeStoragePayments);
+    void chargeStorageRent(ContractID contractID, long amount, boolean itemizeStoragePayments);
 
     /**
      * Updates the storage metadata for the given contract.

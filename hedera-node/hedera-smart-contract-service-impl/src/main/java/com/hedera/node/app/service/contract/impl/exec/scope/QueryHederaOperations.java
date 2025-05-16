@@ -11,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -146,7 +147,12 @@ public class QueryHederaOperations implements HederaOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public void collectFee(@NonNull final AccountID payerId, final long amount) {
+    public void collectHtsFee(@NonNull final AccountID payerId, final long amount) {
+        throw new UnsupportedOperationException("Queries cannot collect fees");
+    }
+
+    @Override
+    public void collectGasFee(@NonNull final AccountID payerId, long amount, boolean withNonceIncrement) {
         throw new UnsupportedOperationException("Queries cannot collect fees");
     }
 
@@ -156,7 +162,7 @@ public class QueryHederaOperations implements HederaOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public void refundFee(@NonNull final AccountID payerId, final long amount) {
+    public void refundGasFee(@NonNull final AccountID payerId, final long amount) {
         throw new UnsupportedOperationException("Queries cannot refund fees");
     }
 
@@ -243,6 +249,11 @@ public class QueryHederaOperations implements HederaOperations {
      */
     @Override
     public long getOriginalSlotsUsed(final ContractID contractID) {
+        throw new UnsupportedOperationException("Queries cannot get original slot usage");
+    }
+
+    @Override
+    public void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
         throw new UnsupportedOperationException("Queries cannot get original slot usage");
     }
 
