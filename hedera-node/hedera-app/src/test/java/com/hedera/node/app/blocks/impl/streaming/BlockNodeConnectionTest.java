@@ -220,8 +220,8 @@ class BlockNodeConnectionTest {
     @DisplayName("Update and get connection state")
     void updateAndGetConnectionState() {
         assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
-        connection.updateConnectionState(BlockNodeConnection.ConnectionState.PENDING);
-        assertEquals(BlockNodeConnection.ConnectionState.PENDING, connection.getState());
+        connection.updateConnectionState(BlockNodeConnection.ConnectionState.PENDING_TO_STREAM);
+        assertEquals(BlockNodeConnection.ConnectionState.PENDING_TO_STREAM, connection.getState());
         connection.updateConnectionState(BlockNodeConnection.ConnectionState.ACTIVE);
         assertEquals(BlockNodeConnection.ConnectionState.ACTIVE, connection.getState());
     }
@@ -278,7 +278,7 @@ class BlockNodeConnectionTest {
     @Test
     @DisplayName("Start request worker does nothing when connection is not active")
     void startRequestWorkerWhenConnectionNotActive() {
-        connection.updateConnectionState(BlockNodeConnection.ConnectionState.PENDING);
+        connection.updateConnectionState(BlockNodeConnection.ConnectionState.PENDING_TO_STREAM);
         connection.createRequestObserver();
         connection.startRequestWorker();
         assertNull(TestUtils.getInternalState(connection, "requestWorker", Thread.class));
@@ -325,7 +325,7 @@ class BlockNodeConnectionTest {
         // Verify failure outcome: state becomes UNINITIALIZED, manager notified
         verify(blockNodeConnectionManager, timeout(VERIFY_TIMEOUT.toMillis()))
                 .handleConnectionError(connection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
-        assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
+        assertEquals(BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT, connection.getState());
         assertThat(logCaptor.debugLogs())
                 .anyMatch(log -> log.contains(
                         "Block 10 state not found and lowest available block is 11, ending stream for node "
@@ -500,7 +500,7 @@ class BlockNodeConnectionTest {
         // Verify failure outcome
         verify(blockNodeConnectionManager, timeout(VERIFY_TIMEOUT.toMillis()))
                 .handleConnectionError(connection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
-        assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
+        assertEquals(BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT, connection.getState());
         assertThat(logCaptor.errorLogs())
                 .anyMatch(log -> log.contains("Error in request worker thread for node " + CONNECTION_DESCRIPTOR));
     }
@@ -632,7 +632,7 @@ class BlockNodeConnectionTest {
     void isActiveStateCheck() {
         connection.updateConnectionState(BlockNodeConnection.ConnectionState.UNINITIALIZED);
         assertFalse(connection.isActive());
-        connection.updateConnectionState(BlockNodeConnection.ConnectionState.PENDING);
+        connection.updateConnectionState(BlockNodeConnection.ConnectionState.PENDING_TO_STREAM);
         assertFalse(connection.isActive());
         connection.updateConnectionState(BlockNodeConnection.ConnectionState.ACTIVE);
         assertTrue(connection.isActive());
@@ -1199,7 +1199,7 @@ class BlockNodeConnectionTest {
         verify(connection).close();
 
         // Verify connection state
-        assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
+        assertEquals(BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT, connection.getState());
 
         // Verify connection error handling is triggered
         verify(blockNodeConnectionManager).handleConnectionError(connection, BlockNodeConnection.LONGER_RETRY_DELAY);
@@ -1326,7 +1326,7 @@ class BlockNodeConnectionTest {
         connection.onError(error);
 
         // Verify failure outcome
-        assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
+        assertEquals(BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT, connection.getState());
         verify(blockNodeConnectionManager)
                 .handleConnectionError(connection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
         verify(blockStreamMetrics).incrementOnErrorCount();
@@ -1340,7 +1340,7 @@ class BlockNodeConnectionTest {
         connection.onCompleted();
 
         // Verify failure outcome
-        assertEquals(BlockNodeConnection.ConnectionState.UNINITIALIZED, connection.getState());
+        assertEquals(BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT, connection.getState());
         verify(blockNodeConnectionManager)
                 .handleConnectionError(connection, BlockNodeConnectionManager.INITIAL_RETRY_DELAY);
         assertThat(logCaptor.debugLogs())
