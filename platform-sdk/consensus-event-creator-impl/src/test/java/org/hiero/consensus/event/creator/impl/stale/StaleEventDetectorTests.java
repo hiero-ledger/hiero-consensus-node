@@ -207,7 +207,8 @@ class StaleEventDetectorTests {
             @NonNull final List<PlatformEvent> events,
             final long ancientThreshold,
             final AncientMode ancientMode) {
-        final EventWindow eventWindow = EventWindowBuilder.setAncientMode(ancientMode)
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
                 .setLatestConsensusRound(randotron.nextPositiveLong())
                 .setAncientThreshold(ancientThreshold)
                 .setExpiredThreshold(randotron.nextPositiveLong())
@@ -251,7 +252,8 @@ class StaleEventDetectorTests {
         final List<PlatformEvent> consensusEvents = new ArrayList<>();
 
         long currentAncientThreshold = randotron.nextLong(100, 1_000);
-        detector.setInitialEventWindow(EventWindowBuilder.setAncientMode(ancientMode)
+        detector.setInitialEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
                 .setLatestConsensusRound(randotron.nextPositiveLong())
                 .setAncientThreshold(currentAncientThreshold)
                 .setExpiredThreshold(randotron.nextPositiveLong())
@@ -371,7 +373,8 @@ class StaleEventDetectorTests {
                 ? testingEventBuilder.setBirthRound(overrideValue).build()
                 : buildEventAndOverrideGeneration(testingEventBuilder, overrideValue);
 
-        detector.setInitialEventWindow(EventWindowBuilder.setAncientMode(ancientMode)
+        detector.setInitialEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
                 .setLatestConsensusRound(randotron.nextPositiveInt())
                 .setAncientThreshold(ancientThreshold1)
                 .setExpiredThreshold(randotron.nextPositiveLong())
@@ -388,7 +391,8 @@ class StaleEventDetectorTests {
 
         // Setting the ancient threshold after the original event should not cause it to come back as stale.
         final long ancientThreshold2 = overrideValue + randotron.nextPositiveInt();
-        detector.setInitialEventWindow(EventWindowBuilder.setAncientMode(ancientMode)
+        detector.setInitialEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
                 .setLatestConsensusRound(randotron.nextPositiveInt())
                 .setAncientThreshold(ancientThreshold2)
                 .setExpiredThreshold(randotron.nextPositiveLong())

@@ -638,9 +638,12 @@ class TipsetWeightCalculatorTests {
         final long willBeAncientValue = toExpireValue + 1;
 
         // Mark generation 0 as ancient.
-        final EventWindow eventWindow =
-                EventWindowBuilder.builder().setAncientMode(ancientMode).setAncientThreshold(1).build();
-        builder.setEventWindow(eventWindow);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setAncientThreshold(toExpireValue)
+                .setAncientThresholdOrGenesis(willBeAncientValue)
+                .build();
+        tipsetTracker.setEventWindow(eventWindow);
         childlessEventTracker.pruneOldEvents(eventWindow);
 
         // We shouldn't be able to find tipsets for ancient events.
