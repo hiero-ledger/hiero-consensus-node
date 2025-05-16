@@ -314,6 +314,8 @@ jobs:
           name: HAPI Test (Misc) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Crypto)
@@ -348,6 +350,8 @@ jobs:
           name: HAPI Test (Crypto) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Token)
@@ -382,6 +386,8 @@ jobs:
           name: HAPI Test (Token) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Smart Contract)
@@ -416,6 +422,8 @@ jobs:
           name: HAPI Test (Smart Contract) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Time Consuming)
@@ -450,6 +458,8 @@ jobs:
           name: HAPI Test (Time Consuming) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Restart)
@@ -485,6 +495,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Node Death Reconnect)
@@ -520,6 +531,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (ISS)
@@ -554,6 +566,8 @@ jobs:
           name: HAPI Test (ISS) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: Publish To Codecov
