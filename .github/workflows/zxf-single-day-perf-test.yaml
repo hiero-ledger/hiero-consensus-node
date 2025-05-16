@@ -29,20 +29,20 @@ jobs:
         with:
           egress-policy: audit
 
-#      # Get the `build-XXXXX' tag (latest tag) to run the performance test
-#      # use it later as ${{ steps.tag.outputs.tag }}
-#      - name: Get Build Tag
-#        id: tag
-#        run: |
-#          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-#            # Triggered by tag push
-#            tag_name="${GITHUB_REF#refs/tags/}"
-#          else
-#            # Triggered by workflow_dispatch
-#            tag_name="${{ github.event.inputs.tag-to-run }}"
-#          fi
-#          echo "Using tag: $tag_name"
-#          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+      # Get the `build-XXXXX' tag (latest tag) to run the performance test
+      # use it later as ${{ steps.tag.outputs.tag }}
+      - name: Get Build Tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Triggered by tag push
+            tag_name="${GITHUB_REF#refs/tags/}"
+          else
+            # Triggered by workflow_dispatch
+            tag_name="${{ github.event.inputs.tag-to-run }}"
+          fi
+          echo "Using tag: $tag_name"
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
 #
 #      # Clone the perf analysis automation repo
 #      - name: Checkout the performance analysis automation repo
@@ -70,7 +70,7 @@ jobs:
           token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
           inputs: '{ 
             "namespace": "Latitude3",
-            "hederaversion": "main",
+            "hederaversion": "${{ steps.tag.outputs.tag_name }}",
             "soloversion": "latest_tested_solo-charts0.59",
             "NLG_Accounts": "100000000",
             "NLG_Time": "330m",
