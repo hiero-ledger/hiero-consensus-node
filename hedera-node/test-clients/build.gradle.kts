@@ -199,79 +199,18 @@ tasks.register<Test>("testSubprocess") {
     val ciTagExpression =
         gradle.startParameter.taskNames
             .stream()
-            .map { prCheckTags[it] ?: "" }
+            .map { prEmbeddedCheckTags[it] ?: "" }
             .filter { it.isNotBlank() }
             .toList()
             .joinToString("|")
     useJUnitPlatform {
         includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
-            // We don't want to run typical stream or log validation for an ISS case
-            else if (ciTagExpression.contains("ISS")) "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
+            if (ciTagExpression.isBlank())
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
+            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
         )
     }
 
-    // Choose a different initial port for each test task if running as PR check
-    val initialPort =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckStartPorts[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("")
-    systemProperty("hapi.spec.initial.port", initialPort)
-
-    // Gather overrides into a single comma‐separated list
-    val testOverrides =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPropOverrides[it] }
-            .joinToString(separator = ",")
-    // Only set the system property if non-empty
-    if (testOverrides.isNotBlank()) {
-        systemProperty("hapi.spec.test.overrides", testOverrides)
-    }
-
-    val maxHistoryProofsToObserve =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckNumHistoryProofsToObserve[it]?.toIntOrNull() }
-            .maxOrNull()
-    if (maxHistoryProofsToObserve != null) {
-        systemProperty("hapi.spec.numHistoryProofsToObserve", maxHistoryProofsToObserve.toString())
-    }
-
-    val prepareUpgradeOffsets =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
-            .joinToString(",")
-    if (prepareUpgradeOffsets.isNotEmpty()) {
-        systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
-    }
-
-    val networkSize =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckNetSizeOverrides[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("4")
-    systemProperty("hapi.spec.network.size", networkSize)
-
-    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
-    // churn of fast upgrades with heavy use of override networks, and there is a node
-    // removal step that happens without giving enough time for the next hinTS scheme
-    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
-    // 1/4 total weight in the out-of-date hinTS verification key,
-    val hintsThresholdDenominator =
-        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
-    systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
-
-    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
-    systemProperty(
-        "hapi.spec.quiet.mode",
-        System.getProperty("hapi.spec.quiet.mode")
-            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
-    )
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
@@ -284,11 +223,12 @@ tasks.register<Test>("testSubprocess") {
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
+    // Tell our launcher to target a concurrent embedded network
+    systemProperty("hapi.spec.embedded.mode", "concurrent")
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-    maxParallelForks = 1
 }
 
 tasks.register<Test>("testRemote") {
