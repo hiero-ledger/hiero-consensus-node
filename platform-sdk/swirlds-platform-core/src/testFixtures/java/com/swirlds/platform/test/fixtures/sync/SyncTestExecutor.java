@@ -31,7 +31,7 @@ import java.util.function.Supplier;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 
 /**
  * This class executes a single sync between two {@link SyncNode} instances. It defines the high level structure and
@@ -222,17 +222,17 @@ public class SyncTestExecutor {
                 callerAncientThreshold++;
             }
 
-            caller.updateEventWindow(new EventWindow(
-                    ancientMode.getGenesisIndicator(),
-                    Math.max(ancientMode.getGenesisIndicator(), callerAncientThreshold),
-                    Math.max(ancientMode.getGenesisIndicator(), callerExpiredThreshold),
-                    ancientMode));
+            caller.updateEventWindow(EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThresholdOrGenesis(callerAncientThreshold)
+                    .setExpiredThresholdOrGenesis(callerExpiredThreshold)
+                    .build());
 
-            listener.updateEventWindow(new EventWindow(
-                    ancientMode.getGenesisIndicator(),
-                    Math.max(ancientMode.getGenesisIndicator(), listenerAncientThreshold),
-                    Math.max(ancientMode.getGenesisIndicator(), listenerExpiredThreshold),
-                    ancientMode));
+            listener.updateEventWindow(EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThresholdOrGenesis(listenerAncientThreshold)
+                    .setExpiredThresholdOrGenesis(listenerExpiredThreshold)
+                    .build());
         };
     }
 

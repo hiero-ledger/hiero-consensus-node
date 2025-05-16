@@ -108,7 +108,7 @@ public class GuiEventStorage {
         }
         lastConsensusRound = rounds.getLast();
 
-        linker.setNonAncientThreshold(rounds.getLast().getEventWindow().getAncientThreshold());
+        linker.setNonAncientThreshold(rounds.getLast().getEventWindow().ancientThreshold());
     }
 
     /**

@@ -31,9 +31,9 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -210,17 +210,13 @@ class EventDeduplicatorTests {
                 minimumGenerationNonAncient++;
                 minimumRoundNonAncient++;
                 if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-                    deduplicator.setEventWindow(new EventWindow(
-                            ConsensusConstants.ROUND_FIRST,
-                            minimumRoundNonAncient,
-                            ConsensusConstants.ROUND_FIRST /* ignored in this context */,
-                            AncientMode.BIRTH_ROUND_THRESHOLD));
+                    deduplicator.setEventWindow(EventWindowBuilder.birthRoundMode()
+                            .setAncientThreshold(minimumRoundNonAncient)
+                            .build());
                 } else {
-                    deduplicator.setEventWindow(new EventWindow(
-                            ConsensusConstants.ROUND_FIRST,
-                            minimumGenerationNonAncient,
-                            ConsensusConstants.ROUND_FIRST /* ignored in this context */,
-                            AncientMode.GENERATION_THRESHOLD));
+                    deduplicator.setEventWindow(EventWindowBuilder.generationMode()
+                            .setAncientThreshold(minimumGenerationNonAncient)
+                            .build());
                 }
             }
         }

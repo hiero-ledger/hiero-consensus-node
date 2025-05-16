@@ -84,7 +84,7 @@ public class TipsetTracker {
      */
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
-        tipsets.shiftWindow(eventWindow.getAncientThreshold());
+        tipsets.shiftWindow(eventWindow.ancientThreshold());
     }
 
     /**
