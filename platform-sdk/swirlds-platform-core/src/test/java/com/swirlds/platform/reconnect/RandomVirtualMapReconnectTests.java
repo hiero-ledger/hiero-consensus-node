@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,6 +25,7 @@ import com.swirlds.common.test.fixtures.set.RandomAccessSet;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -35,6 +37,8 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -45,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -269,7 +274,11 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             copiesQueue.remove().release();
         }
 
-        afterSyncLearnerTree.release();
+        if (afterSyncLearnerTree != null) {
+            afterSyncLearnerTree.release();
+        } else {
+            afterMap.release();
+        }
         copy.release();
         teacherTree.release();
         learnerTree.release();
@@ -352,5 +361,15 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         afterCopy.release();
         teacherTree.release();
         learnerTree.release();
+        afterLearnerMap.release();
+    }
+
+    @AfterEach
+    void tearDown() {
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 }
