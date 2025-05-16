@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -46,6 +45,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -413,8 +413,7 @@ public class ERCPrecompileSuite {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> tokenAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                        .exposingCreatedIdTo(id -> tokenAddr.set(asHexedSolidityAddress(asToken(id)))),
                 uploadInitCode(ERC_20_CONTRACT),
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
                 // since we have CONTRACT_ID key
@@ -501,8 +500,8 @@ public class ERCPrecompileSuite {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> tokenAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                        .exposingCreatedIdTo(
+                                id -> tokenAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
                 uploadInitCode(ERC_20_CONTRACT),
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
                 // since we have CONTRACT_ID key
