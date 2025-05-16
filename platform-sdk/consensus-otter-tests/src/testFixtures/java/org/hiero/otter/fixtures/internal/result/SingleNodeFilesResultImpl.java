@@ -13,6 +13,9 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeFilesResult;
 
+/**
+ * The default implementation of {@link SingleNodeFilesResult}.
+ */
 public class SingleNodeFilesResultImpl implements SingleNodeFilesResult {
 
     private final NodeId nodeId;
