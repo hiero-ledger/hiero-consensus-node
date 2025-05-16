@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.AirdropOperation.Airdrop.forFungible;
@@ -20,6 +22,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.OwningEntity;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -37,16 +40,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
-/**
- * Characterizes the interactions of HIP-904 transactions and signing requirements with,
- * <ol>
- *     <li>Contract accounts, with and without cryptographic admin keys.</li>
- *     <li>Hollow accounts.</li>
- *     <li>Aliased account ids.</li>
- *     <li>Accounts with {@link com.hedera.hapi.node.state.token.Account#receiverSigRequired()} true.</li>
- * </ol>
- */
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 @DisplayName("airdrops")
 @HapiTestLifecycle
 public class AirdropSigReqsTest {

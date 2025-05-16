@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.misc;
 
-import static com.hedera.services.bdd.junit.TestTags.ISS;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
@@ -21,6 +22,7 @@ import static com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValid
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.configVersionOf;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValidationOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
@@ -34,15 +36,8 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-/**
- * Validates ISS detection works by reconnecting {@code node1} with an artificially low override for
- * {@code ledger.transfers.maxLen}, then submitting a {@link com.hedera.hapi.node.token.CryptoTransferTransactionBody}
- * that exceeds that artificial limit.
- * <p>
- * This should cause an ISS to be detected in {@code node1}, and the block stream manager to complete its fatal shutdown
- * process. The remaining nodes should still be able to handle transactions and freeze the network.
- */
-@Tag(ISS)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 class IssHandlingTest implements LifecycleTest {
     private static final Logger log = LogManager.getLogger(IssHandlingTest.class);
 

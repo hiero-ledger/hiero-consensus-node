@@ -3,34 +3,25 @@ package com.hedera.services.bdd.suites.hip993;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType.SUPPLY_KEY;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-/**
- * Verifies that throttle capacity used during a dispatch that is later reverted does not cause
- * further dispatches to be throttled. Accomplishes this by creating a contract that has two
- * expected call paths in the context of a network with a 1 TPS NFT mint throttle,
- * <ol>
- *     <li>Mints a NFT in a child dispatch, commits that dispatch, and then receives
- *     {@link ResponseCodeEnum#THROTTLED_AT_CONSENSUS} attempting a later mint.</li>
- *     <li>Mints a NFT in a child dispatch, reverts that dispatch, and then receives
- *     {@link ResponseCodeEnum#SUCCESS} attempting a later mint.</li>
- * </ol>
- */
-@Tag(TOKEN)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 public class ThrottleOnDispatchTest {
     @LeakyHapiTest(
             requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
