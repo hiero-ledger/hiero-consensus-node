@@ -75,9 +75,13 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
          */
         UNINITIALIZED,
         /**
+         * Connection was closed and bidi RequestObserver needs to be created.
+         */
+        PENDING_TO_CONNECT,
+        /**
          * bidi RequestObserver is established but this connection has not been chosen as the active one (priority based).
          */
-        PENDING,
+        PENDING_TO_STREAM,
         /**
          * Connection is active. Request Worker Thread is sending PublishStreamRequest's to the block node through async bidi stream.
          */
@@ -575,7 +579,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * Idempotent operation that closes this connection (if active)
      */
     public void close() {
-        updateConnectionState(ConnectionState.UNINITIALIZED);
+        updateConnectionState(ConnectionState.PENDING_TO_CONNECT);
         logger.debug(
                 "[{}] BlockNodeConnection {} ConnectionState: {}",
                 Thread.currentThread().getName(),
