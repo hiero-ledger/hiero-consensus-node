@@ -73,6 +73,9 @@ class CryptoOpsUsageTest {
     private final Key key = KeyUtils.A_COMPLEX_KEY;
     private final String memo = "That abler soul, which thence doth flow";
     private final AccountID proxy = IdUtils.asAccount("0.0.75231");
+    private final AccountID proxy2 = IdUtils.asAccount("0.0.75232");
+    private final AccountID proxy3 = IdUtils.asAccount("0.0.75233");
+    private final AccountID proxy4 = IdUtils.asAccount("0.0.75234");
     private final AccountID owner = IdUtils.asAccount("0.0.10000");
     private final int maxAutoAssociations = 123;
     private final int numSigs = 3;
@@ -446,9 +449,7 @@ class CryptoOpsUsageTest {
         assertEquals(expected, actual);
     }
 
-    @Test
-    void estimatesApprovalAsExpected() {
-        givenApprovalOp();
+    void verifyApprovalCosts(TransactionBody txn, CryptoApproveAllowanceTransactionBody approveOp) {
         final var expected = new UsageAccumulator();
         final var baseMeta = new BaseTransactionMeta(0, 0);
         final var opMeta = new CryptoApproveAllowanceMeta(
@@ -491,6 +492,58 @@ class CryptoOpsUsageTest {
         subject.cryptoApproveAllowanceUsage(sigUsage, baseMeta, opMeta, ctx, actual);
 
         assertEquals(expected, actual);
+    }
+
+    @Test
+    void calculateMultipleApprovalsWithTheSameSpender() {
+        var approveOp = CryptoApproveAllowanceTransactionBody.newBuilder()
+                // same spender
+                .addAllCryptoAllowances(List.of(
+                        CryptoAllowance.newBuilder()
+                                .setSpender(proxy)
+                                .setAmount(10L)
+                                .build(),
+                        CryptoAllowance.newBuilder()
+                                .setSpender(proxy)
+                                .setAmount(20L)
+                                .build(),
+                        CryptoAllowance.newBuilder()
+                                .setSpender(proxy)
+                                .setAmount(30L)
+                                .build()))
+                .addAllTokenAllowances(List.of(tokenAllowances))
+                .addAllNftAllowances(List.of(nftAllowances))
+                .build();
+        var txn = makeApproveTxn(approveOp);
+        verifyApprovalCosts(txn, approveOp);
+    }
+
+    @Test
+    void calculateMultipleApprovalsWithDifferentSpenders() {
+        var approveOp = CryptoApproveAllowanceTransactionBody.newBuilder()
+                // diff spenders
+                .addAllCryptoAllowances(List.of(
+                        CryptoAllowance.newBuilder()
+                                .setSpender(proxy)
+                                .setAmount(10L)
+                                .build(),
+                        CryptoAllowance.newBuilder()
+                                .setSpender(proxy2)
+                                .setAmount(20L)
+                                .build(),
+                        CryptoAllowance.newBuilder()
+                                .setSpender(proxy3)
+                                .setAmount(30L)
+                                .build(),
+                        CryptoAllowance.newBuilder()
+                                .setSpender(proxy4)
+                                .setAmount(30L)
+                                .build()))
+                .addAllTokenAllowances(List.of(tokenAllowances))
+                .addAllNftAllowances(List.of(nftAllowances))
+                .build();
+        var txn = makeApproveTxn(approveOp);
+        verifyApprovalCosts(txn, approveOp);
     }
 
     @Test
@@ -554,6 +607,15 @@ class CryptoOpsUsageTest {
 
     private void setApproveTxn() {
         txn = TransactionBody.newBuilder()
+                .setTransactionID(TransactionID.newBuilder()
+                        .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now))
+                        .setAccountID(owner))
+                .setCryptoApproveAllowance(approveOp)
+                .build();
+    }
+
+    private TransactionBody makeApproveTxn(CryptoApproveAllowanceTransactionBody approveOp) {
+        return TransactionBody.newBuilder()
                 .setTransactionID(TransactionID.newBuilder()
                         .setTransactionValidStart(Timestamp.newBuilder().setSeconds(now))
                         .setAccountID(owner))
