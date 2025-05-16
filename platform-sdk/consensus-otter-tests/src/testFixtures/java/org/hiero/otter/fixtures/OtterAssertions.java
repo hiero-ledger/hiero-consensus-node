@@ -6,15 +6,19 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.assertj.core.api.Assertions;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeStatusProgressionAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeStatusProgressionAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 
 /**
@@ -27,68 +31,88 @@ public class OtterAssertions extends Assertions {
     /**
      * Creates an assertion for the given {@link SingleNodeConsensusResult}.
      *
-     * @param result the {@link SingleNodeConsensusResult} to assert
+     * @param actual the {@link SingleNodeConsensusResult} to assert
      * @return an assertion for the given {@link SingleNodeConsensusResult}
      */
     @NonNull
-    public static SingleNodeConsensusResultAssert assertThat(@Nullable final SingleNodeConsensusResult result) {
-        return SingleNodeConsensusResultAssert.assertThat(result);
+    public static SingleNodeConsensusResultAssert assertThat(@Nullable final SingleNodeConsensusResult actual) {
+        return SingleNodeConsensusResultAssert.assertThat(actual);
     }
 
     /**
      * Creates an assertion for the given {@link MultipleNodeConsensusResults}.
      *
-     * @param result the {@link MultipleNodeConsensusResults} to assert
+     * @param actual the {@link MultipleNodeConsensusResults} to assert
      * @return an assertion for the given {@link MultipleNodeConsensusResults}
      */
     @NonNull
-    public static MultipleNodeConsensusResultsAssert assertThat(@Nullable final MultipleNodeConsensusResults result) {
-        return MultipleNodeConsensusResultsAssert.assertThat(result);
+    public static MultipleNodeConsensusResultsAssert assertThat(@Nullable final MultipleNodeConsensusResults actual) {
+        return MultipleNodeConsensusResultsAssert.assertThat(actual);
     }
 
     /**
      * Creates an assertion for the given {@link SingleNodeLogResult}.
      *
-     * @param result the {@link SingleNodeLogResult} to assert
+     * @param actual the {@link SingleNodeLogResult} to assert
      * @return an assertion for the given {@link SingleNodeLogResult}
      */
     @NonNull
-    public static SingleNodeLogResultAssert assertThat(@Nullable final SingleNodeLogResult result) {
-        return SingleNodeLogResultAssert.assertThat(result);
+    public static SingleNodeLogResultAssert assertThat(@Nullable final SingleNodeLogResult actual) {
+        return SingleNodeLogResultAssert.assertThat(actual);
     }
 
     /**
      * Creates an assertion for the given {@link MultipleNodeLogResults}.
      *
-     * @param result the {@link MultipleNodeLogResults} to assert
+     * @param actual the {@link MultipleNodeLogResults} to assert
      * @return an assertion for the given {@link MultipleNodeLogResults}
      */
     @NonNull
-    public static MultipleNodeLogResultsAssert assertThat(@Nullable final MultipleNodeLogResults result) {
-        return MultipleNodeLogResultsAssert.assertThat(result);
+    public static MultipleNodeLogResultsAssert assertThat(@Nullable final MultipleNodeLogResults actual) {
+        return MultipleNodeLogResultsAssert.assertThat(actual);
     }
 
     /**
      * Creates an assertion for the given {@link SingleNodeStatusProgression}.
      *
-     * @param statusProgression the {@link SingleNodeStatusProgression} to assert
+     * @param actual the {@link SingleNodeStatusProgression} to assert
      * @return an assertion for the given {@link SingleNodeStatusProgression}
      */
     @NonNull
-    public static SingleNodeStatusProgressionAssert assertThat(
-            @Nullable final SingleNodeStatusProgression statusProgression) {
-        return SingleNodeStatusProgressionAssert.assertThat(statusProgression);
+    public static SingleNodeStatusProgressionAssert assertThat(@Nullable final SingleNodeStatusProgression actual) {
+        return SingleNodeStatusProgressionAssert.assertThat(actual);
     }
 
     /**
      * Creates an assertion for the given {@link MultipleNodeStatusProgression}.
      *
-     * @param statusProgression the {@link MultipleNodeStatusProgression} to assert
+     * @param actual the {@link MultipleNodeStatusProgression} to assert
      * @return an assertion for the given {@link MultipleNodeStatusProgression}
      */
     @NonNull
-    public static MultipleNodeStatusProgressionAssert assertThat(
-            @Nullable final MultipleNodeStatusProgression statusProgression) {
-        return MultipleNodeStatusProgressionAssert.assertThat(statusProgression);
+    public static MultipleNodeStatusProgressionAssert assertThat(@Nullable final MultipleNodeStatusProgression actual) {
+        return MultipleNodeStatusProgressionAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodePcesResult}.
+     *
+     * @param actual the {@link SingleNodePcesResult} to assert
+     * @return an assertion for the given {@link SingleNodePcesResult}
+     */
+    @NonNull
+    public static SingleNodePcesResultAssert assertThat(@Nullable final SingleNodePcesResult actual) {
+        return SingleNodePcesResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link MultipleNodePcesResults}.
+     *
+     * @param actual the {@link MultipleNodePcesResults} to assert
+     * @return an assertion for the given {@link MultipleNodePcesResults}
+     */
+    @NonNull
+    public static MultipleNodePcesResultsAssert assertThat(@Nullable final MultipleNodePcesResults actual) {
+        return MultipleNodePcesResultsAssert.assertThat(actual);
     }
 }

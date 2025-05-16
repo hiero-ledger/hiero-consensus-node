@@ -6,6 +6,7 @@ import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 
 /**
@@ -91,4 +92,12 @@ public interface Node {
      */
     @NonNull
     SingleNodeStatusProgression getStatusProgression();
+
+    /**
+     * Gets the results related to PCES files.
+     *
+     * @return the PCES files created by the node
+     */
+    @NonNull
+    SingleNodePcesResult getPcesResult();
 }

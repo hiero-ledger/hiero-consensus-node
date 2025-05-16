@@ -33,7 +33,7 @@ public class HappyPathTest {
         env.generator().start();
 
         // Wait for two minutes
-        timeManager.waitFor(Duration.ofMinutes(2L));
+        timeManager.waitFor(Duration.ofMinutes(1L));
 
         // Validations
         env.validator().validateRemaining(Profile.DEFAULT);
@@ -44,5 +44,7 @@ public class HappyPathTest {
 
         assertThat(network.getStatusProgression())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.getPcesResults()).hasBirthRoundsLessThan(2L);
     }
 }
