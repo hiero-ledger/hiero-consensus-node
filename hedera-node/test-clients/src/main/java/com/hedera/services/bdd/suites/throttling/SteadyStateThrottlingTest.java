@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.throttling;
 
-import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.customHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -35,6 +36,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import com.google.common.base.Stopwatch;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -58,7 +60,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Tag(LONG_RUNNING)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 @OrderedInIsolation
 public class SteadyStateThrottlingTest {
     private static final int REGRESSION_NETWORK_SIZE = 4;

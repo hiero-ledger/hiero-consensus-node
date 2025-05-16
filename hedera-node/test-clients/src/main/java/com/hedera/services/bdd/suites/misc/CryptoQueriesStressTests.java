@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.misc;
 
-import static com.hedera.services.bdd.junit.TestTags.NOT_REPEATABLE;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -17,6 +18,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -34,7 +36,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(NOT_REPEATABLE)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 public class CryptoQueriesStressTests {
     private final AtomicLong duration = new AtomicLong(10);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);

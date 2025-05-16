@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.suites.regression;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -23,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hederahashgraph.api.proto.java.Key;
@@ -31,7 +34,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 public class TargetNetworkPrep {
 
     @LeakyHapiTest(requirement = {SYSTEM_ACCOUNT_BALANCES})

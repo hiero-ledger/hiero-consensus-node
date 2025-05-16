@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression;
 
-import static com.hedera.services.bdd.junit.TestTags.NOT_REPEATABLE;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.infrastructure.OpProvider.UNIQUE_PAYER_ACCOUNT;
 import static com.hedera.services.bdd.spec.infrastructure.OpProvider.UNIQUE_PAYER_ACCOUNT_INITIAL_BALANCE;
@@ -13,19 +14,15 @@ import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProvi
 import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProviderFactory.initOperations;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-/**
- * We want to make this suite exercise all forms of identity a Hedera account may have, under all
- * possible circumstances. (This could take us a while to do.)
- *
- * <p>See <a href="https://github.com/hashgraph/hedera-services/issues/4565">#4565</a> for details.
- */
-@Tag(NOT_REPEATABLE)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 public class AddressAliasIdFuzzing {
     private static final String PROPERTIES = "id-fuzzing.properties";
     private final AtomicInteger maxOpsPerSec = new AtomicInteger(10);

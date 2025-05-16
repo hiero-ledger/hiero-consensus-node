@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
@@ -14,10 +16,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 public class Issue2143Spec {
     @LeakyHapiTest(requirement = {PERMISSION_OVERRIDES})
     final Stream<DynamicTest> account55ControlCanUpdatePermissions() {

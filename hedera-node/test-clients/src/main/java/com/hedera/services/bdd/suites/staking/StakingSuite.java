@@ -2,7 +2,8 @@
 package com.hedera.services.bdd.suites.staking;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_STAKE_PERIOD_BOUNDARY_CROSSINGS;
-import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -45,6 +46,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKIN
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.AccountAmount;
@@ -62,7 +64,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Tag(LONG_RUNNING)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 @HapiTestLifecycle
 public class StakingSuite {
     private static final Duration MIN_TIME_TO_NEXT_PERIOD = Duration.ofSeconds(10);

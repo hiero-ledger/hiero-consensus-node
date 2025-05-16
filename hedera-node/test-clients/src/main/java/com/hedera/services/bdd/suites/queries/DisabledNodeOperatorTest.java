@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.queries;
 
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.lessThan;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
@@ -33,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -42,13 +45,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-/**
- * Verifies the node operator port is not available to any queries when it is disabled. Since
- * whether the port is enabled is a node configuration, not a network-level setting, this test
- * is a lifecycle test that restarts the shared network with the operator port disabled, and
- * then restarts it again with the port re-enabled.
- */
-@Tag(TOKEN)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 @HapiTestLifecycle
 public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements LifecycleTest {
     @BeforeAll

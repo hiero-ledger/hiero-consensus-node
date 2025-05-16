@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.staking;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -34,6 +36,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -48,11 +51,11 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
-/**
- * Staking tests that need virtual time for fast execution.
- */
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 @HapiTestLifecycle
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableStakingTests {

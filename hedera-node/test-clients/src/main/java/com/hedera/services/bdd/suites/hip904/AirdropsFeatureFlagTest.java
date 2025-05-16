@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -29,6 +31,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
@@ -36,11 +39,10 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
-/**
- * Tests expected behavior when the {@code "entities.unlimitedAutoAssociationsEnabled"} feature flag is toggled
- * from off to on for <a href="https://hips.hedera.com/hip/hip-904">HIP-904, "Frictionless Airdrops"</a>.
- */
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 public class AirdropsFeatureFlagTest {
     @LeakyHapiTest(
             requirement = PROPERTY_OVERRIDES,

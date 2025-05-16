@@ -2,9 +2,10 @@
 package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
-import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryById;
@@ -48,7 +49,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
-import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -75,27 +76,8 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
-/**
- * Asserts expected behavior of the network when upgrading with DAB enabled.
- * <p>
- * The test framework simulates DAB by copying the <i>config.txt</i> from the node's upgrade artifacts into their
- * working directories, instead of regenerating a <i>config.txt</i> to match its {@link HederaNode} instances. It
- * <p>
- * There are three upgrades in this test. The first leaves the address book unchanged, the second removes `node1`,
- * and the last one adds a new `node5`.
- * <p>
- * Halfway through the sequence, we also verify that reconnect is still possible  with only `node0` and `node2`
- * left online while `node3` reconnects; which we accomplish by giving most of the stake to those nodes.
- * <p>
- * We also verify that an account staking to a deleted node cannot earn rewards.
- * <p>
- * See <a href="https://github.com/hashgraph/hedera-improvement-proposal/blob/main/HIP/hip-869.md#user-stories">here</a>
- * for the associated HIP-869 user stories.
- * <p>
- * Since this test upgrades the software version, it must run after any other test that does a restart assuming
- * the config version is still zero.
- */
-@Tag(UPGRADE)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 @Order(Integer.MAX_VALUE - 3)
 @HapiTestLifecycle
 @OrderedInIsolation

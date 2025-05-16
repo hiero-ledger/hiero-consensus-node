@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip993;
 
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantDir;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -40,10 +42,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -66,23 +68,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
-/**
- * Asserts the expected presence and order of all valid combinations of preceding and following stream items;
- * both when rolled back and directly committed. It particularly emphasizes the natural ordering of
- * {@link TransactionCategory#PRECEDING} stream items as defined in
- * HIP-993 <a href="https://hips.hedera.com/hip/hip-993#natural-ordering-of-preceding-records">here</a>.
- * <p>
- * The only stream items created in a savepoint that are <b>not</b> expected to be present are those with reversing
- * behavior {@link StreamBuilder.ReversingBehavior#REMOVABLE}, and whose originating savepoint was rolled back.
- * <p>
- * All other stream items are expected to be present in the record stream once created; but if they are
- * {@link StreamBuilder.ReversingBehavior#REVERSIBLE}, their status may be changed from {@code SUCCESS} to
- * {@code REVERTED_SUCCESS} when their originating savepoint is rolled back.
- * <p>
- * Only {@link StreamBuilder.ReversingBehavior#IRREVERSIBLE} streams items appear unchanged in the record stream no matter whether
- * their originating savepoint is rolled back.
- */
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 @DisplayName("given HIP-993 natural dispatch ordering")
 @HapiTestLifecycle
 public class NaturalDispatchOrderingTest {

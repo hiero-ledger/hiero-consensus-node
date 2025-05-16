@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
-import static com.hedera.services.bdd.junit.TestTags.ND_RECONNECT;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -11,17 +12,14 @@ import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.RES
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-/**
- * This test is to verify reconnect functionality. It submits a burst of mixed operations, then
- * shuts one node,and starts it back after some time. Node will reconnect, and once reconnect is completed
- * submits the same burst of mixed operations again.
- */
-@Tag(ND_RECONNECT)
+@Tag(INTEGRATION)
+@TargetEmbeddedMode(CONCURRENT)
 public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
 
     @HapiTest
