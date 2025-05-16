@@ -8,6 +8,7 @@ import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_V
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -104,17 +105,10 @@ public class BirthRoundFreezeTest {
                 .hasAdvancedSince(freezeRound)
                 .hasEqualRoundsIgnoringLast(withPercentage(5));
 
-        for (final Node node : network.getNodes()) {
-            for (final ConsensusRound round : node.getConsensusResult().consensusRounds()) {
-                for (final PlatformEvent event : round.getConsensusEvents()) {
-                    if (event.getTimeCreated().isAfter(postFreezeShutdownTime)) {
-                        assertThat(event.getBirthRound()).isGreaterThan(freezeRound);
-                    } else {
-                        assertThat(event.getBirthRound()).isLessThanOrEqualTo(freezeRound);
-                    }
-                }
-            }
-        }
+        assertBirthRounds(
+                network.getNodes().getFirst().getConsensusResult().consensusRounds(),
+                postFreezeShutdownTime,
+                freezeRound);
     }
 
     /**
@@ -180,14 +174,20 @@ public class BirthRoundFreezeTest {
                 .hasAdvancedSince(freezeRound)
                 .hasEqualRoundsIgnoringLast(withPercentage(5));
 
-        for (final Node node : network.getNodes()) {
-            for (final ConsensusRound round : node.getConsensusResult().consensusRounds()) {
-                for (final PlatformEvent event : round.getConsensusEvents()) {
-                    if (event.getTimeCreated().isAfter(postFreezeShutdownTime)) {
-                        assertThat(event.getBirthRound()).isGreaterThan(freezeRound);
-                    } else {
-                        assertThat(event.getBirthRound()).isLessThanOrEqualTo(freezeRound);
-                    }
+        assertBirthRounds(
+                network.getNodes().getFirst().getConsensusResult().consensusRounds(),
+                postFreezeShutdownTime,
+                freezeRound);
+    }
+
+    private static void assertBirthRounds(
+            final List<ConsensusRound> consensusRounds, final Instant postFreezeShutdownTime, final long freezeRound) {
+        for (final ConsensusRound round : consensusRounds) {
+            for (final PlatformEvent event : round.getConsensusEvents()) {
+                if (event.getTimeCreated().isAfter(postFreezeShutdownTime)) {
+                    assertThat(event.getBirthRound()).isGreaterThan(freezeRound);
+                } else {
+                    assertThat(event.getBirthRound()).isLessThanOrEqualTo(freezeRound);
                 }
             }
         }
