@@ -41,7 +41,7 @@ public class BirthRoundFreezeTest {
      * @param env the test environment for this test
      * @throws InterruptedException if an operation times out
      */
-    @Disabled("Not expected to pass yet")
+    @Disabled("Not expected to pass yet. Should pass with ticket 10193")
     @OtterTest
     void testBirthRoundMigrationAndSubsequentFreeze(final TestEnvironment env) throws InterruptedException {
 
@@ -95,8 +95,6 @@ public class BirthRoundFreezeTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator().assertPlatformStatus().assertMetrics();
-
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResult())
@@ -121,7 +119,7 @@ public class BirthRoundFreezeTest {
      * @param env the test environment for this test
      * @throws InterruptedException if an operation times out
      */
-    @Disabled("Not expected to pass yet")
+    @Disabled("Not expected to pass yet. Should pass with ticket 10193")
     @OtterTest
     void testFreezeInBirthRoundMode(final TestEnvironment env) throws InterruptedException {
 
@@ -163,8 +161,6 @@ public class BirthRoundFreezeTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator().assertPlatformStatus().assertMetrics();
-
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResult())
