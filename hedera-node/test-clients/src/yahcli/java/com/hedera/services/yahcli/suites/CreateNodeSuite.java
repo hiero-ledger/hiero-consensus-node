@@ -34,6 +34,8 @@ public class CreateNodeSuite extends HapiSuite {
     @Nullable
     private final String feeAccountKeyLoc;
 
+    private final boolean declineRewards;
+
     private final List<ServiceEndpoint> gossipEndpoints;
     private final List<ServiceEndpoint> serviceEndpoints;
     private final byte[] gossipCaCertificate;
@@ -51,7 +53,8 @@ public class CreateNodeSuite extends HapiSuite {
             @NonNull final byte[] gossipCaCertificate,
             @NonNull final byte[] grpcCertificateHash,
             @NonNull final String adminKeyLoc,
-            @Nullable final String feeAccountKeyLoc) {
+            @Nullable final String feeAccountKeyLoc,
+            final boolean declineRewards) {
         this.configManager = requireNonNull(configManager);
         this.accountId = accountId;
         this.description = requireNonNull(description);
@@ -61,6 +64,7 @@ public class CreateNodeSuite extends HapiSuite {
         this.grpcCertificateHash = requireNonNull(grpcCertificateHash);
         this.adminKeyLoc = requireNonNull(adminKeyLoc);
         this.feeAccountKeyLoc = feeAccountKeyLoc;
+        this.declineRewards = declineRewards;
     }
 
     public long createdIdOrThrow() {
@@ -93,6 +97,7 @@ public class CreateNodeSuite extends HapiSuite {
                             .gossipCaCertificate(gossipCaCertificate)
                             .grpcCertificateHash(grpcCertificateHash)
                             .adminKey(adminKey)
+                            .declineReward(declineRewards)
                             .advertisingCreation()
                             .exposingCreatedIdTo(createdId -> this.createdId = createdId)
                 });
