@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.otter.fixtures.result;
+
+import com.swirlds.platform.event.preconsensus.PcesFile;
+import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
+import org.hiero.consensus.model.node.NodeId;
+
+public interface SingleNodeFilesResult {
+
+    /**
+     * Returns the node ID of the files' node
+     *
+     * @return the node ID
+     */
+    @NonNull
+    NodeId nodeId();
+
+    /**
+     * Returns an {@link Iterator} over the current PcesFiles.
+     *
+     * @return the {@code Iterator}
+     */
+    @NonNull
+    Iterator<PcesFile> pcesFiles();
+
+    /**
+     * Returns a {@link PcesMultiFileIterator} for all events stored in current PcesFiles.
+     *
+     * @return the {@link PcesMultiFileIterator}
+     */
+    @NonNull
+    PcesMultiFileIterator pcesEvents();
+}

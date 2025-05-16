@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeFilesResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 
@@ -91,4 +92,12 @@ public interface Node {
      */
     @NonNull
     SingleNodeStatusProgression getStatusProgression();
+
+    /**
+     * Gets files created by the node that store state information.
+     *
+     * @return the files created by the node
+     */
+    @NonNull
+    SingleNodeFilesResult getFilesResult();
 }

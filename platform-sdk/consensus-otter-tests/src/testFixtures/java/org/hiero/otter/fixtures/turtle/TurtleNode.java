@@ -4,8 +4,10 @@ package org.hiero.otter.fixtures.turtle;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
@@ -28,6 +30,8 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.event.preconsensus.PcesConfig;
+import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -41,6 +45,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -48,7 +53,8 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
-import org.assertj.core.api.Assertions;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -60,10 +66,12 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeFilesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeFilesResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
@@ -99,6 +107,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private final PlatformStatusChangeListener platformStatusChangeListener;
 
     private DeterministicWiringModel model;
+    private PlatformContext platformContext;
     private Platform platform;
     private PlatformWiring platformWiring;
     private LifeCycle lifeCycle = LifeCycle.INIT;
@@ -192,6 +201,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
+            checkLifeCycle(LifeCycle.INIT, "Node has not been started previously.");
             checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
@@ -257,6 +267,34 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @NonNull
     public SingleNodeStatusProgression getStatusProgression() {
         return resultsCollector.getStatusProgression();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeFilesResult getFilesResult() {
+        checkLifeCycle(LifeCycle.INIT, "Node has not been started yet.");
+
+        final Configuration configuration = platformContext.getConfiguration();
+        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
+        final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
+        final AncientMode ancientMode = eventConfig.getAncientMode();
+
+        final PcesFileTracker pcesFileTracker;
+        try {
+            final Path databaseDirectory = getDatabaseDirectory(platformContext, selfId);
+
+            // TODO: This does not work currently, because we have two PcesFiles with the sequence number 0
+            //            pcesFileTracker = PcesFileReader.readFilesFromDisk(
+            //                    platformContext, databaseDirectory, 0L, pcesConfig.permitGaps(), ancientMode);
+            pcesFileTracker = new PcesFileTracker(ancientMode);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        return new SingleNodeFilesResultImpl(selfId, pcesFileTracker, ancientMode);
     }
 
     /**
@@ -344,17 +382,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
         setupGlobalMetrics(currentConfiguration);
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(currentConfiguration)
-                .build();
-
-        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
-                .withDeterministicModeEnabled(true)
-                .withUncaughtExceptionHandler((t, e) -> {
-                    Assertions.fail("Unexpected exception in wiring framework", e);
-                })
-                .build();
         final SemanticVersion version =
                 currentConfiguration.getValue(TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class);
         assert version != null; // avoids a warning, not really needed as there is always a default
@@ -365,6 +392,19 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
+
+        platformContext = TestPlatformContextBuilder.create()
+                .withTime(time)
+                .withConfiguration(currentConfiguration)
+                .withFileSystemManager(fileSystemManager)
+                .withMetrics(metrics)
+                .withRecycleBin(recycleBin)
+                .build();
+
+        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
+                .withDeterministicModeEnabled(true)
+                .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                .build();
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
