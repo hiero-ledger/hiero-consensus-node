@@ -165,7 +165,10 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).payingWith(GENESIS).via(CREATION).exposingNumTo(outerCreatorNum::set),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .via(CREATION)
+                        .exposingContractIdTo(id -> outerCreatorNum.set(id.getContractNum())),
                 contractCall(contract, "startChain", msg).gas(4_000_000).via(noisyTxn),
                 sourcing(() -> {
                     final var idOfFirstThreeLogs = String.valueOf(outerCreatorNum.get() + 1);
@@ -197,10 +200,10 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).payingWith(GENESIS).via(CREATION).exposingNumTo(num -> {
-                    factoryEntityNum.set(num);
-                    factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num));
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .via(CREATION)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 sourcing(
                         () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
                                 .exposingTypedResultsTo(results -> {
@@ -239,9 +242,9 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).payingWith(GENESIS).via(creation).exposingNumTo(num -> {
-                    factoryEntityNum.set(num);
-                    factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num));
+                contractCreate(contract).payingWith(GENESIS).via(creation).exposingContractIdTo(id -> {
+                    factoryEntityNum.set(id.getContractNum());
+                    factoryEvmAddress.set(asHexedSolidityAddress(id));
                 }),
                 sourcing(
                         () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
@@ -376,13 +379,8 @@ public class Create2OperationSuite {
                                 .status(SUCCESS))),
                 withOpContext((spec, opLog) -> {
                     final var parentId = spec.registry().getContractId(contract);
-                    final var childId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentId.getContractNum() + 2L)
-                            .build();
-                    mirrorLiteralId.set(String.valueOf(childId.getContractNum()));
-                    expectedMirrorAddress.set(hex(asSolidityAddress(childId)));
+                    mirrorLiteralId.set(String.valueOf(parentId.getContractNum() + 2L));
+                    expectedMirrorAddress.set(hex(asSolidityAddress(spec, parentId.getContractNum() + 2L)));
                 }),
                 sourcing(() -> getContractBytecode(mirrorLiteralId.get()).exposingBytecodeTo(bytecodeFromMirror::set)),
                 // https://github.com/hashgraph/hedera-services/issues/2874
@@ -569,7 +567,7 @@ public class Create2OperationSuite {
                         .supplyKey(multiKey),
                 mintToken(nft, List.of(ByteString.copyFromUtf8("PRICELESS"))),
                 tokenUpdate(nft)
-                        .supplyKey(spec -> aliasContractIdKey(spec.shard(), spec.realm(), userAliasAddr.get()))
+                        .supplyKey(spec -> aliasContractIdKey(spec, userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
@@ -672,7 +670,7 @@ public class Create2OperationSuite {
                 // https://github.com/hashgraph/hedera-services/issues/2876 (mint via
                 // delegatable_contract_id)
                 tokenUpdate(nft)
-                        .supplyKey(spec -> aliasDelegateContractKey(spec.shard(), spec.realm(), userAliasAddr.get()))
+                        .supplyKey(spec -> aliasDelegateContractKey(spec, userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 sourcing(() -> contractCallWithFunctionAbi(
                                 userAliasAddr.get(),
@@ -700,8 +698,7 @@ public class Create2OperationSuite {
                                             .addNftTransfers(NftTransfer.newBuilder()
                                                     .setSerialNumber(2L)
                                                     .setSenderAccountID(tt)
-                                                    .setReceiverAccountID(accountId(
-                                                            spec.shard(), spec.realm(), userMirrorAddr.get()))));
+                                                    .setReceiverAccountID(accountId(spec, userMirrorAddr.get()))));
                         })
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
                 sourcing(() -> getContractInfo(userLiteralId.get()).logged()));
@@ -964,7 +961,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 // GET BYTECODE OF THE CREATE2 CONTRACT
                 sourcing(() -> contractCallLocal(
@@ -1046,7 +1043,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1150,7 +1147,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1255,7 +1252,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1349,7 +1346,7 @@ public class Create2OperationSuite {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(NFT_INFINITE_SUPPLY_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)

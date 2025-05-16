@@ -1534,8 +1534,7 @@ public class AutoAccountCreationSuite {
                             .hasKnownStatus(SUCCESS)
                             .via("passedTxn");
 
-                    final var longZeroAddress =
-                            ByteString.copyFrom(asSolidityAddress((int) spec.shard(), spec.realm(), 5555));
+                    final var longZeroAddress = ByteString.copyFrom(asSolidityAddress(spec, 5555));
 
                     final var invalidTransferToLongZero = cryptoTransfer(
                                     tinyBarsFromTo(PAYER, longZeroAddress, ONE_HBAR))

@@ -1452,11 +1452,7 @@ public class ERCPrecompileSuite {
                                 ByteString.copyFromUtf8("I dream of silent verses"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
                 tokenAssociate(B_CIVILIAN, NF_TOKEN),
-                withOpContext((spec, opLog) -> zCivilianMirrorAddr.set(asHexedSolidityAddress(AccountID.newBuilder()
-                        .setShardNum(spec.shard())
-                        .setRealmNum(spec.realm())
-                        .setAccountNum(666_666_666L)
-                        .build()))),
+                withOpContext((spec, opLog) -> zCivilianMirrorAddr.set(asHexedSolidityAddress(spec, 666_666_666L))),
                 // --- Negative cases for approve ---
                 // * Can't approve a non-existent serial number
                 sourcing(() -> contractCall(

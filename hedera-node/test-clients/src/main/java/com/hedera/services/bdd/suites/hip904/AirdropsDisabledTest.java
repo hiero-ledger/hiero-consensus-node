@@ -167,7 +167,7 @@ public class AirdropsDisabledTest {
                         .entityMemo(ENTITY_MEMO)
                         .gas(10_000_000L)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -278,7 +278,7 @@ public class AirdropsDisabledTest {
                 .adminKey(adminKey)
                 .entityMemo(ENTITY_MEMO)
                 .via(CREATE_2_TXN)
-                .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num)));
+                .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id)));
         givenOps[4] = cryptoCreate(PARTY).maxAutomaticTokenAssociations(2);
         givenOps[5] = setIdentifiers(Optional.empty(), Optional.empty(), Optional.of(partyId), Optional.of(partyAlias));
 
@@ -482,7 +482,7 @@ public class AirdropsDisabledTest {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)

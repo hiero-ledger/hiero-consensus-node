@@ -1379,9 +1379,9 @@ public class AtomicCryptoTransferHTSSuite {
                 tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
                 cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).adminKey(DEFAULT_PAYER).exposingNumTo(num -> {
-                    whitelistedCalleeMirrorNum.set(num);
-                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num));
+                contractCreate(CONTRACT).adminKey(DEFAULT_PAYER).exposingContractIdTo(id -> {
+                    whitelistedCalleeMirrorNum.set(id.getContractNum());
+                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(id));
                 }),
                 sourcing(() -> overriding(
                         "contracts.permittedDelegateCallers", String.valueOf(whitelistedCalleeMirrorNum.get()))),
