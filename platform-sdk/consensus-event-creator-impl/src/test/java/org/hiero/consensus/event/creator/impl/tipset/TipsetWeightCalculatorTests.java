@@ -2,9 +2,10 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
+import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -35,8 +36,13 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.junit.extensions.ParamName;
+import org.hiero.junit.extensions.ParamSource;
+import org.hiero.junit.extensions.ParameterCombinationExtension;
+import org.hiero.junit.extensions.UseParameterSources;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 @DisplayName("TipsetWeightCalculator Tests")
 class TipsetWeightCalculatorTests {
@@ -47,34 +53,61 @@ class TipsetWeightCalculatorTests {
      *
      * @param creator the creator of the event
      * @param nGen    the non-deterministic generation of the event
+     * @param ancientMode the ancient mode the running test is testing
      * @return the event
      */
-    private PlatformEvent newEvent(@NonNull final Random random, @NonNull final NodeId creator, final long nGen) {
-        return new TestingEventBuilder(random)
-                .setCreatorId(creator)
-                .setNGen(nGen)
-                .setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED)
-                .build();
+    private PlatformEvent newEvent(
+            @NonNull final Random random,
+            @NonNull final NodeId creator,
+            final long nGen,
+            final AncientMode ancientMode) {
+        var builder = new TestingEventBuilder(random).setCreatorId(creator).setNGen(nGen);
+
+        if (ancientMode != AncientMode.BIRTH_ROUND_THRESHOLD) {
+            return builder.setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED).build();
+        } else {
+            return builder.setBirthRound(ROUND_FIRST).build();
+        }
     }
 
     private PlatformEvent newEvent(
             @NonNull final Random random,
             final long nGen,
             @NonNull final PlatformEvent selfParent,
-            @NonNull final List<PlatformEvent> otherParents) {
-        return new TestingEventBuilder(random)
+            @NonNull final List<PlatformEvent> otherParents,
+            final AncientMode ancientMode) {
+        var builder = new TestingEventBuilder(random)
                 .setCreatorId(selfParent.getCreatorId())
                 .setNGen(nGen)
-                .setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED)
                 .setSelfParent(selfParent)
-                .setOtherParents(otherParents)
-                .build();
+                .setOtherParents(otherParents);
+
+        if (ancientMode != AncientMode.BIRTH_ROUND_THRESHOLD) {
+            builder.setBirthRound(EventConstants.BIRTH_ROUND_UNDEFINED);
+        }
+        return builder.build();
     }
 
-    @Test
+    /**
+     *
+     * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode  {@link AncientMode#values()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values")
+    })
     @DisplayName("Basic Behavior Test")
-    void basicBehaviorTest() {
-        final Random random = getRandomPrintSeed();
+    public void basicBehaviorTest(
+            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
         final int nodeCount = 5;
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
@@ -96,8 +129,7 @@ class TipsetWeightCalculatorTests {
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker tipsetTracker =
-                new TipsetTracker(Time.getCurrent(), selfId, roster, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster, ancientMode);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessEventTracker);
@@ -113,7 +145,7 @@ class TipsetWeightCalculatorTests {
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
             } else {
-                nGen = EventConstants.FIRST_GENERATION;
+                nGen = FIRST_GENERATION;
             }
 
             // Select some nodes we'd like to be our parents.
@@ -216,12 +248,27 @@ class TipsetWeightCalculatorTests {
         }
     }
 
-    @Test
-    @DisplayName("Selfish Node Test")
-    void selfishNodeTest() {
-        final Random random = getRandomPrintSeed();
+    /**
+     *
+     * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode  {@link AncientMode#values()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values")
+    })
+    @DisplayName("Round Robin Test")
+    public void selfishNodeTest(
+            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
         final int nodeCount = 4;
-
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
                 .withWeightGenerator(WeightGenerators.BALANCED)
@@ -237,8 +284,7 @@ class TipsetWeightCalculatorTests {
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker tipsetTracker =
-                new TipsetTracker(Time.getCurrent(), nodeA, roster, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster, ancientMode);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
@@ -246,15 +292,15 @@ class TipsetWeightCalculatorTests {
         final Tipset snapshot1 = calculator.getSnapshot();
 
         // Each node creates an event.
-        final PlatformEvent eventA1 = newEvent(random, nodeA, 1);
+        final PlatformEvent eventA1 = newEvent(random, nodeA, 1, ancientMode);
         tipsetTracker.addSelfEvent(eventA1.getDescriptor(), eventA1.getAllParents());
-        final PlatformEvent eventB1 = newEvent(random, nodeB, 1);
+        final PlatformEvent eventB1 = newEvent(random, nodeB, 1, ancientMode);
         tipsetTracker.addPeerEvent(eventB1);
         childlessEventTracker.addEvent(eventB1);
-        final PlatformEvent eventC1 = newEvent(random, nodeC, 1);
+        final PlatformEvent eventC1 = newEvent(random, nodeC, 1, ancientMode);
         tipsetTracker.addPeerEvent(eventC1);
         childlessEventTracker.addEvent(eventC1);
-        final PlatformEvent eventD1 = newEvent(random, nodeD, 1);
+        final PlatformEvent eventD1 = newEvent(random, nodeD, 1, ancientMode);
         tipsetTracker.addPeerEvent(eventD1);
         childlessEventTracker.addEvent(eventD1);
 
@@ -263,15 +309,15 @@ class TipsetWeightCalculatorTests {
         assertSame(snapshot1, calculator.getSnapshot());
 
         // Each node creates another event. All nodes use all available other parents except the event from D.
-        final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1, eventC1));
+        final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1, eventC1), ancientMode);
         tipsetTracker.addSelfEvent(eventA2.getDescriptor(), eventA2.getAllParents());
-        final PlatformEvent eventB2 = newEvent(random, 2, eventB1, List.of(eventA1, eventC1));
+        final PlatformEvent eventB2 = newEvent(random, 2, eventB1, List.of(eventA1, eventC1), ancientMode);
         tipsetTracker.addPeerEvent(eventB2);
         childlessEventTracker.addEvent(eventB2);
-        final PlatformEvent eventC2 = newEvent(random, 2, eventC1, List.of(eventA1, eventB1));
+        final PlatformEvent eventC2 = newEvent(random, 2, eventC1, List.of(eventA1, eventB1), ancientMode);
         tipsetTracker.addPeerEvent(eventC2);
         childlessEventTracker.addEvent(eventC2);
-        final PlatformEvent eventD2 = newEvent(random, 2, eventD1, List.of(eventA1, eventB1, eventC1));
+        final PlatformEvent eventD2 = newEvent(random, 2, eventD1, List.of(eventA1, eventB1, eventC1), ancientMode);
         tipsetTracker.addPeerEvent(eventD2);
         childlessEventTracker.addEvent(eventD2);
 
@@ -293,15 +339,15 @@ class TipsetWeightCalculatorTests {
         assertEquals(1, calculator.getMaxSelfishnessScore());
 
         // Create another batch of events where D is bullied.
-        final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventB2, eventC2));
+        final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventB2, eventC2), ancientMode);
         tipsetTracker.addSelfEvent(eventA3.getDescriptor(), eventA3.getAllParents());
-        final PlatformEvent eventB3 = newEvent(random, 3, eventB2, List.of(eventA2, eventC2));
+        final PlatformEvent eventB3 = newEvent(random, 3, eventB2, List.of(eventA2, eventC2), ancientMode);
         tipsetTracker.addPeerEvent(eventB3);
         childlessEventTracker.addEvent(eventB3);
-        final PlatformEvent eventC3 = newEvent(random, 3, eventC2, List.of(eventA2, eventB2));
+        final PlatformEvent eventC3 = newEvent(random, 3, eventC2, List.of(eventA2, eventB2), ancientMode);
         tipsetTracker.addPeerEvent(eventC3);
         childlessEventTracker.addEvent(eventC3);
-        final PlatformEvent eventD3 = newEvent(random, 3, eventD2, List.of(eventA2, eventB2, eventC2));
+        final PlatformEvent eventD3 = newEvent(random, 3, eventD2, List.of(eventA2, eventB2, eventC2), ancientMode);
         tipsetTracker.addPeerEvent(eventD3);
         childlessEventTracker.addEvent(eventD3);
 
@@ -321,15 +367,15 @@ class TipsetWeightCalculatorTests {
         assertEquals(2, calculator.getMaxSelfishnessScore());
 
         // Create a batch of events that don't ignore D. Let's all ignore C, because C is a jerk.
-        final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventB3, eventD3));
+        final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventB3, eventD3), ancientMode);
         tipsetTracker.addSelfEvent(eventA4.getDescriptor(), eventA4.getAllParents());
-        final PlatformEvent eventB4 = newEvent(random, 4, eventB3, List.of(eventA3, eventD3));
+        final PlatformEvent eventB4 = newEvent(random, 4, eventB3, List.of(eventA3, eventD3), ancientMode);
         tipsetTracker.addPeerEvent(eventB4);
         childlessEventTracker.addEvent(eventB4);
-        final PlatformEvent eventC4 = newEvent(random, 4, eventC3, List.of(eventA3, eventB3, eventD3));
+        final PlatformEvent eventC4 = newEvent(random, 4, eventC3, List.of(eventA3, eventB3, eventD3), ancientMode);
         tipsetTracker.addPeerEvent(eventC4);
         childlessEventTracker.addEvent(eventC4);
-        final PlatformEvent eventD4 = newEvent(random, 4, eventD3, List.of(eventA3, eventB3));
+        final PlatformEvent eventD4 = newEvent(random, 4, eventD3, List.of(eventA3, eventB3), ancientMode);
         tipsetTracker.addPeerEvent(eventD4);
         childlessEventTracker.addEvent(eventD4);
 
@@ -349,12 +395,12 @@ class TipsetWeightCalculatorTests {
         assertEquals(1, calculator.getMaxSelfishnessScore());
 
         // Stop ignoring C. D stops creating events.
-        final PlatformEvent eventA5 = newEvent(random, 5, eventA4, List.of(eventB4, eventC4, eventD4));
+        final PlatformEvent eventA5 = newEvent(random, 5, eventA4, List.of(eventB4, eventC4, eventD4), ancientMode);
         tipsetTracker.addSelfEvent(eventA5.getDescriptor(), eventA5.getAllParents());
-        final PlatformEvent eventB5 = newEvent(random, 5, eventB4, List.of(eventA4, eventC4, eventD4));
+        final PlatformEvent eventB5 = newEvent(random, 5, eventB4, List.of(eventA4, eventC4, eventD4), ancientMode);
         tipsetTracker.addPeerEvent(eventB5);
         childlessEventTracker.addEvent(eventB5);
-        final PlatformEvent eventC5 = newEvent(random, 5, eventC4, List.of(eventA4, eventB4, eventD4));
+        final PlatformEvent eventC5 = newEvent(random, 5, eventC4, List.of(eventA4, eventB4, eventD4), ancientMode);
         tipsetTracker.addPeerEvent(eventC5);
         childlessEventTracker.addEvent(eventC5);
 
@@ -374,12 +420,12 @@ class TipsetWeightCalculatorTests {
 
         // D still is not creating events. Since there is no legal event from D to use as a parent, this doesn't
         // count as being selfish.
-        final PlatformEvent eventA6 = newEvent(random, 6, eventA5, List.of(eventB5, eventC5));
+        final PlatformEvent eventA6 = newEvent(random, 6, eventA5, List.of(eventB5, eventC5), ancientMode);
         tipsetTracker.addSelfEvent(eventA6.getDescriptor(), eventA6.getAllParents());
-        final PlatformEvent eventB6 = newEvent(random, 6, eventB5, List.of(eventA5, eventC5));
+        final PlatformEvent eventB6 = newEvent(random, 6, eventB5, List.of(eventA5, eventC5), ancientMode);
         tipsetTracker.addPeerEvent(eventB6);
         childlessEventTracker.addEvent(eventB6);
-        final PlatformEvent eventC6 = newEvent(random, 6, eventC5, List.of(eventA5, eventB5));
+        final PlatformEvent eventC6 = newEvent(random, 6, eventC5, List.of(eventA5, eventB5), ancientMode);
         tipsetTracker.addPeerEvent(eventC6);
         childlessEventTracker.addEvent(eventC6);
 
@@ -398,12 +444,12 @@ class TipsetWeightCalculatorTests {
         assertEquals(0, calculator.getMaxSelfishnessScore());
 
         // Rinse and repeat.
-        final PlatformEvent eventA7 = newEvent(random, 7, eventA6, List.of(eventB6, eventC6));
+        final PlatformEvent eventA7 = newEvent(random, 7, eventA6, List.of(eventB6, eventC6), ancientMode);
         tipsetTracker.addSelfEvent(eventA7.getDescriptor(), eventA7.getAllParents());
-        final PlatformEvent eventB7 = newEvent(random, 7, eventB6, List.of(eventA6, eventC6));
+        final PlatformEvent eventB7 = newEvent(random, 7, eventB6, List.of(eventA6, eventC6), ancientMode);
         tipsetTracker.addPeerEvent(eventB7);
         childlessEventTracker.addEvent(eventB7);
-        final PlatformEvent eventC7 = newEvent(random, 7, eventC6, List.of(eventA6, eventB6));
+        final PlatformEvent eventC7 = newEvent(random, 7, eventC6, List.of(eventA6, eventB6), ancientMode);
         tipsetTracker.addPeerEvent(eventC7);
         childlessEventTracker.addEvent(eventC7);
 
@@ -422,17 +468,32 @@ class TipsetWeightCalculatorTests {
         assertEquals(0, calculator.getMaxSelfishnessScore());
     }
 
-    @Test
-    @DisplayName("Zero Stake Node Test")
-    void zeroWeightNodeTest() {
-        final Random random = getRandomPrintSeed();
+    /**
+     *
+     * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode  {@link AncientMode#values()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values")
+    })
+    @DisplayName("Round Robin Test")
+    public void zeroWeightNodeTest(
+            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
         final int nodeCount = 4;
 
         Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .build();
-
         // In this test, we simulate from the perspective of node A.
         // All nodes have 1 weight except for D, which has 0 weight.
         final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
@@ -456,8 +517,7 @@ class TipsetWeightCalculatorTests {
                 TestPlatformContextBuilder.create().build();
 
         // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker builder =
-                new TipsetTracker(Time.getCurrent(), nodeA, roster, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster, ancientMode);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
@@ -465,13 +525,13 @@ class TipsetWeightCalculatorTests {
         final Tipset snapshot1 = calculator.getSnapshot();
 
         // Each node creates an event.
-        final PlatformEvent eventA1 = newEvent(random, nodeA, 1);
+        final PlatformEvent eventA1 = newEvent(random, nodeA, 1, ancientMode);
         builder.addSelfEvent(eventA1.getDescriptor(), eventA1.getAllParents());
-        final PlatformEvent eventB1 = newEvent(random, nodeB, 1);
+        final PlatformEvent eventB1 = newEvent(random, nodeB, 1, ancientMode);
         builder.addPeerEvent(eventB1);
-        final PlatformEvent eventC1 = newEvent(random, nodeC, 1);
+        final PlatformEvent eventC1 = newEvent(random, nodeC, 1, ancientMode);
         builder.addPeerEvent(eventC1);
-        final PlatformEvent eventD1 = newEvent(random, nodeD, 1);
+        final PlatformEvent eventD1 = newEvent(random, nodeD, 1, ancientMode);
         builder.addPeerEvent(eventD1);
 
         assertEquals(ZERO_ADVANCEMENT_WEIGHT, calculator.getTheoreticalAdvancementWeight(eventA1.getAllParents()));
@@ -479,7 +539,7 @@ class TipsetWeightCalculatorTests {
         assertSame(snapshot1, calculator.getSnapshot());
 
         // Create a node "on top of" B1.
-        final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1));
+        final PlatformEvent eventA2 = newEvent(random, 2, eventA1, List.of(eventB1), ancientMode);
         builder.addPeerEvent(eventA2);
         final TipsetAdvancementWeight advancement1 =
                 calculator.addEventAndGetAdvancementWeight(eventA2.getDescriptor());
@@ -491,7 +551,7 @@ class TipsetWeightCalculatorTests {
         // If we get 1 more advancement point then the snapshot will advance. But building
         // on top of a zero stake node will not contribute to this and the snapshot will not
         // advance. Build on top of node D.
-        final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventD1));
+        final PlatformEvent eventA3 = newEvent(random, 3, eventA2, List.of(eventD1), ancientMode);
         builder.addSelfEvent(eventA3.getDescriptor(), eventA3.getAllParents());
         final TipsetAdvancementWeight advancement2 =
                 calculator.addEventAndGetAdvancementWeight(eventA3.getDescriptor());
@@ -501,7 +561,7 @@ class TipsetWeightCalculatorTests {
         assertSame(snapshot1, calculator.getSnapshot());
 
         // Now, build on top of C. This should push us into the next snapshot.
-        final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventC1));
+        final PlatformEvent eventA4 = newEvent(random, 4, eventA3, List.of(eventC1), ancientMode);
         builder.addSelfEvent(eventA4.getDescriptor(), eventA4.getAllParents());
         final TipsetAdvancementWeight advancement3 =
                 calculator.addEventAndGetAdvancementWeight(eventA4.getDescriptor());
@@ -512,10 +572,26 @@ class TipsetWeightCalculatorTests {
         assertEquals(snapshot2, builder.getTipset(eventA4.getDescriptor()));
     }
 
-    @Test
-    @DisplayName("Ancient Parent Test")
-    void ancientParentTest() {
-        final Random random = getRandomPrintSeed();
+    /**
+     *
+     * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode  {@link AncientMode#values()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed"),
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values")
+    })
+    @DisplayName("Round Robin Test")
+    public void roundRobinTest(
+            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
         final int nodeCount = 4;
 
         final Roster roster = RandomRosterBuilder.create(random)
@@ -531,50 +607,66 @@ class TipsetWeightCalculatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        // FUTURE WORK: Expand test to include birth round based ancient threshold.
-        final TipsetTracker builder =
-                new TipsetTracker(Time.getCurrent(), nodeA, roster, AncientMode.GENERATION_THRESHOLD);
+        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster, ancientMode);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
-        final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
+        final TipsetWeightCalculator tipsetWeightCalculator =
+                new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
 
-        // Create generation 1 events.
-        final PlatformEvent eventA0 = newEvent(random, nodeA, 0);
-        builder.addSelfEvent(eventA0.getDescriptor(), eventA0.getAllParents());
-        final PlatformEvent eventB0 = newEvent(random, nodeB, 0);
-        builder.addPeerEvent(eventB0);
-        final PlatformEvent eventC0 = newEvent(random, nodeC, 0);
-        builder.addPeerEvent(eventC0);
-        final PlatformEvent eventD0 = newEvent(random, nodeD, 0);
-        builder.addPeerEvent(eventD0);
+        // Create first ngen events.
+        final var fistNgen = FIRST_GENERATION;
+        final PlatformEvent a0 = newEvent(random, nodeA, fistNgen, ancientMode);
+        final PlatformEvent b0 = newEvent(random, nodeB, fistNgen, ancientMode);
+        final PlatformEvent c0 = newEvent(random, nodeC, fistNgen, ancientMode);
+        final PlatformEvent d0 = newEvent(random, nodeD, fistNgen, ancientMode);
 
-        // Create some generation 1 events. A does not create an event yet.
-        final PlatformEvent eventB1 = newEvent(random, 1, eventB0, List.of(eventA0, eventC0, eventD0));
-        builder.addPeerEvent(eventB1);
-        final PlatformEvent eventC1 = newEvent(random, 1, eventC0, List.of(eventA0, eventB0, eventD0));
-        builder.addPeerEvent(eventC1);
-        final PlatformEvent eventD1 = newEvent(random, 1, eventD0, List.of(eventA0, eventB0, eventC0));
-        builder.addPeerEvent(eventD1);
+        tipsetTracker.addSelfEvent(a0.getDescriptor(), a0.getAllParents());
+        tipsetTracker.addPeerEvent(b0);
+        tipsetTracker.addPeerEvent(c0);
+        tipsetTracker.addPeerEvent(d0);
 
-        // FUTURE WORK: Change the test to use birthRound instead of generation for ancient.
+        final var nextNgen = FIRST_GENERATION + 1;
+
+        // Create some non-expired events. A does not create an event yet.
+        final PlatformEvent b1 = newEvent(random, nextNgen, b0, List.of(a0, c0, d0), ancientMode);
+        final PlatformEvent c1 = newEvent(random, nextNgen, c0, List.of(a0, b0, d0), ancientMode);
+        final PlatformEvent d1 = newEvent(random, nextNgen, d0, List.of(a0, b0, c0), ancientMode);
+        tipsetTracker.addPeerEvent(b1);
+        tipsetTracker.addPeerEvent(c1);
+        tipsetTracker.addPeerEvent(d1);
+
+        final long toExpireValue = a0.getDescriptor().getAncientIndicator(ancientMode);
+        final long willBeAncientValue = toExpireValue + 1;
+
         // Mark generation 0 as ancient.
         final EventWindow eventWindow =
-                EventWindowBuilder.generationMode().setAncientThreshold(1).build();
+                EventWindowBuilder.builder().setAncientMode(ancientMode).setAncientThreshold(1).build();
         builder.setEventWindow(eventWindow);
         childlessEventTracker.pruneOldEvents(eventWindow);
 
         // We shouldn't be able to find tipsets for ancient events.
-        assertNull(builder.getTipset(eventA0.getDescriptor()));
-        assertNull(builder.getTipset(eventB0.getDescriptor()));
-        assertNull(builder.getTipset(eventC0.getDescriptor()));
-        assertNull(builder.getTipset(eventD0.getDescriptor()));
+        assertNull(tipsetTracker.getTipset(a0.getDescriptor()));
+        assertNull(tipsetTracker.getTipset(b0.getDescriptor()));
+        assertNull(tipsetTracker.getTipset(c0.getDescriptor()));
+        assertNull(tipsetTracker.getTipset(d0.getDescriptor()));
 
-        // Including generation 1 events as parents shouldn't cause us to throw. (Angry log messages are ok).
+        // Including expired events as parents shouldn't cause us to throw. (Angry log messages are ok).
         assertDoesNotThrow(() -> {
-            final PlatformEvent eventA1 = newEvent(random, 1, eventA0, List.of(eventB0, eventC0, eventD0));
-            calculator.getTheoreticalAdvancementWeight(eventA1.getAllParents());
-            builder.addSelfEvent(eventA1.getDescriptor(), eventA1.getAllParents());
-            calculator.addEventAndGetAdvancementWeight(eventA1.getDescriptor());
+            TestingEventBuilder a1Builder = new TestingEventBuilder(random)
+                    .setCreatorId(a0.getCreatorId())
+                    .setNGen(nextNgen)
+                    .setSelfParent(a0)
+                    .setOtherParents(List.of(b0, c0, d0));
+            if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
+                // set the b-round to avoid cases where the builder sets it to a lower value
+                // based on its parent's b-round and causing the tipset of this event to
+                // be ignored by the tipset creator
+                a1Builder.setBirthRound(willBeAncientValue);
+            }
+            PlatformEvent a1 = a1Builder.build();
+
+            tipsetWeightCalculator.getTheoreticalAdvancementWeight(a1.getAllParents());
+            tipsetTracker.addSelfEvent(a1.getDescriptor(), a1.getAllParents());
+            tipsetWeightCalculator.addEventAndGetAdvancementWeight(a1.getDescriptor());
         });
     }
 }
