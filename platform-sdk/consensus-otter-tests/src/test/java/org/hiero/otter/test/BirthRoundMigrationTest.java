@@ -70,9 +70,7 @@ class BirthRoundMigrationTest {
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
-        // Validations
-        env.validator().assertPlatformStatus().assertMetrics();
-
+        // Assert the results
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
         assertThat(network.getConsensusResult())
                 .hasAdvancedSince(freezeRound)

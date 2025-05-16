@@ -97,6 +97,7 @@ public interface Node {
      * Gets files created by the node that store state information.
      *
      * @return the files created by the node
+     * @throws java.io.UncheckedIOException if an I/O error occurs
      */
     @NonNull
     SingleNodeFilesResult getFilesResult();
