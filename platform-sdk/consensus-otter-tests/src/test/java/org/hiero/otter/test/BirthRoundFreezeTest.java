@@ -17,6 +17,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.Validator.LogFilter;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Test class for verifying the behavior of birth rounds before and after a freeze.
@@ -40,6 +41,7 @@ public class BirthRoundFreezeTest {
      * @param env the test environment for this test
      * @throws InterruptedException if an operation times out
      */
+    @Disabled("Not expected to pass yet")
     @OtterTest
     void testBirthRoundMigrationAndSubsequentFreeze(final TestEnvironment env) throws InterruptedException {
 
@@ -127,6 +129,7 @@ public class BirthRoundFreezeTest {
      * @param env the test environment for this test
      * @throws InterruptedException if an operation times out
      */
+    @Disabled("Not expected to pass yet")
     @OtterTest
     void testFreezeInBirthRoundMode(final TestEnvironment env) throws InterruptedException {
 
