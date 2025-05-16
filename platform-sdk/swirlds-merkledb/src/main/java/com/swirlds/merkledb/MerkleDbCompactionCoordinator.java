@@ -17,6 +17,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -36,8 +37,7 @@ import org.apache.logging.log4j.Logger;
  * The number of threads in the pool is defined by {@link MerkleDbConfig#compactionThreads()} property.
  *
  */
-@SuppressWarnings("rawtypes")
-class MerkleDbCompactionCoordinator {
+public class MerkleDbCompactionCoordinator {
 
     private static final Logger logger = LogManager.getLogger(MerkleDbCompactionCoordinator.class);
 
@@ -140,7 +140,7 @@ class MerkleDbCompactionCoordinator {
     /**
      * Compacts the object key to path store asynchronously if it's present.
      */
-    void compactDiskStoreForKeyToPathAsync() {
+    public void compactDiskStoreForKeyToPathAsync() {
         if (objectKeyToPathTask == null) {
             return;
         }
@@ -150,7 +150,7 @@ class MerkleDbCompactionCoordinator {
     /**
      * Compacts the hash store asynchronously if it's present.
      */
-    void compactDiskStoreForHashesAsync() {
+    public void compactDiskStoreForHashesAsync() {
         if (hashesStoreDiskTask == null) {
             return;
         }
@@ -160,7 +160,7 @@ class MerkleDbCompactionCoordinator {
     /**
      * Compacts the path to key-value store asynchronously.
      */
-    void compactPathToKeyValueAsync() {
+    public void compactPathToKeyValueAsync() {
         submitCompactionTaskForExecution(pathToKeyValueTask);
     }
 
@@ -255,6 +255,12 @@ class MerkleDbCompactionCoordinator {
 
     boolean isCompactionEnabled() {
         return compactionEnabled.get();
+    }
+
+    public void waitForCurrrentCompactionToComplete() throws ExecutionException, InterruptedException {
+        for (Future<?> future : compactionFuturesByName.values()) {
+            future.get();
+        }
     }
 
     /**
