@@ -46,6 +46,10 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * @param indexRebuildingEnforced
  * 		Configuration used to avoid reading stored indexes from a saved state and enforce rebuilding those indexes from
  * 		data files.
+ * @param goodAverageBucketEntryCount
+ *      Target average number of entries in HalfDiskHashMap buckets. This number is used to calculate the number
+ *      of buckets to allocate based on projected virtual map size, and also to check if it's time to double the
+ *      number of HalfDiskHashMap buckets.
  * @param tablesToRepairHdhm
  *      Comma-delimited list of data source names, may be empty. When a MerkleDb data source with a name from the
  *      list is loaded from a snapshot, its key to path map will be rebuilt from path to KV data files. Note that
@@ -80,6 +84,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
         @ConfigProperty(defaultValue = "false") boolean reconnectKeyLeakMitigationEnabled,
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
+        @ConfigProperty(defaultValue = "32") int goodAverageBucketEntryCount,
         @ConfigProperty(defaultValue = "") String tablesToRepairHdhm,
         @ConfigProperty(defaultValue = "75.0") double percentHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,

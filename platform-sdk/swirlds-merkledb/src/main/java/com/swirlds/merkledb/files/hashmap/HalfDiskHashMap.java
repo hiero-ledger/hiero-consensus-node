@@ -75,7 +75,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * starts to exceed the number of buckets times this average number of entries, the
      * map is resized by doubling the number of buckets.
      */
-    private static final long GOOD_AVERAGE_BUCKET_ENTRY_COUNT = 32;
+    private final int goodAverageBucketEntryCount;
 
     /** The limit on the number of concurrent read tasks in {@code endWriting()} */
     private static final int MAX_IN_FLIGHT = 1024;
@@ -208,10 +208,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             throws IOException {
         this.config = requireNonNull(configuration);
         final MerkleDbConfig merkleDbConfig = this.config.getConfigData(MerkleDbConfig.class);
+        this.goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, GOOD_AVERAGE_BUCKET_ENTRY_COUNT times smaller than the number of keys. To
         // be on the safe side, double that amount and use as a hard limit for bucket index size
-        final long bucketIndexCapacity = merkleDbConfig.maxNumOfKeys() * 2 / GOOD_AVERAGE_BUCKET_ENTRY_COUNT;
+        final long bucketIndexCapacity = merkleDbConfig.maxNumOfKeys() * 2 / goodAverageBucketEntryCount;
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
         // create bucket pool
@@ -274,7 +275,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // create store dir
             Files.createDirectories(storeDir);
             // calculate number of entries we can store in a disk page
-            final int minimumBuckets = (int) (initialCapacity / GOOD_AVERAGE_BUCKET_ENTRY_COUNT);
+            final int minimumBuckets = (int) (initialCapacity / goodAverageBucketEntryCount);
             // numOfBuckets is the nearest power of two greater than minimumBuckets with a min of 2
             setNumberOfBuckets(Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2));
             // create new index
@@ -886,7 +887,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /**
      * Check if this map should be resized, given the new virtual map size. If the new map size
-     * exceeds 80% of the current number of buckets times {@link #GOOD_AVERAGE_BUCKET_ENTRY_COUNT},
+     * exceeds 80% of the current number of buckets times {@link #goodAverageBucketEntryCount},
      * the map is resized by doubling the number of buckets.
      *
      * @param firstLeafPath The first leaf virtual path
@@ -894,7 +895,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public void resizeIfNeeded(final long firstLeafPath, final long lastLeafPath) {
         final long currentSize = lastLeafPath - firstLeafPath + 1;
-        if (currentSize / numOfBuckets.get() <= GOOD_AVERAGE_BUCKET_ENTRY_COUNT * 80 / 100) {
+        if (currentSize / numOfBuckets.get() <= goodAverageBucketEntryCount * 80 / 100) {
             // No need to resize yet
             return;
         }
@@ -928,10 +929,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 """
                         HalfDiskHashMap Stats {
                         	numOfBuckets = {}
-                        	GOOD_AVERAGE_BUCKET_ENTRY_COUNT = {}
+                        	goodAverageBucketEntryCount = {}
                         }""",
                 numOfBuckets,
-                GOOD_AVERAGE_BUCKET_ENTRY_COUNT);
+                goodAverageBucketEntryCount);
     }
 
     public DataFileCollection getFileCollection() {
@@ -952,6 +953,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         numOfBuckets.set(newValue);
         final int trailingZeroes = Integer.numberOfTrailingZeros(newValue);
         bucketMaskBits.set(trailingZeroes);
+    }
+
+    // For testing purposes
+    int getNumOfBuckets() {
+        return numOfBuckets.get();
     }
 
     /**
