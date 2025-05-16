@@ -187,7 +187,27 @@ public interface HandleContext {
      * @param amount the amount to charge
      * @return true if the entire amount was successfully charged, false otherwise
      */
-    boolean tryToChargePayer(long amount);
+    default boolean tryToChargePayer(final long amount) {
+        return tryToCharge(payer(), amount);
+    }
+
+    /**
+     * Tries to charge the requested account in this context the given amount of tinybar,
+     * distributing the fees proportionally to the active collection accounts.
+     * @param amount the amount to charge
+     * @return true if the entire amount was successfully charged, false otherwise
+     */
+    boolean tryToCharge(AccountID accountId, long amount);
+
+    /**
+     * Tries to refund the requested account in this context the given amount of tinybar,
+     * reclaiming the fees proportionally from the active collection accounts. This is
+     * a best effort operation, and in some extremely unusual edge cases (like the fee
+     * collection accounts themselves being debited in the transaction), may not refund
+     * the full amount.
+     * @param amount the amount to refund.
+     */
+    void refundBestEffort(AccountID accountId, long amount);
 
     /**
      * Returns the current {@link Configuration} for the node.

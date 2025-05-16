@@ -67,9 +67,9 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, feesOnlyUpdater, context, VERSION_030, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_030, tracer, config);
 
-        verify(v30processor).processTransaction(transaction, worldUpdater, feesOnlyUpdater, context, tracer, config);
+        verify(v30processor).processTransaction(transaction, worldUpdater, context, tracer, config);
     }
 
     @Test
@@ -77,9 +77,9 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, feesOnlyUpdater, context, VERSION_034, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_034, tracer, config);
 
-        verify(v34processor).processTransaction(transaction, worldUpdater, feesOnlyUpdater, context, tracer, config);
+        verify(v34processor).processTransaction(transaction, worldUpdater, context, tracer, config);
     }
 
     @Test
@@ -87,8 +87,8 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, feesOnlyUpdater, context, VERSION_038, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_038, tracer, config);
 
-        verify(v38processor).processTransaction(transaction, worldUpdater, feesOnlyUpdater, context, tracer, config);
+        verify(v38processor).processTransaction(transaction, worldUpdater, context, tracer, config);
     }
 }

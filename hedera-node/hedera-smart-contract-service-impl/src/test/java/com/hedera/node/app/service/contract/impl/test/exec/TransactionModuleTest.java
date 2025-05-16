@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -39,13 +38,11 @@ import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.Fees;
@@ -111,16 +108,6 @@ class TransactionModuleTest {
     @Test
     void createsEvmActionTracer() {
         assertInstanceOf(EvmActionTracer.class, provideEvmActionTracer());
-    }
-
-    @Test
-    void feesOnlyUpdaterIsProxyUpdater() {
-        final var enhancement =
-                new HederaWorldUpdater.Enhancement(hederaOperations, nativeOperations, systemContractOperations);
-        assertInstanceOf(
-                ProxyWorldUpdater.class,
-                TransactionModule.provideFeesOnlyUpdater(enhancement, factory).get());
-        verify(hederaOperations).begin();
     }
 
     @Test

@@ -70,9 +70,6 @@ class ProxyWorldUpdaterTest {
     private static final Address OTHER_EVM_ADDRESS =
             Address.fromHexString("0x1239123912391239123912391239123912391239");
     private static final Address ADDRESS_6 = Address.fromHexString("0x6");
-    private static final AccountID ACCOUNT_ID_6 = AccountID.newBuilder()
-            .accountNum(ADDRESS_6.toBigInteger().longValueExact())
-            .build();
 
     @Mock
     private Account anImmutableAccount;
@@ -118,10 +115,10 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void collectingAndRefundingFeesDelegate() {
-        subject.collectFee(RELAYER_ID, 1L);
-        subject.refundFee(SENDER_ID, 1L);
-        verify(hederaOperations).collectFee(RELAYER_ID, 1L);
-        verify(hederaOperations).refundFee(SENDER_ID, 1L);
+        subject.collectGasFee(RELAYER_ID, 1L, false);
+        subject.refundGasFee(SENDER_ID, 1L);
+        verify(hederaOperations).collectGasFee(RELAYER_ID, 1L, false);
+        verify(hederaOperations).refundGasFee(SENDER_ID, 1L);
     }
 
     @Test
