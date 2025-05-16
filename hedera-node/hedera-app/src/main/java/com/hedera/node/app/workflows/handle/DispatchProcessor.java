@@ -148,15 +148,9 @@ public class DispatchProcessor {
             }
             handleSystemUpdates(dispatch);
         } catch (HandleException e) {
-            logger.debug("Transaction failed handle", e);
-            // In case of a ContractCall when it reverts, the gas charged should not be rolled back
-            rollback(e.shouldRollbackStack(), e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
-            if (e.shouldRollbackStack()) {
-                chargePayer(dispatch, validation, false);
-                e.maybeReplayFees(dispatch);
-            }
-            // Since there is no easy way to say how much work was done in the failed dispatch,
-            // and current throttling is very rough-grained, we just return USER_TRANSACTION here
+            rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
+            chargePayer(dispatch, validation, false);
+            e.maybeReplayFees(dispatch);
         } catch (final ThrottleException e) {
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
@@ -206,7 +200,7 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final ResponseCodeEnum status) {
-        rollback(true, status, dispatch.stack(), dispatch.streamBuilder());
+        rollback(status, dispatch.stack(), dispatch.streamBuilder());
         chargePayer(dispatch, validation, true);
         dispatchUsageManager.trackFeePayments(dispatch);
     }
@@ -257,21 +251,15 @@ public class DispatchProcessor {
 
     /**
      * Rolls back the stack and sets the status of the transaction in case of a failure.
-     *
-     * @param rollbackStack whether to rollback the stack. Will be false when the failure is due to a
-     *                      {@link HandleException} that is due to a contract call revert.
      * @param status        the status to set
      * @param stack         the save point stack to rollback
      */
     private void rollback(
-            final boolean rollbackStack,
             @NonNull final ResponseCodeEnum status,
             @NonNull final SavepointStackImpl stack,
             @NonNull final StreamBuilder builder) {
         builder.status(status);
-        if (rollbackStack) {
-            stack.rollbackFullStack();
-        }
+        stack.rollbackFullStack();
     }
 
     /**

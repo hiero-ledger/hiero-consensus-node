@@ -676,6 +676,7 @@ public class PlatformWiring {
             @NonNull final StateSignatureCollector stateSignatureCollector,
             @NonNull final EventWindowManager eventWindowManager,
             @Nullable final BirthRoundMigrationShim birthRoundMigrationShim,
+            @Nullable final InlinePcesWriter inlinePcesWriter,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController,
@@ -691,7 +692,11 @@ public class PlatformWiring {
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
         pcesReplayerWiring.bind(pcesReplayer);
-        pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
+        if (inlinePcesWriter != null) {
+            pcesInlineWriterWiring.bind(inlinePcesWriter);
+        } else {
+            pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
+        }
         eventCreationManagerWiring.bind(builder::buildEventCreationManager);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
