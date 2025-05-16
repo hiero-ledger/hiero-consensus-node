@@ -34,7 +34,6 @@ import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -53,7 +52,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
-import java.util.function.Supplier;
 
 @Module(includes = {TransactionConfigModule.class, TransactionInitialStateModule.class})
 public interface TransactionModule {
@@ -179,16 +177,6 @@ public interface TransactionModule {
                 systemContractGasCalculator,
                 context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class),
                 pendingCreationMetadataRef);
-    }
-
-    @Provides
-    @TransactionScope
-    static Supplier<HederaWorldUpdater> provideFeesOnlyUpdater(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement, @NonNull final EvmFrameStateFactory factory) {
-        return () -> {
-            enhancement.operations().begin();
-            return new ProxyWorldUpdater(enhancement, requireNonNull(factory), null);
-        };
     }
 
     @Provides
