@@ -66,6 +66,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -100,7 +101,6 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -265,8 +265,7 @@ public class ContractCreateSuite {
 
         return hapiTest(uploadInitCode(contract), contractCreate(contract).balance(666), withOpContext((spec, log) -> {
             Object[] donationArgs = new Object[] {
-                new BigInteger(HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), 666666L)),
-                "Hey, Ma!"
+                new BigInteger(asSolidityAddress((int) spec.shard(), spec.realm(), 666666L)), "Hey, Ma!"
             };
             final var callOp = contractCall(contract, "donate", donationArgs).hasKnownStatus(CONTRACT_REVERT_EXECUTED);
             allRunFor(spec, callOp);
@@ -594,10 +593,10 @@ public class ContractCreateSuite {
                     final var callOP = contractCall(
                             sendInternalAndDelegateContract,
                             "sendRepeatedlyTo",
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), justSendContractNum.get())),
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
+                            new BigInteger(
+                                    asSolidityAddress((int) spec.shard(), spec.realm(), justSendContractNum.get())),
+                            new BigInteger(
+                                    asSolidityAddress((int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
                             BigInteger.valueOf(totalToSend / 2));
                     allRunFor(spec, callOP);
                 }),
@@ -609,10 +608,10 @@ public class ContractCreateSuite {
                     final var callOp = contractCall(
                             sendInternalAndDelegateContract,
                             "sendRepeatedlyTo",
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), justSendContractNum.get())),
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
+                            new BigInteger(
+                                    asSolidityAddress((int) spec.shard(), spec.realm(), justSendContractNum.get())),
+                            new BigInteger(
+                                    asSolidityAddress((int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
                             BigInteger.valueOf(totalToSend / 2));
                     allRunFor(spec, callOp);
                 }),
