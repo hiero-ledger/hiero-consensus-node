@@ -116,6 +116,12 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because the intake counter is too high");
     private final CountPerSecond doNotSyncIntakeCounter;
 
+    private static final CountPerSecond.Config CHATTER_EVENTS_SENT_COUNTER_CONFIG = new CountPerSecond.Config(
+            PLATFORM_CATEGORY, "chatterEventsSent")
+            .withUnit("hz")
+            .withDescription("Number of times per second event was sent over chatter to remote nodes");
+    private final CountPerSecond chatterEventsSentCounter;
+
     private final RunningAverageMetric tipsPerSync;
 
     private final AverageStat syncIndicatorDiff;
@@ -157,6 +163,7 @@ public class SyncMetrics {
         doNotSyncFallenBehind = new CountPerSecond(metrics, DO_NOT_SYNC_FALLEN_BEHIND_CONFIG);
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
+        chatterEventsSentCounter = new CountPerSecond(metrics, CHATTER_EVENTS_SENT_COUNTER_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -409,5 +416,9 @@ public class SyncMetrics {
      */
     public void doNotSyncIntakeCounter() {
         doNotSyncIntakeCounter.count();
+    }
+
+    public void chatterEventSent() {
+        chatterEventsSentCounter.count();
     }
 }

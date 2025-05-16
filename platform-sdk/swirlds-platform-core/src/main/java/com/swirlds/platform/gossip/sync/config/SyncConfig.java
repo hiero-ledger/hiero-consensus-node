@@ -56,5 +56,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
         @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
-        @ConfigProperty(defaultValue = "10ms") Duration syncPeriod,
-        @ConfigProperty(defaultValue = "false") boolean chatter) {}
+        @ConfigProperty(defaultValue = "250ms") Duration syncPeriod,
+        @ConfigProperty(defaultValue = "true") boolean chatter) {}

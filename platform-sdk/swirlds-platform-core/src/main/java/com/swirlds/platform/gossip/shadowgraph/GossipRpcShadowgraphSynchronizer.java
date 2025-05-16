@@ -99,6 +99,7 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         if (syncConfig.chatter() && selfId.equals(platformEvent.getCreatorId())) {
             final GossipEvent gossipEvent = platformEvent.getGossipEvent();
             allConversations.forEach(conversation -> conversation.broadcastEvent(gossipEvent));
+            syncMetrics.chatterEventSent();
         }
     }
 
@@ -188,6 +189,7 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
             sender.sendEvents(
                     sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
             sender.sendEndOfEvents().thenRun(this::finishedSendingEvents);
+            syncMetrics.syncDone(new SyncResult(false,otherNodeId,0,sendList.size()));
 
             //            syncMetrics.syncDone(
             //                    new SyncResult(connection.isOutbound(), connection.getOtherId(), eventsRead,
@@ -218,9 +220,16 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         }
 
         public void possiblyStartSync() {
-            if (!syncCooldownComplete() || remoteFallenBehind || remoteStillSendingEvents) {
-                // logger.info(LogMarker.RECONNECT.getMarker(), "Not starting sync {} {}", remoteFallenBehind,
-                //                        remoteStillSendingEvents);
+            if (!syncCooldownComplete()) {
+                syncMetrics.doNotSyncCooldown();
+                return;
+            }
+
+            if (remoteFallenBehind) {
+                return;
+            }
+
+            if ( remoteStillSendingEvents) {
                 return;
             }
 
@@ -230,16 +239,14 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
             }
 
             if (this.mySyncData == null) {
-                //                logger.info(LogMarker.RECONNECT.getMarker(), "Started sync with {}", otherNodeId);
                 sendSyncData();
                 timing.setTimePoint(1);
             } else {
-                //                logger.info(LogMarker.RECONNECT.getMarker(), "Already sent sync to {}", otherNodeId);
+
             }
         }
 
         private void sendSyncData() {
-            // logger.info(SYNC_INFO.getMarker(), "Sending sync data");
             this.shadowWindow = shadowGraph.reserve();
             timing.start();
             this.myTips = getTips();
@@ -247,7 +254,7 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
                     myTips.stream().map(ShadowEvent::getEventBaseHash).collect(Collectors.toList());
             this.mySyncData = new SyncData(this.shadowWindow.getEventWindow(), tipHashes);
             sender.sendSyncData(this.mySyncData);
-            // logger.info(SYNC_INFO.getMarker(), "Sent sync data");
+            syncMetrics.outgoingSyncRequestSent();
         }
 
         private void sendKnownTips() {
