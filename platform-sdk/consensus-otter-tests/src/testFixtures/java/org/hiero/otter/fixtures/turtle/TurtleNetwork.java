@@ -174,8 +174,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         log.info("Preparing upgrade...");
 
         log.debug("Sending TurtleFreezeTransaction transaction...");
-        final TurtleTransaction freezeTransaction =
-                TransactionFactory.createFreezeTransaction(timeManager.time().now());
+        final TurtleTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
+                timeManager.time().now().plusSeconds(5));
         nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
 
         log.debug("Waiting for nodes to freeze...");
