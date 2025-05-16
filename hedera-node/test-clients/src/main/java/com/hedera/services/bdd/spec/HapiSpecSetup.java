@@ -60,7 +60,7 @@ public class HapiSpecSetup {
             DEFAULT_PROPERTY_SOURCE =
                     inPriorityOrder(asSources(Stream.of(Stream.of(sources), Stream.of(BASE_DEFAULT_PROPERTY_SOURCE))
                             .flatMap(Function.identity())
-                            .toArray(n -> new Object[n])));
+                            .toArray(Object[]::new)));
         }
         return DEFAULT_PROPERTY_SOURCE;
     }
@@ -569,18 +569,11 @@ public class HapiSpecSetup {
     }
 
     public boolean getConfigTLS() {
-        boolean useTls = false;
-        switch (this.tls()) {
-            case ON:
-                useTls = Boolean.TRUE;
-                break;
-            case OFF:
-                useTls = Boolean.FALSE;
-                break;
-            case ALTERNATE:
-                useTls = r.nextBoolean();
-        }
-        return useTls;
+        return switch (this.tls()) {
+            case ON -> Boolean.TRUE;
+            case OFF -> Boolean.FALSE;
+            case ALTERNATE -> r.nextBoolean();
+        };
     }
 
     TxnProtoStructure txnProtoStructure() {
