@@ -197,6 +197,11 @@ public class RecordStreamBuilder
     private TokenType tokenType;
     private HederaFunctionality function;
 
+    /**
+     * ops duration used by the contract transaction
+     */
+    private long opsDuration;
+
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final TransactionCustomizer customizer,
@@ -795,6 +800,11 @@ public class RecordStreamBuilder
         return this.contractFunctionResult.gasUsed();
     }
 
+    @Override
+    public long getOpsDurationForContractTxn() {
+        return opsDuration;
+    }
+
     /**
      * Sets the receipt accountID.
      *
@@ -1055,6 +1065,12 @@ public class RecordStreamBuilder
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
+        return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
+        this.opsDuration = opsDuration;
         return this;
     }
 

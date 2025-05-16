@@ -8,8 +8,10 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VE
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_050;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_051;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_062;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.HEDERA_OPS_DURATION;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV034;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV038;
@@ -30,6 +32,7 @@ import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v062.V062Module;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -76,6 +79,16 @@ public interface ContractServiceModule {
     @Singleton
     static EvmConfiguration provideEvmConfiguration() {
         return new EvmConfiguration(EvmConfiguration.DEFAULT.jumpDestCacheWeightKB(), JOURNALED);
+    }
+
+    @Provides
+    @Singleton
+    static HederaOpsDuration provideHederaOpsDuration() {
+        var hederaOpsDuration = new HederaOpsDuration(
+                () -> HederaOpsDuration.class.getClassLoader().getResourceAsStream(HEDERA_OPS_DURATION),
+                new ObjectMapper());
+        hederaOpsDuration.loadOpsDuration();
+        return hederaOpsDuration;
     }
 
     /**

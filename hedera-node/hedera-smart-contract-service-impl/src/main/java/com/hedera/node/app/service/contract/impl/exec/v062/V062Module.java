@@ -3,11 +3,9 @@ package com.hedera.node.app.service.contract.impl.exec.v062;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaGasSchedule.HEDERA_GAS_SCHEDULE;
 import static org.hyperledger.besu.evm.MainnetEVMs.registerCancunOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV062;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
@@ -38,7 +36,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
-import com.hedera.node.app.service.contract.impl.hevm.HederaGasSchedule;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -116,8 +114,10 @@ public interface V062Module {
             @ServicesV062 @NonNull final FeatureFlags featureFlags,
             @ServicesV062 @NonNull final AddressChecks addressChecks,
             @ServicesV062 @NonNull final PrecompileContractRegistry registry,
-            @NonNull final Map<Address, HederaSystemContract> systemContracts) {
-        return new CustomMessageCallProcessor(evm, featureFlags, registry, addressChecks, systemContracts);
+            @NonNull final Map<Address, HederaSystemContract> systemContracts,
+            @NonNull final HederaOpsDuration hederaOpsDuration) {
+        return new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration);
     }
 
     @Provides
@@ -127,25 +127,18 @@ public interface V062Module {
             @ServicesV062 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
-            @CustomOps @NonNull final Set<Operation> customOps) {
+            @CustomOps @NonNull final Set<Operation> customOps,
+            @NonNull final HederaOpsDuration hederaOpsDuration) {
 
         oneTimeEVMModuleInitialization();
 
-        // Use Cancun EVM with 0.50 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
         registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        final var hederaGasSchedule = new HederaGasSchedule(
-                () -> HederaGasSchedule.class.getClassLoader().getResourceAsStream(HEDERA_GAS_SCHEDULE),
-                new ObjectMapper());
         // Create a return a custom HederaEVM instance
         return new HederaEVM(
-                operationRegistry,
-                gasCalculator,
-                evmConfiguration,
-                EvmSpecVersion.CANCUN,
-                hederaGasSchedule.getGasSchedule());
+                operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN, hederaOpsDuration);
     }
 
     @Provides
