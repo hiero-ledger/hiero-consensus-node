@@ -17,7 +17,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.Validator.LogFilter;
 import org.junit.jupiter.api.Disabled;
 
 /**
@@ -96,10 +95,9 @@ public class BirthRoundFreezeTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator()
-                .assertPlatformStatus()
-                .assertLogs(LogFilter.maxLogLevel(WARN))
-                .assertMetrics();
+        env.validator().assertPlatformStatus().assertMetrics();
+
+        assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResult())
                 .hasAdvancedSince(freezeRound)
@@ -165,10 +163,9 @@ public class BirthRoundFreezeTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        env.validator()
-                .assertPlatformStatus()
-                .assertLogs(LogFilter.maxLogLevel(WARN))
-                .assertMetrics();
+        env.validator().assertPlatformStatus().assertMetrics();
+
+        assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResult())
                 .hasAdvancedSince(freezeRound)
