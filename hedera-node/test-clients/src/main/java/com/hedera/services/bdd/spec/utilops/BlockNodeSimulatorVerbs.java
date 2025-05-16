@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.hiero.block.api.protoc.PublishStreamResponseCode;
 
 /**
  * Utility verbs for interacting with block node simulators.

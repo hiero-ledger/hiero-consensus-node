@@ -2,12 +2,6 @@
 package com.hedera.services.bdd.junit.hedera.simulator;
 
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
-import com.hedera.hapi.block.protoc.PublishStreamResponse.EndOfStream;
-import com.hedera.hapi.block.protoc.PublishStreamResponse.ResendBlock;
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import com.hedera.hapi.block.stream.protoc.BlockItem;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -25,6 +19,12 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
+import org.hiero.block.api.protoc.PublishStreamRequest;
+import org.hiero.block.api.protoc.PublishStreamResponse;
+import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
+import org.hiero.block.api.protoc.PublishStreamResponse.ResendBlock;
+import org.hiero.block.api.protoc.PublishStreamResponseCode;
 
 /**
  * A simulated block node server that implements the block streaming gRPC service.
@@ -244,7 +244,7 @@ public class SimulatedBlockNodeServer {
      * Implementation of the BlockStreamService that can be configured to respond
      * with different response codes.
      */
-    private class MockBlockStreamServiceImpl extends BlockStreamServiceGrpc.BlockStreamServiceImplBase {
+    private class MockBlockStreamServiceImpl extends BlockStreamPublishServiceGrpc.BlockStreamPublishServiceImplBase {
         // Keep track of all active stream observers so we can send immediate responses
         private final List<StreamObserver<PublishStreamResponse>> activeStreams = new CopyOnWriteArrayList<>();
 
