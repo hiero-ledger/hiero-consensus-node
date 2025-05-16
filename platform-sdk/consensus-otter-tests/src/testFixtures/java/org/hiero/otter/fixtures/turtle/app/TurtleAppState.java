@@ -5,10 +5,12 @@ import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLA
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -98,5 +100,17 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
     @Override
     public int getMinimumSupportedVersion() {
         return ClassVersion.ORIGINAL;
+    }
+
+    /***
+     * Free resources, which are mainly held by virtual map instances.
+     */
+    public void clear() {
+        final MerkleNode merkleNode = getRoot();
+        merkleNode.forEachNode(node -> {
+            if (node instanceof VirtualRootNode<?, ?> virtualRootNode) {
+                virtualRootNode.clear();
+            }
+        });
     }
 }
