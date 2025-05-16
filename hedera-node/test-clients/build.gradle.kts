@@ -75,6 +75,7 @@ val prCheckTags =
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestIss" to "ISS",
+        "hapiTestBlockNodeCommunication" to "BLOCK_NODE_SIMULATOR",
         "hapiTestMisc" to
             "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE_SIMULATOR)",
     )
@@ -93,6 +94,7 @@ val prCheckStartPorts =
         "hapiTestTimeConsuming" to "26200",
         "hapiTestIss" to "26400",
         "hapiTestMisc" to "26800",
+        "hapiTestBlockNodeCommunication" to "27000",
     )
 val prCheckPropOverrides =
     mapOf(
