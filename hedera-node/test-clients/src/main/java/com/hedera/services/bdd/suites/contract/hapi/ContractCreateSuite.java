@@ -1018,6 +1018,7 @@ public class ContractCreateSuite {
                 BigInteger.ONE,
                 new byte[] {},
                 new byte[] {},
+                null,
                 0,
                 null,
                 null,
