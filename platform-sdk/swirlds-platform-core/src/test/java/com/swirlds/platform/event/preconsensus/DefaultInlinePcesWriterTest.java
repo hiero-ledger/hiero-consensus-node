@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.preconsensus;
 
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
@@ -24,8 +23,6 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
