@@ -2,9 +2,7 @@
 package com.hedera.services.bdd.spec.utilops;
 
 import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
-import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -42,19 +40,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
 
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork network)) {
-            throw new IllegalStateException("Block node simulator operations require a SubProcessNetwork");
-        }
-
-        // Check if block node mode is set to SIMULATOR
-        if (network.getBlockNodeMode() != BlockNodeMode.SIMULATOR) {
-            throw new IllegalStateException(
-                    "Block node simulator operations require BlockNodeMode.SIMULATOR to be set. " + "Current mode: "
-                            + network.getBlockNodeMode() + ". "
-                            + "Set system property 'hapi.spec.blocknode.mode=SIM' to enable simulator mode.");
-        }
-
-        BlockNodeSimulatorController controller = network.getBlockNodeSimulatorController();
+        BlockNodeSimulatorController controller =
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeSimulatorController();
         long verifiedBlock = 0;
 
         switch (action) {
