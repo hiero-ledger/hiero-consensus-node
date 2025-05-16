@@ -119,7 +119,7 @@ public class ClassicCreatesCall extends AbstractCall {
                             .externalizePreemptedDispatch(syntheticCreate, INSUFFICIENT_TX_FEE, TOKEN_CREATE),
                     RC_AND_ADDRESS_ENCODER.encode(Tuple.of((long) INSUFFICIENT_TX_FEE.protoOrdinal(), ZERO_ADDRESS)));
         } else {
-            operations().collectFee(spenderId, nonGasCost);
+            operations().collectHtsFee(spenderId, nonGasCost);
         }
 
         final var op = syntheticCreate.tokenCreationOrThrow();
