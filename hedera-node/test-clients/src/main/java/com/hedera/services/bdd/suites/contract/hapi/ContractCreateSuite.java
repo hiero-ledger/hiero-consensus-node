@@ -590,22 +590,22 @@ public class ContractCreateSuite {
                  * fail, so only half of totalToSend will make it to the beneficiary. (Note the entire
                  * call doesn't fail because exceptional halts in "raw calls" don't automatically
                  * propagate up the stack like a Solidity revert does.) */
-                contractCall(
+                sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
                         new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
                         new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
-                        BigInteger.valueOf(totalToSend / 2)),
+                        BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
                 /* But now we update the beneficiary to have a delegateContractId */
                 newKeyNamed(newKey).shape(revisedKey.signedWith(sigs(ON, sendInternalAndDelegateContract))),
                 cryptoUpdate(beneficiary).key(newKey),
-                contractCall(
+                sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
                         new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
                         new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
-                        BigInteger.valueOf(totalToSend / 2)),
+                        BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
 
