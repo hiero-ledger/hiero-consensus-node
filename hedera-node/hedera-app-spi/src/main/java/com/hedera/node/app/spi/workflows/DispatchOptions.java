@@ -334,7 +334,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REMOVABLE,
                 transactionCustomizer,
                 metaData,
-                null);
+                NOOP_FEE_CHARGING);
     }
 
     /**
