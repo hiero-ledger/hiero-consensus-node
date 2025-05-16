@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -11,6 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.protoc.PublishStreamResponseCode;
 
 /**
  * A utility operation for interacting with the block node simulator.

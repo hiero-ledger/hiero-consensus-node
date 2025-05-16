@@ -9,7 +9,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogConta
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import java.time.Duration;
@@ -17,6 +16,7 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.block.api.protoc.PublishStreamResponseCode;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
