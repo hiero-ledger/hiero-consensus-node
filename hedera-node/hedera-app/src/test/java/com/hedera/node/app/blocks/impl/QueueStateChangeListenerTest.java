@@ -3,8 +3,8 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_POP;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.stateIdFor;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
+import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.output.StateChange;

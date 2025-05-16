@@ -12,8 +12,9 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
+import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
+import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
 import org.hiero.base.utility.CommonUtils;
@@ -36,12 +37,19 @@ class WritablePlatformStateStoreTest {
     @BeforeEach
     void setUp() {
         randotron = Randotron.create();
-        SingletonNode<PlatformState> platformSingleton =
-                new SingletonNode<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, 0, PlatformState.PROTOBUF, null);
-        platformSingleton.setValue(toPbjPlatformState(randomPlatformState(randotron)));
+
+        final String virtualMapLabel =
+                "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
+        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+
+        virtualMap.put(
+                StateUtils.getVirtualMapKey(PlatformStateService.NAME, PLATFORM_STATE_KEY),
+                toPbjPlatformState(randomPlatformState(randotron)),
+                PlatformState.PROTOBUF);
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .thenReturn(new WritableSingletonStateImpl<>(PLATFORM_STATE_KEY, platformSingleton));
+                .thenReturn(new OnDiskWritableSingletonState<>(
+                        PlatformStateService.NAME, PLATFORM_STATE_KEY, PlatformState.PROTOBUF, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }
 

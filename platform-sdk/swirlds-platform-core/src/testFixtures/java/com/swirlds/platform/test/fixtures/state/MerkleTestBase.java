@@ -132,7 +132,14 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
 
     /** A convenience method for adding a k/v pair to a virtual map */
     protected void add(VirtualMap map, StateMetadata<String, String> md, String key, String value) {
-        super.add(map, md.stateDefinition().keyCodec(), md.stateDefinition().valueCodec(), key, value);
+        super.add(
+                map,
+                md.serviceName(),
+                md.stateDefinition().stateKey(),
+                md.stateDefinition().keyCodec(),
+                md.stateDefinition().valueCodec(),
+                key,
+                value);
     }
 
     @AfterEach

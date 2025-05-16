@@ -100,7 +100,5 @@ public final class BirthRoundStateMigration {
                 .minimumJudgeInfoList(modifiedJudgeInfoList)
                 .build();
         platformStateFacade.setSnapshotTo(state, modifiedConsensusSnapshot);
-
-        state.invalidateHash();
     }
 }

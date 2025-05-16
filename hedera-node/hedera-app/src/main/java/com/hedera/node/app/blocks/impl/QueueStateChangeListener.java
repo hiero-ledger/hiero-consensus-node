@@ -11,6 +11,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -40,7 +41,7 @@ public class QueueStateChangeListener implements StateChangeListener {
         Objects.requireNonNull(serviceName, "serviceName must not be null");
         Objects.requireNonNull(stateKey, "stateKey must not be null");
 
-        return BlockImplUtils.stateIdFor(serviceName, stateKey);
+        return StateUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override
