@@ -65,7 +65,7 @@ class TipsetEventCreatorTests {
     @UseParameterSources({
         @ParamSource(
                 param = "advancingClock",
-                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TestUtils",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
                 method = "booleanValues"),
         @ParamSource(
                 param = "ancientMode",
