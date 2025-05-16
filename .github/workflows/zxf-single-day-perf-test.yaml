@@ -43,22 +43,6 @@ jobs:
           fi
           echo "Using tag: $tag_name"
           echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
-#
-#      # Clone the perf analysis automation repo
-#      - name: Checkout the performance analysis automation repo
-#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-#        with:
-#          fetch-depth: "1"
-#          ref: main
-#          repository: swirldslabs/performance-analysis-automation
-#          token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
-#
-#      - name: Confirm checkout of performance analysis automation repo
-#        run: |
-#          echo "Current director is:"
-#          pwd
-#          echo "Current folder contents are:"
-#          ls -la
 
       # Call the performance workflow with appropriate input version
       - name: Call CITR Performance Workflow
@@ -68,7 +52,7 @@ jobs:
           repo: swirldslabs/performance-analysis-automation # ensure we are executing in the perf analysis automation repo
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
-          inputs: '{ 
+          inputs: '{
             "namespace": "Latitude3",
             "hederaversion": "${{ steps.tag.outputs.tag_name }}",
             "soloversion": "latest_tested_solo-charts0.59",
