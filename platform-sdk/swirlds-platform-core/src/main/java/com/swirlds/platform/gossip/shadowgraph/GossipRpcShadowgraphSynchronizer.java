@@ -134,6 +134,8 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         public void receiveSyncData(@NonNull final SyncData syncMessage) {
             // logger.info(SYNC_INFO.getMarker(), "{} received sync data ENTER", selfId);
 
+            syncMetrics.acceptedSyncRequest();
+
             // if they are sending us sync data, they are no longer falling behind, nor sending events
             this.remoteFallenBehind = false;
             this.remoteStillSendingEvents = false;
