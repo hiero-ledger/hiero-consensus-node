@@ -249,7 +249,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     @Override
     @NonNull
     public MultipleNodePcesResults getPcesResults() {
-        final List<SingleNodePcesResult> results = nodes.stream().map(Node::getPcesResult).toList();
+        final List<SingleNodePcesResult> results =
+                nodes.stream().map(Node::getPcesResult).toList();
         return new MultipleNodePcesResultsImpl(results);
     }
 

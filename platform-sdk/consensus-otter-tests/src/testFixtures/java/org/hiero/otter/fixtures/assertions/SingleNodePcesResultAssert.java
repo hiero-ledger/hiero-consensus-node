@@ -44,7 +44,9 @@ public class SingleNodePcesResultAssert extends AbstractAssert<SingleNodePcesRes
                 maxBirthRound = Math.max(maxBirthRound, event.getBirthRound());
             }
             if (maxBirthRound > expected) {
-                fail("Expected maximum birth round in PcesFiles to be less than <%d> but was <%d>", expected, maxBirthRound);
+                fail(
+                        "Expected maximum birth round in PcesFiles to be less than <%d> but was <%d>",
+                        expected, maxBirthRound);
             }
         } catch (IOException e) {
             fail("Unexpected IOException while evaluating PcesFiles", e);

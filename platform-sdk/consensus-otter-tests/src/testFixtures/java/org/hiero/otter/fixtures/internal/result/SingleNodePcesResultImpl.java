@@ -37,9 +37,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      *
      * @param nodeId The {@link NodeId} of the files' node
      */
-    public SingleNodePcesResultImpl(
-            @NonNull final NodeId nodeId,
-            @NonNull final PlatformContext platformContext) {
+    public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final PlatformContext platformContext) {
         this.nodeId = requireNonNull(nodeId);
 
         final Configuration configuration = platformContext.getConfiguration();

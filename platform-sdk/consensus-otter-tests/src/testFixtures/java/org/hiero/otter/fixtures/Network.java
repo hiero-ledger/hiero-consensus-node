@@ -106,5 +106,4 @@ public interface Network {
      */
     @NonNull
     MultipleNodePcesResults getPcesResults();
-
 }
