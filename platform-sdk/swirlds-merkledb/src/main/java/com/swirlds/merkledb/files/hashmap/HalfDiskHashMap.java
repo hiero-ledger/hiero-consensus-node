@@ -335,6 +335,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         final AtomicBoolean newDataFile = new AtomicBoolean(false);
         final AtomicLong liveEntries = new AtomicLong(0);
         final int bucketCount = numOfBuckets.get();
+        final int bucketMask = (1 << bucketMaskBits.get()) - 1;
         final LongList bucketIndex = bucketIndexToBucketLocation;
         for (int i = 0; i < bucketCount; i++) {
             final long bucketId = i;
@@ -361,11 +362,15 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 bucket.forEachEntry(entry -> {
                     final Bytes keyBytes = entry.getKeyBytes();
                     final long path = entry.getValue();
+                    final int hashCode = entry.getHashCode();
                     try {
                         boolean removeKey = true;
                         if ((path < firstLeafPath) || (path > lastLeafPath)) {
                             logger.warn(
                                     MERKLE_DB.getMarker(), "Delete key (path range): key={}, path={}", keyBytes, path);
+                        } else if ((hashCode & loadedBucketId) != loadedBucketId) {
+                            logger.warn(
+                                    MERKLE_DB.getMarker(), "Delete key (hash code): key={}, path={}", keyBytes, path);
                         } else {
                             final BufferedData recordBytes = store.get(path);
                             if (recordBytes == null) {
@@ -388,7 +393,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                                 startWriting();
                             }
                             delete(keyBytes, entry.getHashCode());
-                        } else {
+                        } else if ((hashCode & bucketMask) == bucketId) {
                             liveEntries.incrementAndGet();
                         }
                     } catch (final Exception e) {

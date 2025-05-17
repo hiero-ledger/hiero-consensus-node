@@ -13,10 +13,12 @@ and then retrieve the value using this path.
 
 `HalfDiskHashMap` stores key/path mappings in buckets. Every bucket contain the following info:
 * Bucket ID: `0` to `N - 1`, where `N` is the number of buckets
-* Set of bucket entries, where an entry is:
-  * key hash code
-  * key bytes
-  * value (path)
+* Set of bucket entries
+
+Each bucket entry contains:
+* key hash code
+* key bytes
+* value (path)
 
 When a key is added to `HalfDiskHashMap`, the bucket to add it to is found using key's hash code.
 The number of buckets is always a power of two, so the operation is very cheap and straightforward,
