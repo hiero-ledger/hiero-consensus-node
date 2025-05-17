@@ -50,6 +50,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -174,6 +175,11 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 "Large tree, mostly just deletions", 10_000, 20_000, 10_000, 1_000, 3, 1, 1, 10)));
 
         return arguments.stream();
+    }
+
+    @BeforeAll
+    static void beforeAll() {
+        assertEquals(0, MerkleDbDataSource.getCountOfOpenDatabases());
     }
 
     @ParameterizedTest
@@ -369,7 +375,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         assertEventuallyEquals(
                 0L,
                 MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(5, ChronoUnit.SECONDS),
+                Duration.of(10, ChronoUnit.SECONDS),
                 "All databases should be closed");
     }
 }

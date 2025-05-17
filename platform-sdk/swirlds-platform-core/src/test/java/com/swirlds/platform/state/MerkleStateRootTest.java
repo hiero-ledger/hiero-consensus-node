@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
@@ -28,6 +29,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.StateChangeListener;
@@ -41,6 +43,8 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -50,6 +54,7 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -139,13 +144,16 @@ class MerkleStateRootTest extends MerkleTestBase {
         void addingVirtualMapService() {
             // Given a virtual map
             setupFruitVirtualMap();
+            try {
+                // When added to the merkle tree
+                stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
 
-            // When added to the merkle tree
-            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
-
-            // Then we can see it is on the tree
-            assertThat(stateRoot.getNumberOfChildren()).isEqualTo(1);
-            assertThat(getNodeForLabel(fruitLabel)).isSameAs(fruitVirtualMap);
+                // Then we can see it is on the tree
+                assertThat(stateRoot.getNumberOfChildren()).isEqualTo(1);
+                assertThat(getNodeForLabel(fruitLabel)).isSameAs(fruitVirtualMap);
+            } finally {
+                fruitVirtualMap.release();
+            }
         }
 
         @Test
@@ -232,9 +240,23 @@ class MerkleStateRootTest extends MerkleTestBase {
         @DisplayName("Adding non-VirtualMap merkle node with on-disk metadata throws")
         void merkleMapWithOnDiskThrows() {
             setupFruitVirtualMap();
-            assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitMerkleMap))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Mismatch");
+            try {
+                assertThatThrownBy(() -> stateRoot.putServiceStateIfAbsent(fruitVirtualMetadata, () -> fruitMerkleMap))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("Mismatch");
+
+            } finally {
+                fruitVirtualMap.release();
+            }
+        }
+
+        @AfterEach
+        void tearDown() {
+            assertEventuallyEquals(
+                    0L,
+                    MerkleDbDataSource::getCountOfOpenDatabases,
+                    Duration.of(5, ChronoUnit.SECONDS),
+                    "All databases should be closed");
         }
     }
 
@@ -380,13 +402,17 @@ class MerkleStateRootTest extends MerkleTestBase {
         void readVirtualMap() {
             // Given a State with the fruit virtual map
             setupFruitVirtualMap();
-            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
+            try {
+                stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
 
-            // When we get the ReadableStates
-            final var states = stateRoot.getReadableStates(FIRST_SERVICE);
+                // When we get the ReadableStates
+                final var states = stateRoot.getReadableStates(FIRST_SERVICE);
 
-            // Then it isn't null
-            assertThat(states.get(FRUIT_STATE_KEY)).isNotNull();
+                // Then it isn't null
+                assertThat(states.get(FRUIT_STATE_KEY)).isNotNull();
+            } finally {
+                fruitVirtualMap.release();
+            }
         }
 
         @Test
@@ -593,13 +619,17 @@ class MerkleStateRootTest extends MerkleTestBase {
         void readVirtualMap() {
             // Given a State with the fruit virtual map
             setupFruitVirtualMap();
-            stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
+            try {
+                stateRoot.putServiceStateIfAbsent(fruitMetadata, () -> fruitVirtualMap);
 
-            // When we get the WritableStates
-            final var states = stateRoot.getWritableStates(FIRST_SERVICE);
+                // When we get the WritableStates
+                final var states = stateRoot.getWritableStates(FIRST_SERVICE);
 
-            // Then it isn't null
-            assertThat(states.get(FRUIT_STATE_KEY)).isNotNull();
+                // Then it isn't null
+                assertThat(states.get(FRUIT_STATE_KEY)).isNotNull();
+            } finally {
+                fruitVirtualMap.release();
+            }
         }
 
         @Test
@@ -780,6 +810,16 @@ class MerkleStateRootTest extends MerkleTestBase {
 
             verifyNoMoreInteractions(kvListener);
             verifyNoMoreInteractions(nonKvListener);
+        }
+
+        @AfterEach
+        void tearDown() {
+            fruitVirtualMap.release();
+            assertEventuallyEquals(
+                    0L,
+                    MerkleDbDataSource::getCountOfOpenDatabases,
+                    Duration.of(5, ChronoUnit.SECONDS),
+                    "All databases should be closed");
         }
     }
 

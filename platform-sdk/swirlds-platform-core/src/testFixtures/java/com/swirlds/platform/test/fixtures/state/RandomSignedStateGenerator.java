@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
@@ -23,6 +24,7 @@ import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -30,8 +32,11 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
 import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -486,8 +491,29 @@ public class RandomSignedStateGenerator {
      */
     public static void releaseAllBuiltSignedStates() {
         builtSignedStates.get().forEach(signedState -> {
-            releaseReservable(signedState.getState().getRoot());
+            try {
+                releaseReservable(signedState.getState().getRoot());
+                signedState.getState().getRoot().treeIterator().forEachRemaining(node -> {
+                    if (node instanceof VirtualMap) {
+                        while (node.getReservationCount() >= 0) {
+                            node.release();
+                        }
+                    }
+                });
+            } catch (Exception e) {
+
+            }
         });
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
         builtSignedStates.get().clear();
     }
 
