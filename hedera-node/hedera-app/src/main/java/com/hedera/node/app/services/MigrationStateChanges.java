@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.QueueStateChangeListener;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.config.api.Configuration;
@@ -23,6 +24,7 @@ import java.util.List;
 public class MigrationStateChanges {
     private final List<List<StateChange>> stateChanges = new ArrayList<>();
     private final KVStateChangeListener kvStateChangeListener = new KVStateChangeListener();
+    private final QueueStateChangeListener queueStateChangeListener = new QueueStateChangeListener();
     private final BoundaryStateChangeListener roundStateChangeListener;
     private final State state;
 
@@ -44,12 +46,13 @@ public class MigrationStateChanges {
         this.roundStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, () -> config);
         if (config.getConfigData(BlockStreamConfig.class).streamMode() != RECORDS) {
             state.registerCommitListener(kvStateChangeListener);
+            state.registerCommitListener(queueStateChangeListener);
             state.registerCommitListener(roundStateChangeListener);
         }
     }
 
     /**
-     * If any key/value changes have been made since the last call, inserts a {@link BlockItem}
+     * If any key/value and queue changes have been made since the last call, inserts a {@link BlockItem}
      * boundary into the state changes, necessary so that block nodes can commit the same
      * transactional units into {@link com.swirlds.state.spi.WritableKVState} instances.
      */
@@ -58,6 +61,11 @@ public class MigrationStateChanges {
         if (!maybeKvChanges.isEmpty()) {
             stateChanges.add(new ArrayList<>(maybeKvChanges));
             kvStateChangeListener.reset();
+        }
+        final var maybeQueueChanges = queueStateChangeListener.getStateChanges();
+        if (!maybeQueueChanges.isEmpty()) {
+            stateChanges.add(new ArrayList<>(maybeQueueChanges));
+            queueStateChangeListener.reset();
         }
     }
 
@@ -72,6 +80,7 @@ public class MigrationStateChanges {
             stateChanges.add(roundChanges);
         }
         state.unregisterCommitListener(kvStateChangeListener);
+        state.unregisterCommitListener(queueStateChangeListener);
         state.unregisterCommitListener(roundStateChangeListener);
 
         return stateChanges.stream()
