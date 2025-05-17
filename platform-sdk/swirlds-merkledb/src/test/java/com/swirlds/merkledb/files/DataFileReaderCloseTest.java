@@ -42,6 +42,7 @@ class DataFileReaderCloseTest {
     @Test
     void readerIsOpenTest() throws Exception {
         final int COUNT = 100;
+        collection.updateValidKeyRange(0, COUNT - 1);
         collection.startWriting();
         final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
         index.updateValidRange(0, COUNT - 1);
@@ -57,7 +58,7 @@ class DataFileReaderCloseTest {
                             2 * Long.BYTES));
         }
         //noinspection resource
-        collection.endWriting(0, COUNT - 1);
+        collection.endWriting();
         final AtomicBoolean readingThreadStarted = new AtomicBoolean(false);
         final AtomicReference<IOException> exceptionOccurred = new AtomicReference<>();
         final Thread readingThread = new Thread(() -> {
