@@ -845,7 +845,7 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
         assertThatNoException().isThrownBy(() -> subject.pureChecks(pureChecksContext));
         assertThat(txn.data().value()).toString().contains("test metadata");
-        assertThat(txn.data().value()).hasNoNullFieldsOrProperties();
+        assertNoNullFieldsExcept(txn.data().value(), UNKNOWN_FIELDS);
     }
 
     @Test
