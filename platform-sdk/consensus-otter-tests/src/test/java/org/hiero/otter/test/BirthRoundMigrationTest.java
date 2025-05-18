@@ -86,8 +86,6 @@ class BirthRoundMigrationTest {
                         target(FREEZE_COMPLETE).requiringInterim(FREEZING),
                         target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        assertThat(network.getPcesResults())
-                .hasMaxBirthRoundGreaterThan(1L)
-                .hasMaxBirthRoundLessThan(100L);
+        assertThat(network.getPcesResults()).hasMaxBirthRoundGreaterThan(1L).hasMaxBirthRoundLessThan(100L);
     }
 }

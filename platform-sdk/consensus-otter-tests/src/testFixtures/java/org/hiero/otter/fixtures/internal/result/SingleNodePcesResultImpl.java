@@ -51,7 +51,11 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
             final Path databaseDirectory = getDatabaseDirectory(platformContext, nodeId);
 
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                    platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps(), eventConfig.getAncientMode());
+                    platformContext,
+                    databaseDirectory,
+                    NO_LOWER_BOUND,
+                    pcesConfig.permitGaps(),
+                    eventConfig.getAncientMode());
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
         }
