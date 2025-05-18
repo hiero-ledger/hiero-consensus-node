@@ -10,6 +10,7 @@ import org.hiero.otter.fixtures.Node;
  *
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
+@SuppressWarnings("unused")
 public interface MultipleNodePcesResults {
 
     /**

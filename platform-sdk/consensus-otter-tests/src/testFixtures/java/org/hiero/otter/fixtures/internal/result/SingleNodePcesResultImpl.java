@@ -36,6 +36,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      * Constructor for {@code PcesFilesResultImpl}.
      *
      * @param nodeId The {@link NodeId} of the files' node
+     * @param platformContext The {@link PlatformContext} to use for file reading
      */
     public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final PlatformContext platformContext) {
         this.nodeId = requireNonNull(nodeId);
@@ -51,7 +52,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
 
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
                     platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps(), eventConfig.getAncientMode());
-        } catch (IOException e) {
+        } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
         }
     }

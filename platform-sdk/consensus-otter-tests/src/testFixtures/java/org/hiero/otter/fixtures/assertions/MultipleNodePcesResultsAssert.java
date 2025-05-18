@@ -11,12 +11,12 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 /**
  * Assertions for {@link MultipleNodePcesResults}.
  */
-@SuppressWarnings("UnusedReturnValue")
+@SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodePcesResultsAssert
         extends AbstractAssert<MultipleNodePcesResultsAssert, MultipleNodePcesResults> {
 
     /**
-     * Creates a new instance of {@link MultipleNodePcesResultsAssert}
+     * Constructor of {@link MultipleNodePcesResultsAssert}
      *
      * @param actual the actual {@link MultipleNodePcesResults} to assert
      */
@@ -36,16 +36,111 @@ public class MultipleNodePcesResultsAssert
     }
 
     /**
-     * Asserts that all events stored in the PCES files of all nodes have a birth round less than the given value.
+     * Asserts that all events stored in the PCES files of all nodes have a birth round equal to the given value.
+     *
+     * @param expected the expected birth round
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodePcesResultsAssert hasAllBirthRoundsEqualTo(final long expected) {
+        // assert that actual is not null
+        isNotNull();
+
+        for (final SingleNodePcesResult pcesResult : actual.pcesResults()) {
+            OtterAssertions.assertThat(pcesResult).hasAllBirthRoundsEqualTo(expected);
+        }
+
+        return this;
+    }
+
+    /**
+     * Asserts that the maximum birth round of all events stored in the PCES files of all nodes is equal to the given value.
      *
      * @param expected the expected maximum birth round
      * @return this assertion object for method chaining
      */
-    public MultipleNodePcesResultsAssert hasBirthRoundsLessThan(long expected) {
+    @NonNull
+    public MultipleNodePcesResultsAssert hasMaxBirthRoundEqualTo(final long expected) {
+        // assert that actual is not null
         isNotNull();
+
         for (final SingleNodePcesResult pcesResult : actual.pcesResults()) {
-            OtterAssertions.assertThat(pcesResult).hasBirthRoundsLessThan(expected);
+            OtterAssertions.assertThat(pcesResult).hasMaxBirthRoundEqualTo(expected);
         }
+
+        return this;
+    }
+
+    /**
+     * Asserts that the maximum birth round of all events stored in the PCES files of all nodes is less than the given value.
+     *
+     * @param expected the expected maximum birth round
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodePcesResultsAssert hasMaxBirthRoundLessThan(final long expected) {
+        // assert that actual is not null
+        isNotNull();
+
+        for (final SingleNodePcesResult pcesResult : actual.pcesResults()) {
+            OtterAssertions.assertThat(pcesResult).hasMaxBirthRoundLessThan(expected);
+        }
+
+        return this;
+    }
+
+    /**
+     * Asserts that the maximum birth round of all events stored in the PCES files of all nodes is less than or equal to the given value.
+     * value.
+     *
+     * @param expected the expected maximum birth round
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodePcesResultsAssert hasMaxBirthRoundLessThanOrEqualTo(final long expected) {
+        // assert that actual is not null
+        isNotNull();
+
+        for (final SingleNodePcesResult pcesResult : actual.pcesResults()) {
+            OtterAssertions.assertThat(pcesResult).hasMaxBirthRoundLessThanOrEqualTo(expected);
+        }
+
+        return this;
+    }
+
+    /**
+     * Asserts that the maximum birth round of all events stored in the PCES files of all nodes is greater than the given value.
+     *
+     * @param expected the expected minimum birth round
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodePcesResultsAssert hasMaxBirthRoundGreaterThan(final long expected) {
+        // assert that actual is not null
+        isNotNull();
+
+        for (final SingleNodePcesResult pcesResult : actual.pcesResults()) {
+            OtterAssertions.assertThat(pcesResult).hasMaxBirthRoundGreaterThan(expected);
+        }
+
+        return this;
+    }
+
+    /**
+     * Asserts that the maximum birth round of all events stored in the PCES files of all nodes is greater than or equal to the given value.
+     *
+     * @param expected the expected minimum birth round
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodePcesResultsAssert hasMaxBirthRoundGreaterThanOrEqualTo(final long expected) {
+        // assert that actual is not null
+        isNotNull();
+
+        for (final SingleNodePcesResult pcesResult : actual.pcesResults()) {
+            OtterAssertions.assertThat(pcesResult).hasMaxBirthRoundGreaterThanOrEqualTo(expected);
+        }
+
         return this;
     }
 }

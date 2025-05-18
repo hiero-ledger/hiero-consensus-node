@@ -13,6 +13,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_VERSION;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.Network;
@@ -30,7 +31,7 @@ class BirthRoundMigrationTest {
     private static final String NEW_VERSION = "1.0.1";
 
     @OtterTest
-    void testBirthRoundMigration(TestEnvironment env) throws InterruptedException {
+    void testBirthRoundMigration(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -49,8 +50,8 @@ class BirthRoundMigrationTest {
         env.generator().stop();
         network.prepareUpgrade(ONE_MINUTE);
 
-        // Before migrating to birth round, all events shuld
-        assertThat(network.getPcesResults()).hasBirthRoundsLessThan(2L);
+        // Before migrating to birth round, all events should have a birth round of 1L
+        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
 
         // store the consensus round
         final long freezeRound =
@@ -85,6 +86,8 @@ class BirthRoundMigrationTest {
                         target(FREEZE_COMPLETE).requiringInterim(FREEZING),
                         target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        assertThat(network.getPcesResults()).hasBirthRoundsLessThan(100L);
+        assertThat(network.getPcesResults())
+                .hasMaxBirthRoundGreaterThan(1L)
+                .hasMaxBirthRoundLessThan(100L);
     }
 }

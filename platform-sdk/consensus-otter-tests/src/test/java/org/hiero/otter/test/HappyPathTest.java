@@ -45,6 +45,6 @@ public class HappyPathTest {
         assertThat(network.getStatusProgression())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        assertThat(network.getPcesResults()).hasBirthRoundsLessThan(2L);
+        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
     }
 }
