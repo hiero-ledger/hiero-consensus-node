@@ -915,4 +915,13 @@ class MerkleStateRootTest extends MerkleTestBase {
             assertSame(hash1, hash2);
         }
     }
+
+    @AfterEach
+    void tearDown() {
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
+    }
 }

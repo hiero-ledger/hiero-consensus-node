@@ -46,6 +46,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.utility.CommonUtils;
@@ -58,6 +60,7 @@ import org.hiero.consensus.roster.RosterUtils;
  */
 public class RandomSignedStateGenerator {
 
+    private static final Logger logger = LogManager.getLogger(RandomSignedStateGenerator.class);
     /**
      * Signed states now use virtual maps which are heavy RAM consumers. They need to be released
      * in order to avoid producing OOMs when running tests. This list tracks all signed states
@@ -501,7 +504,7 @@ public class RandomSignedStateGenerator {
                     }
                 });
             } catch (Exception e) {
-
+                logger.error("Exception while releasing state", e);
             }
         });
         try {

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import com.swirlds.virtualmap.VirtualMap;
 import java.util.Spliterators;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -267,6 +268,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             // Now let's make a fast copy and create a new state and make some more
             // modifications and reads. And then let's throw them all away and make
             // sure the virtual map hasn't changed.
+            final VirtualMap oldVirtualMap = fruitVirtualMap;
             fruitVirtualMap = fruitVirtualMap.copy();
             state = new OnDiskWritableKVState<>(
                     FRUIT_STATE_KEY,
@@ -275,6 +277,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
                     onDiskValueClassId(),
                     STRING_CODEC,
                     fruitVirtualMap);
+            oldVirtualMap.release();
             assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             state.remove(B_KEY);
             assertThat(state.get(C_KEY)).isEqualTo(CHERRY);
