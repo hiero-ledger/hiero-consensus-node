@@ -374,6 +374,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Update count of open databases
         COUNT_OF_OPEN_DATABASES.increment();
+        new Exception().printStackTrace();
 
         logger.info(
                 MERKLE_DB.getMarker(),
