@@ -30,9 +30,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.Validator;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
-import org.hiero.otter.fixtures.validator.ValidatorImpl;
 
 /**
  * A test environment for the Turtle framework.
@@ -178,16 +176,6 @@ public class TurtleTestEnvironment implements TestEnvironment {
     @NonNull
     public TransactionGenerator generator() {
         return generator;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public Validator validator() {
-        log.warn("Validator is not implemented yet");
-        return new ValidatorImpl();
     }
 
     /**
