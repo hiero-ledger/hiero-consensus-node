@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
 
@@ -8,7 +9,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
@@ -50,7 +50,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
             final Path databaseDirectory = getDatabaseDirectory(platformContext, nodeId);
 
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                    platformContext, databaseDirectory, 0L, pcesConfig.permitGaps(), eventConfig.getAncientMode());
+                    platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps(), eventConfig.getAncientMode());
         } catch (IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
         }
@@ -80,6 +80,6 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
     @Override
     @NonNull
     public PcesMultiFileIterator pcesEvents() {
-        return new PcesMultiFileIterator(PcesFileManager.NO_LOWER_BOUND, pcesFiles(), ancientMode);
+        return new PcesMultiFileIterator(NO_LOWER_BOUND, pcesFiles(), ancientMode);
     }
 }

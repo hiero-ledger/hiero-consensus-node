@@ -49,6 +49,9 @@ class BirthRoundMigrationTest {
         env.generator().stop();
         network.prepareUpgrade(ONE_MINUTE);
 
+        // Before migrating to birth round, all events shuld
+        assertThat(network.getPcesResults()).hasBirthRoundsLessThan(2L);
+
         // store the consensus round
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
@@ -81,5 +84,7 @@ class BirthRoundMigrationTest {
                         target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
                         target(FREEZE_COMPLETE).requiringInterim(FREEZING),
                         target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.getPcesResults()).hasBirthRoundsLessThan(100L);
     }
 }
