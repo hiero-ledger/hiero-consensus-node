@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
-import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 
 /**
  * Interface for managing time in Otter tests.
@@ -17,13 +17,15 @@ public interface TimeManager {
      * Wait for a specified duration.
      *
      * @param waitTime the duration to wait
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
     void waitFor(@NonNull Duration waitTime) throws InterruptedException;
 
     /**
-     * Returns the time source for this simulation.
+     * Returns the current time.
      *
-     * @return the time source
+     * @return the current time
      */
-    Time time();
+    @NonNull
+    Instant now();
 }
