@@ -30,7 +30,7 @@ class BirthRoundMigrationTest {
     private static final String NEW_VERSION = "1.0.1";
 
     @OtterTest
-    void testBirthRoundMigration(TestEnvironment env) throws InterruptedException {
+    void testBirthRoundMigration(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -48,6 +48,9 @@ class BirthRoundMigrationTest {
         // Initiate the migration
         env.generator().stop();
         network.prepareUpgrade(ONE_MINUTE);
+
+        // Before migrating to birth round, all events should have a birth round of 1L
+        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
 
         // store the consensus round
         final long freezeRound =
@@ -70,7 +73,7 @@ class BirthRoundMigrationTest {
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
-        // Validations
+        // Assert the results
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
         assertThat(network.getConsensusResult())
                 .hasAdvancedSince(freezeRound)
@@ -81,5 +84,7 @@ class BirthRoundMigrationTest {
                         target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
                         target(FREEZE_COMPLETE).requiringInterim(FREEZING),
                         target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.getPcesResults()).hasMaxBirthRoundGreaterThan(1L).hasMaxBirthRoundLessThan(100L);
     }
 }
