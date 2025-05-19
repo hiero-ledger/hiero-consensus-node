@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asShard;
 import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.netOf;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
@@ -317,7 +316,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                                 b.setStakedAccountId(asAccount(
                                         effectiveShard.getShardNum(),
                                         effectiveRealm.getRealmNum(),
-                                        asId(stakedAccountId.get(), spec).getAccountNum()));
+                                        Long.parseLong(stakedAccountId.get())));
                             } else if (stakedNodeId.isPresent()) {
                                 b.setStakedNodeId(stakedNodeId.get());
                             }

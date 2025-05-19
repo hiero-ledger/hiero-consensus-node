@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.processorsForAllCurrentEvmVersions;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -14,16 +15,12 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
-import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
-import java.util.Map;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -52,12 +49,6 @@ class ContextQueryProcessorTest {
     private HevmStaticTransactionFactory hevmStaticTransactionFactory;
 
     @Mock
-    private Supplier<HederaWorldUpdater> feesOnlyUpdater;
-
-    @Mock
-    private Map<HederaEvmVersion, TransactionProcessor> processors;
-
-    @Mock
     private EntityIdFactory entityIdFactory;
 
     @Test
@@ -74,7 +65,8 @@ class ContextQueryProcessorTest {
                 .willReturn(SUCCESS_RESULT);
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
-        final var expectedResult = new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null);
+        final var expectedResult =
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, opsDuration / 2);
         assertEquals(expectedResult, subject.call());
     }
 }

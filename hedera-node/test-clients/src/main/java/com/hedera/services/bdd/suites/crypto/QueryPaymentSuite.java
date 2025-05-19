@@ -40,20 +40,20 @@ public class QueryPaymentSuite {
                 cryptoCreate("c").balance(1_234L),
                 cryptoCreate("d").balance(1_234L),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1_000L, 2L))
+                        .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
+                                        innerSpec, "a", "b", "c", 1_000L, 2L))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "d", "b", "c", 5000, 200L))
+                        .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
+                                        innerSpec, "d", "b", "c", 5000, 200L))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec ->
-                                        multiAccountPaymentToNode003AndBeneficiary(spec, "d", GENESIS, "c", 5000, 200L))
+                        .withPayment(cryptoTransfer(innerSpec -> multiAccountPaymentToNode003AndBeneficiary(
+                                        innerSpec, "d", GENESIS, "c", 5000, 200L))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
@@ -72,19 +72,19 @@ public class QueryPaymentSuite {
                 cryptoCreate("b").balance(1_234L),
                 cryptoCreate("c").balance(1_234L),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(
-                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1_000L, 200L)))
+                        .withPayment(cryptoTransfer(innerSpec ->
+                                multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 1_000L, 200L)))
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(OK),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(
-                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 900, 200L)))
+                        .withPayment(cryptoTransfer(innerSpec ->
+                                multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 900, 200L)))
                         .setNode(NODE)
                         .payingWith("a")
                         .hasAnswerOnlyPrecheck(OK),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(
-                                spec -> multiAccountPaymentToNode003AndBeneficiary(spec, "a", "b", "c", 1200, 200L)))
+                        .withPayment(cryptoTransfer(innerSpec ->
+                                multiAccountPaymentToNode003AndBeneficiary(innerSpec, "a", "b", "c", 1200, 200L)))
                         .setNode(NODE)
                         .payingWith("a")
                         .fee(10L)
@@ -105,7 +105,8 @@ public class QueryPaymentSuite {
                         .setNode(NODE)
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec -> multiAccountPaymentToNode003(spec, "a", "b", 1_000L)))
+                        .withPayment(
+                                cryptoTransfer(innerSpec -> multiAccountPaymentToNode003(innerSpec, "a", "b", 1_000L)))
                         .hasAnswerOnlyPrecheck(OK));
     }
 
@@ -117,7 +118,7 @@ public class QueryPaymentSuite {
                 cryptoCreate("b").balance(1_234L),
                 cryptoCreate("c").balance(1_234L),
                 getAccountInfo(GENESIS)
-                        .withPayment(cryptoTransfer(spec -> invalidPaymentToNode(spec, "a", "b", "c", 1200))
+                        .withPayment(cryptoTransfer(innerSpec -> invalidPaymentToNode(innerSpec, "a", "b", "c", 1200))
                                 .payingWith("a"))
                         .setNode(NODE)
                         .fee(10L)

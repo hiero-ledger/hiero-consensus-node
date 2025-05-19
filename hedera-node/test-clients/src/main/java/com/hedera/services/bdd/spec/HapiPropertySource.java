@@ -271,6 +271,10 @@ public interface HapiPropertySource {
                 .build();
     }
 
+    static AccountID asAccount(long shard, long realm, String num) {
+        return asAccount(shard, realm, Long.parseLong(num));
+    }
+
     static AccountID asAccount(String shard, String realm, String num) {
         return asAccount(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
     }

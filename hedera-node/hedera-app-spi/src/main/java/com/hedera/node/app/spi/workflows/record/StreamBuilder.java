@@ -99,6 +99,12 @@ public interface StreamBuilder {
     long getGasUsedForContractTxn();
 
     /**
+     * Returns the evm ops duration already set in construction of this builder.
+     * @return the evm ops duration
+     */
+    long getOpsDurationForContractTxn();
+
+    /**
      * Returns the status that is currently set in the record builder.
      *
      * @return the status of the transaction

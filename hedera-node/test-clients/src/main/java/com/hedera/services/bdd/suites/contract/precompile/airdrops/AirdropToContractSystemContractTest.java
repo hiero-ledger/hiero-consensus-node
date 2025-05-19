@@ -58,7 +58,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -491,7 +490,7 @@ public class AirdropToContractSystemContractTest {
             final AtomicReference<String> factoryEvmAddress = new AtomicReference<>();
             final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
             final AtomicReference<String> expectedCreate2Address = new AtomicReference<>();
-            final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+            final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
             final AtomicReference<String> hollowCreationAddress = new AtomicReference<>();
 
             final var salt = BigInteger.valueOf(42);
