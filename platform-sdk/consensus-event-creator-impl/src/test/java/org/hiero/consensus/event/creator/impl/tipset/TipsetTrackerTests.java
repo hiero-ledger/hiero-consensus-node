@@ -29,6 +29,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -173,8 +174,10 @@ class TipsetTrackerTests {
                 : EventConstants.FIRST_GENERATION;
         while (tracker.size() > 0) {
             ancientThreshold += random.nextInt(1, 5);
-            final EventWindow eventWindow =
-                    new EventWindow(1, ancientThreshold, 1 /* ignored in this context */, ancientMode);
+            final EventWindow eventWindow = EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThreshold(ancientThreshold)
+                    .build();
             tracker.setEventWindow(eventWindow);
             assertEquals(eventWindow, tracker.getEventWindow());
             for (final EventDescriptorWrapper descriptor : expectedTipsets.keySet()) {
