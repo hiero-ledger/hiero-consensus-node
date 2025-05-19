@@ -8,6 +8,7 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTe
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEventAndMaybeAdvanceCreatorScore;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -1125,28 +1126,163 @@ class TipsetEventCreatorTests {
         assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
     }
 
-    enum EventCreationTimeTestMode {
-        CURRENT_TIME_AFTER_PARENT_CREATION_TIME_PARENT_HAS_NO_TRANSACTIONS,
-        CURRENT_TIME_IS_AFTER_PARENT_LATEST_TRANSACTION,
-        CURRENT_TIME_MATCHES_PARENT_CREATION_TIME,
-        CURREN_TIME_IS_BEFORE_PARENT_LATEST_TRANSACTION
-    }
-
     /**
-     * This test verifies that the event creator assigns the propper creationTime for an event given it's self parent characteristics.
+     * This test verifies that the event creator assigns the propper creationTime in the following scenario:
+     *   - the parent has no transactions
+     *  - current time (wall clock) is after the parent's creation time
+     * We expect the new event creation time to be the current time.
      *
      * @param ancientMode  {@link AncientMode#values()}
      * @param random  {@link RandomUtils#getRandomPrintSeed()}
-     * @param eventCreationTimeTestMode {@link EventCreationTimeTestMode#values()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
         @ParamSource(
-                param = "eventCreationTimeTestMode",
-                fullyQualifiedClass =
-                        "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTests$EventCreationTimeTestMode",
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
                 method = "values"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("calculateNewEventCreationTime Test()")
+    void eventCreationTime_testCurrentTimeAfterParentCreationTimeParentHasNoTransactions(
+            @ParamName("ancientMode") final AncientMode ancientMode, @ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final FakeTime time = new FakeTime();
+
+        final Map<NodeId, SimulatedNode> nodeMaps =
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
+
+        final EventCreator eventCreator =
+                nodeMaps.values().stream().toList().getFirst().eventCreator();
+
+        var lastEvent = eventCreator.maybeCreateEvent();
+        time.tick(100); // Move the time forward
+        lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        Instant present = time.now();
+        assertEquals(present, lastEvent.getTimeCreated());
+    }
+
+    /**
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
+     *  - the parent has transactions
+     *  - current time (wall clock) is after the parent's last transaction time
+     * We expect the new event creation time to be the current time.
+     *
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("calculateNewEventCreationTime Test()")
+    void eventCreationTimeTest_currentTimeIsAfterParentLatestTransaction(
+            @ParamName("ancientMode") final AncientMode ancientMode, @ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final FakeTime time = new FakeTime();
+
+        final Map<NodeId, SimulatedNode> nodeMaps =
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
+
+        final EventCreator eventCreator =
+                nodeMaps.values().stream().toList().getFirst().eventCreator();
+
+        transactionSupplier.set(generateTransactions(random, 10));
+        var lastEvent = eventCreator.maybeCreateEvent();
+        time.tick(100); // Move the time forward
+        lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        Instant present = time.now();
+        assertEquals(present, lastEvent.getTimeCreated());
+    }
+
+    /**
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
+     * - the parent has transactions
+     * - current time (wall clock) is before the parent's last transaction time
+     * We expect the new event creation time to be set to the parent's creation time + number of transactions.
+     *
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "ancientMode",
+                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
+                method = "values"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("calculateNewEventCreationTime Test()")
+    void eventCreationTimeTestCurrenTimeIsBeforeParentLatestTransaction(
+            @ParamName("ancientMode") final AncientMode ancientMode, @ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final FakeTime time = new FakeTime();
+
+        final Map<NodeId, SimulatedNode> nodeMaps =
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
+
+        final EventCreator eventCreator =
+                nodeMaps.values().stream().toList().getFirst().eventCreator();
+
+        transactionSupplier.set(generateTransactions(random, 100));
+        // the self-parent
+        var parentEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(parentEvent);
+        // Move the time forward but just not enough to reach the parent's last transaction time
+        time.tick(59);
+        var lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        assertEquals(parentEvent.getTimeCreated().plusNanos(100), lastEvent.getTimeCreated());
+    }
+
+    /**
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenarioi:
+     *  - the parent has no transactions
+     *  - current time (wall clock) is the same as the parent's creation time
+     * We expect the new event creation time to be set to the parent's creation time + a fixed delta.
+     *
+     * @param ancientMode  {@link AncientMode#values()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
         @ParamSource(
                 param = "ancientMode",
                 fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
@@ -1158,9 +1294,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("calculateNewEventCreationTime Test()")
     void eventCreationTimeTest(
-            @ParamName("ancientMode") final AncientMode ancientMode,
-            @ParamName("random") final Random random,
-            @ParamName("eventCreationTimeTestMode") final EventCreationTimeTestMode eventCreationTimeTestMode) {
+            @ParamName("ancientMode") final AncientMode ancientMode, @ParamName("random") final Random random) {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
@@ -1168,66 +1302,18 @@ class TipsetEventCreatorTests {
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime current = new FakeTime();
+        final FakeTime time = new FakeTime();
 
         final Map<NodeId, SimulatedNode> nodeMaps =
-                buildSimulatedNodes(random, current, roster, transactionSupplier::get, ancientMode);
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
 
-        var ec = nodeMaps.values().stream().toList().getFirst().eventCreator();
+        final EventCreator eventCreator =
+                nodeMaps.values().stream().toList().getFirst().eventCreator();
 
-        // Maybe this is better in split tests, but it's a lot easier to read if it's all in one.
-        switch (eventCreationTimeTestMode) {
-            // Test the scenario where
-            //  - the parent has no transactions
-            //  - current time is after the parent's creation time
-            // We expect the new event creation time to be the current time.
-            case CURRENT_TIME_AFTER_PARENT_CREATION_TIME_PARENT_HAS_NO_TRANSACTIONS -> {
-                var lastEvent = ec.maybeCreateEvent();
-                current.tick(100); // Move the time forward
-                lastEvent = ec.maybeCreateEvent();
-                assertNotNull(lastEvent);
-                Instant present = current.now();
-                assertEquals(present, lastEvent.getTimeCreated());
-            }
-            // Test the scenario where
-            //  - the parent has transactions
-            //  - current time is after the parent's last transaction time
-            // We expect the new event creation time to be the current time.
-            case CURRENT_TIME_IS_AFTER_PARENT_LATEST_TRANSACTION -> {
-                TipsetEventCreatorTestUtils.addTransactions(random, transactionSupplier, 10);
-                var lastEvent = ec.maybeCreateEvent();
-                current.tick(100); // Move the time forward
-                lastEvent = ec.maybeCreateEvent();
-                assertNotNull(lastEvent);
-                Instant present = current.now();
-                assertEquals(present, lastEvent.getTimeCreated());
-            }
-
-            // Test the scenario where
-            //  - the parent has transactions
-            //  - current time is before the parent's last transaction time
-            // We expect the new event creation time to be set to the parent's creation time + number of transactions.
-            case CURREN_TIME_IS_BEFORE_PARENT_LATEST_TRANSACTION -> {
-                TipsetEventCreatorTestUtils.addTransactions(random, transactionSupplier, 100);
-                var parentEvent = ec.maybeCreateEvent(); // the self-parent
-                assertNotNull(parentEvent);
-                current.tick(
-                        59); // Move the time forward but just not enough to reach the parent's last transaction time
-                var lastEvent = ec.maybeCreateEvent();
-                assertNotNull(lastEvent);
-                assertEquals(parentEvent.getTimeCreated().plusNanos(100), lastEvent.getTimeCreated());
-            }
-            // Test the scenario where
-            //  - the parent has no transactions
-            //  - current time is the same as the parent's creation time
-            // We expect the new event creation time to be set to the parent's creation time + a fixed delta.
-            case CURRENT_TIME_MATCHES_PARENT_CREATION_TIME -> {
-                var parentEvent = ec.maybeCreateEvent(); // the self-parent
-                assertNotNull(parentEvent);
-                var lastEvent = ec.maybeCreateEvent();
-                assertNotNull(lastEvent);
-                assertEquals(parentEvent.getTimeCreated().plusNanos(1), lastEvent.getTimeCreated());
-            }
-        }
+        var parentEvent = eventCreator.maybeCreateEvent(); // the self-parent
+        assertNotNull(parentEvent);
+        var lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        assertEquals(parentEvent.getTimeCreated().plusNanos(1), lastEvent.getTimeCreated());
     }
 }

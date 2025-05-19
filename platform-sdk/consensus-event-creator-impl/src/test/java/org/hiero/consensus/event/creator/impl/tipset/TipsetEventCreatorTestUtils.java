@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
@@ -191,12 +190,12 @@ public class TipsetEventCreatorTestUtils {
         assertFalse(
                 (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
                         || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
-                "Parent's birthround should never be higher.");
+                "Parent's birthround should never be higher to the event's generation.");
 
         assertFalse(
-                (nonNull(selfParent) && selfParent.getGeneration() > newEvent.getGeneration())
-                        || (nonNull(otherParent) && otherParent.getGeneration() > newEvent.getGeneration()),
-                "Parent's Generation should never be higher.");
+                (nonNull(selfParent) && selfParent.getGeneration() >= newEvent.getGeneration())
+                        || (nonNull(otherParent) && otherParent.getGeneration() >= newEvent.getGeneration()),
+                "Parent's generation should never be higher or equal to the event's generation.");
 
         // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
         // with nanosecond precision for transaction.
@@ -215,7 +214,8 @@ public class TipsetEventCreatorTestUtils {
                     .addEventAndGetAdvancementWeight(descriptor)
                     .isNonZero());
         } else {
-            simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor); // this has side effect
+            // the next call will modify the tipsetWeightCalculator
+            simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor);
         }
 
         final List<Bytes> convertedTransactions = newEvent.getTransactions().stream()
@@ -316,14 +316,26 @@ public class TipsetEventCreatorTestUtils {
                 .build();
     }
 
-    static void addTransactions(
-            final Random random, final AtomicReference<List<Bytes>> transactionSupplier, final int number) {
-        final List<Bytes> tenTransactions = IntStream.range(0, number)
-                .mapToObj(i -> generateRandomTransaction(random)) // Method reference
+    /**
+     * Generates {@code number} of random transactions
+     * @param random the random instance to use
+     * @param number the number of transactions to generate. Must be positive.
+     * @return a list of bytes for each transaction
+     */
+    @NonNull
+    static List<Bytes> generateTransactions(@NonNull final Random random, final int number) {
+        if (number <= 0) {
+            throw new IllegalArgumentException("number must be greater than 0");
+        }
+        return IntStream.range(0, number)
+                .mapToObj(i -> generateRandomTransaction(random))
                 .toList();
-        transactionSupplier.set(tenTransactions);
     }
 
+    /**
+     * @return a boolean array containing both false and true values
+     */
+    @NonNull
     public static List<Boolean> booleanValues() {
         return Arrays.asList(Boolean.FALSE, Boolean.TRUE);
     }

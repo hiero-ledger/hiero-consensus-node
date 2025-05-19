@@ -213,6 +213,6 @@ public final class Randotron extends Random {
 
     @Override
     public String toString() {
-        return "Randotron{" + seed + "}";
+        return "Randotron{" + seed + "L}";
     }
 }

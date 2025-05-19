@@ -46,6 +46,6 @@ public class ResettableRandom extends Random {
 
     @Override
     public String toString() {
-        return "ResettableRandom{" + initialSeed + "}";
+        return "ResettableRandom{" + initialSeed + "L}";
     }
 }
