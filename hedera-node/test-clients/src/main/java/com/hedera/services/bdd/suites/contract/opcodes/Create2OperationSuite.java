@@ -699,7 +699,8 @@ public class Create2OperationSuite {
                                             .addNftTransfers(NftTransfer.newBuilder()
                                                     .setSerialNumber(2L)
                                                     .setSenderAccountID(tt)
-                                                    .setReceiverAccountID(Utils.accountIdWithHexedEvmAddress(spec, userMirrorAddr.get()))));
+                                                    .setReceiverAccountID(Utils.accountIdWithHexedEvmAddress(
+                                                            spec, userMirrorAddr.get()))));
                         })
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
                 sourcing(() -> getContractInfo(userLiteralId.get()).logged()));
