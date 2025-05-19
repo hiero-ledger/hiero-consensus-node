@@ -95,8 +95,8 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
             final Class<?> theClazz =
                     (Strings.isNullOrEmpty(className)) ? testMethod.getDeclaringClass() : Class.forName(className);
             final Method source = theClazz.getDeclaredMethod(methodName);
-            int staticModifiers = source.getModifiers();
-            boolean isStatic = Modifier.isStatic(staticModifiers);
+            final int staticModifiers = source.getModifiers();
+            final boolean isStatic = Modifier.isStatic(staticModifiers);
             if (!isStatic) {
                 throw new IllegalStateException("Source method: " + className + "#" + methodName + " must be static");
             }
