@@ -111,7 +111,7 @@ dependencies.constraints {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
-    api("org.json:json:20250107") { because("org.json") }
+    api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
     api("org.junit-pioneer:junit-pioneer:2.3.0") { because("org.junitpioneer") }
