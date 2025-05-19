@@ -295,7 +295,7 @@ public class NodeUpdateTest {
                             node.grpcCertificateHash(),
                             "Node grpcCertificateHash should be updated");
                     assertEquals(toPbj(updateOp.getAdminKey()), node.adminKey(), "Node adminKey should be updated");
-                    assertEquals(toPbj(asAccount(spec, 100)), node.accountId());
+                    assertEquals(toPbj(asAccount(spec, 100)), node.accountId(), "Node accountId should be updated");
                 }))),
                 overriding("nodes.updateAccountIdAllowed", "false"));
     }
