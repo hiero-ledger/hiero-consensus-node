@@ -1326,7 +1326,7 @@ public class ConsensusImpl implements Consensus {
     }
 
     @Override
-    public ConsensusRounds getRounds() {
-        return rounds;
+    public Iterator<CandidateWitness> getCandidateWitnesses() {
+        return rounds.getElectionRound().undecidedWitnesses();
     }
 }

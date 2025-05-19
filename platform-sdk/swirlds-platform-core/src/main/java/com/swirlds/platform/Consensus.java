@@ -2,9 +2,10 @@
 package com.swirlds.platform;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.platform.consensus.ConsensusRounds;
+import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -53,11 +54,11 @@ public interface Consensus {
     long getFameDecidedBelow();
 
     /**
-     * Retrieves the consensus rounds.
+     * Retrieves the undecided witnesses.
      *
-     * @return an instance of {@link ConsensusRounds} containing the consensus rounds.
+     * @return an iterator of all undecided witnesses
      */
-    ConsensusRounds getRounds();
+    Iterator<CandidateWitness> getCandidateWitnesses();
 
     /**
      * @return the latest round for which fame has been decided

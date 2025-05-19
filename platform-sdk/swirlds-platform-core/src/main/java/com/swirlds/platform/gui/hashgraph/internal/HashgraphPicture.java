@@ -279,9 +279,7 @@ public class HashgraphPicture extends JPanel {
             s += " " + event.getRoundCreated();
         }
         if (options.writeVote() && event.isWitness()) {
-            for (final Iterator<CandidateWitness> it =
-                            consensus.getRounds().getElectionRound().undecidedWitnesses();
-                    it.hasNext(); ) {
+            for (final Iterator<CandidateWitness> it = consensus.getCandidateWitnesses(); it.hasNext(); ) {
                 final CandidateWitness candidateWitnessI = it.next();
                 String vote = event.getVote(candidateWitnessI) ? "T" : "F";
                 // showing T or F from true/false for readability on the picture
