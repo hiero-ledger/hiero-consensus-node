@@ -47,11 +47,7 @@ public interface HapiPropertySource {
     String NODE_RECORD_STREAM_DIR = String.format("record%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
 
     private static HapiPropertySource initializeDefaultSource() {
-        final var source = new JutilPropertySource("spec-default.properties");
-        // Validate the default shard/realm properties
-        Objects.requireNonNull(source.get("default.shard"), "Missing default.shard in spec-default.properties");
-        Objects.requireNonNull(source.get("default.realm"), "Missing default.realm in spec-default.properties");
-        return source;
+        return new JutilPropertySource("spec-default.properties");
     }
 
     static byte[] explicitBytesOf(@NonNull final Address address) {
@@ -171,11 +167,13 @@ public interface HapiPropertySource {
     }
 
     private static long getSpecDefaultShard() {
-        return Integer.parseInt(defaultSource.get("default.shard"));
+        return Integer.parseInt(
+                Optional.ofNullable(defaultSource.get("default.shard")).orElse("0"));
     }
 
     private static long getSpecDefaultRealm() {
-        return Long.parseLong(defaultSource.get("default.realm"));
+        return Long.parseLong(
+                Optional.ofNullable(defaultSource.get("default.realm")).orElse("0"));
     }
 
     default TimeUnit getTimeUnit(String property) {
