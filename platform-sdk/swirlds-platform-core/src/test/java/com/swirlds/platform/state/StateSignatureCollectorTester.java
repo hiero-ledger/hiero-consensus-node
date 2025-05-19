@@ -16,9 +16,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
@@ -58,11 +58,9 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     @Override
     public List<ReservedSignedState> addReservedState(@NonNull final ReservedSignedState reservedSignedState) {
-        final EventWindow window = new EventWindow(
-                reservedSignedState.get().getRound(),
-                1 /* ignored by this test */,
-                1 /* ignored by this test */,
-                AncientMode.GENERATION_THRESHOLD /* ignored by this test*/);
+        final EventWindow window = EventWindowBuilder.generationMode()
+                .setLatestConsensusRound(reservedSignedState.get().getRound())
+                .build();
 
         latestSignedState.updateEventWindow(window);
 

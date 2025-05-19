@@ -176,8 +176,21 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     }
 
     @Override
-    public boolean tryToChargePayer(final long amount) {
-        return feeAccumulator.chargeFee(payerId, amount, null).networkFee() == amount;
+    public boolean tryToCharge(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot charge negative amount " + amount);
+        }
+        return feeAccumulator.chargeFee(accountId, amount, null).networkFee() == amount;
+    }
+
+    @Override
+    public void refundBestEffort(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot charge negative amount " + amount);
+        }
+        feeAccumulator.refundFee(accountId, amount);
     }
 
     @NonNull

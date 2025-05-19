@@ -140,7 +140,7 @@ public class StandardEventDeduplicator implements EventDeduplicator {
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
-        observedEvents.shiftWindow(eventWindow.getAncientThreshold());
+        observedEvents.shiftWindow(eventWindow.ancientThreshold());
     }
 
     /**

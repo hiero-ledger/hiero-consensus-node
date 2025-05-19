@@ -65,7 +65,7 @@ class SignedStateFileReadWriteTest {
         final var registry = ConstructableRegistry.getInstance();
         platformVersion =
                 SemanticVersion.newBuilder().major(RandomUtils.nextInt(1, 100)).build();
-        registry.registerConstructables("org.hiero.base.crypto");
+        registry.registerConstructables("org.hiero");
         registry.registerConstructables("com.swirlds.platform");
         registry.registerConstructables("com.swirlds.state");
         registry.registerConstructables("com.swirlds.virtualmap");
