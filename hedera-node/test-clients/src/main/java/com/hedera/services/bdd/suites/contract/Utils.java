@@ -437,10 +437,6 @@ public class Utils {
         return Address.wrap(toChecksumAddress(new BigInteger(1, asSolidityAddress((int) seed, seed, num))));
     }
 
-    public static byte[] asSolidityAddress(final AccountID accountId) {
-        return asSolidityAddress((int) accountId.getShardNum(), accountId.getRealmNum(), accountId.getAccountNum());
-    }
-
     public static Address numAsHeadlongAddress(HapiSpec spec, final long num) {
         return idAsHeadlongAddress(AccountID.newBuilder()
                 .setShardNum(spec.shard())
@@ -459,8 +455,30 @@ public class Utils {
                 asSolidityAddress((int) tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum()));
     }
 
-    public static String asHexedSolidityAddress(final HapiSpec spec, final long num) {
-        return CommonUtils.hex(asSolidityAddress(spec, num));
+    public static byte[] asSolidityAddress(final AccountID accountId) {
+        return asSolidityAddress((int) accountId.getShardNum(), accountId.getRealmNum(), accountId.getAccountNum());
+    }
+
+    public static byte[] asSolidityAddress(final ContractID contractId) {
+        return asSolidityAddress((int) contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum());
+    }
+
+    public static byte[] asSolidityAddress(final TokenID tokenId) {
+        return asSolidityAddress((int) tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum());
+    }
+
+    public static byte[] asSolidityAddress(HapiSpec spec, final long num) {
+        return asSolidityAddress((int) spec.shard(), spec.realm(), num);
+    }
+
+    public static byte[] asSolidityAddress(final int shard, final long realm, final long num) {
+        final byte[] solidityAddress = new byte[20];
+
+        arraycopy(Ints.toByteArray(shard), 0, solidityAddress, 0, 4);
+        arraycopy(Longs.toByteArray(realm), 0, solidityAddress, 4, 8);
+        arraycopy(Longs.toByteArray(num), 0, solidityAddress, 12, 8);
+
+        return solidityAddress;
     }
 
     public static String asHexedSolidityAddress(final AccountID accountId) {
@@ -475,26 +493,8 @@ public class Utils {
         return CommonUtils.hex(asSolidityAddress(tokenId));
     }
 
-    public static byte[] asSolidityAddress(final ContractID contractId) {
-        return asSolidityAddress((int) contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum());
-    }
-
-    public static byte[] asSolidityAddress(final TokenID tokenId) {
-        return asSolidityAddress((int) tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum());
-    }
-
-    public static byte[] asSolidityAddress(final int shard, final long realm, final long num) {
-        final byte[] solidityAddress = new byte[20];
-
-        arraycopy(Ints.toByteArray(shard), 0, solidityAddress, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, solidityAddress, 4, 8);
-        arraycopy(Longs.toByteArray(num), 0, solidityAddress, 12, 8);
-
-        return solidityAddress;
-    }
-
-    public static byte[] asSolidityAddress(HapiSpec spec, final long num) {
-        return asSolidityAddress((int) spec.shard(), spec.realm(), num);
+    public static String asHexedSolidityAddress(final HapiSpec spec, final long num) {
+        return CommonUtils.hex(asSolidityAddress(spec, num));
     }
 
     public static String asHexedSolidityAddress(final int shard, final long realm, final long num) {
