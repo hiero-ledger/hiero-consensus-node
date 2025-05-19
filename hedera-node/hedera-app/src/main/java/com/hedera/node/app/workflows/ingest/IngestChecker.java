@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
@@ -328,6 +329,8 @@ public final class IngestChecker {
      */
     private void releaseAccumulatedCapacity(Map<HederaFunctionality, Integer> usedCapacity) {
         usedCapacity.forEach(synchronizedThrottleAccumulator::leakCapacityForNOfUnscaled);
+        // Release capacity for the parent batch transaction as well
+        synchronizedThrottleAccumulator.leakCapacityForNOfUnscaled(ATOMIC_BATCH, 1);
     }
 
     private static int maxIngestParseSize(Configuration configuration) {
