@@ -95,10 +95,12 @@ public class InMemoryAppender extends AbstractAppender {
      */
     @NonNull
     public static List<StructuredLog> getLogs(final long nodeId) {
-        return logs.stream()
-                .filter(Objects::nonNull)
-                .filter(log -> log.nodeId() == nodeId)
-                .toList();
+        synchronized (logs) {
+            return logs.stream()
+                    .filter(Objects::nonNull)
+                    .filter(log -> log.nodeId() == nodeId)
+                    .toList();
+        }
     }
 
     /**
