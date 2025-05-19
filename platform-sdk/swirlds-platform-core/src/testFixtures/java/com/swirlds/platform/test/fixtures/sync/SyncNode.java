@@ -39,6 +39,7 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 
 /**
  * Represents a node in a sync for tests. This node can be the caller or the listener.
@@ -266,10 +267,13 @@ public class SyncNode {
     public void expireBelow(final long expirationThreshold) {
         this.expirationThreshold = expirationThreshold;
 
-        final long ancientThreshold = Math.max(shadowGraph.getEventWindow().getAncientThreshold(), expirationThreshold);
+        final long ancientThreshold = Math.max(shadowGraph.getEventWindow().ancientThreshold(), expirationThreshold);
 
-        final EventWindow eventWindow =
-                new EventWindow(0 /* ignored by shadowgraph */, ancientThreshold, expirationThreshold, ancientMode);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setAncientThreshold(ancientThreshold)
+                .setExpiredThreshold(expirationThreshold)
+                .build();
 
         updateEventWindow(eventWindow);
     }
@@ -342,7 +346,7 @@ public class SyncNode {
     }
 
     public long getCurrentAncientThreshold() {
-        return shadowGraph.getEventWindow().getAncientThreshold();
+        return shadowGraph.getEventWindow().ancientThreshold();
     }
 
     public long getExpirationThreshold() {

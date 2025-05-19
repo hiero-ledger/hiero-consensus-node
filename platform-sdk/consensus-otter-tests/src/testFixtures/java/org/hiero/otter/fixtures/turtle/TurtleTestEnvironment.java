@@ -30,9 +30,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.Validator;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
-import org.hiero.otter.fixtures.validator.ValidatorImpl;
 
 /**
  * A test environment for the Turtle framework.
@@ -63,10 +61,12 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
 
+        RuntimeObjectRegistry.reset();
         RuntimeObjectRegistry.initialize(time);
 
         try {
             final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+            registry.reset();
             registry.registerConstructables("");
             registerMerkleStateRootClassIds();
         } catch (final ConstructableRegistryException e) {
@@ -184,18 +184,10 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public Validator validator() {
-        log.warn("Validator is not implemented yet");
-        return new ValidatorImpl();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void destroy() throws InterruptedException {
         generator.stop();
         network.destroy();
+        ConstructableRegistry.getInstance().reset();
+        RuntimeObjectRegistry.reset();
     }
 }

@@ -13,9 +13,9 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.processorsForAllCurrentEvmVersions;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -30,7 +30,6 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
@@ -41,7 +40,6 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -76,9 +74,6 @@ class ContextTransactionProcessorTest {
     private RootProxyWorldUpdater rootProxyWorldUpdater;
 
     @Mock
-    private Supplier<HederaWorldUpdater> feesOnlyUpdater;
-
-    @Mock
     private CustomGasCharging customGasCharging;
 
     @Mock
@@ -107,27 +102,20 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenSenderAccount();
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater);
-        final var expectedResult = new CallOutcome(
-                protoResult,
-                SUCCESS,
-                HEVM_CREATION.contractId(),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
-                null,
-                null,
-                opsDuration / 2);
-        verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
+        final var expectedResult =
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, opsDuration / 2);
+        verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
         assertEquals(expectedResult, subject.call());
     }
 
@@ -145,28 +133,21 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenSenderAccount();
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, rootProxyWorldUpdater);
-        final var expectedResult = new CallOutcome(
-                protoResult,
-                SUCCESS,
-                HEVM_CREATION.contractId(),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
-                null,
-                null,
-                opsDuration / 2);
+        final var expectedResult =
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, opsDuration / 2);
         assertEquals(expectedResult, subject.call());
-        verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
+        verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }
 
     @Test
@@ -182,33 +163,25 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT);
         given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var protoResult = SUCCESS_RESULT.asProtoResultOf(null, rootProxyWorldUpdater);
-        final var expectedResult = new CallOutcome(
-                protoResult,
-                SUCCESS,
-                HEVM_CREATION.contractId(),
-                SUCCESS_RESULT.gasPrice(),
-                null,
-                null,
-                opsDuration / 2);
+        final var expectedResult =
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, opsDuration / 2);
         assertEquals(expectedResult, subject.call());
-        verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
+        verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }
 
     @Test
     void stillChargesHapiFeesOnAbort() {
         final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
-        final var processors = processorsForAllCurrentEvmVersions(processor);
         final var subject = new ContextTransactionProcessor(
                 null,
                 context,
@@ -219,13 +192,12 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
 
         subject.call();
@@ -247,7 +219,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -279,7 +250,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -311,7 +281,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -328,7 +297,7 @@ class ContextTransactionProcessorTest {
 
         verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
         // Verify that disabled zeroHapi fees flag won't charge on error
-        verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
+        verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
         verify(rootProxyWorldUpdater).commit();
         assertEquals(INVALID_CONTRACT_ID, outcome.status());
     }
@@ -346,7 +315,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -363,7 +331,7 @@ class ContextTransactionProcessorTest {
 
         verify(customGasCharging, never()).chargeGasForAbortedTransaction(any(), any(), any(), any());
         // Verify that disabled zeroHapi fees flag won't charge on error
-        verify(rootProxyWorldUpdater, never()).collectFee(any(), anyLong());
+        verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
         verify(rootProxyWorldUpdater).commit();
         assertEquals(INVALID_CONTRACT_ID, outcome.status());
     }
@@ -381,7 +349,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 
@@ -411,7 +378,6 @@ class ContextTransactionProcessorTest {
                 tracer,
                 rootProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 processor,
                 customGasCharging);
 

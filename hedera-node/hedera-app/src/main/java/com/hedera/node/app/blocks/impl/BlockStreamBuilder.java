@@ -1073,7 +1073,6 @@ public class BlockStreamBuilder
         }
 
         evmAddress = Bytes.EMPTY;
-        ethereumHash = Bytes.EMPTY;
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
         runningHashVersion = 0L;

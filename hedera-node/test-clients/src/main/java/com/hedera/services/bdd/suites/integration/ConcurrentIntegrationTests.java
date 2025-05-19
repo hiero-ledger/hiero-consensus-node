@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.mutateNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
@@ -131,12 +132,13 @@ public class ConcurrentIntegrationTests {
                 getAccountInfo("hollowAccount").isNotHollow());
     }
 
-    @LeakyHapiTest(overrides = {"ledger.nftTransfers.maxLen"})
+    @LeakyHapiTest(overrides = {"ledger.nftTransfers.maxLen", "atomicBatch.isEnabled"})
     final Stream<DynamicTest> chargedFeesReplayedAfterBatchFailure(
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftOne,
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftTwo) {
         final List<SortedMap<AccountID, Long>> successfulRecordFees = new ArrayList<>();
         return hapiTest(
+                overridingTwo("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"),
                 cryptoCreate("operator").maxAutomaticTokenAssociations(2),
                 nftOne.doWith(
                         token -> cryptoTransfer(movingUnique(nftOne.name(), 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)

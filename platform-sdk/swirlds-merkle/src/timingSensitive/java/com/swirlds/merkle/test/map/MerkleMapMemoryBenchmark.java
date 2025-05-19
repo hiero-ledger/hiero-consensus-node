@@ -27,7 +27,7 @@ class MerkleMapMemoryBenchmark {
         registry.registerConstructables("com.swirlds.MerkleMap");
         registry.registerConstructables("com.swirlds.merkletree");
         registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero.consensus");
+        registry.registerConstructables("org.hiero");
     }
 
     /**

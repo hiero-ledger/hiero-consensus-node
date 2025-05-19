@@ -17,7 +17,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -258,8 +257,8 @@ class ContractCallLocalHandlerTest {
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var expectedResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
-        final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null, opsDuration);
+        final var expectedOutcome =
+                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, opsDuration);
         given(processor.call()).willReturn(expectedOutcome);
 
         // given(processor.call()).willReturn(responseHeader);
@@ -274,7 +273,6 @@ class ContractCallLocalHandlerTest {
     @SuppressWarnings("unchecked")
     void computesFeesSuccessfully() {
 
-        final var id = ContractID.newBuilder().contractNum(10).build();
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(context.feeCalculator()).willReturn(feeCalculator);
@@ -283,7 +281,6 @@ class ContractCallLocalHandlerTest {
         // Mock the behavior of legacyCalculate method
         when(feeCalculator.legacyCalculate(any(Function.class))).thenAnswer(invocation -> {
             // Extract the callback passed to the method
-            Function<SigValueObj, FeeData> passedCallback = invocation.getArgument(0);
             return new Fees(10L, 0L, 0L);
         });
 
