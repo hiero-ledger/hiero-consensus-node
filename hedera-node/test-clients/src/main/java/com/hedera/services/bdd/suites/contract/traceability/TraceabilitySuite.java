@@ -4747,12 +4747,13 @@ public class TraceabilitySuite {
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(create2Factory),
                 withOpContext((spec, opLog) -> {
-                    final var op =contractCreate(create2Factory)
-                        .payingWith(GENESIS)
-                        .adminKey(adminKey)
-                        .entityMemo(entityMemo)
-                        .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
+                    final var op = contractCreate(create2Factory)
+                            .payingWith(GENESIS)
+                            .adminKey(adminKey)
+                            .entityMemo(entityMemo)
+                            .via(CREATE_2_TXN)
+                            .exposingNumTo(num -> factoryEvmAddress.set(
+                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
                     allRunFor(spec, op);
                 }),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
