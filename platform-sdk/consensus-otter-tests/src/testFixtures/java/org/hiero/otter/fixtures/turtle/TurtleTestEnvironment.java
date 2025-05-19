@@ -61,10 +61,12 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
 
+        RuntimeObjectRegistry.reset();
         RuntimeObjectRegistry.initialize(time);
 
         try {
             final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+            registry.reset();
             registry.registerConstructables("");
             registerMerkleStateRootClassIds();
         } catch (final ConstructableRegistryException e) {
@@ -185,5 +187,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     public void destroy() throws InterruptedException {
         generator.stop();
         network.destroy();
+        ConstructableRegistry.getInstance().reset();
+        RuntimeObjectRegistry.reset();
     }
 }
