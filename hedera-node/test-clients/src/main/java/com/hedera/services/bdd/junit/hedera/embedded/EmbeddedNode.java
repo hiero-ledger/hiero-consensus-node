@@ -63,6 +63,12 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         System.setProperty(
                 "bootstrap.nodeAdminKeys.path",
                 getExternalPath(NODE_ADMIN_KEYS_JSON).toAbsolutePath().toString());
+        System.setProperty(
+                "bootstrap.hapiPermissions.path",
+                getExternalPath(DATA_CONFIG_DIR)
+                        .resolve("api-permission.properties")
+                        .toAbsolutePath()
+                        .toString());
         System.setProperty("hedera.profiles.active", "DEV");
 
         // We get the shard/realm from the metadata account which is coming from the property file

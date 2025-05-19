@@ -128,14 +128,14 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     public List<PlatformEvent> setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
-        eventsWithParents.shiftWindow(eventWindow.getAncientThreshold());
+        eventsWithParents.shiftWindow(eventWindow.ancientThreshold());
 
         // As the map is cleared out, we need to gather the ancient parents and their orphans. We can't
         // modify the data structure as the window is being shifted, so we collect that data and act on
         // it once the window has finished shifting.
         final List<ParentAndOrphans> ancientParents = new ArrayList<>();
         missingParentMap.shiftWindow(
-                eventWindow.getAncientThreshold(),
+                eventWindow.ancientThreshold(),
                 (parent, orphans) -> ancientParents.add(new ParentAndOrphans(parent, orphans)));
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();

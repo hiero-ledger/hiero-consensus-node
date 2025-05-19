@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
+import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -18,10 +19,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,6 +42,7 @@ class DefaultInlinePcesWriterTest {
     @BeforeEach
     void beforeEach() {
         final Configuration configuration = new TestConfigBuilder()
+                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, ancientMode == BIRTH_ROUND_THRESHOLD)
                 .withValue(PcesConfig_.DATABASE_DIRECTORY, tempDir.toString())
                 .getOrCreateConfig();
         platformContext = buildContext(configuration);
@@ -111,7 +114,11 @@ class DefaultInlinePcesWriterTest {
             writer.writeEvent(event);
             lowerBound = Math.max(lowerBound, ancientMode.selectIndicator(event) - stepsUntilAncient);
 
-            writer.updateNonAncientEventBoundary(new EventWindow(1, lowerBound, lowerBound, ancientMode));
+            writer.updateNonAncientEventBoundary(EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThreshold(lowerBound)
+                    .setExpiredThreshold(lowerBound)
+                    .build());
 
             if (ancientMode.selectIndicator(event) < lowerBound) {
                 // Although it's not common, it's actually possible that the generator will generate
@@ -123,11 +130,11 @@ class DefaultInlinePcesWriterTest {
         if (lowerBound > ancientMode.selectIndicator(ancientEvent)) {
             // This is probably not possible... but just in case make sure this event is ancient
             try {
-                writer.updateNonAncientEventBoundary(new EventWindow(
-                        1,
-                        ancientMode.selectIndicator(ancientEvent) + 1,
-                        ancientMode.selectIndicator(ancientEvent) + 1,
-                        ancientMode));
+                writer.updateNonAncientEventBoundary(EventWindowBuilder.builder()
+                        .setAncientMode(ancientMode)
+                        .setAncientThreshold(ancientMode.selectIndicator(ancientEvent) + 1)
+                        .setExpiredThreshold(ancientMode.selectIndicator(ancientEvent) + 1)
+                        .build());
             } catch (final IllegalArgumentException e) {
                 // ignore, more likely than not this event is way older than the actual ancient threshold
             }

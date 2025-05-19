@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
@@ -88,7 +89,10 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
         eventCreationRules = AggregateEventCreationRules.of(rules);
-        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
+        futureEventBuffer = new FutureEventBuffer(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 
         phase = new PhaseTimerBuilder<>(
                         platformContext, platformContext.getTime(), "platform", EventCreationStatus.class)

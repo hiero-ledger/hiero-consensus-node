@@ -369,6 +369,7 @@ public class CreatePrecompileSuite {
                         allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
                     final var subop1 = balanceSnapshot(ACCOUNT_BALANCE, ACCOUNT);
+                    final var preCallSnap = balanceSnapshot("preCallSnap", TOKEN_CREATE_CONTRACT);
                     final var subop2 = contractCall(
                                     TOKEN_CREATE_CONTRACT,
                                     CREATE_NFT_WITH_KEYS_AND_EXPIRY_FUNCTION,
@@ -397,6 +398,7 @@ public class CreatePrecompileSuite {
                     allRunFor(
                             spec,
                             subop1,
+                            preCallSnap,
                             subop2,
                             subop3,
                             childRecordsCheck(
@@ -404,14 +406,15 @@ public class CreatePrecompileSuite {
                                     SUCCESS,
                                     TransactionRecordAsserts.recordWith().status(SUCCESS)));
 
-                    final var delta = subop3.getResponseRecord().getTransactionFee();
-                    final var effectivePayer = ACCOUNT;
-                    final var subop4 = getAccountBalance(effectivePayer)
-                            .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(delta + DEFAULT_AMOUNT_TO_SEND)));
-                    final var contractBalanceCheck = getContractInfo(TOKEN_CREATE_CONTRACT)
-                            .has(ContractInfoAsserts.contractWith()
-                                    .balanceGreaterThan(0L)
-                                    .balanceLessThan(DEFAULT_AMOUNT_TO_SEND));
+                    final var callRecord = subop3.getResponseRecord();
+                    final long totalFee = callRecord.getTransactionFee();
+                    final long gasCost = callRecord.getContractCallResult().getGasUsed()
+                            * spec.ratesProvider().currentTinybarGasPrice();
+                    final long creationFee = totalFee - gasCost;
+                    final var subop4 = getAccountBalance(ACCOUNT)
+                            .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(gasCost + DEFAULT_AMOUNT_TO_SEND)));
+                    final var contractBalanceCheck = getAccountBalance(TOKEN_CREATE_CONTRACT)
+                            .hasTinyBars(changeFromSnapshot("preCallSnap", +(DEFAULT_AMOUNT_TO_SEND - creationFee)));
                     final var getAccountTokenBalance =
                             getAccountBalance(ACCOUNT).hasTokenBalance(String.valueOf(createdTokenNum.get()), 0);
                     final var tokenInfo = getTokenInfo(String.valueOf(createdTokenNum.get()))
