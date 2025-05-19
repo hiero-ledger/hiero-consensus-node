@@ -480,8 +480,9 @@ class IngestCheckerTest extends AppTestBase {
                             state, Transaction.PROTOBUF.toBytes(batchTxn.transaction()), configuration));
 
             // Verify capacity leaked the transaction that did not get throttled
-            verify(synchronizedThrottleAccumulator, times(1)).leakCapacityForNOfUnscaled(any(), anyInt());
+            verify(synchronizedThrottleAccumulator, times(2)).leakCapacityForNOfUnscaled(any(), anyInt());
             verify(synchronizedThrottleAccumulator).leakCapacityForNOfUnscaled(CRYPTO_CREATE, 1);
+            verify(synchronizedThrottleAccumulator).leakCapacityForNOfUnscaled(ATOMIC_BATCH, 1);
             // Verifiy crypto transfer was throttled
             verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
         }
