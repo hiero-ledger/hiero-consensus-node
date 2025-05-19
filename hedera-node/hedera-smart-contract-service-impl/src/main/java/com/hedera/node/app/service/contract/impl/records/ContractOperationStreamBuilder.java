@@ -57,7 +57,6 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this updated builder
      */
     default ContractOperationStreamBuilder withCommonFieldsSetFrom(@NonNull final CallOutcome outcome) {
-        transactionFee(transactionFee() + outcome.tinybarGasCost());
         if (outcome.actions() != null) {
             addContractActions(outcome.actions(), false);
         }
