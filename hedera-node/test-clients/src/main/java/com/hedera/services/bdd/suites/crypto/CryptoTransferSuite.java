@@ -1238,8 +1238,7 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
-                .mapToObj(i -> withOpContext((spec, log) ->
-                                allRunFor(spec, getAccountBalance(String.valueOf(i))))
+                .mapToObj(i -> withOpContext((spec, log) -> allRunFor(spec, getAccountBalance(String.valueOf(i))))
                         .logged())
                 .toArray(HapiSpecOperation[]::new));
     }
