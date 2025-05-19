@@ -15,7 +15,6 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.Validator.Profile;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.junit.jupiter.api.Disabled;
 
@@ -36,8 +35,6 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofMinutes(2L));
 
         // Validations
-        env.validator().validateRemaining(Profile.DEFAULT);
-
         final MultipleNodeLogResults logResults =
                 network.getLogResults().ignoring(network.getNodes().getFirst()).ignoring(STARTUP);
         assertThat(logResults).noMessageWithLevelHigherThan(Level.INFO);

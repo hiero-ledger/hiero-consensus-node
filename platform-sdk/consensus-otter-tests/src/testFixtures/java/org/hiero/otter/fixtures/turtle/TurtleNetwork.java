@@ -51,6 +51,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
 
     private static final Logger log = LogManager.getLogger(TurtleNetwork.class);
 
+    private static final Duration FREEZE_DELAY = Duration.ofSeconds(10);
+
     private enum State {
         INIT,
         RUNNING,
@@ -174,8 +176,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         log.info("Preparing upgrade...");
 
         log.debug("Sending TurtleFreezeTransaction transaction...");
-        final TurtleTransaction freezeTransaction =
-                TransactionFactory.createFreezeTransaction(timeManager.time().now());
+        final TurtleTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
+                timeManager.time().now().plus(FREEZE_DELAY));
         nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
 
         log.debug("Waiting for nodes to freeze...");

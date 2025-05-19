@@ -37,6 +37,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -243,8 +244,11 @@ class OrphanBufferTests {
                     useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
             final long ancientThreshold =
                     useBirthRoundForAncient ? Math.max(1, latestConsensusRound - 26 + 1) : minimumGenerationNonAncient;
-            final EventWindow eventWindow = new EventWindow(
-                    latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
+            final EventWindow eventWindow = EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setLatestConsensusRound(latestConsensusRound)
+                    .setAncientThreshold(ancientThreshold)
+                    .build();
             unorphanedEvents.addAll(orphanBuffer.setEventWindow(eventWindow));
 
             for (final PlatformEvent unorphanedEvent : unorphanedEvents) {
@@ -396,8 +400,11 @@ class OrphanBufferTests {
         final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
                 ? minimumBirthRoundNonAncient
                 : minimumGenerationNonAncient;
-        final EventWindow eventWindow =
-                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setLatestConsensusRound(latestConsensusRound)
+                .setAncientThreshold(ancientThreshold)
+                .build();
 
         // Create two ancient events to serve as parents
         final PlatformEvent selfParent =
@@ -454,8 +461,11 @@ class OrphanBufferTests {
         final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
                 ? minimumBirthRoundNonAncient
                 : minimumGenerationNonAncient;
-        final EventWindow eventWindow =
-                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setLatestConsensusRound(latestConsensusRound)
+                .setAncientThreshold(ancientThreshold)
+                .build();
 
         // Genesis event, ancient
         final PlatformEvent node0AncientEvent =
@@ -547,8 +557,11 @@ class OrphanBufferTests {
         final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
                 ? minimumBirthRoundNonAncient
                 : minimumGenerationNonAncient;
-        final EventWindow eventWindow =
-                new EventWindow(latestConsensusRound, ancientThreshold, 1 /* ignored in this context */, ancientMode);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setLatestConsensusRound(latestConsensusRound)
+                .setAncientThreshold(ancientThreshold)
+                .build();
 
         // Genesis events, ancient
         final PlatformEvent node0AncientEvent =
