@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -128,8 +127,6 @@ public class UpdateAccountEnabledTest {
                         viewNode(
                                 "testNode",
                                 node -> assertEquals(
-                                        asAccount(spec, 1000),
-                                        node.accountId(),
-                                        "Node accountId should be updated")))));
+                                        1000, node.accountId().accountNum(), "Node accountId should be updated")))));
     }
 }
