@@ -12,7 +12,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 public class EventWindowBuilder {
 
     private Long latestConsensusRound;
-    private Long eventBirthRound;
+    private Long newEventBirthRound;
     private Long ancientThreshold;
     private Long expiredThreshold;
     private AncientMode ancientMode;
@@ -57,11 +57,11 @@ public class EventWindowBuilder {
     /**
      * Sets the event birth round.
      *
-     * @param eventBirthRound the birth round of newly created events
+     * @param newEventBirthRound the birth round of newly created events
      * @return the builder instance
      */
-    public @NonNull EventWindowBuilder setEventBirthRound(final long eventBirthRound) {
-        this.eventBirthRound = eventBirthRound;
+    public @NonNull EventWindowBuilder setNewEventBirthRound(final long newEventBirthRound) {
+        this.newEventBirthRound = newEventBirthRound;
         return this;
     }
 
@@ -142,7 +142,7 @@ public class EventWindowBuilder {
         }
         return new EventWindow(
                 latestConsensusRound == null ? ConsensusConstants.ROUND_FIRST : latestConsensusRound,
-                eventBirthRound == null ? ConsensusConstants.ROUND_FIRST : eventBirthRound,
+                newEventBirthRound == null ? ConsensusConstants.ROUND_FIRST : newEventBirthRound,
                 ancientThreshold == null ? ancientMode.getGenesisIndicator() : ancientThreshold,
                 expiredThreshold == null ? ancientMode.getGenesisIndicator() : expiredThreshold,
                 ancientMode);

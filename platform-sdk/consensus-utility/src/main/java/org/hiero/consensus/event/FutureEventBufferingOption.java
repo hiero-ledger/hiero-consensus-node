@@ -9,11 +9,11 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  */
 public enum FutureEventBufferingOption {
     /**
-     * Buffer events that are less than or equal the pending consensus round.
+     * Buffer events that are greater the pending consensus round.
      */
     PENDING_CONSENSUS_ROUND,
     /**
-     * Buffer events that are less than or equal the desired event birth round.
+     * Buffer events that are greater the desired event birth round.
      */
     EVENT_BIRTH_ROUND;
 
@@ -26,7 +26,7 @@ public enum FutureEventBufferingOption {
     public long getOldestRoundToBuffer(@NonNull final EventWindow eventWindow) {
         return switch (this) {
             case PENDING_CONSENSUS_ROUND -> eventWindow.getPendingConsensusRound() + 1;
-            case EVENT_BIRTH_ROUND -> eventWindow.eventBirthRound() + 1;
+            case EVENT_BIRTH_ROUND -> eventWindow.newEventBirthRound() + 1;
         };
     }
 
@@ -39,7 +39,7 @@ public enum FutureEventBufferingOption {
     public long getMaximumReleasableRound(@NonNull final EventWindow eventWindow) {
         return switch (this) {
             case PENDING_CONSENSUS_ROUND -> eventWindow.getPendingConsensusRound();
-            case EVENT_BIRTH_ROUND -> eventWindow.eventBirthRound();
+            case EVENT_BIRTH_ROUND -> eventWindow.newEventBirthRound();
         };
     }
 }

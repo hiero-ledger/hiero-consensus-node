@@ -413,7 +413,7 @@ public class TipsetEventCreator implements EventCreator {
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.ancientMode() == AncientMode.BIRTH_ROUND_THRESHOLD
-                        ? eventWindow.eventBirthRound()
+                        ? eventWindow.newEventBirthRound()
                         : ConsensusConstants.ROUND_FIRST,
                 timeCreated,
                 transactionSupplier.getTransactions());

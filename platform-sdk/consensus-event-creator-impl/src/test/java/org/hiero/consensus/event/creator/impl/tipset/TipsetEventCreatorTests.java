@@ -808,7 +808,7 @@ class TipsetEventCreatorTests {
                     eventCreator.setEventWindow(EventWindowBuilder.builder()
                             .setAncientMode(ancientMode)
                             .setLatestConsensusRound(pendingConsensusRound - 1)
-                            .setEventBirthRound(pendingConsensusRound)
+                            .setNewEventBirthRound(pendingConsensusRound)
                             .setAncientThresholdOrGenesis(eventIndex - 26)
                             .build());
                 }

@@ -15,14 +15,14 @@ import org.hiero.consensus.model.event.PlatformEvent;
 /**
  * Describes the current window of events that the platform is using.
  * @param latestConsensusRound the latest round that has come to consensus
- * @param eventBirthRound      the round that newly created events should use as a birth round
+ * @param newEventBirthRound      the round that newly created events should use as a birth round
  * @param ancientThreshold     the minimum ancient indicator value for an event to be considered non-ancient
  * @param expiredThreshold     the minimum ancient indicator value for an event to be considered not expired
  * @param ancientMode          the ancient mode
  */
 public record EventWindow(
         long latestConsensusRound,
-        long eventBirthRound,
+        long newEventBirthRound,
         long ancientThreshold,
         long expiredThreshold,
         @NonNull AncientMode ancientMode) {
@@ -43,7 +43,7 @@ public record EventWindow(
                             .formatted(ROUND_NEGATIVE_INFINITY));
         }
 
-        if (eventBirthRound < ROUND_FIRST) {
+        if (newEventBirthRound < ROUND_FIRST) {
             throw new IllegalArgumentException(
                     "The event birth round cannot be less than the first round (%d)".formatted(ROUND_FIRST));
         }

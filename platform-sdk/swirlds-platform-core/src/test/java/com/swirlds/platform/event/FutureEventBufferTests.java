@@ -51,12 +51,7 @@ class FutureEventBufferTests {
     void futureEventsBufferedTest() {
         final Random random = getRandomPrintSeed();
 
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
-
-        final FutureEventBuffer futureEventBuffer =
-                new FutureEventBuffer(configuration, METRICS, PENDING_CONSENSUS_ROUND);
+        final FutureEventBuffer futureEventBuffer = pendingRoundFutureBuffer();
 
         final long nonAncientBirthRound = 100;
         final long pendingConsensusRound = nonAncientBirthRound * 2;
@@ -134,13 +129,8 @@ class FutureEventBufferTests {
      */
     @Test
     void testClear() {
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
-
         final StaticTestInput testInput = new StaticTestInput();
-        final FutureEventBuffer futureEventBuffer =
-                new FutureEventBuffer(configuration, METRICS, PENDING_CONSENSUS_ROUND);
+        final FutureEventBuffer futureEventBuffer = pendingRoundFutureBuffer();
         testInput.allTestEvents().forEach(futureEventBuffer::addEvent);
         futureEventBuffer.clear();
         assertThat(futureEventBuffer.updateEventWindow(testInput.getEventWindowForMaxBirthRound()))
@@ -155,12 +145,7 @@ class FutureEventBufferTests {
     void eventsGoAncientWhileBufferedTest() {
         final Random random = getRandomPrintSeed();
 
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
-
-        final FutureEventBuffer futureEventBuffer =
-                new FutureEventBuffer(configuration, METRICS, PENDING_CONSENSUS_ROUND);
+        final FutureEventBuffer futureEventBuffer = pendingRoundFutureBuffer();
 
         final long nonAncientBirthRound = 100;
         final long pendingConsensusRound = nonAncientBirthRound * 2;
@@ -215,13 +200,7 @@ class FutureEventBufferTests {
     @Test
     void eventInBufferAreReleasedOnTimeTest() {
         final Random random = getRandomPrintSeed();
-
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
-
-        final FutureEventBuffer futureEventBuffer =
-                new FutureEventBuffer(configuration, METRICS, PENDING_CONSENSUS_ROUND);
+        final FutureEventBuffer futureEventBuffer = pendingRoundFutureBuffer();
 
         final long pendingConsensusRound = random.nextLong(100, 1_000);
         final long nonAncientBirthRound = pendingConsensusRound / 2;
@@ -297,7 +276,7 @@ class FutureEventBufferTests {
         final Queue<PlatformEvent> expectedOutputOrder = new LinkedList<>(inputOrder);
         final Queue<PlatformEvent> actualOutputOrder = new LinkedList<>();
 
-        final FutureEventBuffer futureEventBuffer = initializeFutureEventBuffer();
+        final FutureEventBuffer futureEventBuffer = pendingRoundFutureBuffer();
 
         for (final PlatformEvent event : inputOrder) {
             final PlatformEvent returnedEvent = futureEventBuffer.addEvent(event);
@@ -312,7 +291,7 @@ class FutureEventBufferTests {
         assertThat(actualOutputOrder).isEqualTo(expectedOutputOrder);
     }
 
-    private FutureEventBuffer initializeFutureEventBuffer() {
+    private FutureEventBuffer pendingRoundFutureBuffer() {
         return new FutureEventBuffer(CONFIGURATION, METRICS, PENDING_CONSENSUS_ROUND);
     }
 
@@ -355,7 +334,7 @@ class FutureEventBufferTests {
                 testInput.b3));
 
         final Queue<PlatformEvent> actualOutputOrder = new LinkedList<>();
-        final FutureEventBuffer futureEventBuffer = initializeFutureEventBuffer();
+        final FutureEventBuffer futureEventBuffer = pendingRoundFutureBuffer();
 
         for (final PlatformEvent event : inputOrder) {
             final PlatformEvent returnedEvent = futureEventBuffer.addEvent(event);
@@ -414,7 +393,7 @@ class FutureEventBufferTests {
                 testInput.b3));
 
         final Queue<PlatformEvent> actualOutputOrder = new LinkedList<>();
-        final FutureEventBuffer futureEventBuffer = initializeFutureEventBuffer();
+        final FutureEventBuffer futureEventBuffer = pendingRoundFutureBuffer();
 
         for (final PlatformEvent event : inputOrder) {
             final PlatformEvent returnedEvent = futureEventBuffer.addEvent(event);
@@ -447,7 +426,7 @@ class FutureEventBufferTests {
 
         final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
                 .setLatestConsensusRound(latestConsensusRound)
-                .setEventBirthRound(eventBirthRound)
+                .setNewEventBirthRound(eventBirthRound)
                 .build();
 
         // update the window for both buffers
