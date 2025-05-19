@@ -223,7 +223,7 @@ public final class IngestChecker {
         // 4. Check throttles
         checkThrottles(state, configuration, txInfo);
         // If the transaction is a batch transaction, we need to check the throttling for each inner transaction
-        if (functionality == HederaFunctionality.ATOMIC_BATCH) {
+        if (functionality == ATOMIC_BATCH) {
             checkThrottlesForInnerTxns(
                     state, configuration, requireNonNull(txBody.atomicBatch()).transactions());
         }
@@ -300,7 +300,7 @@ public final class IngestChecker {
         final var maxParseSize = maxIngestParseSize(configuration);
 
         try {
-            for (var bytes : innerTxnsBytes) {
+            for (final var bytes : innerTxnsBytes) {
                 final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
                 final var functionality = innerTxn.functionality();
                 assertThrottlingPreconditions(innerTxn, configuration);
@@ -316,7 +316,10 @@ public final class IngestChecker {
             }
         } catch (PreCheckException e) {
             if (ingestThrottleEnabled) {
+                // Release capacity for all inner transactions that claimed capacity
                 releaseAccumulatedCapacity(usedCapacity);
+                // Release capacity for the atomic batch itself
+                releaseAccumulatedCapacity(Map.of(ATOMIC_BATCH, 1));
             }
             throw e;
         }
@@ -327,10 +330,8 @@ public final class IngestChecker {
      *
      * @param usedCapacity Map of functionality to capacity count
      */
-    private void releaseAccumulatedCapacity(Map<HederaFunctionality, Integer> usedCapacity) {
+    private void releaseAccumulatedCapacity(final Map<HederaFunctionality, Integer> usedCapacity) {
         usedCapacity.forEach(synchronizedThrottleAccumulator::leakCapacityForNOfUnscaled);
-        // Release capacity for the parent batch transaction as well
-        synchronizedThrottleAccumulator.leakCapacityForNOfUnscaled(ATOMIC_BATCH, 1);
     }
 
     private static int maxIngestParseSize(Configuration configuration) {
