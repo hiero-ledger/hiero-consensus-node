@@ -507,11 +507,6 @@ public class RandomSignedStateGenerator {
                 logger.error("Exception while releasing state", e);
             }
         });
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
         assertEventuallyEquals(
                 0L,
                 MerkleDbDataSource::getCountOfOpenDatabases,
