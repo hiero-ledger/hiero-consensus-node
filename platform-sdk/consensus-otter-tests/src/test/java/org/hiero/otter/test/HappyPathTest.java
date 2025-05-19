@@ -32,7 +32,7 @@ public class HappyPathTest {
         env.generator().start();
 
         // Wait for two minutes
-        timeManager.waitFor(Duration.ofMinutes(2L));
+        timeManager.waitFor(Duration.ofMinutes(1L));
 
         // Validations
         final MultipleNodeLogResults logResults =
@@ -41,5 +41,7 @@ public class HappyPathTest {
 
         assertThat(network.getStatusProgression())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
     }
 }
