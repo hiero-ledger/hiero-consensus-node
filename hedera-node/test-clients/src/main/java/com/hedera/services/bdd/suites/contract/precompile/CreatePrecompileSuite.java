@@ -430,9 +430,14 @@ public class CreatePrecompileSuite {
                             .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(gasCost + DEFAULT_AMOUNT_TO_SEND)));
                     final var contractBalanceCheck = getAccountBalance(TOKEN_CREATE_CONTRACT)
                             .hasTinyBars(changeFromSnapshot("preCallSnap", +(DEFAULT_AMOUNT_TO_SEND - creationFee)));
+                    final var createdTokenId = asTokenString(TokenID.newBuilder()
+                            .setShardNum(SHARD)
+                            .setRealmNum(REALM)
+                            .setTokenNum(createdTokenNum.get())
+                            .build());
                     final var getAccountTokenBalance =
-                            getAccountBalance(ACCOUNT).hasTokenBalance(String.valueOf(createdTokenNum.get()), 0);
-                    final var tokenInfo = getTokenInfo(String.valueOf(createdTokenNum.get()))
+                            getAccountBalance(ACCOUNT).hasTokenBalance(createdTokenId, 0);
+                    final var tokenInfo = getTokenInfo(createdTokenId)
                             .hasTokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                             .hasSymbol(TOKEN_SYMBOL)
                             .hasName(TOKEN_NAME)

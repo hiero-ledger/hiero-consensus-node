@@ -44,6 +44,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -73,6 +74,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 @DisplayName("updateTokenExpiryInfo")
+@OrderedInIsolation
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
     private static final Address MISSING_LONG_ZERO_ADDRESS =
