@@ -47,6 +47,7 @@ import org.hyperledger.besu.evm.log.Log;
 
 public record HederaEvmTransactionResult(
         long gasUsed,
+        long opsDuration,
         long gasPrice,
         @NonNull AccountID senderId,
         @Nullable ContractID recipientId,
@@ -161,6 +162,7 @@ public record HederaEvmTransactionResult(
      * Create a result for a transaction that succeeded.
      *
      * @param gasUsed             the gas used by the transaction
+     * @param opsDuration         the hedera osp duration used by the transaction
      * @param senderId            the Hedera id of the sender
      * @param recipientId         the Hedera numbered id of the receiving or created contract
      * @param recipientEvmAddress the Hedera aliased id of the receiving or created contract
@@ -170,6 +172,7 @@ public record HederaEvmTransactionResult(
      */
     public static HederaEvmTransactionResult successFrom(
             final long gasUsed,
+            final long opsDuration,
             @NonNull final AccountID senderId,
             @NonNull final ContractID recipientId,
             @NonNull final ContractID recipientEvmAddress,
@@ -179,6 +182,7 @@ public record HederaEvmTransactionResult(
         requireNonNull(tracer);
         return successFrom(
                 gasUsed,
+                opsDuration,
                 frame.getGasPrice(),
                 senderId,
                 recipientId,
@@ -191,6 +195,7 @@ public record HederaEvmTransactionResult(
 
     public static HederaEvmTransactionResult successFrom(
             final long gasUsed,
+            final long opsDuration,
             @NonNull final Wei gasPrice,
             @NonNull final AccountID senderId,
             @NonNull final ContractID recipientId,
@@ -201,6 +206,7 @@ public record HederaEvmTransactionResult(
             @Nullable ContractActions actions) {
         return new HederaEvmTransactionResult(
                 gasUsed,
+                opsDuration,
                 requireNonNull(gasPrice).toLong(),
                 requireNonNull(senderId),
                 requireNonNull(recipientId),
@@ -218,15 +224,17 @@ public record HederaEvmTransactionResult(
     /**
      * Create a result for a transaction that failed.
      *
-     * @param gasUsed     the gas used by the transaction
-     * @param senderId    the Hedera id of the transaction sender
-     * @param frame       the initial frame of the transaction
-     * @param recipientId if known, the Hedera id of the receiving contract
-     * @param tracer      the Hedera-specific tracer for the EVM transaction's actions
+     * @param gasUsed           the gas used by the transaction
+     * @param opsDuration       the hedera ops duration used by the transaction
+     * @param senderId          the Hedera id of the transaction sender
+     * @param frame             the initial frame of the transaction
+     * @param recipientId       if known, the Hedera id of the receiving contract
+     * @param tracer            the Hedera-specific tracer for the EVM transaction's actions
      * @return the result
      */
     public static HederaEvmTransactionResult failureFrom(
             final long gasUsed,
+            final long opsDuration,
             @NonNull final AccountID senderId,
             @NonNull final MessageFrame frame,
             @Nullable final ContractID recipientId,
@@ -235,6 +243,7 @@ public record HederaEvmTransactionResult(
         requireNonNull(tracer);
         return new HederaEvmTransactionResult(
                 gasUsed,
+                opsDuration,
                 frame.getGasPrice().toLong(),
                 requireNonNull(senderId),
                 recipientId,
@@ -265,6 +274,7 @@ public record HederaEvmTransactionResult(
         requireNonNull(reason);
         return new HederaEvmTransactionResult(
                 gasUsed,
+                0,
                 gasPrice,
                 requireNonNull(senderId),
                 null,
@@ -294,6 +304,7 @@ public record HederaEvmTransactionResult(
         requireNonNull(senderId);
         requireNonNull(reason);
         return new HederaEvmTransactionResult(
+                0,
                 0,
                 0,
                 senderId,
@@ -414,6 +425,7 @@ public record HederaEvmTransactionResult(
     public HederaEvmTransactionResult withSignerNonce(@Nullable final Long signerNonce) {
         return new HederaEvmTransactionResult(
                 gasUsed,
+                opsDuration,
                 gasPrice,
                 senderId,
                 recipientId,
