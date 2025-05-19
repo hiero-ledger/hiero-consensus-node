@@ -29,7 +29,6 @@ public class HappyPathTest {
         // Setup simulation
         network.addNodes(4);
         network.start(Duration.ofMinutes(1L));
-        env.generator().start();
 
         // Wait for two minutes
         timeManager.waitFor(Duration.ofMinutes(2L));
