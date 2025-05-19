@@ -5,8 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,7 +16,6 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.List;
@@ -34,15 +33,12 @@ class CallOutcomeTest {
     private ContractCallStreamBuilder contractCallRecordBuilder;
 
     @Mock
-    private ContractCreateStreamBuilder contractCreateRecordBuilder;
-
-    @Mock
     private EntityIdFactory entityIdFactory;
 
     @Test
     void setsAbortCallResult() {
-        final var abortedCall =
-                new CallOutcome(ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, 123L, null, null);
+        final var abortedCall = new CallOutcome(
+                ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, null, null, opsDuration);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
@@ -52,7 +48,7 @@ class CallOutcomeTest {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
+                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, opsDuration);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
 
@@ -60,7 +56,7 @@ class CallOutcomeTest {
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, NETWORK_GAS_PRICE, null, null);
+                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, opsDuration);
         assertNull(outcome.recipientIdIfCreated());
     }
 
@@ -71,9 +67,9 @@ class CallOutcomeTest {
                 SUCCESS_RESULT.asProtoResultOf(updater),
                 INVALID_CONTRACT_ID,
                 CALLED_CONTRACT_ID,
-                SUCCESS_RESULT.gasPrice(),
                 null,
-                null);
+                null,
+                opsDuration);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());
     }
 }

@@ -243,7 +243,7 @@ public class SyncMetrics {
      * @param other event window of their graph at the start of the sync
      */
     public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
-        syncIndicatorDiff.update(self.getAncientThreshold() - other.getAncientThreshold());
+        syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());
     }
 
     /**

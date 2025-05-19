@@ -34,12 +34,12 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -754,7 +754,10 @@ class TipsetEventCreatorTests {
 
         final EventCreator eventCreator =
                 buildEventCreator(random, time, roster, nodeA, Collections::emptyList, ancientMode);
-        eventCreator.setEventWindow(new EventWindow(1, 100, 1 /* ignored in this context */, ancientMode));
+        eventCreator.setEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setAncientThreshold(100)
+                .build());
 
         // Since there are no other parents available, the next event created would have a generation of 0
         // (if event creation were permitted). Since the current minimum generation non ancient is 100,
@@ -781,12 +784,10 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final AncientMode ancientMode =
+                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
+        final Map<NodeId, SimulatedNode> nodes =
+                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -803,22 +804,13 @@ class TipsetEventCreatorTests {
 
                 final long pendingConsensusRound = eventIndex + 2;
                 if (eventIndex > 0) {
-
-                    final long ancientThreshold;
-                    if (useBirthRoundForAncient) {
-                        ancientThreshold = Math.max(EventConstants.MINIMUM_ROUND_CREATED, eventIndex - 26);
-                    } else {
-                        ancientThreshold = Math.max(EventConstants.FIRST_GENERATION, eventIndex - 26);
-                    }
-
                     // Set non-ancientEventWindow after creating genesis event from each node.
-                    eventCreator.setEventWindow(new EventWindow(
-                            pendingConsensusRound - 1,
-                            ancientThreshold,
-                            1 /* ignored in this context */,
-                            useBirthRoundForAncient
-                                    ? AncientMode.BIRTH_ROUND_THRESHOLD
-                                    : AncientMode.GENERATION_THRESHOLD));
+                    eventCreator.setEventWindow(EventWindowBuilder.builder()
+                            .setAncientMode(ancientMode)
+                            .setLatestConsensusRound(pendingConsensusRound - 1)
+                            .setNewEventBirthRound(pendingConsensusRound)
+                            .setAncientThresholdOrGenesis(eventIndex - 26)
+                            .build());
                 }
 
                 final PlatformEvent event = eventCreator.maybeCreateEvent();

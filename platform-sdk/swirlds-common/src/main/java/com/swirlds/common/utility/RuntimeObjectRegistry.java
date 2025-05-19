@@ -30,7 +30,7 @@ public final class RuntimeObjectRegistry {
     /**
      * The time provider. This is used to get the current time for the records.
      *
-     * <p>We also use this field to check if the registry has already been initialized by checking if it is {code null}.
+     * <p>We also use this field to check if the registry has already been initialized by checking if it is {@code null}.
      * An {@link AtomicReference} is used to make the check thread-safe.
      *
      */

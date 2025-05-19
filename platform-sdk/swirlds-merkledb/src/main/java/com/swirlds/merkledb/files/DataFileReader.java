@@ -280,7 +280,10 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
 
     @Override
     public void close() throws IOException {
-        open.set(false);
+        if (!open.compareAndSet(true, false)) {
+            return;
+        }
+
         for (int i = 0; i < maxFileChannels; i++) {
             final FileChannel fileChannel = fileChannels.getAndSet(i, null);
             if (fileChannel != null) {

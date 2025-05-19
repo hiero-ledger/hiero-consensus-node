@@ -2115,6 +2115,7 @@ public class ContractCallSuite {
                                 .savingSnapshot(ACCOUNT_INFO_AFTER_CALL)
                                 .payingWith(GENESIS))),
                 assertionsHold((spec, opLog) -> {
+                    final var callRecord = spec.registry().getTransactionRecord("txn");
                     final var fee = spec.registry().getTransactionRecord("txn").getTransactionFee();
                     final var accountBalanceBeforeCall =
                             spec.registry().getAccountInfo(ACCOUNT_INFO).getBalance();
