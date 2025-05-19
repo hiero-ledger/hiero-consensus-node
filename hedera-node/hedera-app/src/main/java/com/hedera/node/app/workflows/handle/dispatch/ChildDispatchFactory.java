@@ -496,7 +496,7 @@ public class ChildDispatchFactory {
                 txBody.transactionIDOrElse(TransactionID.DEFAULT),
                 payerId,
                 SignatureMap.DEFAULT,
-                signedTransactionBytes,
+                bodyBytes,
                 functionOfTxn(txBody),
                 null);
     }
@@ -525,7 +525,7 @@ public class ChildDispatchFactory {
             @NonNull final StreamBuilder builder, @NonNull final TransactionInfo txnInfo) {
         builder.transaction(txnInfo.transaction())
                 .functionality(txnInfo.functionality())
-                .transactionBytes(txnInfo.signedBytes())
+                .transactionBytes(txnInfo.transaction().signedTransactionBytes())
                 .memo(txnInfo.txBody().memo());
         final var transactionID = txnInfo.txBody().transactionID();
         if (transactionID != null) {
