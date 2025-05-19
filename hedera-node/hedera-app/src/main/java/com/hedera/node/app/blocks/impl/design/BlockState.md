@@ -1,0 +1,80 @@
+# BlockState.md
+
+## Table of Contents
+
+1. [Abstract](#abstract)
+2. [Definitions](#definitions)
+3. [Component Responsibilities](#component-responsibilities)
+4. [Details](#details)
+5. [Component Interaction](#component-interaction)
+6. [Sequence Diagram](#sequence-diagram)
+7. [Error Handling](#error-handling)
+
+## Abstract
+
+`BlockState` encapsulates the state of a single block being processed by the Block Node. 
+It is responsible for tracking the block number, storing block items (BlockItem), 
+managing the generation of PublishStreamRequests, and indicating when a block is considered complete and closed.
+
+## Definitions
+
+<dl> 
+<dt>BlockState</dt> <dd>A component that holds streaming and request data for a single block number, helping support batching, tracking, and stream publication.</dd> 
+<dt>BlockItem</dt> <dd>An individual unit of work or data associated with a block, to be streamed to downstream systems.</dd> 
+<dt>PublishStreamRequest</dt> <dd>A request message constructed from one or more BlockItems, used to stream block data.</dd> 
+</dl>
+
+## Component Responsibilities
+
+- Maintain the block number this instance represents.
+- Store all BlockItems associated with the block.
+- Create PublishStreamRequests in batches from the items.
+- Track whether all necessary requests for the block have been created.
+- Record the timestamp when the block is considered closed/completed.
+- Expose read-only access to block contents and state.
+
+## Details
+
+| Variables and Methods                | Description                                                             |
+|--------------------------------------|-------------------------------------------------------------------------|
+| `blockNumber`                        | Identifies the block this instance represents.                          |
+| `items()`                            | Returns the list of BlockItems collected so far.                        |
+| `requests()`                         | Returns the list of PublishStreamRequests created from the block items. |
+| `createRequestFromCurrentItems(...)` | Creates a new PublishStreamRequest from the current items.              |
+| `setRequestsCompleted()`             | Marks the block as having all requests created.                         |
+| `requestsCompleted()`                | Checks whether the block has completed request generation.              |
+| `setCompletionTimestamp()`           | Records the time when the block is finalized.                           |
+| `completionTimestamp()`              | Returns the block’s completion time (if finalized).                     |
+
+## Component Interaction
+
+- Used by `BlockStreamStateManager` to aggregate block items and create streamable requests.
+- Passed into streaming pipelines that require access to individual block data.
+- Supplies request metadata to `BlockNodeConnection` for stream transmission.
+
+## Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    participant StateMgr as BlockStreamStateManager
+    participant BlockState as BlockState
+
+    StateMgr->>BlockState: Add BlockItem
+    StateMgr->>BlockState: Create request batch
+    BlockState-->>StateMgr: Return PublishStreamRequest
+    StateMgr->>BlockState: Mark as completed
+```
+## Error Handling
+
+- If invalid input is passed (e.g., empty items during forced request creation), the method exits early.
+- Prevents creating requests when there are no items or the batch size is invalid.
+- Logging is used for observability but the class itself does not throw exceptions or emit error signals directly.
+
+```mermaid
+sequenceDiagram
+    participant BlockState as BlockState
+    participant StateMgr as BlockStreamStateManager
+
+    BlockState->>BlockState: Detect invalid block
+    BlockState-->>StateMgr: Report block validation error
+```
