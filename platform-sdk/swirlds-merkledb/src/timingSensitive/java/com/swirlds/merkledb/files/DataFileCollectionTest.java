@@ -182,7 +182,6 @@ class DataFileCollectionTest {
             assertEquals(f, metadata.getIndex(), "Data file metadata should know self-index");
             assertTrue(metadata.getCreationDate().isAfter(TEST_START), "Creation dates should go forward in time");
             assertTrue(metadata.getCreationDate().isBefore(Instant.now()), "Creation dates may not be in the future");
-            assertEquals(100, metadata.getDataItemCount(), "unexpected DataItemCount");
             assertEquals(Files.size(dataFileReader.getPath()), dataFileReader.getSize(), "unexpected DataFileSize");
         }
     }

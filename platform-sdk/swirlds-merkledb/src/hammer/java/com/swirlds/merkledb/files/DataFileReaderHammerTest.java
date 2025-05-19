@@ -54,7 +54,7 @@ public class DataFileReaderHammerTest {
         final ExecutorService exec = Executors.newFixedThreadPool(readerThreads);
         final Random rand = new Random();
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final DataFileMetadata metadata = new DataFileMetadata(itemCount, 0, Instant.now(), INITIAL_COMPACTION_LEVEL);
+        final DataFileMetadata metadata = new DataFileMetadata(0, Instant.now(), INITIAL_COMPACTION_LEVEL);
         final DataFileReader dataReader = new DataFileReader(dbConfig, tempFile, metadata);
         final AtomicInteger activeReaders = new AtomicInteger(readerThreads);
         final AtomicReferenceArray<Thread> threads = new AtomicReferenceArray<>(readerThreads);

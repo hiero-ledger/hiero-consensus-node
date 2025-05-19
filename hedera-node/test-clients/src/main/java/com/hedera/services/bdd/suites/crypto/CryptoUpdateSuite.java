@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -129,8 +128,8 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        final var stakedAccountId = asEntityString(20);
-        final var newStakedAccountId = asEntityString(21);
+        final var stakedAccountId = 20;
+        final var newStakedAccountId = 21;
         return hapiTest(
                 cryptoCreate("user").stakedAccountId(stakedAccountId).declinedReward(true),
                 submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoUpdate("user")
@@ -236,7 +235,7 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateStakingFieldsWorks() {
-        final var stakedAccountId = asEntityString(20);
+        final var stakedAccountId = 20;
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 cryptoCreate("user")
@@ -245,7 +244,7 @@ public class CryptoUpdateSuite {
                         .declinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountIdWithLiteral(stakedAccountId)
+                                .stakedAccountId(stakedAccountId)
                                 .noStakingNodeId()
                                 .isDeclinedReward(true)),
                 cryptoUpdate("user").newStakedNodeId(0L).newDeclinedReward(false),
@@ -261,7 +260,7 @@ public class CryptoUpdateSuite {
                         .newDeclinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountIdWithLiteral(stakedAccountId)
+                                .stakedAccountId(stakedAccountId)
                                 .noStakingNodeId()
                                 .isDeclinedReward(true))
                         .logged(),

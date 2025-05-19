@@ -5,8 +5,6 @@ import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.PropertySource.asAccount;
 import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
@@ -1519,7 +1517,6 @@ public class AutoAccountCreationSuite {
     @HapiTest
     final Stream<DynamicTest> cannotAutoCreateWithTxnToLongZero() {
         final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
-        final var longZeroAddress = ByteString.copyFrom(asSolidityAddress(shard, realm, 5555));
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -1536,6 +1533,9 @@ public class AutoAccountCreationSuite {
                     final var validTransfer = cryptoTransfer(tinyBarsFromTo(PAYER, evmAddress.get(), ONE_HBAR))
                             .hasKnownStatus(SUCCESS)
                             .via("passedTxn");
+
+                    final var longZeroAddress =
+                            ByteString.copyFrom(asSolidityAddress((int) spec.shard(), spec.realm(), 5555));
 
                     final var invalidTransferToLongZero = cryptoTransfer(
                                     tinyBarsFromTo(PAYER, longZeroAddress, ONE_HBAR))
