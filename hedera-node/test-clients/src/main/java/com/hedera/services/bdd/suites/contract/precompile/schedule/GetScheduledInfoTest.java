@@ -51,6 +51,7 @@ public class GetScheduledInfoTest {
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String HTS_COLLECTOR = "denomFee";
     private static final String TOKEN_TREASURY = "treasury";
+    private static final String GET_NON_FUNGIBLE_CREATE_TOKEN_INFO = "getNonFungibleCreateTokenInfo";
     private static final String ADMIN_KEY = TokenKeyType.ADMIN_KEY.name();
     private static final String KYC_KEY = TokenKeyType.KYC_KEY.name();
     private static final String SUPPLY_KEY = TokenKeyType.SUPPLY_KEY.name();
@@ -83,7 +84,7 @@ public class GetScheduledInfoTest {
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
-                            "getNonFungibleCreateTokenInfo", asHeadlongAddress(asSolidityAddress(spec, 1234)))
+                            GET_NON_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
@@ -212,10 +213,12 @@ public class GetScheduledInfoTest {
                             .exposingCreatedIdTo(scheduleId::set));
             allRunFor(
                     spec,
-                    contract.call("getNonFungibleCreateTokenInfo", ConversionUtils.headlongAddressOf(scheduleId.get()))
-                            .via("getNonFungibleCreateTokenInfo"),
+                    contract.call(
+                                    GET_NON_FUNGIBLE_CREATE_TOKEN_INFO,
+                                    ConversionUtils.headlongAddressOf(scheduleId.get()))
+                            .via("getInfoTxn"),
                     childRecordsCheck(
-                            "getNonFungibleCreateTokenInfo",
+                            "getInfoTxn",
                             SUCCESS,
                             recordWith()
                                     .contractCallResult(resultWith()

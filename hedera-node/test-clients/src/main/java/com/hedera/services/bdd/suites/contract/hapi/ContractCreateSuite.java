@@ -266,8 +266,9 @@ public class ContractCreateSuite {
         final var contract = "Multipurpose";
 
         return hapiTest(uploadInitCode(contract), contractCreate(contract).balance(666), withOpContext((spec, log) -> {
-            Object[] donationArgs =
-                    new Object[] {new BigInteger(HapiPropertySource.asSolidityAddress(spec, 666666L)), "Hey, Ma!"};
+            final Object[] donationArgs = {
+                new BigInteger(HapiPropertySource.asSolidityAddress(spec, 666_666L)), "Hey, Ma!"
+            };
             final var callOp = contractCall(contract, "donate", donationArgs).hasKnownStatus(CONTRACT_REVERT_EXECUTED);
             allRunFor(spec, callOp);
         }));
