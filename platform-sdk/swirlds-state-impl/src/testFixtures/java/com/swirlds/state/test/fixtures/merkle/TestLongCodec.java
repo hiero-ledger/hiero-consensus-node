@@ -34,10 +34,11 @@ public class TestLongCodec implements Codec<Long> {
 
     @NonNull
     @Override
-    public Long parse(@NonNull ReadableSequentialData readableSequentialData, boolean b, boolean b1, int i)
+    public Long parse(
+            @NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
-        Objects.requireNonNull(readableSequentialData);
-        return Long.valueOf(readableSequentialData.readLong());
+        Objects.requireNonNull(input);
+        return Long.valueOf(input.readLong());
     }
 
     @NonNull

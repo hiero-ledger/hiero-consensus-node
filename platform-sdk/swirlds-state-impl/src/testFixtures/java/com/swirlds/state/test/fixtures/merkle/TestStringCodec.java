@@ -34,11 +34,12 @@ public class TestStringCodec implements Codec<String> {
 
     @NonNull
     @Override
-    public String parse(@NonNull ReadableSequentialData readableSequentialData, boolean b, boolean b1, int i)
+    public String parse(
+            @NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
-        Objects.requireNonNull(readableSequentialData);
-        final var len = readableSequentialData.readInt();
-        return len == 0 ? "" : readableSequentialData.readBytes(len).asUtf8String();
+        Objects.requireNonNull(input);
+        final var len = input.readInt();
+        return len == 0 ? "" : input.readBytes(len).asUtf8String();
     }
 
     @NonNull
