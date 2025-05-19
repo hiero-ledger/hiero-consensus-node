@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.BlockStreamQueueItemType.BLOCK_ITEM;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.BlockItemSet;
-import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -85,6 +85,10 @@ public class BlockStreamStateManager {
 
     private final BlockStreamMetrics blockStreamMetrics;
 
+    private final Map<BlockNodeConfig, BlockNodeConnection> connections = new ConcurrentHashMap<>();
+    private BlockNodeConnection activeConnection;
+    private final BlockingQueue<BlockStreamQueueItem> blockStreamQueue = new LinkedBlockingQueue<>();
+
     /**
      * Creates a new BlockStreamStateManager with the given configuration.
      *
@@ -110,6 +114,75 @@ public class BlockStreamStateManager {
     }
 
     /**
+     * The type of item that can be in the block stream queue.
+     */
+    public enum BlockStreamQueueItemType {
+        /**
+         * Indicates that the item is a block item.
+         */
+        BLOCK_ITEM,
+        /**
+         * Indicates that the item is a pre-block proof action.
+         * The consumer of this item should take action to perform any actions that need to be done before the producer
+         * adds the BlockProof to the queue.
+         */
+        PRE_BLOCK_PROOF_ACTION,
+    }
+
+    /**
+     * Represents an item in the block stream queue between the handle thread and block stream worker thread.
+     * The type of item is represented by the {@link BlockStreamQueueItemType} enum and may indicate an action needs to be taken.
+     */
+    public record BlockStreamQueueItem(
+            long blockNumber, @NonNull BlockStreamQueueItemType blockStreamQueueItemType, BlockItem blockItem) {
+
+        /**
+         * Creates a new BlockStreamQueueItem with the given block number and block item.
+         * @param blockNumber the block number
+         * @param blockItem the block item
+         */
+        public BlockStreamQueueItem(long blockNumber, BlockItem blockItem) {
+            this(blockNumber, BLOCK_ITEM, blockItem);
+        }
+
+        /**
+         * Creates a new BlockStreamQueueItem with the given block number and block stream queue item type.
+         * @param blockNumber the block number
+         * @param blockStreamQueueItemType the block stream queue item type
+         */
+        public BlockStreamQueueItem(long blockNumber, BlockStreamQueueItemType blockStreamQueueItemType) {
+            this(blockNumber, blockStreamQueueItemType, null);
+        }
+
+        /**
+         * Gets the block number.
+         *
+         * @return the block number
+         */
+        public long getBlockNumber() {
+            return blockNumber;
+        }
+
+        /**
+         * Gets the block item.
+         *
+         * @return the block item
+         */
+        public BlockItem getBlockItem() {
+            return blockItem;
+        }
+
+        /**
+         * Gets the block stream queue item type.
+         *
+         * @return the block stream queue item type
+         */
+        public BlockStreamQueueItemType getBlockStreamQueueItemType() {
+            return blockStreamQueueItemType;
+        }
+    }
+
+    /**
      * @return the interval in which the block buffer will be pruned (a duration of 0 means pruning is disabled)
      */
     private Duration blockBufferPruneInterval() {
@@ -117,16 +190,6 @@ public class BlockStreamStateManager {
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .blockBufferPruneInterval();
-    }
-
-    /**
-     * @return the current batch size for block items
-     */
-    private int blockItemBatchSize() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .blockItemBatchSize();
     }
 
     /**
@@ -187,7 +250,7 @@ public class BlockStreamStateManager {
         }
 
         // Create a new block state
-        final BlockState blockState = new BlockState(blockNumber, new ArrayList<>());
+        final BlockState blockState = new BlockState(blockNumber);
         blockBuffer.add(blockState);
         blockStatesById.put(blockNumber, blockState);
         this.blockNumber = blockNumber;
@@ -212,67 +275,7 @@ public class BlockStreamStateManager {
         if (blockState == null) {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
-
-        blockState.items().add(blockItem);
-
-        // If we have enough items, create a new request
-        createRequestFromCurrentItems(blockState, false);
-    }
-
-    /**
-     * Creates zero, one, or many {@link PublishStreamRequest} for the current pending items in the block. This is a
-     * batched operation and thus a new {@link PublishStreamRequest} will be created only if there are enough pending
-     * items to fill the batch. If {@code force} is true, then a new {@link PublishStreamRequest} will be created even
-     * if the number of pending items is fewer than the configured batch size.
-     *
-     * @param blockState the block that may contain pending items
-     * @param force true if a new {@link PublishStreamRequest} should be created regardless of if there are enough items
-     *              to create a batch, otherwise if false, then a new {@link PublishStreamRequest} will only be created
-     *              if there are enough items to complete a full batch
-     */
-    public void createRequestFromCurrentItems(@NonNull final BlockState blockState, final boolean force) {
-        requireNonNull(blockState, "blockState is required");
-
-        if (blockState.items().isEmpty()) {
-            return;
-        }
-
-        final int cfgBatchSize = blockItemBatchSize();
-        final int batchSize = Math.max(1, cfgBatchSize); // if cfgBatchSize is less than 1, set the size to 1
-        final List<BlockItem> items = new ArrayList<>(batchSize);
-
-        if (force || blockState.items().size() >= batchSize) {
-            final Iterator<BlockItem> it = blockState.items().iterator();
-            while (it.hasNext() && items.size() != batchSize) {
-                items.add(it.next());
-                it.remove();
-            }
-        } else {
-            return;
-        }
-
-        // Create BlockItemSet by adding all items at once
-        final BlockItemSet itemSet = BlockItemSet.newBuilder().blockItems(items).build();
-
-        // Create the request and add it to the list
-        final PublishStreamRequest request =
-                PublishStreamRequest.newBuilder().blockItems(itemSet).build();
-
-        blockState.requests().add(request);
-        logger.debug(
-                "Added request to block {} - request count now: {}",
-                blockState.blockNumber(),
-                blockState.requests().size());
-
-        // Notify the connection manager only if we're streaming to block nodes
-        if (streamToBlockNodesEnabled()) {
-            blockNodeConnectionManager.notifyConnectionsOfNewRequest();
-        }
-
-        if ((!blockState.items().isEmpty() && force) || blockState.items().size() >= batchSize) {
-            // another request can be created
-            createRequestFromCurrentItems(blockState, force);
-        }
+        blockStreamQueue.add(new BlockStreamQueueItem(blockNumber, blockItem));
     }
 
     /**
@@ -286,14 +289,13 @@ public class BlockStreamStateManager {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
 
-        // Mark the block as complete
-        blockState.setComplete();
-        createRequestFromCurrentItems(blockState, true);
+        blockState.setCompletionTimestamp();
 
         logger.debug(
-                "Closed block in BlockStreamStateManager {} - request count: {}",
+                "[{}] Block {} completion timestamp set to {}",
+                Thread.currentThread().getName(),
                 blockNumber,
-                blockState.requests().size());
+                blockState.completionTimestamp());
     }
 
     /**
@@ -327,14 +329,7 @@ public class BlockStreamStateManager {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
 
-        // If there are remaining items we will create a request from them while the BlockProof is pending
-        if (!blockState.items().isEmpty()) {
-            logger.debug(
-                    "Prior to BlockProof, creating request from items in block {} size {}",
-                    blockNumber,
-                    blockState.items().size());
-            createRequestFromCurrentItems(blockState, true);
-        }
+        blockStreamQueue.add(new BlockStreamQueueItem(blockNumber, BlockStreamQueueItemType.PRE_BLOCK_PROOF_ACTION));
     }
 
     /**
@@ -406,7 +401,7 @@ public class BlockStreamStateManager {
             final BlockState block = it.next();
             ++numChecked;
 
-            if (block.isComplete()) {
+            if (block.completionTimestamp() != null) {
                 if (block.blockNumber() <= highestBlockAcked) {
                     // this block is eligible for pruning if it is old enough
                     if (block.completionTimestamp().isBefore(cutoffInstant)) {
@@ -579,5 +574,92 @@ public class BlockStreamStateManager {
                 scheduleNextPruning();
             }
         }
+    }
+
+    /**
+     * Gets the current active block node connection.
+     * @return the active block node connection
+     */
+    public BlockNodeConnection getActiveConnection() {
+        return activeConnection;
+    }
+
+    /**
+     * Sets the active block node connection.
+     * @param activeConnection the active block node connection
+     */
+    public void setActiveConnection(BlockNodeConnection activeConnection) {
+        this.activeConnection = activeConnection;
+    }
+
+    /**
+     * Returns the map of block node connections.
+     * @return the map of block node connections
+     */
+    public Map<BlockNodeConfig, BlockNodeConnection> getConnections() {
+        return connections;
+    }
+
+    /**
+     * This method is used to check if there is a higher priority connection that is available to be switched to, and if
+     * so, it will switch to that connection and close the current block node connection.
+     * @param blockNodeConnection the current block node connection
+     * @return true if a higher priority connection was found and switched to, false otherwise
+     */
+    public boolean higherPriorityStarted(BlockNodeConnection blockNodeConnection) {
+        synchronized (connections) {
+            // Find a pending connection with the highest priority greater than the current connection
+            BlockNodeConnection highestPri = null;
+            for (BlockNodeConnection connection : connections.values()) {
+                if (connection.getConnectionState().equals(ConnectionState.PENDING)
+                        && connection.getNodeConfig().priority()
+                                < blockNodeConnection.getNodeConfig().priority()) {
+                    if (highestPri == null
+                            || connection.getNodeConfig().priority()
+                                    < highestPri.getNodeConfig().priority()) {
+                        // If no connection is found or the current one has a higher priority, update the reference
+                        highestPri = connection;
+                    }
+                }
+            }
+
+            if (highestPri != null) {
+                // Found a higher priority pending connection,
+                highestPri.updateConnectionState(ConnectionState.ACTIVE);
+                activeConnection = highestPri;
+                // Log the transition of this higher priority connection to active
+                logger.debug(
+                        "[{}] Transitioning higher priority pending connection: {} Priority: {} to ACTIVE",
+                        Thread.currentThread().getName(),
+                        blockNodeName(highestPri.getNodeConfig()),
+                        highestPri.getNodeConfig().priority());
+
+                // Close the current connection and remove it from the connections map
+                blockNodeConnection.close();
+                connections.remove(blockNodeConnection.getNodeConfig());
+                return true;
+            }
+            return false;
+        }
+    }
+
+    static String blockNodeName(@Nullable final BlockNodeConfig node) {
+        return node != null ? node.address() + ":" + node.port() : "null";
+    }
+
+    /**
+     * Gets the block stream queue.
+     * @return the block stream queue
+     */
+    public BlockingQueue<BlockStreamQueueItem> getBlockStreamQueue() {
+        return blockStreamQueue;
+    }
+
+    /**
+     * Retrieves the lowest unacked block number in the buffer. This is the lowest block number that has not been acknowledged.
+     * @return the lowest unacked block number
+     */
+    public long getLowestUnackedBlockNumber() {
+        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? 0 : highestAckedBlockNumber.get() + 1;
     }
 }

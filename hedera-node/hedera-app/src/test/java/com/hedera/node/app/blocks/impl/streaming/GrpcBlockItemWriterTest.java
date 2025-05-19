@@ -48,13 +48,4 @@ class GrpcBlockItemWriterTest {
 
         verify(blockStreamStateManager).addItem(0L, proof);
     }
-
-    @Test
-    void testCloseBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
-
-        grpcBlockItemWriter.closeCompleteBlock();
-
-        verify(blockStreamStateManager).closeBlock(0L);
-    }
 }
