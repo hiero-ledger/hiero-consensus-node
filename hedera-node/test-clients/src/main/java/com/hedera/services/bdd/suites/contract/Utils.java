@@ -434,8 +434,7 @@ public class Utils {
     }
 
     public static Address mirrorAddrWith(final long shard, final long realm, final long num) {
-        return Address.wrap(
-                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress((int) shard, realm, num))));
+        return Address.wrap(toChecksumAddress(new BigInteger(1, asSolidityAddress((int) shard, realm, num))));
     }
 
     public static Address nonMirrorAddrWith(final long num) {
