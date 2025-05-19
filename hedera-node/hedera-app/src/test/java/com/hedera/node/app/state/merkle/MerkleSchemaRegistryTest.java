@@ -185,8 +185,9 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          */
         void migrateFromV9ToV10() {
             SemanticVersion latestVersion = version(10, 0, 0);
+            TestMerkleStateRoot stateRoot = new TestMerkleStateRoot();
             schemaRegistry.migrate(
-                    new TestMerkleStateRoot(),
+                    stateRoot,
                     version(9, 0, 0),
                     latestVersion,
                     config,
@@ -196,6 +197,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     migrationStateChanges,
                     startupNetworks,
                     TEST_PLATFORM_STATE_FACADE);
+            stateRoot.release();
         }
     }
 

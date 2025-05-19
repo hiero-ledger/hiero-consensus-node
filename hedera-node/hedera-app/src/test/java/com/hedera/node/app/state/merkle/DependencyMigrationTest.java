@@ -4,6 +4,7 @@ package com.hedera.node.app.state.merkle;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static org.mockito.Mockito.mock;
@@ -21,6 +22,7 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -31,11 +33,14 @@ import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -67,6 +72,16 @@ class DependencyMigrationTest extends MerkleTestBase {
         merkleTree = new HederaStateRoot();
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
+    }
+
+    @AfterEach
+    void tearDown() {
+        merkleTree.release();
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 
     @Nested

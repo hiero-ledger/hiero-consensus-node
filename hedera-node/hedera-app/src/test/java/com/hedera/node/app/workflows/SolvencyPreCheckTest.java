@@ -9,6 +9,7 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.est
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,7 +41,11 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
+import com.swirlds.merkledb.MerkleDbDataSource;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -75,6 +80,16 @@ class SolvencyPreCheckTest extends AppTestBase {
         when(authorizer.hasPrivilegedAuthorization(any(), any(), any())).thenReturn(SystemPrivilege.UNNECESSARY);
 
         subject = new SolvencyPreCheck(exchangeRateManager, feeManager, expiryValidation, authorizer);
+    }
+
+    @AfterEach
+    void tearDown() {
+
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -151,6 +166,11 @@ class SolvencyPreCheckTest extends AppTestBase {
             assertThatThrownBy(() -> subject.getPayerAccount(storeFactory, ALICE.accountID()))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND));
+        }
+
+        @AfterEach
+        void tearDown() {
+            state.release();
         }
     }
 
