@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -98,5 +103,23 @@ class OnDiskReadableStateTest extends MerkleTestBase {
                 new OnDiskReadableKVState<>(FRUIT_STATE_KEY, onDiskKeyClassId(), STRING_CODEC, virtualMapMock);
         state.warm(A_KEY);
         verify(virtualMapMock).warm(new OnDiskKey<>(onDiskKeyClassId(), STRING_CODEC, A_KEY));
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
+            fruitVirtualMap.release();
+        }
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
+        try {
+            // FUTURE WORK: need a better way to make sure that DB files are deleted
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
