@@ -64,7 +64,7 @@ public class HederaEVM extends EVM {
     private final EvmSpecVersion evmSpecVersion;
     private final boolean enableShanghai;
     private final Map<Integer, Long> opsDurationValueMap;
-    private final double opsDurationMultiplier;
+    private final long opsDurationMultiplier;
 
     public HederaEVM(
             @NonNull final OperationRegistry operations,
@@ -201,8 +201,8 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                usedOpsDuration += opsDurationValueMap.getOrDefault(
-                        opcode, Math.round(result.getGasCost() * opsDurationMultiplier));
+                usedOpsDuration +=
+                        opsDurationValueMap.getOrDefault(opcode, result.getGasCost() * opsDurationMultiplier);
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {
