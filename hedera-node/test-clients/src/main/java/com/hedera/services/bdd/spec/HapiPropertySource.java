@@ -287,6 +287,18 @@ public interface HapiPropertySource {
                 .build();
     }
 
+    static AccountID asAccount(final HapiSpec spec, long num) {
+        return asAccount(spec.shard(), spec.realm(), num);
+    }
+
+    static AccountID asAccount(final HapiSpec spec, ByteString alias) {
+        return AccountID.newBuilder()
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
+                .setAlias(alias)
+                .build();
+    }
+
     static ContractID asContract(String shard, String realm, String num) {
         return asContract(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
     }
