@@ -43,6 +43,7 @@ import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -155,8 +156,9 @@ class ShadowgraphTest {
 
         final long expireBelowGen = random.nextInt(10) + 1;
 
-        final EventWindow eventWindow = new EventWindow(
-                0 /* ignored by shadowgraph */, 0 /* ignored by shadowgraph */, expireBelowGen, GENERATION_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(expireBelowGen)
+                .build();
 
         shadowgraph.updateEventWindow(eventWindow);
 
@@ -201,7 +203,7 @@ class ShadowgraphTest {
         final ReservedEventWindow r1 = shadowgraph.reserve();
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "First reservation should reserve generation 1");
         assertEquals(
                 1,
@@ -211,11 +213,11 @@ class ShadowgraphTest {
         r1.close();
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "Closing the second reservation should decrement the number of reservations.");
     }
 
@@ -236,7 +238,7 @@ class ShadowgraphTest {
         assertEquals(r1.getEventWindow(), r2.getEventWindow());
         assertEquals(
                 FIRST_GENERATION,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "Second reservation should reserve generation 1");
         assertEquals(2, r2.getReservationCount(), "The second call to reserve() should result in 2 reservations.");
 
@@ -244,7 +246,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 1,
@@ -255,7 +257,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -278,8 +280,9 @@ class ShadowgraphTest {
         final long expireBelowGen = FIRST_GENERATION + 1;
 
         final ReservedEventWindow r1 = shadowgraph.reserve();
-        final EventWindow eventWindow = new EventWindow(
-                0 /* ignored by shadowgraph */, 0 /* ignored by shadowgraph */, expireBelowGen, GENERATION_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(expireBelowGen)
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         final ReservedEventWindow r2 = shadowgraph.reserve();
@@ -290,7 +293,7 @@ class ShadowgraphTest {
                         + "instance.");
         assertEquals(
                 expireBelowGen,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "Reservation after call to expire() should reserve the expired generation + 1");
         assertEquals(
                 1, r2.getReservationCount(), "The first reservation after expire() should result in 1 reservation.");
@@ -299,7 +302,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 expireBelowGen,
-                r2.getEventWindow().getExpiredThreshold(),
+                r2.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -308,7 +311,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 1,
@@ -319,7 +322,7 @@ class ShadowgraphTest {
 
         assertEquals(
                 FIRST_GENERATION,
-                r1.getEventWindow().getExpiredThreshold(),
+                r1.getEventWindow().expiredThreshold(),
                 "The generation should not be affected by a reservation being closed.");
         assertEquals(
                 0,
@@ -340,8 +343,9 @@ class ShadowgraphTest {
         initShadowgraph(random, numEvents, numNodes);
 
         final long expireBelowGen = random.nextInt((int) maxGen) + 2;
-        final EventWindow eventWindow = new EventWindow(
-                0 /* ignored by shadowgraph */, 0 /* ignored by shadowgraph */, expireBelowGen, GENERATION_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(expireBelowGen)
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         assertEventsBelowGenAreExpired(expireBelowGen);
@@ -381,17 +385,14 @@ class ShadowgraphTest {
         SyncTestUtils.printEvents("generated events", generatedEvents);
 
         final ReservedEventWindow r0 = shadowgraph.reserve();
-        shadowgraph.updateEventWindow(new EventWindow(
-                0 /* ignored by shadowgraph */,
-                0 /* ignored by shadowgraph */,
-                FIRST_GENERATION + 1,
-                GENERATION_THRESHOLD));
+
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 1)
+                .build());
         final ReservedEventWindow r1 = shadowgraph.reserve();
-        shadowgraph.updateEventWindow(new EventWindow(
-                0 /* ignored by shadowgraph */,
-                0 /* ignored by shadowgraph */,
-                FIRST_GENERATION + 2,
-                GENERATION_THRESHOLD));
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 2)
+                .build());
         final ReservedEventWindow r2 = shadowgraph.reserve();
 
         // release the middle reservation to ensure that generations
@@ -403,21 +404,17 @@ class ShadowgraphTest {
         r2.close();
 
         // Attempt to expire everything up to
-        shadowgraph.updateEventWindow(new EventWindow(
-                0 /* ignored by shadowgraph */,
-                0 /* ignored by shadowgraph */,
-                FIRST_GENERATION + 2,
-                GENERATION_THRESHOLD));
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 2)
+                .build());
 
         // No event should have been expired because the first generation is reserved
         assertEventsBelowGenAreExpired(0);
 
         r0.close();
-        shadowgraph.updateEventWindow(new EventWindow(
-                0 /* ignored by shadowgraph */,
-                0 /* ignored by shadowgraph */,
-                FIRST_GENERATION + 2,
-                GENERATION_THRESHOLD));
+        shadowgraph.updateEventWindow(EventWindowBuilder.generationMode()
+                .setExpiredThreshold(FIRST_GENERATION + 2)
+                .build());
 
         // Now that the reservation is closed, ensure that the events in the below generation 2 are expired
         assertEventsBelowGenAreExpired(FIRST_GENERATION + 2);
@@ -550,11 +547,9 @@ class ShadowgraphTest {
         initShadowgraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
         final EventImpl newEvent = emitter.emitEvent();
-        final EventWindow eventWindow = new EventWindow(
-                0 /* ignored by shadowgraph */,
-                0 /* ignored by shadowgraph */,
-                newEvent.getGeneration(),
-                GENERATION_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(newEvent.getGeneration())
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         assertDoesNotThrow(
@@ -632,7 +627,7 @@ class ShadowgraphTest {
         r0 = shadowgraph.reserve();
         assertEquals(
                 0,
-                r0.getEventWindow().getExpiredThreshold(),
+                r0.getEventWindow().expiredThreshold(),
                 "The first reservation after clearing should reserve generation 0.");
         assertEquals(
                 1, r0.getReservationCount(), "The first reservation after clearing should have a single reservation.");
@@ -683,8 +678,9 @@ class ShadowgraphTest {
         final int numTipsBeforeExpiry = shadowgraph.getTips().size();
         assertTrue(numTipsBeforeExpiry > 0, "Shadow graph should have tips after events are added.");
 
-        final EventWindow eventWindow = new EventWindow(
-                0 /* ignored by shadowgraph */, 0 /* ignored by shadowgraph */, oldestTipGen + 1, GENERATION_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.generationMode()
+                .setExpiredThreshold(oldestTipGen + 1)
+                .build();
         shadowgraph.updateEventWindow(eventWindow);
 
         assertEquals(

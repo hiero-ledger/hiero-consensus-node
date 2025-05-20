@@ -295,11 +295,14 @@ public class Utils {
                 .build();
     }
 
-    public static AccountAmount aaWith(HapiSpec spec, final ByteString evmAddress, final long amount) {
-        return AccountAmount.newBuilder()
-                .setAccountID(accountId(spec, evmAddress))
-                .setAmount(amount)
-                .build();
+    public static AccountAmount aaWith(final HapiSpec spec, final byte[] bytes, final long amount) {
+        final var acctId = accountIdWithHexedEvmAddress(spec.shard(), spec.realm(), hex(bytes));
+        return AccountAmount.newBuilder().setAccountID(acctId).setAmount(amount).build();
+    }
+
+    public static AccountAmount aaWith(final HapiSpec spec, final ByteString hexedEvmAddress, final long amount) {
+        final var acctId = accountIdWithHexedEvmAddress(spec.shard(), spec.realm(), hexedEvmAddress.toStringUtf8());
+        return AccountAmount.newBuilder().setAccountID(acctId).setAmount(amount).build();
     }
 
     public static AccountAmount aaWith(HapiSpec spec, final String hexedEvmAddress, final long amount) {
@@ -308,7 +311,7 @@ public class Utils {
 
     public static AccountAmount aaWith(long shard, long realm, final String hexedEvmAddress, final long amount) {
         return AccountAmount.newBuilder()
-                .setAccountID(accountId(shard, realm, hexedEvmAddress))
+                .setAccountID(accountIdWithHexedEvmAddress(shard, realm, hexedEvmAddress))
                 .setAmount(amount)
                 .build();
     }
@@ -321,11 +324,12 @@ public class Utils {
                 .build();
     }
 
-    public static AccountID accountId(HapiSpec spec, final String hexedEvmAddress) {
-        return accountId(spec.shard(), spec.realm(), hexedEvmAddress);
+    public static AccountID accountIdWithHexedEvmAddress(HapiSpec spec, final String hexedEvmAddress) {
+        return accountIdWithHexedEvmAddress(spec.shard(), spec.realm(), hexedEvmAddress);
     }
 
-    public static AccountID accountId(final long shard, final long realm, final String hexedEvmAddress) {
+    public static AccountID accountIdWithHexedEvmAddress(
+            final long shard, final long realm, final String hexedEvmAddress) {
         return AccountID.newBuilder()
                 .setShardNum(shard)
                 .setRealmNum(realm)
@@ -333,7 +337,7 @@ public class Utils {
                 .build();
     }
 
-    public static AccountID accountId(HapiSpec spec, final ByteString evmAddress) {
+    public static AccountID accountIdFromEvmAddress(final HapiSpec spec, final ByteString evmAddress) {
         return AccountID.newBuilder()
                 .setShardNum(spec.shard())
                 .setRealmNum(spec.realm())
@@ -435,6 +439,11 @@ public class Utils {
 
     public static Function<HapiSpec, Object[]> mirrorAddrParamFunction(final long contractNum) {
         return spec -> List.of(mirrorAddrWith(spec, contractNum)).toArray();
+    }
+
+    public static Address mirrorAddrWith(final long shard, final long realm, final long num) {
+        return Address.wrap(
+                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress((int) shard, realm, num))));
     }
 
     public static Address nonMirrorAddrWith(final long num) {
