@@ -29,7 +29,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -48,6 +47,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Assertions;
 
@@ -199,7 +199,7 @@ public class TipsetEventCreatorTestUtils {
         assertFalse(
                 (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
                         || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
-                "Parent's birthround should never be higher to the event's generation.");
+                "Parent's birth round should never be higher to the event's birth round.");
 
         assertFalse(
                 (nonNull(selfParent) && selfParent.getGeneration() >= newEvent.getGeneration())
@@ -286,46 +286,6 @@ public class TipsetEventCreatorTestUtils {
     }
 
     /**
-     * Generate a small number of random transactions.
-     */
-    @NonNull
-    public static List<Bytes> generateRandomTransactions(@NonNull final Random random) {
-        final int transactionCount = random.nextInt(0, 10);
-        final List<Bytes> transactions = new ArrayList<>();
-
-        for (int i = 0; i < transactionCount; i++) {
-            transactions.add(generateRandomTransaction(random));
-        }
-
-        return transactions;
-    }
-
-    /**
-     * Generate a random transaction.
-     */
-    @NonNull
-    public static Bytes generateRandomTransaction(@NonNull final Random random) {
-        final byte[] bytes = new byte[32];
-        random.nextBytes(bytes);
-        return Bytes.wrap(bytes);
-    }
-
-    @NonNull
-    public static PlatformEvent createTestEvent(
-            @NonNull final Random random, @Nullable final NodeId creator, final long nGen, final long birthRound) {
-
-        final PlatformEvent selfParent =
-                new TestingEventBuilder(random).setCreatorId(creator).build();
-
-        return new TestingEventBuilder(random)
-                .setCreatorId(creator)
-                .setNGen(nGen)
-                .setBirthRound(birthRound)
-                .setSelfParent(selfParent)
-                .build();
-    }
-
-    /**
      * Generates {@code number} of random transactions
      * @param random the random instance to use
      * @param number the number of transactions to generate. Must be positive.
@@ -337,8 +297,31 @@ public class TipsetEventCreatorTestUtils {
             throw new IllegalArgumentException("number must be greater than 0");
         }
         return IntStream.range(0, number)
-                .mapToObj(i -> generateRandomTransaction(random))
+                .mapToObj(i -> TestingTransactions.generateRandomTransaction(random))
                 .toList();
+    }
+
+    /**
+     * Generate a small number of random transactions.
+     */
+    @NonNull
+    public static List<Bytes> generateRandomTransactions(@NonNull final Random random) {
+        return generateTransactions(random, random.nextInt(1, 10));
+    }
+
+    @NonNull
+    public static PlatformEvent createTestEventWithParent(
+            @NonNull final Random random, @Nullable final NodeId creator, final long nGen, final long birthRound) {
+
+        final PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(creator).build();
+
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setNGen(nGen)
+                .setBirthRound(birthRound)
+                .setSelfParent(selfParent)
+                .build();
     }
 
     /**

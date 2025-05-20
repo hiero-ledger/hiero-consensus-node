@@ -5,7 +5,7 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithParent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateTransactions;
@@ -753,11 +753,11 @@ class TipsetEventCreatorTests {
         assertNotNull(eventA1);
 
         final PlatformEvent eventB1 =
-                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventC1 =
-                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventD1 =
-                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -791,7 +791,7 @@ class TipsetEventCreatorTests {
             otherParentId = null;
         }
 
-        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 2, ROUND_FIRST);
+        final PlatformEvent legalOtherParent = createTestEventWithParent(random, otherParentId, 2, ROUND_FIRST);
 
         eventCreator.registerEvent(legalOtherParent);
 
@@ -849,13 +849,13 @@ class TipsetEventCreatorTests {
         assertNotNull(eventA1);
 
         final PlatformEvent eventB1 =
-                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventC1 =
-                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventD1 =
-                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventE1 =
-                createTestEvent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -1054,7 +1054,7 @@ class TipsetEventCreatorTests {
         final List<PlatformEvent> pcesEvents = new ArrayList<>();
         PlatformEvent eventWithHighestNGen = null;
         for (int i = 0; i < numEvents; i++) {
-            final PlatformEvent event = createTestEvent(random, selfId, i + 1, ROUND_FIRST);
+            final PlatformEvent event = createTestEventWithParent(random, selfId, i + 1, ROUND_FIRST);
             if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
                 eventWithHighestNGen = event;
             }
@@ -1116,7 +1116,7 @@ class TipsetEventCreatorTests {
         // because we want to favor any self event last created by the event creator even though it does not have an
         // nGen set.
         final PlatformEvent oldSelfEvent =
-                createTestEvent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         eventCreator.registerEvent(oldSelfEvent);
 
         // Now create another event and check that the self parent is the expected event.
