@@ -162,7 +162,7 @@ public class CryptoGetInfoRegression {
                 cryptoCreate("targetWithStakedAccountId")
                         .key("misc")
                         .balance(balance)
-                        .stakedAccountId(stakedAccountId),
+                        .stakedAccountId("20"),
                 getAccountInfo("noStakingTarget")
                         .has(accountWith()
                                 .accountId("noStakingTarget")

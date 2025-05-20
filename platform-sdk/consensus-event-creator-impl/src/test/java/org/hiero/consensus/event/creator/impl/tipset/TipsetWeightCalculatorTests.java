@@ -34,6 +34,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -558,7 +559,7 @@ class TipsetWeightCalculatorTests {
         // FUTURE WORK: Change the test to use birthRound instead of generation for ancient.
         // Mark generation 0 as ancient.
         final EventWindow eventWindow =
-                new EventWindow(1, 1, 0 /* ignored in this context */, AncientMode.GENERATION_THRESHOLD);
+                EventWindowBuilder.generationMode().setAncientThreshold(1).build();
         builder.setEventWindow(eventWindow);
         childlessEventTracker.pruneOldEvents(eventWindow);
 

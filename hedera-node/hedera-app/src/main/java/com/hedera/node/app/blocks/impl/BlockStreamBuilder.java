@@ -380,6 +380,11 @@ public class BlockStreamBuilder
     private TransactionGroupRole role = TransactionGroupRole.STANDALONE;
 
     /**
+     * the total duration of contract operations as calculated using the Hedera ops duration schedule
+     */
+    private long opsDuration;
+
+    /**
      * Constructs a builder for a user transaction with the given characteristics.
      * @param reversingBehavior the reversing behavior
      * @param customizer the customizer
@@ -833,6 +838,11 @@ public class BlockStreamBuilder
     }
 
     @Override
+    public long getOpsDurationForContractTxn() {
+        return opsDuration;
+    }
+
+    @Override
     @NonNull
     public BlockStreamBuilder accountID(@Nullable final AccountID accountID) {
         this.accountId = accountID;
@@ -964,6 +974,12 @@ public class BlockStreamBuilder
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
+        return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
+        this.opsDuration = opsDuration;
         return this;
     }
 

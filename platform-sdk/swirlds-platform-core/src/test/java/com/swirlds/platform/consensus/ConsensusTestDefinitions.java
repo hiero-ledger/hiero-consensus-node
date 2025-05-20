@@ -38,7 +38,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
+import org.assertj.core.api.Assertions;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -618,5 +620,13 @@ public final class ConsensusTestDefinitions {
         // validate that exactly 1 round reached consensus (the freeze round) and that its equal on all nodes
         orchestrator.validate(new ConsensusOutputValidator(
                 Set.of(new NumberOfConsensusRoundsValidation(1), new OutputEventsEqualityValidation())));
+
+        orchestrator.forEachNode(n -> {
+            final ConsensusRound lastConsensusRound =
+                    n.getIntake().getConsensusRounds().getLast();
+            Assertions.assertThat(lastConsensusRound.getEventWindow().newEventBirthRound())
+                    .withFailMessage("The event birth round should be equal to the freeze round")
+                    .isEqualTo(lastConsensusRound.getRoundNum());
+        });
     }
 }
