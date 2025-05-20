@@ -139,8 +139,8 @@
     "250":2091
   },
   "gasBasedDurationMultiplier":{
-    "ops":5.66,
-    "precompile":15.75,
-    "systemContract":5.66
+    "ops":566,
+    "precompile":1575,
+    "systemContract":566
   }
 }

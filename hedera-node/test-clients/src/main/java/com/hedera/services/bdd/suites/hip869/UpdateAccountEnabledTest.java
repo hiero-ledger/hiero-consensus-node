@@ -20,7 +20,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -128,12 +127,6 @@ public class UpdateAccountEnabledTest {
                         viewNode(
                                 "testNode",
                                 node -> assertEquals(
-                                        AccountID.newBuilder()
-                                                .shardNum(spec.shard())
-                                                .realmNum(spec.realm())
-                                                .accountNum(1000)
-                                                .build(),
-                                        node.accountId(),
-                                        "Node accountId should be updated")))));
+                                        1000, node.accountId().accountNum(), "Node accountId should be updated")))));
     }
 }

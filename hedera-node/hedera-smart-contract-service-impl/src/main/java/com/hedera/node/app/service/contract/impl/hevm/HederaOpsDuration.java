@@ -16,6 +16,8 @@ public class HederaOpsDuration {
     public static final String OP_DURATION_MULTIPLIER_KEY = "ops";
     public static final String PRECOMPILE_MULTIPLIER_KEY = "precompile";
     public static final String SYSTEM_CONTRACT_MULTIPLIER_KEY = "systemContract";
+    // As floating point values cannot be used, we use a factor of 100 to use integers.
+    public static final long MULTIPLIER_FACTOR = 100;
 
     private final Supplier<InputStream> source;
     private final ObjectMapper mapper;
@@ -39,19 +41,19 @@ public class HederaOpsDuration {
         return requireNonNull(hederaOpsDurationData).getOpsDuration();
     }
 
-    public Map<String, Double> getGasBasedDurationMultiplier() {
+    private Map<String, Long> getGasBasedDurationMultiplier() {
         return requireNonNull(hederaOpsDurationData).getGasBasedDurationMultiplier();
     }
 
-    public double opsDurationMultiplier() {
-        return getGasBasedDurationMultiplier().getOrDefault(OP_DURATION_MULTIPLIER_KEY, 1.0);
+    public long opsDurationMultiplier() {
+        return getGasBasedDurationMultiplier().getOrDefault(OP_DURATION_MULTIPLIER_KEY, 1L);
     }
 
-    public double precompileDurationMultiplier() {
-        return getGasBasedDurationMultiplier().getOrDefault(PRECOMPILE_MULTIPLIER_KEY, 1.0);
+    public long precompileDurationMultiplier() {
+        return getGasBasedDurationMultiplier().getOrDefault(PRECOMPILE_MULTIPLIER_KEY, 1L);
     }
 
-    public double systemContractDurationMultiplier() {
-        return getGasBasedDurationMultiplier().getOrDefault(SYSTEM_CONTRACT_MULTIPLIER_KEY, 1.0);
+    public long systemContractDurationMultiplier() {
+        return getGasBasedDurationMultiplier().getOrDefault(SYSTEM_CONTRACT_MULTIPLIER_KEY, 1L);
     }
 }

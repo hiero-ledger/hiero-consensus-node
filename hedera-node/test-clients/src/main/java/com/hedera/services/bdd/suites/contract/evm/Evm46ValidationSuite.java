@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.evm;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
@@ -1129,11 +1130,7 @@ public class Evm46ValidationSuite {
                 contractCreate(MAKE_CALLS_CONTRACT).gas(400_000L),
                 balanceSnapshot("initialBalance", MAKE_CALLS_CONTRACT),
                 contractCall(MAKE_CALLS_CONTRACT, withAmount, (spec) -> List.of(
-                                        idAsHeadlongAddress(AccountID.newBuilder()
-                                                .setShardNum(spec.shard())
-                                                .setRealmNum(spec.realm())
-                                                .setAccountNum(357)
-                                                .build()),
+                                        idAsHeadlongAddress(asAccount(spec, 357)),
                                         new byte[] {"system account".getBytes()[0]})
                                 .toArray())
                         .gas(GAS_LIMIT_FOR_CALL * 4)
@@ -1382,8 +1379,7 @@ public class Evm46ValidationSuite {
                 withOpContext((spec, opLog) -> spec.registry()
                         .saveContractId(
                                 "contract",
-                                asContractIdWithEvmAddress(ByteString.copyFrom(
-                                        asSolidityAddress((int) spec.shard(), spec.realm(), 629))))),
+                                asContractIdWithEvmAddress(ByteString.copyFrom(asSolidityAddress(spec, 629))))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi("contract", getABIFor(FUNCTION, NAME, ERC_721_ABI))

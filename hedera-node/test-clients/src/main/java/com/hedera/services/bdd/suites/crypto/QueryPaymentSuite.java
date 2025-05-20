@@ -129,7 +129,7 @@ public class QueryPaymentSuite {
         return TransferList.newBuilder()
                 .addAccountAmounts(adjust(spec.registry().getAccountID(first), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(second), -amount / 2))
-                .addAccountAmounts(adjust(asAccount(spec.shard(), spec.realm(), Long.parseLong(NODE)), amount))
+                .addAccountAmounts(adjust(asAccount(spec, Long.parseLong(NODE)), amount))
                 .build();
     }
 
@@ -147,7 +147,7 @@ public class QueryPaymentSuite {
                 .addAccountAmounts(adjust(spec.registry().getAccountID(first), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(second), -amount / 2))
                 .addAccountAmounts(adjust(spec.registry().getAccountID(beneficiary), amount - queryFee))
-                .addAccountAmounts(adjust(asAccount(spec.shard(), spec.realm(), Long.parseLong(NODE)), queryFee))
+                .addAccountAmounts(adjust(asAccount(spec, Long.parseLong(NODE)), queryFee))
                 .build();
     }
 
