@@ -75,8 +75,7 @@ public class SysFileOverrideOp extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        var fileNumber = String.valueOf(target.number());
-
+        final var fileNumber = String.valueOf(target.number());
         allRunFor(spec, getFileContents(fileNumber).consumedBy(bytes -> this.originalContents = bytes));
         log.info("Took snapshot of {}", target);
         final var styledContents = overrideSupplier.get();

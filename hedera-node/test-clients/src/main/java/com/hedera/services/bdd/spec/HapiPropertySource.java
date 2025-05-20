@@ -262,6 +262,10 @@ public interface HapiPropertySource {
         return asEntityString(token.getShardNum(), token.getRealmNum(), token.getTokenNum());
     }
 
+    static AccountID asAccount(HapiSpec spec, long num) {
+        return asAccount(spec.shard(), spec.realm(), num);
+    }
+
     static AccountID asAccount(String v) {
         long[] nativeParts = asDotDelimitedLongArray(v);
         return AccountID.newBuilder()
