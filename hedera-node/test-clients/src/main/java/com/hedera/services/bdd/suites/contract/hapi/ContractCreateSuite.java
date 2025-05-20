@@ -66,6 +66,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -100,7 +101,6 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -266,9 +266,7 @@ public class ContractCreateSuite {
         final var contract = "Multipurpose";
 
         return hapiTest(uploadInitCode(contract), contractCreate(contract).balance(666), withOpContext((spec, log) -> {
-            final Object[] donationArgs = {
-                new BigInteger(HapiPropertySource.asSolidityAddress(spec, 666_666L)), "Hey, Ma!"
-            };
+            final Object[] donationArgs = {new BigInteger(asSolidityAddress(spec, 666_666L)), "Hey, Ma!"};
             final var callOp = contractCall(contract, "donate", donationArgs).hasKnownStatus(CONTRACT_REVERT_EXECUTED);
             allRunFor(spec, callOp);
         }));
@@ -594,8 +592,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
-                        new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
                 /* But now we update the beneficiary to have a delegateContractId */
@@ -604,8 +602,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
-                        new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }

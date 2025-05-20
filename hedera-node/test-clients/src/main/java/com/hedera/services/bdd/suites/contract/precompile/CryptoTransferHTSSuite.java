@@ -1729,7 +1729,7 @@ public class CryptoTransferHTSSuite {
             opsArray[i] = withOpContext((spec, opLog) -> {
                 final var token = spec.registry().getTokenID(FUNGIBLE_TOKEN);
                 final var sender = spec.registry().getAccountID(SENDER);
-                final var receiver = asAccount(spec.shard(), spec.realm(), existingSystemAccounts.get(finalI));
+                final var receiver = asAccount(spec, existingSystemAccounts.get(finalI));
                 allRunFor(
                         spec,
                         newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, contract))),

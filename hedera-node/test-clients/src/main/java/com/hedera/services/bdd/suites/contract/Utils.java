@@ -114,6 +114,10 @@ public class Utils {
         return HapiPropertySource.asSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum());
     }
 
+    public static byte[] asSolidityAddress(final HapiSpec spec, final long num) {
+        return asSolidityAddress((int) spec.shard(), spec.realm(), num);
+    }
+
     public static byte[] asAddressInTopic(final byte[] solidityAddress) {
         final byte[] topicAddress = new byte[32];
 
@@ -446,8 +450,8 @@ public class Utils {
     }
 
     public static Address mirrorAddrWith(HapiSpec spec, final long num) {
-        return Address.wrap(toChecksumAddress(
-                new BigInteger(1, HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), num))));
+        return Address.wrap(
+                toChecksumAddress(new BigInteger(1, asSolidityAddress((int) spec.shard(), spec.realm(), num))));
     }
 
     @Deprecated(forRemoval = true)
@@ -465,8 +469,7 @@ public class Utils {
     }
 
     public static Address nonMirrorAddrWith(final long seed, final long num) {
-        return Address.wrap(
-                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress((int) seed, seed, num))));
+        return Address.wrap(toChecksumAddress(new BigInteger(1, asSolidityAddress((int) seed, seed, num))));
     }
 
     public static long expectedPrecompileGasFor(
