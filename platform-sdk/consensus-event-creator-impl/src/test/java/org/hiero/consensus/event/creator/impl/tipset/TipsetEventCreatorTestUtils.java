@@ -20,6 +20,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
@@ -93,8 +95,15 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final AncientMode ancientMode) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(
+                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
+                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
+                .getOrCreateConfig();
+        final PlatformContext platformContext = TestPlatformContextBuilder.create()
+                .withConfiguration(configuration)
+                .withTime(time)
+                .build();
 
         for (final RosterEntry address : roster.rosterEntries()) {
 

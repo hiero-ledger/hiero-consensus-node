@@ -1159,14 +1159,12 @@ class TipsetEventCreatorTests {
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
         final FakeTime time = new FakeTime();
 
-        final Map<NodeId, SimulatedNode> nodeMaps =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
-
         final EventCreator eventCreator =
-                nodeMaps.values().stream().toList().getFirst().eventCreator();
+                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get, ancientMode);
 
         var lastEvent = eventCreator.maybeCreateEvent();
-        time.tick(100); // Move the time forward
+        // Move the time forward
+        time.tick(100);
         lastEvent = eventCreator.maybeCreateEvent();
         assertNotNull(lastEvent);
         Instant present = time.now();
@@ -1205,12 +1203,8 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
         final FakeTime time = new FakeTime();
-
-        final Map<NodeId, SimulatedNode> nodeMaps =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
-
         final EventCreator eventCreator =
-                nodeMaps.values().stream().toList().getFirst().eventCreator();
+                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get, ancientMode);
 
         transactionSupplier.set(generateTransactions(random, 10));
         var lastEvent = eventCreator.maybeCreateEvent();
@@ -1253,12 +1247,8 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
         final FakeTime time = new FakeTime();
-
-        final Map<NodeId, SimulatedNode> nodeMaps =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
-
         final EventCreator eventCreator =
-                nodeMaps.values().stream().toList().getFirst().eventCreator();
+                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get, ancientMode);
 
         transactionSupplier.set(generateTransactions(random, 100));
         // the self-parent
@@ -1300,15 +1290,9 @@ class TipsetEventCreatorTests {
         final int networkSize = 1;
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
-
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime time = new FakeTime();
-
-        final Map<NodeId, SimulatedNode> nodeMaps =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get, ancientMode);
-
         final EventCreator eventCreator =
-                nodeMaps.values().stream().toList().getFirst().eventCreator();
+                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), transactionSupplier::get, ancientMode);
 
         var parentEvent = eventCreator.maybeCreateEvent(); // the self-parent
         assertNotNull(parentEvent);
