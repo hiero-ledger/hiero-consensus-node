@@ -94,8 +94,6 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
 
     @Override
     public SubProcessNode start() {
-        System.setProperty("hedera.shard", String.valueOf(metadata().accountId().shardNum()));
-        System.setProperty("hedera.realm", String.valueOf(metadata().accountId().realmNum()));
         return startWithConfigVersion(LifecycleTest.CURRENT_CONFIG_VERSION.get());
     }
 
