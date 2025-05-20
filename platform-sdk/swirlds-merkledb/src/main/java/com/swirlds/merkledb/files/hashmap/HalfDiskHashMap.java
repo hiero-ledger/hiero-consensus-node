@@ -349,7 +349,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 bucketIndex.remove(bucketId);
                 continue;
             }
-            try (final ParsedBucket bucket = new ParsedBucket()) {
+            try (ParsedBucket bucket = new ParsedBucket()) {
                 bucket.readFrom(bucketData);
                 final long loadedBucketId = bucket.getBucketIndex();
                 // Check bucket index. It should match bucketId, unless it's an old bucket created before
@@ -870,7 +870,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             throw new IllegalArgumentException("Can not get a null key");
         }
         final int bucketIndex = computeBucketIndex(keyHashCode);
-        try (final Bucket bucket = readBucket(bucketIndex)) {
+        try (Bucket bucket = readBucket(bucketIndex)) {
             if (bucket != null) {
                 return bucket.findValue(keyHashCode, keyBytes, notFoundValue);
             }

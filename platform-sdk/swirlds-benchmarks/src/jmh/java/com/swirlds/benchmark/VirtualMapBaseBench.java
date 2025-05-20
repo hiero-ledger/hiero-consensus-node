@@ -321,20 +321,20 @@ public abstract class VirtualMapBaseBench extends BaseBench {
             }
             savedDir = nextSavedDir;
         }
+        VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = null;
         if (savedDir != null) {
             try {
                 logger.info("Restoring map {} from {}", label, savedDir);
-                final VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = new VirtualMap<>(configuration);
-                try (final SerializableDataInputStream in =
+                virtualMap = new VirtualMap<>(configuration);
+                try (SerializableDataInputStream in =
                         new SerializableDataInputStream(Files.newInputStream(savedDir.resolve(label + SERDE_SUFFIX)))) {
                     virtualMap.deserialize(in, savedDir, virtualMap.getVersion());
                 }
                 logger.info("Restored map {} from {}", label, savedDir);
-                return virtualMap;
             } catch (IOException ex) {
                 logger.error("Error loading saved map: {}", ex.getMessage());
             }
         }
-        return null;
+        return virtualMap;
     }
 }

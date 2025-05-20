@@ -40,7 +40,7 @@ class HalfDiskHashMapTest {
 
     // =================================================================================================================
     // Helper Methods
-    private HalfDiskHashMap createNewTempMap(String name, long count) throws IOException {
+    private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
                 CONFIGURATION, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, false);
@@ -48,7 +48,7 @@ class HalfDiskHashMapTest {
         return map;
     }
 
-    private MemoryIndexDiskKeyValueStore createNewTempKV(String name, int count) throws IOException {
+    private MemoryIndexDiskKeyValueStore createNewTempKV(final String name, final int count) throws IOException {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final LongList index = new LongListHeap(count, CONFIGURATION);
         return new MemoryIndexDiskKeyValueStore(
@@ -56,7 +56,12 @@ class HalfDiskHashMapTest {
     }
 
     private static void createSomeData(
-            FilesTestType testType, HalfDiskHashMap map, int start, int count, long dataMultiplier) throws IOException {
+            final FilesTestType testType,
+            final HalfDiskHashMap map,
+            final int start,
+            final int count,
+            final long dataMultiplier)
+            throws IOException {
         map.startWriting();
         for (int i = start; i < (start + count); i++) {
             final VirtualKey key = testType.createVirtualLongKey(i);
@@ -69,7 +74,12 @@ class HalfDiskHashMapTest {
     }
 
     private static void checkData(
-            FilesTestType testType, HalfDiskHashMap map, int start, int count, long dataMultiplier) throws IOException {
+            final FilesTestType testType,
+            final HalfDiskHashMap map,
+            final int start,
+            final int count,
+            final long dataMultiplier)
+            throws IOException {
         long START = System.currentTimeMillis();
         for (int i = start; i < (start + count); i++) {
             final var key = testType.createVirtualLongKey(i);
@@ -91,7 +101,7 @@ class HalfDiskHashMapTest {
         final Path tempSnapshotDir = tempDirPath.resolve("DataFileTestSnapshot_" + testType.name());
         final int count = 10_000;
         // create map
-        try (final HalfDiskHashMap map = createNewTempMap("createDataAndCheck", count)) {
+        try (HalfDiskHashMap map = createNewTempMap("createDataAndCheck", count)) {
             // create some data
             createSomeData(testType, map, 1, count, 1);
             // sequentially check data
@@ -142,7 +152,7 @@ class HalfDiskHashMapTest {
     @EnumSource(FilesTestType.class)
     void multipleWriteBatchesAndMerge(FilesTestType testType) throws Exception {
         // create map
-        try (final HalfDiskHashMap map = createNewTempMap("multipleWriteBatchesAndMerge", 10_000)) {
+        try (HalfDiskHashMap map = createNewTempMap("multipleWriteBatchesAndMerge", 10_000)) {
             final DataFileCompactor dataFileCompactor = new DataFileCompactor(
                     CONFIGURATION.getConfigData(MerkleDbConfig.class),
                     "HalfDiskHashMapTest",
@@ -172,7 +182,7 @@ class HalfDiskHashMapTest {
     @EnumSource(FilesTestType.class)
     void updateData(FilesTestType testType) throws Exception {
         // create map
-        try (final HalfDiskHashMap map = createNewTempMap("updateData", 1000)) {
+        try (HalfDiskHashMap map = createNewTempMap("updateData", 1000)) {
             // create some data
             createSomeData(testType, map, 0, 1000, 1);
             checkData(testType, map, 0, 1000, 1);
@@ -187,7 +197,7 @@ class HalfDiskHashMapTest {
     @Test
     void testOverwritesWithCollision() throws IOException {
         final FilesTestType testType = FilesTestType.fixed;
-        try (final HalfDiskHashMap map = createNewTempMap("testOverwritesWithCollision", 1000)) {
+        try (HalfDiskHashMap map = createNewTempMap("testOverwritesWithCollision", 1000)) {
             map.startWriting();
             for (int i = 100; i < 300; i++) {
                 final VirtualKey key = new CollidableFixedLongKey(i);
@@ -200,7 +210,7 @@ class HalfDiskHashMapTest {
     @Test
     void testRebuildMap() throws Exception {
         final FilesTestType testType = FilesTestType.variable;
-        try (final HalfDiskHashMap map = createNewTempMap("testRebuildMap", 100)) {
+        try (HalfDiskHashMap map = createNewTempMap("testRebuildMap", 100)) {
             map.startWriting();
             final VirtualKey key1 = testType.createVirtualLongKey(1);
             map.put(testType.keySerializer.toBytes(key1), key1.hashCode(), 1);
@@ -245,7 +255,7 @@ class HalfDiskHashMapTest {
     @Test
     void testRebuildIncompleteMap() throws Exception {
         final FilesTestType testType = FilesTestType.variable;
-        try (final HalfDiskHashMap map = createNewTempMap("testRebuildIncompleteMap", 100)) {
+        try (HalfDiskHashMap map = createNewTempMap("testRebuildIncompleteMap", 100)) {
             map.startWriting();
             final VirtualKey key1 = testType.createVirtualLongKey(1);
             map.put(testType.keySerializer.toBytes(key1), key1.hashCode(), 1);
@@ -283,14 +293,14 @@ class HalfDiskHashMapTest {
     @ParameterizedTest
     @ValueSource(longs = {100, 1000, 2000, 1_000_000, 1_000_000_000})
     void testDefaultNumOfBuckets(final long count) throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("testDefaultNumOfBuckets", count)) {
+        try (HalfDiskHashMap map = createNewTempMap("testDefaultNumOfBuckets", count)) {
             assertEquals(calcExpectedNumOfBuckets(count), map.getNumOfBuckets());
         }
     }
 
     @Test
     void testResizeBasic() throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("testResizeBasic", 1000)) {
+        try (HalfDiskHashMap map = createNewTempMap("testResizeBasic", 1000)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(1000);
             assertEquals(initialNumOfBuckets, map.getNumOfBuckets());
             map.resizeIfNeeded(99, 198); // map size: 100, no resize needed
@@ -302,7 +312,7 @@ class HalfDiskHashMapTest {
 
     @Test
     void checkValuesAfterResize() throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("checkValuesAfterResize", 200)) {
+        try (HalfDiskHashMap map = createNewTempMap("checkValuesAfterResize", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
             assertEquals(initialNumOfBuckets, map.getNumOfBuckets());
             map.startWriting();
@@ -324,7 +334,7 @@ class HalfDiskHashMapTest {
 
     @Test
     void checkBucketIndexAfterResize() throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("checkBucketIndexAfterResize", 200)) {
+        try (HalfDiskHashMap map = createNewTempMap("checkBucketIndexAfterResize", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
             assertEquals(initialNumOfBuckets, map.getNumOfBuckets()); // should be 8
             map.startWriting();
@@ -352,7 +362,7 @@ class HalfDiskHashMapTest {
 
     @Test
     void getAfterResize() throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("getAfterResize", 200)) {
+        try (HalfDiskHashMap map = createNewTempMap("getAfterResize", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
             map.startWriting();
             for (int i = 0; i < 100; i++) {
@@ -377,7 +387,7 @@ class HalfDiskHashMapTest {
 
     @Test
     void checkBucketsAfterPut() throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("checkBucketsAfterPut", 200)) {
+        try (HalfDiskHashMap map = createNewTempMap("checkBucketsAfterPut", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
             map.startWriting();
             for (int i = 0; i < initialNumOfBuckets; i++) {
@@ -391,7 +401,7 @@ class HalfDiskHashMapTest {
             for (int i = 0; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
-                try (final ParsedBucket bucket = new ParsedBucket()) {
+                try (ParsedBucket bucket = new ParsedBucket()) {
                     bucket.readFrom(bucketData);
                     assertEquals(2, bucket.getBucketEntryCount());
                     assertEquals(i * 2L, bucket.findValue(i, Bytes.wrap(new byte[] {(byte) i, (byte) i}), -1));
@@ -409,7 +419,7 @@ class HalfDiskHashMapTest {
 
     @Test
     void checkBucketsAfterResize() throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("checkBucketsAfterResize", 200)) {
+        try (HalfDiskHashMap map = createNewTempMap("checkBucketsAfterResize", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
             map.startWriting();
             for (int i = 0; i < initialNumOfBuckets; i++) {
@@ -424,7 +434,7 @@ class HalfDiskHashMapTest {
             for (int i = 0; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
-                try (final ParsedBucket bucket = new ParsedBucket()) {
+                try (ParsedBucket bucket = new ParsedBucket()) {
                     bucket.readFrom(bucketData);
                     assertEquals(i, bucket.getBucketIndex());
                     // Both i and i+initialNumOfBuckets entries are still there
@@ -437,7 +447,7 @@ class HalfDiskHashMapTest {
                 final int ei = i - initialNumOfBuckets;
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
-                try (final ParsedBucket bucket = new ParsedBucket()) {
+                try (ParsedBucket bucket = new ParsedBucket()) {
                     bucket.readFrom(bucketData);
                     // The bucket still has the old index
                     assertEquals(ei, bucket.getBucketIndex());
@@ -453,7 +463,7 @@ class HalfDiskHashMapTest {
 
     @Test
     void checkBucketsAfterResizeAndUpdate() throws Exception {
-        try (final HalfDiskHashMap map = createNewTempMap("checkBucketsAfterResizeAndUpdate", 200)) {
+        try (HalfDiskHashMap map = createNewTempMap("checkBucketsAfterResizeAndUpdate", 200)) {
             final int initialNumOfBuckets = calcExpectedNumOfBuckets(200);
             map.startWriting();
             for (int i = 0; i < initialNumOfBuckets; i++) {
@@ -477,7 +487,7 @@ class HalfDiskHashMapTest {
             for (int i = 0; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
-                try (final ParsedBucket bucket = new ParsedBucket()) {
+                try (ParsedBucket bucket = new ParsedBucket()) {
                     bucket.readFrom(bucketData);
                     assertEquals(i, bucket.getBucketIndex());
                     assertEquals(1, bucket.getBucketEntryCount());
@@ -492,7 +502,7 @@ class HalfDiskHashMapTest {
                 final int ei = i - initialNumOfBuckets;
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
-                try (final ParsedBucket bucket = new ParsedBucket()) {
+                try (ParsedBucket bucket = new ParsedBucket()) {
                     bucket.readFrom(bucketData);
                     // The bucket now should have the new index
                     assertEquals(i, bucket.getBucketIndex());
@@ -510,7 +520,7 @@ class HalfDiskHashMapTest {
     void repairAfterResize() throws Exception {
         // Map size is N * 2
         final int N = 250;
-        try (final HalfDiskHashMap map = createNewTempMap("repairAfterResize", N);
+        try (HalfDiskHashMap map = createNewTempMap("repairAfterResize", N);
                 final MemoryIndexDiskKeyValueStore kvStore = createNewTempKV("repairAfterResize", N * 4)) {
             final int first = N * 2 - 1;
             final int last = N * 4 - 2;

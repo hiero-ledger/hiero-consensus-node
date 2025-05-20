@@ -106,7 +106,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
     /**
      * Max number of keys that can be stored in a table.
      */
-    private long initialCapacity = 0;
+    private long initialCapacity;
 
     /**
      * Threshold where we switch from storing internal hashes in ram to storing them on disk. If it is 0 then everything
@@ -114,7 +114,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      * we swap from ram to disk. This allows a tree where the lower levels of the tree nodes hashes are in ram and the
      * upper larger less changing layers are on disk.
      */
-    private long hashesRamToDiskThreshold = 0;
+    private long hashesRamToDiskThreshold;
 
     /**
      * Creates a new virtual table config with default values. This constructor should only be used
