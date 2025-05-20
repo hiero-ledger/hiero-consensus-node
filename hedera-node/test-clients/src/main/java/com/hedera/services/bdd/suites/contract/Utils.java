@@ -115,20 +115,6 @@ public class Utils {
         return asSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum());
     }
 
-    public static byte[] asSolidityAddress(final int shard, final long realm, final long num) {
-        final byte[] solidityAddress = new byte[20];
-
-        arraycopy(Ints.toByteArray(shard), 0, solidityAddress, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, solidityAddress, 4, 8);
-        arraycopy(Longs.toByteArray(num), 0, solidityAddress, 12, 8);
-
-        return solidityAddress;
-    }
-
-    public static byte[] asSolidityAddress(final HapiSpec spec, final long num) {
-        return asSolidityAddress((int) spec.shard(), spec.realm(), num);
-    }
-
     public static byte[] asAddressInTopic(final byte[] solidityAddress) {
         final byte[] topicAddress = new byte[32];
 
