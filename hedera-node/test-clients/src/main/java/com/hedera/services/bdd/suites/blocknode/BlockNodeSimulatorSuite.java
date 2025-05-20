@@ -40,40 +40,6 @@ public class BlockNodeSimulatorSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0})
-            })
-    @Order(0)
-    final Stream<DynamicTest> node0StreamingHappyPath() {
-        return hapiTest(
-                burstOfTps(300, Duration.ofSeconds(600)),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0})
-            })
-    @Order(0)
-    final Stream<DynamicTest> node0StreamingBufferFull() {
-        return hapiTest(
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
             blockNodeConfigs = {
                 @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
                 @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
@@ -98,9 +64,10 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {3},
                         blockNodePriorities = {0}),
             })
-    @Order(1)
+    @Order(0)
     final Stream<DynamicTest> allNodesStreamingHappyPath() {
         return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
@@ -115,7 +82,63 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
+    @Order(1)
+    final Stream<DynamicTest> node0StreamingHappyPath() {
+        return hapiTest(
+                burstOfTps(300, Duration.ofSeconds(600)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
     @Order(2)
+    final Stream<DynamicTest> node0StreamingBufferFull() {
+        return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 2,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(3)
+    final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
+        return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(4)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsCanStreamGenesisBlock() {
         AtomicReference<Instant> time = new AtomicReference<>();
         List<Integer> portNumbers = new ArrayList<>();
@@ -153,7 +176,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3})
             })
-    @Order(3)
+    @Order(5)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
         AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
         List<Integer> portNumbers = new ArrayList<>();
@@ -211,26 +234,5 @@ public class BlockNodeSimulatorSuite {
                         "Transitioning higher priority pending connection: localhost:" + portNumbers.get(1)
                                 + " Priority: 1 to ACTIVE")),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 2,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0}),
-                @SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0})
-            })
-    @Order(4)
-    final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
-        return hapiTest(
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }
