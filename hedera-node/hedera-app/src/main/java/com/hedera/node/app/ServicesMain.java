@@ -75,6 +75,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
@@ -84,6 +85,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -227,7 +229,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *  {@link ConsensusStateEventHandler}---and the implementation of that
      *  injected by {@link Hedera#newStateRoot()} delegates these calls back to the Hedera
      *  instance itself.
-     *  <p>
+     * <p>
      *  Thus, the Hedera instance centralizes nearly all the setup and runtime logic for the
      *  application. It implements this logic by instantiating a {@link javax.inject.Singleton}
      *  component whose object graph roots include the Ingest, PreHandle, Handle, and Query

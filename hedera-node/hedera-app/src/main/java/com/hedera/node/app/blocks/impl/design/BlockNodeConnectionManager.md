@@ -14,7 +14,7 @@
 
 This document describes the internal design and responsibilities of the `BlockNodeConnectionManager` class.
 This component manages active connections, handling connection lifecycle, and coordinating
-with individual `BlockNodeConnection` instances. It also interacts with the `BlockStreamStateManager` to synchronize stream state.
+with individual `BlockNodeConnection` instances. There should be only one active connection at a time. The class also interacts with the `BlockStreamStateManager` to synchronize stream state.
 
 ## Definitions
 
