@@ -8,8 +8,9 @@
 4. [Details](#details)
 5. [State Management and Flow](#state-management-and-flow)
 6. [Interaction with Other Components](#interaction-with-other-components)
-7. [Sequence Diagrams](#sequence-diagrams)
-8. [Error Handling](#error-handling)
+7. [Backpressure Mechanism](#backpressure-mechanism)
+8. [Sequence Diagrams](#sequence-diagrams)
+9. [Error Handling](#error-handling)
 
 ## Abstract
 
