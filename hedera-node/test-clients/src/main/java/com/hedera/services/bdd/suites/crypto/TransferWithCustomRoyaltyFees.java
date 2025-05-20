@@ -784,7 +784,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    final Stream<DynamicTest> transferNonFungibleWithRoyaltySameHTSTreasuryТоRandom() {
+    final Stream<DynamicTest> transferNonFungibleWithRoyaltySameHTSTreasuryToRandom() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
                 cryptoCreate(alice).balance(ONE_MILLION_HBARS),
@@ -823,7 +823,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    final Stream<DynamicTest> transferNonFungibleWithRoyaltyAnotherHTSTreasuryТоRandom() {
+    final Stream<DynamicTest> transferNonFungibleWithRoyaltyAnotherHTSTreasuryToRandom() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
                 cryptoCreate(carol).balance(ONE_MILLION_HBARS),
@@ -1400,6 +1400,8 @@ public class TransferWithCustomRoyaltyFees {
                                             .setToken(asTokenId(fungibleToken, spec))
                                             .addTransfers(AccountAmount.newBuilder()
                                                     .setAccountID(AccountID.newBuilder()
+                                                            .setShardNum(spec.shard())
+                                                            .setRealmNum(spec.realm())
                                                             .setAlias(ownerKey.toByteString())
                                                             .build())
                                                     .setAmount(-xferAmount)
@@ -1407,6 +1409,8 @@ public class TransferWithCustomRoyaltyFees {
                                                     .build())
                                             .addTransfers(AccountAmount.newBuilder()
                                                     .setAccountID(AccountID.newBuilder()
+                                                            .setShardNum(spec.shard())
+                                                            .setRealmNum(spec.realm())
                                                             .setAlias(evmAddress)
                                                             .build())
                                                     .setAmount(xferAmount)
@@ -1488,8 +1492,8 @@ public class TransferWithCustomRoyaltyFees {
                                                             .setShardNum(spec.shard())
                                                             .setRealmNum(spec.realm())
                                                             .setAlias(ByteString.copyFrom(asEvmAddress(
-                                                                    spec.shard(),
-                                                                    spec.realm(),
+                                                                    ownerId.getShardNum(),
+                                                                    ownerId.getRealmNum(),
                                                                     ownerId.getAccountNum())))
                                                             .build())
                                                     .setAmount(xferAmount)
