@@ -26,6 +26,7 @@ import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.infrastructure.meta.InitialAccountIdentifiers;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -206,8 +207,8 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
         return this;
     }
 
-    public HapiCryptoCreate stakedAccountId(final String acctNum) {
-        stakedAccountId = Optional.of(acctNum);
+    public HapiCryptoCreate stakedAccountId(final String acct) {
+        stakedAccountId = Optional.of(acct);
         return this;
     }
 
@@ -313,10 +314,18 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
                             shardId.ifPresent(b::setShardID);
                             realmId.ifPresent(b::setRealmID);
                             if (stakedAccountId.isPresent()) {
-                                b.setStakedAccountId(asAccount(
-                                        effectiveShard.getShardNum(),
-                                        effectiveRealm.getRealmNum(),
-                                        Long.parseLong(stakedAccountId.get())));
+                                // Calculate and assign the effective staked account ID
+                                AccountID effectiveStakedAcctId = TxnUtils.asId(stakedAccountId.get(), spec);
+                                // If the calculated effective shard/realm doesn't match the spec's shard/realm,
+                                // override the spec's values
+                                if (spec.shard() != effectiveShard.getShardNum()
+                                        || spec.realm() != effectiveRealm.getRealmNum()) {
+                                    effectiveStakedAcctId = effectiveStakedAcctId.toBuilder()
+                                            .setShardNum(effectiveShard.getShardNum())
+                                            .setRealmNum(effectiveRealm.getRealmNum())
+                                            .build();
+                                }
+                                b.setStakedAccountId(effectiveStakedAcctId);
                             } else if (stakedNodeId.isPresent()) {
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
