@@ -12,16 +12,16 @@
 
 ## Abstract
 
-`BlockState` encapsulates the state of a single block being processed by the Block Node. 
-It is responsible for tracking the block number, storing block items (BlockItem), 
+`BlockState` encapsulates the state of a single block being processed by the Block Node.
+It is responsible for tracking the block number, storing block items (BlockItem),
 managing the generation of PublishStreamRequests, and indicating when a block is considered complete and closed.
 
 ## Definitions
 
-<dl> 
-<dt>BlockState</dt> <dd>A component that holds streaming and request data for a single block number, helping support batching, tracking, and stream publication.</dd> 
-<dt>BlockItem</dt> <dd>An individual unit of work or data associated with a block, to be streamed to downstream systems.</dd> 
-<dt>PublishStreamRequest</dt> <dd>A request message constructed from one or more BlockItems, used to stream block data.</dd> 
+<dl>
+<dt>BlockState</dt> <dd>A component that holds streaming and request data for a single block number, helping support batching, tracking, and stream publication.</dd>
+<dt>BlockItem</dt> <dd>An individual unit of work or data associated with a block, to be streamed to downstream systems.</dd>
+<dt>PublishStreamRequest</dt> <dd>A request message constructed from one or more BlockItems, used to stream block data.</dd>
 </dl>
 
 ## Component Responsibilities
@@ -35,7 +35,7 @@ managing the generation of PublishStreamRequests, and indicating when a block is
 
 ## Details
 
-| Variables and Methods                | Description                                                             |
+|        Variables and Methods         |                               Description                               |
 |--------------------------------------|-------------------------------------------------------------------------|
 | `blockNumber`                        | Identifies the block this instance represents.                          |
 | `items()`                            | Returns the list of BlockItems collected so far.                        |
@@ -64,6 +64,7 @@ sequenceDiagram
     BlockState-->>StateMgr: Return PublishStreamRequest
     StateMgr->>BlockState: Mark as completed
 ```
+
 ## Error Handling
 
 - If invalid input is passed (e.g., empty items during forced request creation), the method exits early.
