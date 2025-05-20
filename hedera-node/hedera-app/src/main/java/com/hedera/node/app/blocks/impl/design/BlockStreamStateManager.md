@@ -13,8 +13,8 @@
 
 ## Abstract
 
-`BlockStreamStateManager` manages the state and progress of block streaming operations  
-within the Block Node system. It coordinates streaming sessions,  
+`BlockStreamStateManager` manages the state and progress of block streaming operations
+within the Block Node system. It coordinates streaming sessions,
 and ensures consistent delivery and recovery during block synchronization.
 
 ## Definitions
@@ -37,10 +37,9 @@ and ensures consistent delivery and recovery during block synchronization.
 - Manage the pruning of blocks from the buffer that have been acknowledged and have exceeded the configured TTL.
 - Monitor buffer saturation and activate backpressure mechanisms to regulate incoming block streams.
 
-
 ## Details
 
-| Variables and Methods                          | Description                                                                                             |
+|             Variables and Methods              |                                               Description                                               |
 |------------------------------------------------|---------------------------------------------------------------------------------------------------------|
 | `highestAckedBlockNumber`                      | AtomicLong tracking the highest block number acknowledged so far.                                       |
 | `blockNumber`                                  | Current block number tracked by the stream manager.                                                     |
@@ -68,8 +67,6 @@ and ensures consistent delivery and recovery during block synchronization.
 | `getBlockStreamQueue()`                        | Returns the queue holding block stream items for processing.                                            |
 | `getLowestUnackedBlockNumber()`                | Returns the lowest unacknowledged block number (highest ack + 1) or 0 if none acknowledged.             |
 
-
-
 ## State Management and Flow
 
 - Maintains a mapping of active streams to their current block offset.
@@ -81,16 +78,68 @@ and ensures consistent delivery and recovery during block synchronization.
 - Calculates buffer saturation as a percentage of ideal max buffer size derived from TTL and block period.
 - Activates or deactivates backpressure based on saturation status, coordinating with blocking futures to manage flow control.
 
-
 ## Interaction with Other Components
 
 - Receives block state updates from `BlockState`.
 - Communicates streaming control commands to `BlockNodeConnection`.
 - Reports stream progress and errors to `BlockNodeConnectionManager`.
 
+## Backpressure Mechanism
+
+The block stream system implements a backpressure mechanism to prevent memory exhaustion when the block state buffer grows too large.
+This is particularly important when block nodes fall behind in processing or when network conditions cause delays in block acknowledgments.
+
+### Buffer Management
+
+The system maintains a buffer of block states in `BlockStreamStateManager` with the following characteristics:
+
+- Each block state contains the block items and requests for a specific block number
+- The buffer has a configurable TTL (Time To Live) for entries
+- A periodic pruning mechanism removes expired entries, if acknowledged
+- The buffer size is monitored to implement backpressure when needed
+
+### Backpressure Implementation
+
+The backpressure mechanism operates at two levels:
+
+1. **Block State Buffer Level**
+   - When a block state is added to the buffer, the system checks if pruning is needed
+   - Pruning occurs on a configurable interval defined in `BlockStreamConfig.blockBufferPruneInterval` (if set to `0`, the pruning is disabled)
+   - Acknowledged states older than `BlockStreamConfig.blockBufferTtl`are removed
+   - If buffer size exceeds safe thresholds after pruning, backpressure is applied
+2. **HandleWorkflow Level**
+   - `HandleWorkflow` checks for backpressure signals before processing each round of transactions
+   - When backpressure is active, transaction processing temporarily pauses
+   - Processing resumes once buffer pressure reduces to safe levels
+
+### Backpressure Flow
+
+1. **Monitoring Phase**
+   - `BlockStreamStateManager` tracks buffer size and state age
+   - Periodic pruning task runs based on `BlockStreamConfig.blockBufferPruneInterval`
+   - Buffer metrics are updated for monitoring purposes
+2. **Triggering Phase**
+   - Backpressure triggers when:
+     - Buffer size grows beyond safe threshold
+     - Pruning cannot reduce buffer size sufficiently
+     - Block nodes fall significantly behind in processing
+3. **Application Phase**
+   - `HandleWorkflow` receives backpressure signal
+   - Transaction processing pauses
+   - Existing block states continue streaming to block nodes
+   - Buffer gradually reduces as blocks are acknowledged
+4. **Recovery Phase**
+   - Buffer size reduces through:
+     - Block acknowledgments from block nodes
+     - Pruning of expired states
+     - Natural processing of buffered blocks
+   - Once buffer reaches safe levels, backpressure releases
+   - Transaction processing resumes
+
 ## Sequence Diagrams
 
 ### Connection Initialization
+
 ```mermaid
 sequenceDiagram
     participant Connection as BlockNodeConnection
@@ -102,7 +151,9 @@ sequenceDiagram
     BlockState-->>StateMgr: Confirm block update
     StateMgr-->>Connection: Request next block or send ack
 ```
+
 ### Prune Buffer
+
 ```mermaid
 sequenceDiagram
     participant StateMgr as BlockStreamStateManager
@@ -119,6 +170,7 @@ sequenceDiagram
 - Detects and reports stream stalls, gaps, or inconsistencies.
 - Supports automatic retries with exponential backoff.
 - Handles cleanup and reset of streaming sessions on unrecoverable errors.
+
 ```mermaid
 sequenceDiagram
     participant StateMgr as BlockStreamStateManager
