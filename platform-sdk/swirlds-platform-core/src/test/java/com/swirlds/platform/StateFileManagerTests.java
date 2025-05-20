@@ -356,8 +356,8 @@ class StateFileManagerTests {
                     MerkleDb.resetDefaultInstancePath();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
-                                                savedStateInfo.stateFile(),
-                                                HederaNewStateRoot::new,
+                                            savedStateInfo.stateFile(),
+                                            HederaNewStateRoot::new,
                                             TEST_PLATFORM_STATE_FACADE,
                                             PlatformContext.create(configuration))
                                     .reservedSignedState()
