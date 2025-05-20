@@ -1731,14 +1731,26 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      **/
 
     /*
-     * Gets the number of elements in this map.
-     * Note that even freshly created instance of {@code VirtualMap} contains
-     * at least one element - an instance of {@link VirtualMapState}
+     * Gets the number of elements in this map. The map is considered as empty if it contains the state element only.
      *
      * @return The number of key/value pairs in the map.
      */
     public long size() {
+        if (state.getSize() == 1) {
+            // meaning that the map has the state element only
+            return 0;
+        }
+
         return state.getSize();
+    }
+
+    /*
+     * Gets whether this map is empty.
+     *
+     * @return True if the map is empty
+     */
+    public boolean isEmpty() {
+        return size() == 0;
     }
 
     public void remove(@NonNull final Bytes key) {
