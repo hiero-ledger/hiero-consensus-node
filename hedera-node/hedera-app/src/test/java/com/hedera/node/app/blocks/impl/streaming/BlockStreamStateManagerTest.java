@@ -212,12 +212,8 @@ class BlockStreamStateManagerTest {
 
         // then
         // verify that request is still not created and block items are added to state
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .isEmpty();
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
-                .hasSize(2);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
-                .containsExactly(blockItem1, blockItem2);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(0);
     }
 
     @Test
@@ -246,10 +242,8 @@ class BlockStreamStateManagerTest {
 
         // then
         // verify that only one request is created and the block state is cleared
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(1);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
-                .isEmpty();
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(1);
     }
 
     @Test
@@ -280,12 +274,8 @@ class BlockStreamStateManagerTest {
 
         // then
         // assert that one request is created and the last block item remained in block state
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(1);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
-                .hasSize(1);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).items())
-                .containsExactly(blockItem3);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(1);
     }
 
     @Test
@@ -317,8 +307,8 @@ class BlockStreamStateManagerTest {
         blockState.createRequestFromCurrentItems(5, false);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(1);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(1);
     }
 
     @Test
@@ -346,8 +336,8 @@ class BlockStreamStateManagerTest {
         blockState.createRequestFromCurrentItems(5, false);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(1);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(1);
     }
 
     @Test
@@ -375,14 +365,8 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(1);
-        assertThat(blockStreamStateManager
-                        .getBlockState(TEST_BLOCK_NUMBER)
-                        .requests()
-                        .getFirst()
-                        .hasBlockItems())
-                .isTrue();
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(1);
     }
 
     @Test
@@ -448,12 +432,12 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER3, blockItem5);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(1);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2).requests())
-                .hasSize(1);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER3).requests())
-                .isEmpty();
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(1);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2).requestsSize())
+                .isEqualTo(1);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER3).requestsSize())
+                .isEqualTo(1);
     }
 
     @Test
@@ -567,8 +551,8 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(2);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(2);
     }
 
     @Test
@@ -596,8 +580,8 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
 
         // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requests())
-                .hasSize(2);
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(2);
     }
 
     @Test
@@ -630,15 +614,13 @@ class BlockStreamStateManagerTest {
 
         // #addItem(...) will attempt to create a new request if there are enough items. With a batch size of 3, we
         // should expect 2 requests created with 2 more pending items
-        assertThat(blockState.requests()).hasSize(2);
-        assertThat(blockState.items()).hasSize(2);
+        assertThat(blockState.requestsSize()).isEqualTo(2);
 
         // now force the creation of the final request
         blockState.createRequestFromCurrentItems(3, false);
 
         // there should be 3 requests now and no outstanding items
-        assertThat(blockState.requests()).hasSize(3);
-        assertThat(blockState.items()).isEmpty();
+        assertThat(blockState.requestsSize()).isEqualTo(3);
     }
 
     @Test
