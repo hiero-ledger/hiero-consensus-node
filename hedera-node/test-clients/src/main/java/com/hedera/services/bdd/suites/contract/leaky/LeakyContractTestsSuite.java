@@ -694,8 +694,8 @@ public class LeakyContractTestsSuite {
         final var adminKey = "adminKey";
         final var entityMemo = "JUST DO IT";
         final var customAutoRenew = 7776001L;
-        final AtomicLong childLiteralId = new AtomicLong();
-        final AtomicLong grandChildLiteralId = new AtomicLong();
+        final AtomicLong childNum = new AtomicLong();
+        final AtomicLong grandChildNum = new AtomicLong();
         final AtomicReference<ByteString> expectedChildAddress = new AtomicReference<>();
         final AtomicReference<ByteString> expectedParentAddress = new AtomicReference<>();
 
@@ -721,15 +721,15 @@ public class LeakyContractTestsSuite {
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
-                    childLiteralId.set(parentNum.getContractNum() + 1L);
+                    childNum.set(parentNum.getContractNum() + 1L);
                     expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
-                    grandChildLiteralId.set(parentNum.getContractNum() + 2L);
+                    grandChildNum.set(parentNum.getContractNum() + 2L);
 
                     final var parentContractInfo =
                             getContractInfo(contract).has(contractWith().addressOrAlias(expectedParentContractAddress));
-                    final var childContractInfo = getContractInfo(String.valueOf(childLiteralId.get()))
+                    final var childContractInfo = getContractInfo(String.valueOf(childNum.get()))
                             .has(contractWith().addressOrAlias(expectedChildContractAddress.toUnprefixedHexString()));
-                    final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildLiteralId.get()))
+                    final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildNum.get()))
                             .has(contractWith()
                                     .addressOrAlias(expectedGrandChildContractAddress.toUnprefixedHexString()))
                             .logged();
@@ -745,7 +745,7 @@ public class LeakyContractTestsSuite {
                         recordWith()
                                 .contractCreateResult(resultWith().create1EvmAddress(expectedChildAddress.get(), 1L))
                                 .status(SUCCESS))),
-                sourcing(() -> getContractInfo(String.valueOf(childLiteralId.get()))
+                sourcing(() -> getContractInfo(String.valueOf(childNum.get()))
                         .has(contractWith().propertiesInheritedFrom(contract))));
     }
 
