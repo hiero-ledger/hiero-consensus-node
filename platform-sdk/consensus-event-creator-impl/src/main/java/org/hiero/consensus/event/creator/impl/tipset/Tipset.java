@@ -57,6 +57,7 @@ public class Tipset {
      *
      * @param tipsets the tipsets to merge, must be non-empty, tipsets must be constructed from the same address book or
      *                else this method has undefined behavior
+     * @param roster the roster to use for the tipset if the tipsets list is empty
      * @return a new tipset
      */
     public static @NonNull Tipset merge(@NonNull final List<Tipset> tipsets, @NonNull final Roster roster) {
