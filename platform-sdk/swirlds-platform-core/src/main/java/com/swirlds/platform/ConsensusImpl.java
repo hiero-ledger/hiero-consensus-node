@@ -1324,9 +1324,4 @@ public class ConsensusImpl implements Consensus {
     public long getFameDecidedBelow() {
         return rounds.getFameDecidedBelow();
     }
-
-    @Override
-    public Iterator<CandidateWitness> getCandidateWitnesses() {
-        return rounds.getElectionRound().undecidedWitnesses();
-    }
 }
