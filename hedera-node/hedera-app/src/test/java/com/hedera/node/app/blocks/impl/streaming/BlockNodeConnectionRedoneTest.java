@@ -12,15 +12,25 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.PublishStreamResponse.Acknowledgement;
+import com.hedera.hapi.block.PublishStreamResponse.BlockAcknowledgement;
+import com.hedera.hapi.block.PublishStreamResponse.EndOfStream;
+import com.hedera.hapi.block.PublishStreamResponse.ResendBlock;
+import com.hedera.hapi.block.PublishStreamResponse.SkipBlock;
 import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,7 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * Unit tests for {@link BlockNodeConnection}.
  */
 @ExtendWith(MockitoExtension.class)
-public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
+public class BlockNodeConnectionRedoneTest {
 
     // Block Node Communication Components
     private BlockNodeConnection subject;
@@ -673,5 +683,59 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Verify that the request was sent to the correct StreamObserver
         Mockito.verifyNoInteractions(genericMockStreamObserver);
+    }
+
+    @NonNull
+    private static PublishStreamResponse createSkipBlock(long blockNumber) {
+        SkipBlock skipBlock = SkipBlock.newBuilder().blockNumber(blockNumber).build();
+
+        return PublishStreamResponse.newBuilder().skipBlock(skipBlock).build();
+    }
+
+    @NonNull
+    private static PublishStreamResponse createResendBlock(long blockNumber) {
+        ResendBlock resendBlock =
+                ResendBlock.newBuilder().blockNumber(blockNumber).build();
+
+        return PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
+    }
+
+    @NonNull
+    private static PublishStreamResponse createEndOfStreamResponse(
+            PublishStreamResponseCode responseCode, long lastVerifiedBlock) {
+        EndOfStream eos = EndOfStream.newBuilder()
+                .blockNumber(lastVerifiedBlock)
+                .status(responseCode)
+                .build();
+
+        return PublishStreamResponse.newBuilder().endStream(eos).build();
+    }
+
+    @NonNull
+    private static PublishStreamResponse createBlockAckResponse(long blockNumber, boolean alreadyExists) {
+        BlockAcknowledgement blockAck = BlockAcknowledgement.newBuilder()
+                .blockNumber(blockNumber)
+                .blockAlreadyExists(alreadyExists)
+                .build();
+
+        Acknowledgement acknowledgement =
+                Acknowledgement.newBuilder().blockAck(blockAck).build();
+
+        return PublishStreamResponse.newBuilder()
+                .acknowledgement(acknowledgement)
+                .build();
+    }
+
+    private ConfigProvider createConfigProvider() {
+        final var configPath = Objects.requireNonNull(
+                        BlockNodeConnectionManagerTest.class.getClassLoader().getResource("bootstrap/"))
+                .getPath();
+        assertThat(Files.exists(Path.of(configPath))).isTrue();
+
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
+                .withValue("blockNode.blockNodeConnectionFileDir", configPath)
+                .getOrCreateConfig();
+        return () -> new VersionedConfigImpl(config, 1L);
     }
 }

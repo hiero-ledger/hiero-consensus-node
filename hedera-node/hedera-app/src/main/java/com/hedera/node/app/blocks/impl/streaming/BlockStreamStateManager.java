@@ -33,9 +33,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Manages the state of blocks being streamed to block nodes.
- * This class is responsible for maintaining the block states and providing methods for adding items to blocks
- * and creating requests.
+ * Manages the state and lifecycle of blocks being streamed to block nodes.
+ * This class is responsible for:
+ * <ul>
+ *     <li>Providing methods for adding items to blocks and creating requests</li>
+ *     <li>Maintaining the block states in a buffer</li>
+ *     <li>Handling backpressure when the buffer is saturated</li>
+ *     <li>Pruning the buffer based on TTL and saturation</li>
+ *     <li>Coordinating block node connections</li>
+ * </ul>
  */
 public class BlockStreamStateManager {
     private static final Logger logger = LogManager.getLogger(BlockStreamStateManager.class);
@@ -93,7 +99,7 @@ public class BlockStreamStateManager {
      * Creates a new BlockStreamStateManager with the given configuration.
      *
      * @param configProvider the configuration provider
-     * @param blockStreamMetrics metrics factory for block stream
+     * @param blockStreamMetrics metrics factory for monitoring block streaming
      */
     public BlockStreamStateManager(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
@@ -230,7 +236,8 @@ public class BlockStreamStateManager {
     }
 
     /**
-     * Opens a new block with the given block number. This will also attempt to prune older blocks from the buffer.
+     * Opens a new block for streaming with the given block number. Creates a new BlockState, adds it to the buffer,
+     * and notifies block nodes if streaming is enabled. This will also attempt to prune older blocks from the buffer.
      *
      * @param blockNumber the block number
      * @throws IllegalArgumentException if the block number is negative
@@ -263,9 +270,9 @@ public class BlockStreamStateManager {
     }
 
     /**
-     * Adds a new item to the current block.
+     * Adds a new block item to the streaming queue for the specified block.
      *
-     * @param blockNumber the block number
+     * @param blockNumber the block number to add the block item to
      * @param blockItem the block item to add
      * @throws IllegalStateException if no block is currently open
      */
@@ -333,7 +340,7 @@ public class BlockStreamStateManager {
     }
 
     /**
-     * Marks all blocks up to and including the specified block as being acknowledged.
+     * Marks all blocks up to and including the specified block as being acknowledged by any Block Node.
      *
      * @param blockNumber the block number to mark acknowledged up to and including
      */
