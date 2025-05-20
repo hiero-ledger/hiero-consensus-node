@@ -171,12 +171,7 @@ class TipsetWeightCalculatorTests {
                 parentTipsets.add(tipsetTracker.getTipset(parent));
             }
 
-            final Tipset newTipset;
-            if (parentTipsets.isEmpty()) {
-                newTipset = new Tipset(roster);
-            } else {
-                newTipset = merge(parentTipsets);
-            }
+            final Tipset newTipset = merge(parentTipsets, roster);
 
             final TipsetAdvancementWeight expectedAdvancementScoreChange =
                     previousSnapshot.getTipAdvancementWeight(selfId, newTipset).minus(runningAdvancementScore);

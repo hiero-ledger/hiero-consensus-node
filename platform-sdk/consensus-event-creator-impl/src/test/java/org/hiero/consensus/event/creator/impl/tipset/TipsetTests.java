@@ -80,7 +80,7 @@ class TipsetTests {
                 tipsets.add(tipset);
             }
 
-            final Tipset merged = Tipset.merge(tipsets);
+            final Tipset merged = Tipset.merge(tipsets, roster);
             validateTipset(merged, expected);
         }
     }
@@ -109,7 +109,7 @@ class TipsetTests {
         }
 
         // Merging the tipset with itself will result in a copy
-        final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset));
+        final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset), roster);
         assertThat(comparisonTipset.size()).isEqualTo(initialTipset.size());
         for (int creator = 0; creator < 100; creator++) {
             final NodeId creatorId =
@@ -169,7 +169,7 @@ class TipsetTests {
         }
 
         // Merging the tipset with itself will result in a copy
-        final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset));
+        final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset), roster);
         assertThat(comparisonTipset.size()).isEqualTo(initialTipset.size());
         for (int creator = 0; creator < 100; creator++) {
             final NodeId creatorId =

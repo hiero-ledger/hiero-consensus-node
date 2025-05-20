@@ -119,12 +119,7 @@ public class TipsetTracker {
         // will be assigned by the orphan buffer later. Furthermore, we do not want to assign it
         // here because the orphan buffer might disagree about the value given that event windows
         // are process asynchronously.
-        final Tipset eventTipset;
-        if (parentTipsets.isEmpty()) {
-            eventTipset = new Tipset(roster);
-        } else {
-            eventTipset = merge(parentTipsets);
-        }
+        final Tipset eventTipset = merge(parentTipsets, roster);
 
         tipsets.put(selfEventDesc, eventTipset);
 
@@ -144,12 +139,7 @@ public class TipsetTracker {
 
         final List<Tipset> parentTipsets = getParentTipsets(event.getAllParents());
 
-        final Tipset eventTipset;
-        if (parentTipsets.isEmpty()) {
-            eventTipset = new Tipset(roster).advance(event.getCreatorId(), event.getNGen());
-        } else {
-            eventTipset = merge(parentTipsets).advance(event.getCreatorId(), event.getNGen());
-        }
+        final Tipset eventTipset = merge(parentTipsets, roster).advance(event.getCreatorId(), event.getNGen());
 
         tipsets.put(event.getDescriptor(), eventTipset);
         latestGenerations = latestGenerations.advance(event.getCreatorId(), event.getNGen());

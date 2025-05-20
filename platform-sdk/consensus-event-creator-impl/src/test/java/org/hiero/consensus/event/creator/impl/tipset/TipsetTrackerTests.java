@@ -146,12 +146,7 @@ class TipsetTrackerTests {
                 parentTipsets.add(expectedTipsets.get(event.getSelfParent()));
             }
 
-            final Tipset expectedTipset;
-            if (parentTipsets.isEmpty()) {
-                expectedTipset = new Tipset(roster);
-            } else {
-                expectedTipset = merge(parentTipsets);
-            }
+            final Tipset expectedTipset = merge(parentTipsets, roster);
 
             if (!creator.equals(selfId)) {
                 expectedTipset.advance(creator, nGen);
