@@ -4,8 +4,8 @@
 
 ## Summary
 
-Quiescence is feature that stops event creation when there are no transactions. The purpose of this is to reduce the
-amount of data produced by low volume networks.
+Quiescence is a feature that stops event creation when there are no transactions. The purpose of this is to reduce the
+amount of data produced and bandwidth used by low volume networks.
 
 | Metadata           | Entities             | 
 |--------------------|----------------------|
@@ -18,9 +18,10 @@ amount of data produced by low volume networks.
 
 ## Purpose and Context
 
-The purpose of this is to reduce the amount of data produced by low volume networks. When no there are no transactions
-being submitted to the network, the network can stop creating events, and thus stop producing blocks. This can
-drastically reduce the amount of data that needs to be stored long term.
+The purpose of this is to reduce the amount of data produced and bandwidth used by low volume networks. When there are
+no transactions being submitted to the network, the network can stop creating events and thus stop gossipping and
+producing blocks. This can drastically reduce the amount of data that needs to be stored long term as well as the amount
+of bandwidth used by the network.
 
 ### Requirements
 
@@ -35,13 +36,42 @@ drastically reduce the amount of data that needs to be stored long term.
 
 ## Quiescence mechanisms
 
-The quiescence can be broken up into 2 separate problems:
-- Detecting when to quiesce
+The quiescence feature can be broken up as follows:
+
+- Detecting when to quiesce (quiescence conditions)
+- Quiescing
 - Breaking quiescence
+- Side effects of quiescence
 
 ### Quiescence conditions
 
+In its simplest form, detecting when to quiesce is done by counting non-ancient transactions. If there are no
+non-ancient transactions, there is nothing to reach consensus, so we can stop creating events. Additionally, we should
+also check if there are any pending transactions, if there are, we should not quiesce.
+
+The only complication comes from state/block signature transactions. These transactions do not need to reach consensus.
+However, they do need to be gossiped (for block signatures it has not yet been decided if they need to reach consensus
+as of this writing, this document will proceed assuming they don't need to). If we want a fully signed state/block,
+we need to create an event with this transaction and then stop creating events immediately after. If we create too many
+events, we can reach consensus on another round. If we reach consensus again, we will have another state/block to sign.
+The consensus module will need to be able to distinguish between signature transactions and normal transactions. An
+additional API is needed for this.
+
+### Quiescing
+
+Once all the conditions are met, we can quiesce. This is done by simply stopping event creation. The consensus module
+will stay in this state until:
+- A transaction is submitted to the node that needs to be put into an event
+- OR a node sends us an event with transactions that need to reach consensus
+
+If either of these conditions is met, we will break quiescence.
+
 ### Breaking quiescence
+
+### Side effects of quiescence
+
+- old state detector
+- platform status
 
 ---
 
