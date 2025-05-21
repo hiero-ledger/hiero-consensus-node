@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 open module org.hiero.consensus.model.test.fixtures {
     exports org.hiero.consensus.model.test.fixtures.event;
+    exports org.hiero.consensus.model.test.fixtures.hashgraph;
+    exports org.hiero.consensus.model.test.fixtures.transaction;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

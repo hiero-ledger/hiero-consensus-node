@@ -62,7 +62,7 @@ class HintsContextTest {
         assertThrows(IllegalStateException.class, subject::constructionIdOrThrow);
         assertThrows(IllegalStateException.class, subject::verificationKeyOrThrow);
 
-        subject.setConstructions(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION);
 
         assertTrue(subject.isReady());
 
@@ -101,7 +101,7 @@ class HintsContextTest {
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
 
-        subject.setConstructions(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION);
 
         final var signing = subject.newSigning(BLOCK_HASH, currentRoster, () -> {});
         final var future = signing.future();

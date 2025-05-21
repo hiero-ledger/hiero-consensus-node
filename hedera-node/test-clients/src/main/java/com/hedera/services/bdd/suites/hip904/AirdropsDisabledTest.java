@@ -40,7 +40,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
@@ -77,6 +76,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -92,7 +92,6 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -155,7 +154,7 @@ public class AirdropsDisabledTest {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
@@ -167,7 +166,7 @@ public class AirdropsDisabledTest {
                         .entityMemo(ENTITY_MEMO)
                         .gas(10_000_000L)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -266,7 +265,7 @@ public class AirdropsDisabledTest {
         }
 
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         final int givenOpsSize = 6;
         HapiSpecOperation[] givenOps = new HapiSpecOperation[givenOpsSize + (fungibleTransfersSize * 2)];
@@ -278,7 +277,7 @@ public class AirdropsDisabledTest {
                 .adminKey(adminKey)
                 .entityMemo(ENTITY_MEMO)
                 .via(CREATE_2_TXN)
-                .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num)));
+                .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id)));
         givenOps[4] = cryptoCreate(PARTY).maxAutomaticTokenAssociations(2);
         givenOps[5] = setIdentifiers(Optional.empty(), Optional.empty(), Optional.of(partyId), Optional.of(partyAlias));
 
@@ -471,7 +470,7 @@ public class AirdropsDisabledTest {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
@@ -482,7 +481,7 @@ public class AirdropsDisabledTest {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -558,16 +557,13 @@ public class AirdropsDisabledTest {
             String creation,
             AtomicReference<String> expectedCreate2Address,
             AtomicReference<TokenID> ftIds[],
-            AtomicReference<ByteString> partyAlias) {
+            AtomicReference<byte[]> partyAlias) {
         return cryptoTransfer((spec, b) -> {
                     for (AtomicReference<TokenID> ftId : ftIds) {
                         b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(spec, partyAlias.get(), -500))
-                                .addTransfers(aaWith(
-                                        spec,
-                                        ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
-                                        +500)));
+                                .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                                .addTransfers(Utils.aaWith(spec, expectedCreate2Address.get(), +500)));
                     }
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)

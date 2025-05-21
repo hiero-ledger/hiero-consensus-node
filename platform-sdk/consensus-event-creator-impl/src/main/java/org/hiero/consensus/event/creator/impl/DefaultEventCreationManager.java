@@ -15,6 +15,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
@@ -22,6 +25,7 @@ import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
+import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -56,6 +60,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     private Duration unhealthyDuration = Duration.ZERO;
 
+    private final AncientMode ancientMode;
+    private final FutureEventBuffer futureEventBuffer;
+
     /**
      * Constructor.
      *
@@ -77,7 +84,15 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
-        this.eventCreationRules = AggregateEventCreationRules.of(rules);
+        ancientMode = platformContext
+                .getConfiguration()
+                .getConfigData(EventConfig.class)
+                .getAncientMode();
+        eventCreationRules = AggregateEventCreationRules.of(rules);
+        futureEventBuffer = new FutureEventBuffer(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 
         phase = new PhaseTimerBuilder<>(
                         platformContext, platformContext.getTime(), "platform", EventCreationStatus.class)
@@ -113,12 +128,16 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         return newEvent;
     }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
-        creator.registerEvent(event);
+        final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
+        if (nonFutureEvent != null) {
+            creator.registerEvent(event);
+        }
     }
 
     /**
@@ -127,6 +146,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         creator.setEventWindow(eventWindow);
+        futureEventBuffer.updateEventWindow(eventWindow).forEach(creator::registerEvent);
     }
 
     /**
@@ -136,6 +156,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
     public void clear() {
         creator.clear();
         phase.activatePhase(IDLE);
+        futureEventBuffer.clear();
+        final EventWindow eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        futureEventBuffer.updateEventWindow(eventWindow);
     }
 
     /**

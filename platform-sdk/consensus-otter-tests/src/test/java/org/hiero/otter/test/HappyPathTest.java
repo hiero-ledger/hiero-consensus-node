@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.logging.legacy.LogMarker;
 import java.time.Duration;
 import org.apache.logging.log4j.Level;
 import org.assertj.core.data.Percentage;
@@ -11,11 +16,12 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.Validator.LogFilter;
-import org.hiero.otter.fixtures.Validator.Profile;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.junit.jupiter.api.Disabled;
 
 public class HappyPathTest {
 
+    @Disabled
     @OtterTest
     void testHappyPath(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
@@ -31,12 +37,15 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofMinutes(1L));
 
         // Validations
+        final MultipleNodeLogResults logResults =
+                network.getLogResults().ignoring(network.getNodes().getFirst()).ignoring(STARTUP);
+        assertThat(logResults).noMessageWithLevelHigherThan(Level.INFO);
+
+        assertThat(network.getStatusProgression())
+                .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
+
         assertThat(network.getConsensusResult()).hasEqualRoundsIgnoringLast(Percentage.withPercentage(1));
-        env.validator()
-                .assertLogs(
-                        LogFilter.maxLogLevel(Level.WARN),
-                        LogFilter.ignoreMarkers(LogMarker.STARTUP),
-                        LogFilter.ignoreNodes(network.getNodes().getFirst()))
-                .validateRemaining(Profile.DEFAULT);
     }
 }

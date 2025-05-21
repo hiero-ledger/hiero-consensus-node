@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.records;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -40,14 +41,14 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                123L,
                 ContractActions.DEFAULT,
-                stateChanges);
+                stateChanges,
+                opsDuration);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
-        verify(subject).transactionFee(123L);
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
         verify(subject).addContractStateChanges(stateChanges, false);
+        verify(subject).opsDuration(opsDuration);
         assertSame(subject, builder);
     }
 
@@ -57,14 +58,14 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                123L,
                 null,
-                ContractStateChanges.DEFAULT);
+                ContractStateChanges.DEFAULT,
+                opsDuration);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
-        verify(subject).transactionFee(123L);
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());
+        verify(subject).opsDuration(opsDuration);
         assertSame(subject, builder);
     }
 }

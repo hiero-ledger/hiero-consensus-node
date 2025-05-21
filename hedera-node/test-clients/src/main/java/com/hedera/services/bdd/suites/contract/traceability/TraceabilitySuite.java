@@ -5,7 +5,7 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -104,6 +104,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -122,7 +123,6 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -3943,8 +3943,8 @@ public class TraceabilitySuite {
                 uploadInitCode(contract),
                 contractCreate(contract)
                         .via(CREATE_TXN)
-                        .exposingNumTo(
-                                num -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(
+                                id -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(id))),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
@@ -3988,7 +3988,7 @@ public class TraceabilitySuite {
                     final var childId = ContractID.newBuilder()
                             .setContractNum(parentId.getContractNum() + 1L)
                             .build();
-                    mirrorLiteralId.set(SHARD_AND_REALM + childId.getContractNum());
+                    mirrorLiteralId.set(asEntityString(spec.shard(), spec.realm(), childId.getContractNum()));
                     final var topLevelCallTxnRecord =
                             getTxnRecord(CREATE_2_TXN).andAllChildRecords().logged();
                     final var hapiGetContractBytecode =
@@ -4757,8 +4757,8 @@ public class TraceabilitySuite {
                         .adminKey(adminKey)
                         .entityMemo(entityMemo)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(
-                                num -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(
+                                id -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 sourcing(() -> contractCallLocal(
                                 create2Factory, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
@@ -4783,10 +4783,7 @@ public class TraceabilitySuite {
                 cryptoTransfer((spec, b) -> {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(
-                                            spec,
-                                            ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
-                                            +ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(spec, expectedCreate2Address.get(), +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
                         .signedBy(DEFAULT_PAYER, PARTY)

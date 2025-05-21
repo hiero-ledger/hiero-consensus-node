@@ -183,12 +183,12 @@ public class CommonPcesWriter {
      * @param nonAncientBoundary describes the boundary between ancient and non-ancient events
      */
     public void updateNonAncientEventBoundary(@NonNull final EventWindow nonAncientBoundary) {
-        if (nonAncientBoundary.getAncientThreshold() < this.nonAncientBoundary) {
+        if (nonAncientBoundary.ancientThreshold() < this.nonAncientBoundary) {
             throw new IllegalArgumentException("Non-ancient boundary cannot be decreased. Current = "
                     + this.nonAncientBoundary + ", requested = " + nonAncientBoundary);
         }
 
-        this.nonAncientBoundary = nonAncientBoundary.getAncientThreshold();
+        this.nonAncientBoundary = nonAncientBoundary.ancientThreshold();
     }
 
     /**

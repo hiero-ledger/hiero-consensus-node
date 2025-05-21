@@ -16,7 +16,10 @@ tasks.withType<JavaCompile>().configureEach {
 
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
-jmhModuleInfo { requires("jmh.core") }
+jmhModuleInfo {
+    requires("jmh.core")
+    requires("com.swirlds.base.test.fixtures")
+}
 
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")

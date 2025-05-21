@@ -51,6 +51,7 @@ testModuleInfo {
     requires("org.hiero.junit.extensions")
 
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
+    opensTo("org.hiero.junit.extensions")
 }
 
 timingSensitiveModuleInfo {

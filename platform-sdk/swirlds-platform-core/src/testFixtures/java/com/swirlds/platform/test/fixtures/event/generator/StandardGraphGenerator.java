@@ -462,7 +462,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
             // if we reach consensus, save the snapshot for future use
             consensusSnapshot = consensusRounds.getLast().getSnapshot();
             linker.setNonAncientThreshold(
-                    consensusRounds.getLast().getEventWindow().getAncientThreshold());
+                    consensusRounds.getLast().getEventWindow().ancientThreshold());
         }
     }
 

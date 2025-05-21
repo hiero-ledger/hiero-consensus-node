@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Allows mapping the methods that will be used as source for each individual parameter
+ * Allows mapping the methods that will be used as an individual source for each parameter
  * <p><b>Example:</b>
  * <pre><code>
  * {@literal @}TestTemplate
