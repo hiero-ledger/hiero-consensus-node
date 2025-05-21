@@ -152,7 +152,6 @@ class DataFileCollectionTest {
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
             final DataFileReader newFile = fileCollection.endWriting(0, count + 100);
-            newFile.setFileCompleted();
             assertEquals(new KeyRange(0, count + 100), fileCollection.getValidKeyRange(), "Range should be this");
             assertEquals(Files.size(newFile.getPath()), newFile.getSize());
             count += 100;
@@ -183,7 +182,6 @@ class DataFileCollectionTest {
             assertEquals(f, metadata.getIndex(), "Data file metadata should know self-index");
             assertTrue(metadata.getCreationDate().isAfter(TEST_START), "Creation dates should go forward in time");
             assertTrue(metadata.getCreationDate().isBefore(Instant.now()), "Creation dates may not be in the future");
-            assertEquals(100, metadata.getDataItemCount(), "unexpected DataItemCount");
             assertEquals(Files.size(dataFileReader.getPath()), dataFileReader.getSize(), "unexpected DataFileSize");
         }
     }
@@ -321,8 +319,7 @@ class DataFileCollectionTest {
                             "test",
                             null,
                             testCallback,
-                            l -> new SlowImmutableIndexedObjectListUsingArray<DataFileReader>(
-                                    DataFileReader[]::new, l));
+                            l -> new SlowImmutableIndexedObjectListUsingArray<>(DataFileReader[]::new, l));
                     fileCollectionMap.put(testType, reopenedFileCollection);
                 },
                 "Shouldn't be a problem re-opening a closed collection");
@@ -368,7 +365,7 @@ class DataFileCollectionTest {
                 }
             } else if (thread == (NUM_OF_THREADS - 1)) { // move thread
                 System.out.println("DataFileCollectionTest.merge");
-                List<Path> mergedFiles = null;
+                List<Path> mergedFiles;
                 try {
                     List<DataFileReader> filesToMerge = fileCollection.getAllCompletedFiles();
                     System.out.println("filesToMerge = " + filesToMerge.size());
@@ -475,7 +472,7 @@ class DataFileCollectionTest {
             // store in file
             storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
         }
-        fileCollection.endWriting(0, 1000).setFileCompleted();
+        fileCollection.endWriting(0, 1000);
         // check we now have 2 files
         try (Stream<Path> list = Files.list(tempFileDir.resolve(testType.name()))) {
             assertEquals(
@@ -495,7 +492,6 @@ class DataFileCollectionTest {
         checkData(fileCollectionMap.get(testType), storedOffsetsMap.get(testType), testType, 50, 1000, 10_000);
     }
 
-    @SuppressWarnings("unchecked")
     @Order(202)
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
@@ -662,7 +658,7 @@ class DataFileCollectionTest {
         assertSame(10, fileCollection2.getAllCompletedFiles().size(), "Should be 10 files available for merging");
         // merge
         fileCompactor.compactFiles(storedOffsets, fileCollection2.getAllCompletedFiles(), 1);
-        // check 1 files were opened and data is correct
+        // check 1 file were opened and data is correct
         assertSame(1, fileCollection2.getAllCompletedFiles().size(), "Should be 1 files");
         assertEquals(
                 1,
@@ -698,7 +694,7 @@ class DataFileCollectionTest {
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
-            fileCollection.endWriting(0, count + 100).setFileCompleted();
+            fileCollection.endWriting(0, count + 100);
             count += 100;
         }
     }
@@ -730,7 +726,7 @@ class DataFileCollectionTest {
 
         final Thread thread = new Thread(() -> {
             List<DataFileReader> allCompletedFiles = fileCollection.getAllCompletedFiles();
-            DataFileReader spy = Mockito.spy(allCompletedFiles.get(0));
+            DataFileReader spy = Mockito.spy(allCompletedFiles.getFirst());
             try {
                 when(spy.leaseFileChannel()).thenAnswer(invocation -> {
                     // on the first call to leaseFileChannel(), we interrupt the thread

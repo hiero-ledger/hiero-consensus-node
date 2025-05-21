@@ -41,6 +41,7 @@ public record DispatchOptions<T extends StreamBuilder>(
         @NonNull DispatchMetadata dispatchMetadata,
         @Nullable FeeCharging customFeeCharging) {
     private static final Predicate<Key> PREAUTHORIZED_KEYS = k -> true;
+    private static final Predicate<Key> NO_AUTHORIZED_KEYS = k -> false;
 
     /**
      * The choice of when to commit the dispatched transaction's effects on state.
@@ -334,7 +335,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REMOVABLE,
                 transactionCustomizer,
                 metaData,
-                null);
+                NOOP_FEE_CHARGING);
     }
 
     /**
@@ -357,7 +358,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 payerId,
                 body,
                 UsePresetTxnId.NO,
-                PREAUTHORIZED_KEYS,
+                NO_AUTHORIZED_KEYS,
                 emptySet(),
                 TransactionCategory.BATCH_INNER,
                 ConsensusThrottling.ON,

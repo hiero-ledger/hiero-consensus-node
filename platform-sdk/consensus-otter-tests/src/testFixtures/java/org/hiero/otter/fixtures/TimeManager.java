@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 
 /**
  * Interface for managing time in Otter tests.
@@ -16,6 +17,15 @@ public interface TimeManager {
      * Wait for a specified duration.
      *
      * @param waitTime the duration to wait
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
     void waitFor(@NonNull Duration waitTime) throws InterruptedException;
+
+    /**
+     * Returns the current time.
+     *
+     * @return the current time
+     */
+    @NonNull
+    Instant now();
 }

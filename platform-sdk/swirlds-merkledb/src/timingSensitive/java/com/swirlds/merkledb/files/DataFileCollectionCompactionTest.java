@@ -81,25 +81,25 @@ class DataFileCollectionCompactionTest {
         coll.startWriting();
         index.put(1L, storeDataItem(coll, new long[] {1, APPLE}));
         index.put(2L, storeDataItem(coll, new long[] {2, BANANA}));
-        coll.endWriting(1, 2).setFileCompleted();
+        coll.endWriting(1, 2);
 
         coll.startWriting();
         index.put(3L, storeDataItem(coll, new long[] {3, APPLE}));
         index.put(4L, storeDataItem(coll, new long[] {4, CHERRY}));
-        coll.endWriting(2, 4).setFileCompleted();
+        coll.endWriting(2, 4);
 
         coll.startWriting();
         index.put(4L, storeDataItem(coll, new long[] {4, CUTTLEFISH}));
         index.put(5L, storeDataItem(coll, new long[] {5, BANANA}));
         index.put(6L, storeDataItem(coll, new long[] {6, DATE}));
-        coll.endWriting(3, 6).setFileCompleted();
+        coll.endWriting(3, 6);
 
         coll.startWriting();
         index.put(7L, storeDataItem(coll, new long[] {7, APPLE}));
         index.put(8L, storeDataItem(coll, new long[] {8, EGGPLANT}));
         index.put(9L, storeDataItem(coll, new long[] {9, CUTTLEFISH}));
         index.put(10L, storeDataItem(coll, new long[] {10, FIG}));
-        coll.endWriting(5, 10).setFileCompleted();
+        coll.endWriting(5, 10);
 
         final CASableLongIndex indexUpdater = new CASableLongIndex() {
             public long get(long key) {
@@ -153,7 +153,7 @@ class DataFileCollectionCompactionTest {
 
         assertEquals(1, coll.getAllCompletedFiles().size(), "Too many files left over");
 
-        final var dataFileReader = coll.getAllCompletedFiles().get(0);
+        final var dataFileReader = coll.getAllCompletedFiles().getFirst();
         final var itr = dataFileReader.createIterator();
         prevKey = -1;
         while (itr.next()) {
@@ -179,7 +179,7 @@ class DataFileCollectionCompactionTest {
             for (int j = 0; j < MAXKEYS; ++j) {
                 index[j] = storeDataItem(store, new long[] {j, i * j});
             }
-            store.endWriting(0, index.length).setFileCompleted();
+            store.endWriting(0, index.length);
         }
 
         final CountDownLatch compactionAboutComplete = new CountDownLatch(1);
@@ -343,7 +343,7 @@ class DataFileCollectionCompactionTest {
 
                 // Finish writing the current copy, which has newer data but an older index than
                 // the merged file
-                store.endWriting(0, index.length()).setFileCompleted();
+                store.endWriting(0, index.length());
             }
 
             // Validate the result
@@ -373,7 +373,7 @@ class DataFileCollectionCompactionTest {
             for (int j = 0; j < MAX_KEYS; ++j) {
                 index.set(j, storeDataItem(store, new long[] {j, j}));
             }
-            store.endWriting(0, index.length()).setFileCompleted();
+            store.endWriting(0, index.length());
 
             // Write new copies
             for (long i = 1; i < NUM_UPDATES; i++) {
@@ -416,7 +416,7 @@ class DataFileCollectionCompactionTest {
 
                 // Finish writing the current copy, which has newer data but an older index than
                 // the merged file
-                store.endWriting(0, index.length()).setFileCompleted();
+                store.endWriting(0, index.length());
             }
 
             // Restore from all files
@@ -464,7 +464,7 @@ class DataFileCollectionCompactionTest {
                 final long dataLocation = storeDataItem(store, new long[] {i * numValues + j, i * numValues + j});
                 index.put(i * numValues + j, dataLocation);
             }
-            store.endWriting(0, index.size()).setFileCompleted();
+            store.endWriting(0, index.size());
         }
         // Start compaction
         // Test scenario 0: start merging with mergingPaused semaphore locked, so merging
@@ -517,7 +517,7 @@ class DataFileCollectionCompactionTest {
                 index.put(i * numValues + j, dataLocation);
             }
         }
-        store.endWriting(0, index.size()).setFileCompleted();
+        store.endWriting(0, index.size());
         newFileWriteCompleteLatch.countDown();
         // Test scenario 2: lock the semaphore just before taking a snapshot. Compaction may still
         // be
@@ -565,7 +565,6 @@ class DataFileCollectionCompactionTest {
         f.get();
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     @DisplayName("Restore with inconsistent index")
     void testInconsistentIndex() throws Exception {
@@ -584,7 +583,7 @@ class DataFileCollectionCompactionTest {
             for (int j = 0; j < MAXKEYS; ++j) {
                 index.put(j, storeDataItem(store, new long[] {j, i * j}));
             }
-            store.endWriting(0, index.size()).setFileCompleted();
+            store.endWriting(0, index.size());
         }
 
         final Path snapshot = testDir.resolve("snapshot");

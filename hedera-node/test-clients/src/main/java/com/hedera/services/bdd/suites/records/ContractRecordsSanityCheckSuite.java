@@ -3,8 +3,7 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
@@ -30,7 +29,6 @@ import static java.util.function.Function.identity;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
@@ -113,12 +111,8 @@ public class ContractRecordsSanityCheckSuite {
                                         contractName + suffix,
                                         SET_NODES_ABI,
                                         spec -> Tuple.singleton(Stream.of(altruists)
-                                                .map(a -> new BigInteger(HapiPropertySource.asSolidityAddress(
-                                                        shard,
-                                                        realm,
-                                                        spec.registry()
-                                                                .getContractId(contractName + a)
-                                                                .getContractNum())))
+                                                .map(a -> new BigInteger(asSolidityAddress(
+                                                        spec.registry().getContractId(contractName + a))))
                                                 .toArray(BigInteger[]::new)))
                                 .gas(120_000)
                                 .via("txnFor" + contractName + suffix)

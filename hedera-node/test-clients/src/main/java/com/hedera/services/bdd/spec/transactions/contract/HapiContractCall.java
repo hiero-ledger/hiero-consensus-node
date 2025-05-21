@@ -18,7 +18,6 @@ import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.infrastructure.meta.ActionableContractCall;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractCallTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -238,10 +237,6 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
 
     public Optional<String> getCustomTxnId() {
         return customTxnId;
-    }
-
-    public Optional<AccountID> getNode() {
-        return node;
     }
 
     public OptionalDouble getUsdFee() {

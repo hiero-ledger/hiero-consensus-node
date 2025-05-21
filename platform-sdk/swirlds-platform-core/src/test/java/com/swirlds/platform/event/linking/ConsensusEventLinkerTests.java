@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.linking;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -25,6 +24,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -107,16 +107,15 @@ class ConsensusEventLinkerTests {
 
             // Once in a while, advance the ancient window so that the most recent event is barely non-ancient.
             if (random.nextDouble() < 0.01) {
-                if (ancientMode.selectIndicator(event) <= eventWindow.getAncientThreshold()) {
+                if (ancientMode.selectIndicator(event) <= eventWindow.ancientThreshold()) {
                     // Advancing the window any further would make the most recent event ancient. Skip.
                     continue;
                 }
 
-                eventWindow = new EventWindow(
-                        ROUND_FIRST /* ignored in this test */,
-                        ancientMode.selectIndicator(event),
-                        ancientMode.getGenesisIndicator() /* ignored in this test */,
-                        ancientMode);
+                eventWindow = EventWindowBuilder.builder()
+                        .setAncientMode(ancientMode)
+                        .setAncientThreshold(ancientMode.selectIndicator(event))
+                        .build();
                 linker.setEventWindow(eventWindow);
 
                 // All ancient events should have their parents nulled out

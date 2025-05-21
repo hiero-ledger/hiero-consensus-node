@@ -79,7 +79,7 @@ public class HapiTokenFreeze extends HapiTxnOp<HapiTokenFreeze> {
         if (referenceType == ReferenceType.REGISTRY_NAME) {
             aId = TxnUtils.asId(account, spec);
         } else {
-            aId = spec.registry().keyAliasIdFor(alias);
+            aId = spec.registry().keyAliasIdFor(spec, alias);
             account = asAccountString(aId);
         }
         final var tId = TxnUtils.asTokenId(token, spec);

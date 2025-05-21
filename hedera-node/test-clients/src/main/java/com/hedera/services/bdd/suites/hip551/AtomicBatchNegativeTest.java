@@ -50,6 +50,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
@@ -62,15 +63,19 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -78,6 +83,12 @@ import org.junit.jupiter.api.Nested;
 
 @HapiTestLifecycle
 public class AtomicBatchNegativeTest {
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(
+                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+    }
 
     @Nested
     @DisplayName("Order and Execution - NEGATIVE")
@@ -540,8 +551,10 @@ public class AtomicBatchNegativeTest {
                             .payingWith(basicPayer)
                             .via("basicTxn")
                             .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION),
-                    getAccountRecords(batchPayer).exposingTo(records -> assertEquals(1, records.size())),
-                    getAccountRecords(basicPayer).exposingTo(records -> assertEquals(1, records.size())),
+                    getAccountRecords(batchPayer)
+                            .exposingNonStakingRecordsTo(records -> assertEquals(1, records.size())),
+                    getAccountRecords(basicPayer)
+                            .exposingNonStakingRecordsTo(records -> assertEquals(1, records.size())),
                     validateChargedUsd("batchTxn", 0.001),
                     validateChargedUsd("basicTxn", 0.05, 10));
         }
@@ -608,12 +621,12 @@ public class AtomicBatchNegativeTest {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
                     // asserts
-                    getAccountRecords("Bob").exposingTo(records -> {
+                    getAccountRecords("Bob").exposingNonStakingRecordsTo(records -> {
                         assertEquals(2, records.size());
                         // validate transactionFee matches the debit in the transferList
                         validateTransactionFees(records);
                     }),
-                    getAccountRecords("Alice").exposingTo(records -> {
+                    getAccountRecords("Alice").exposingNonStakingRecordsTo(records -> {
                         assertEquals(1, records.size());
                         // validate transactionFee matches the debit in the transferList
                         validateTransactionFees(records);
@@ -641,7 +654,9 @@ public class AtomicBatchNegativeTest {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
                     // asserts
-                    getAccountRecords("Alice").exposingTo(records -> assertEquals(2, records.size())));
+                    getAccountRecords("Alice").exposingNonStakingRecordsTo(records -> {
+                        assertEquals(2, records.size());
+                    }));
         }
 
         @HapiTest
@@ -824,5 +839,16 @@ public class AtomicBatchNegativeTest {
                             .signedBy(alice) // Alice signs with the valid BatchKey
                             .hasPrecheck(MISSING_BATCH_KEY));
         }
+    }
+
+    @HapiTest
+    @DisplayName("Non default inner transaction node ID should fail")
+    public Stream<DynamicTest> nonDefaultInnerTxnIdFails() {
+        var batchOperator = "batchOperator";
+        var innerCryptoTxn = cryptoCreate("foo").setNode("1").batchKey(batchOperator);
+
+        return hapiTest(
+                cryptoCreate(batchOperator),
+                atomicBatch(innerCryptoTxn).payingWith(batchOperator).hasPrecheck(INVALID_NODE_ACCOUNT_ID));
     }
 }

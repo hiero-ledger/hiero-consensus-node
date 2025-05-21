@@ -19,6 +19,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.merkledb.FileStatisticAware;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.Snapshotable;
 import com.swirlds.merkledb.collections.CASableLongIndex;
@@ -66,7 +67,7 @@ import org.apache.logging.log4j.Logger;
  * deleted keys.
  */
 @SuppressWarnings({"unused", "unchecked"})
-public class DataFileCollection implements Snapshotable {
+public class DataFileCollection implements FileStatisticAware, Snapshotable {
 
     private static final Logger logger = LogManager.getLogger(DataFileCollection.class);
 
@@ -177,7 +178,7 @@ public class DataFileCollection implements Snapshotable {
                 storeName,
                 null,
                 loadedDataCallback,
-                l -> new ImmutableIndexedObjectListUsingArray<DataFileReader>(DataFileReader[]::new, l));
+                l -> new ImmutableIndexedObjectListUsingArray<>(DataFileReader[]::new, l));
     }
 
     /**
@@ -209,7 +210,7 @@ public class DataFileCollection implements Snapshotable {
                 storeName,
                 legacyStoreName,
                 loadedDataCallback,
-                l -> new ImmutableIndexedObjectListUsingArray<DataFileReader>(DataFileReader[]::new, l));
+                l -> new ImmutableIndexedObjectListUsingArray<>(DataFileReader[]::new, l));
     }
 
     /**
@@ -292,9 +293,9 @@ public class DataFileCollection implements Snapshotable {
         if (activeIndexedFiles == null) {
             return Collections.emptyList();
         }
-        Stream<DataFileReader> filesStream = activeIndexedFiles.stream();
-        filesStream = filesStream.filter(DataFileReader::isFileCompleted);
-        return filesStream.toList();
+        return activeIndexedFiles.stream()
+                .filter(DataFileReader::isFileCompleted)
+                .toList();
     }
 
     /**
@@ -302,7 +303,8 @@ public class DataFileCollection implements Snapshotable {
      *
      * @return statistics for sizes of all fully written files, in bytes
      */
-    public LongSummaryStatistics getAllCompletedFilesSizeStatistics() {
+    @Override
+    public LongSummaryStatistics getFilesSizeStatistics() {
         final ImmutableIndexedObjectList<DataFileReader> activeIndexedFiles = dataFiles.get();
         return activeIndexedFiles == null
                 ? new LongSummaryStatistics()
@@ -317,7 +319,7 @@ public class DataFileCollection implements Snapshotable {
         // finish writing if we still are
         final DataFileWriter currentDataFileForWriting = currentDataFileWriter.getAndSet(null);
         if (currentDataFileForWriting != null) {
-            currentDataFileForWriting.finishWriting();
+            currentDataFileForWriting.close();
         }
         // calling startSnapshot causes the metadata file to be written
         saveMetadata(storeDir);
@@ -360,7 +362,6 @@ public class DataFileCollection implements Snapshotable {
         if (currentDataFileForWriting == null) {
             throw new IOException("Tried to put data " + dataItem + " when we never started writing.");
         }
-        /* FUTURE WORK - https://github.com/swirlds/swirlds-platform/issues/3926 */
         return currentDataFileForWriting.storeDataItem(dataItem);
     }
 
@@ -378,19 +379,19 @@ public class DataFileCollection implements Snapshotable {
         if (currentDataFileForWriting == null) {
             throw new IOException("Tried to put data " + dataItemWriter + " when we never started writing.");
         }
-        /* FUTURE WORK - https://github.com/swirlds/swirlds-platform/issues/3926 */
         return currentDataFileForWriting.storeDataItem(dataItemWriter, dataItemSize);
     }
 
     /**
-     * End writing current data file and returns the corresponding reader. The reader isn't marked
-     * as completed (fully written, read only, and ready to compact), as the caller may need some
-     * additional processing, e.g. to update indices, before the file can be compacted.
+     * End writing current data file and returns the corresponding reader. The current reader is marked
+     * as completed (fully written, read only, and ready for compaction), so any indexes or other data structures that
+     * are in-sync with the file content should be updated before calling this method.
      *
      * @param minimumValidKey The minimum valid data key at this point in time, can be used for
      *     cleaning out old data
      * @param maximumValidKey The maximum valid data key at this point in time, can be used for
      *     cleaning out old data
+     * @return data file reader for the file written
      * @throws IOException If there was a problem closing the data file
      */
     public DataFileReader endWriting(final long minimumValidKey, final long maximumValidKey) throws IOException {
@@ -400,12 +401,13 @@ public class DataFileCollection implements Snapshotable {
             throw new IOException("Tried to end writing when we never started writing.");
         }
         // finish writing the file and write its footer
-        dataWriter.finishWriting();
+        dataWriter.close();
         final DataFileReader dataReader = currentDataFileReader.getAndSet(null);
         if (logger.isTraceEnabled()) {
             final DataFileMetadata metadata = dataReader.getMetadata();
             setOfNewFileIndexes.remove(metadata.getIndex());
         }
+        dataReader.setFileCompleted();
         return dataReader;
     }
 
@@ -798,10 +800,9 @@ public class DataFileCollection implements Snapshotable {
     }
 
     private int getMaxFileReaderIndex(final DataFileReader[] dataFileReaders) {
-        int maxIndex = -1;
-        for (final DataFileReader reader : dataFileReaders) {
-            maxIndex = Math.max(maxIndex, reader.getIndex());
-        }
-        return maxIndex;
+        return Stream.of(dataFileReaders)
+                .mapToInt(DataFileReader::getIndex)
+                .max()
+                .orElse(-1);
     }
 }

@@ -2,10 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.numberOfLongZero;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -40,6 +37,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -57,10 +55,8 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
-import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -199,11 +195,7 @@ public class CreatePrecompileSuite {
                                 TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS)),
                         sourcing(() ->
                                 getAccountInfo(ACCOUNT_TO_ASSOCIATE).logged().hasTokenRelationShipCount(1)),
-                        sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
-                                        .setShardNum(SHARD)
-                                        .setRealmNum(REALM)
-                                        .setTokenNum(createTokenNum.get())
-                                        .build()))
+                        sourcing(() -> getTokenInfo(String.valueOf(createTokenNum.get()))
                                 .logged()
                                 .hasTokenType(TokenType.FUNGIBLE_COMMON)
                                 .hasSymbol(TOKEN_SYMBOL)
@@ -274,6 +266,7 @@ public class CreatePrecompileSuite {
                                 log.info("Explicit create result is" + " {}", result[0]);
                                 final var res = (Address) result[0];
                                 createdNftTokenNum.set(numberOfLongZero(
+                                        // Remove the leading '0x'
                                         HexFormat.of().parseHex(res.toString().substring(2))));
                             })
                             .hasKnownStatus(SUCCESS);
@@ -287,11 +280,7 @@ public class CreatePrecompileSuite {
                                     SUCCESS,
                                     TransactionRecordAsserts.recordWith().status(SUCCESS)));
 
-                    final var nftInfo = getTokenInfo(asTokenString(TokenID.newBuilder()
-                                    .setShardNum(SHARD)
-                                    .setRealmNum(REALM)
-                                    .setTokenNum(createdNftTokenNum.get())
-                                    .build()))
+                    final var nftInfo = getTokenInfo(String.valueOf(createdNftTokenNum.get()))
                             .hasAutoRenewAccount(ACCOUNT)
                             .logged();
 
@@ -360,15 +349,11 @@ public class CreatePrecompileSuite {
                                     createTokenNum.set(numberOfLongZero(HexFormat.of()
                                             .parseHex(res.toString().substring(2))));
                                 })
-                                .hasKnownStatus(SUCCESS))),
-                sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
-                                .setShardNum(SHARD)
-                                .setRealmNum(REALM)
-                                .setTokenNum(createTokenNum.get())
-                                .build()))
-                        .logged()
-                        .hasAutoRenewAccount(ACCOUNT)
-                        .hasPauseStatus(TokenPauseStatus.Unpaused)));
+                                .hasKnownStatus(SUCCESS),
+                        sourcing(() -> getTokenInfo(String.valueOf(createTokenNum.get()))
+                                .logged()
+                                .hasAutoRenewAccount(ACCOUNT)
+                                .hasPauseStatus(TokenPauseStatus.Unpaused)))));
     }
 
     // TEST-003
@@ -384,6 +369,7 @@ public class CreatePrecompileSuite {
                         allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
                     final var subop1 = balanceSnapshot(ACCOUNT_BALANCE, ACCOUNT);
+                    final var preCallSnap = balanceSnapshot("preCallSnap", TOKEN_CREATE_CONTRACT);
                     final var subop2 = contractCall(
                                     TOKEN_CREATE_CONTRACT,
                                     CREATE_NFT_WITH_KEYS_AND_EXPIRY_FUNCTION,
@@ -412,6 +398,7 @@ public class CreatePrecompileSuite {
                     allRunFor(
                             spec,
                             subop1,
+                            preCallSnap,
                             subop2,
                             subop3,
                             childRecordsCheck(
@@ -419,25 +406,18 @@ public class CreatePrecompileSuite {
                                     SUCCESS,
                                     TransactionRecordAsserts.recordWith().status(SUCCESS)));
 
-                    final var delta = subop3.getResponseRecord().getTransactionFee();
-                    final var effectivePayer = ACCOUNT;
-                    final var subop4 = getAccountBalance(effectivePayer)
-                            .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(delta + DEFAULT_AMOUNT_TO_SEND)));
-                    final var contractBalanceCheck = getContractInfo(TOKEN_CREATE_CONTRACT)
-                            .has(ContractInfoAsserts.contractWith()
-                                    .balanceGreaterThan(0L)
-                                    .balanceLessThan(DEFAULT_AMOUNT_TO_SEND));
-                    final var getAccountTokenBalance = getAccountBalance(ACCOUNT)
-                            .hasTokenBalance(
-                                    asTokenString(TokenID.newBuilder()
-                                            .setTokenNum(createdTokenNum.get())
-                                            .build()),
-                                    0);
-                    final var tokenInfo = getTokenInfo(asTokenString(TokenID.newBuilder()
-                                    .setShardNum(SHARD)
-                                    .setRealmNum(REALM)
-                                    .setTokenNum(createdTokenNum.get())
-                                    .build()))
+                    final var callRecord = subop3.getResponseRecord();
+                    final long totalFee = callRecord.getTransactionFee();
+                    final long gasCost = callRecord.getContractCallResult().getGasUsed()
+                            * spec.ratesProvider().currentTinybarGasPrice();
+                    final long creationFee = totalFee - gasCost;
+                    final var subop4 = getAccountBalance(ACCOUNT)
+                            .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(gasCost + DEFAULT_AMOUNT_TO_SEND)));
+                    final var contractBalanceCheck = getAccountBalance(TOKEN_CREATE_CONTRACT)
+                            .hasTinyBars(changeFromSnapshot("preCallSnap", +(DEFAULT_AMOUNT_TO_SEND - creationFee)));
+                    final var getAccountTokenBalance =
+                            getAccountBalance(ACCOUNT).hasTokenBalance(String.valueOf(createdTokenNum.get()), 0);
+                    final var tokenInfo = getTokenInfo(String.valueOf(createdTokenNum.get()))
                             .hasTokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                             .hasSymbol(TOKEN_SYMBOL)
                             .hasName(TOKEN_NAME)
@@ -528,27 +508,11 @@ public class CreatePrecompileSuite {
                                 TransactionRecordAsserts.recordWith().status(SUCCESS),
                                 TransactionRecordAsserts.recordWith().status(SUCCESS),
                                 TransactionRecordAsserts.recordWith().status(SUCCESS)),
-                        sourcing(() -> getAccountBalance(ACCOUNT)
-                                .hasTokenBalance(
-                                        asTokenString(TokenID.newBuilder()
-                                                .setShardNum(SHARD)
-                                                .setRealmNum(REALM)
-                                                .setTokenNum(createdTokenNum.get())
-                                                .build()),
-                                        20)),
+                        sourcing(() ->
+                                getAccountBalance(ACCOUNT).hasTokenBalance(String.valueOf(createdTokenNum.get()), 20)),
                         sourcing(() -> getAccountBalance(TOKEN_CREATE_CONTRACT)
-                                .hasTokenBalance(
-                                        asTokenString(TokenID.newBuilder()
-                                                .setShardNum(SHARD)
-                                                .setRealmNum(REALM)
-                                                .setTokenNum(createdTokenNum.get())
-                                                .build()),
-                                        10)),
-                        sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
-                                        .setShardNum(SHARD)
-                                        .setRealmNum(REALM)
-                                        .setTokenNum(createdTokenNum.get())
-                                        .build()))
+                                .hasTokenBalance(String.valueOf(createdTokenNum.get()), 10)),
+                        sourcing(() -> getTokenInfo(String.valueOf(createdTokenNum.get()))
                                 .hasTokenType(TokenType.FUNGIBLE_COMMON)
                                 .hasSymbol(TOKEN_SYMBOL)
                                 .hasName(TOKEN_NAME)
@@ -613,18 +577,8 @@ public class CreatePrecompileSuite {
                         TransactionRecordAsserts.recordWith().status(SUCCESS),
                         TransactionRecordAsserts.recordWith().status(SUCCESS)),
                 sourcing(() -> getAccountBalance(TOKEN_CREATE_CONTRACT)
-                        .hasTokenBalance(
-                                asTokenString(TokenID.newBuilder()
-                                        .setShardNum(SHARD)
-                                        .setRealmNum(REALM)
-                                        .setTokenNum(createdTokenNum.get())
-                                        .build()),
-                                0)),
-                sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
-                                .setShardNum(SHARD)
-                                .setRealmNum(REALM)
-                                .setTokenNum(createdTokenNum.get())
-                                .build()))
+                        .hasTokenBalance(String.valueOf(createdTokenNum.get()), 0)),
+                sourcing(() -> getTokenInfo(String.valueOf(createdTokenNum.get()))
                         .hasTokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .hasSymbol(TOKEN_SYMBOL)
                         .hasName(TOKEN_NAME)
@@ -652,20 +606,18 @@ public class CreatePrecompileSuite {
                 newKeyNamed(THRESHOLD_KEY)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, TOKEN_CREATE_CONTRACT))),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).key(THRESHOLD_KEY),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCall(TOKEN_CREATE_CONTRACT, tokenCreateContractAsKeyDelegate)
-                                .via(FIRST_CREATE_TXN)
-                                .gas(GAS_TO_OFFER)
-                                .sending(DEFAULT_AMOUNT_TO_SEND)
-                                .payingWith(ACCOUNT)
-                                .exposingResultTo(result -> {
-                                    log.info(EXPLICIT_CREATE_RESULT, result[0]);
-                                    final var res = (Address) result[0];
-                                    createdTokenNum.set(numberOfLongZero(HexFormat.of()
-                                            .parseHex(res.toString().substring(2))));
-                                })
-                                .hasKnownStatus(SUCCESS))),
+                contractCall(TOKEN_CREATE_CONTRACT, tokenCreateContractAsKeyDelegate)
+                        .via(FIRST_CREATE_TXN)
+                        .gas(GAS_TO_OFFER)
+                        .sending(DEFAULT_AMOUNT_TO_SEND)
+                        .payingWith(ACCOUNT)
+                        .exposingResultTo(result -> {
+                            log.info(EXPLICIT_CREATE_RESULT, result[0]);
+                            final var res = (Address) result[0];
+                            createdTokenNum.set(numberOfLongZero(
+                                    HexFormat.of().parseHex(res.toString().substring(2))));
+                        })
+                        .hasKnownStatus(SUCCESS),
                 getTxnRecord(FIRST_CREATE_TXN).andAllChildRecords().logged(),
                 getAccountBalance(ACCOUNT).logged(),
                 getAccountBalance(TOKEN_CREATE_CONTRACT).logged(),
@@ -675,18 +627,8 @@ public class CreatePrecompileSuite {
                         ResponseCodeEnum.SUCCESS,
                         TransactionRecordAsserts.recordWith().status(SUCCESS)),
                 sourcing(() -> getAccountBalance(TOKEN_CREATE_CONTRACT)
-                        .hasTokenBalance(
-                                asTokenString(TokenID.newBuilder()
-                                        .setShardNum(SHARD)
-                                        .setRealmNum(REALM)
-                                        .setTokenNum(createdTokenNum.get())
-                                        .build()),
-                                200)),
-                sourcing(() -> getTokenInfo(asTokenString(TokenID.newBuilder()
-                                .setShardNum(SHARD)
-                                .setRealmNum(REALM)
-                                .setTokenNum(createdTokenNum.get())
-                                .build()))
+                        .hasTokenBalance(String.valueOf(createdTokenNum.get()), 200)),
+                sourcing(() -> getTokenInfo(String.valueOf(createdTokenNum.get()))
                         .hasTokenType(TokenType.FUNGIBLE_COMMON)
                         .hasDecimals(8)
                         .hasTotalSupply(200)
@@ -896,8 +838,8 @@ public class CreatePrecompileSuite {
                         contractCall(
                                         TOKEN_CREATE_CONTRACT,
                                         CREATE_NFT_WITH_KEYS_AND_EXPIRY_FUNCTION,
-                                        HapiParserUtil.asHeadlongAddress((byte[]) ArrayUtils.toPrimitive(
-                                                Utils.asSolidityAddress(SHARD, REALM, 999_999_999L))),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                (byte[]) ArrayUtils.toPrimitive(asSolidityAddress(spec, 999_999_999L))),
                                         spec.registry()
                                                 .getKey(ED25519KEY)
                                                 .getEd25519()
@@ -1063,30 +1005,9 @@ public class CreatePrecompileSuite {
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         getTxnRecord(FIRST_CREATE_TXN).andAllChildRecords().logged(),
-                        getAccountBalance(RECIPIENT)
-                                .hasTokenBalance(
-                                        asTokenString(TokenID.newBuilder()
-                                                .setShardNum(SHARD)
-                                                .setRealmNum(REALM)
-                                                .setTokenNum(createTokenNum.get())
-                                                .build()),
-                                        0L),
-                        getAccountBalance(SECOND_RECIPIENT)
-                                .hasTokenBalance(
-                                        asTokenString(TokenID.newBuilder()
-                                                .setShardNum(SHARD)
-                                                .setRealmNum(REALM)
-                                                .setTokenNum(createTokenNum.get())
-                                                .build()),
-                                        1L),
-                        getAccountBalance(ACCOUNT)
-                                .hasTokenBalance(
-                                        asTokenString(TokenID.newBuilder()
-                                                .setShardNum(SHARD)
-                                                .setRealmNum(REALM)
-                                                .setTokenNum(createTokenNum.get())
-                                                .build()),
-                                        199L),
+                        getAccountBalance(RECIPIENT).hasTokenBalance(String.valueOf(createTokenNum.get()), 0L),
+                        getAccountBalance(SECOND_RECIPIENT).hasTokenBalance(String.valueOf(createTokenNum.get()), 1L),
+                        getAccountBalance(ACCOUNT).hasTokenBalance(String.valueOf(createTokenNum.get()), 199L),
                         getAccountBalance(FEE_COLLECTOR).hasTinyBars(10L))));
     }
 }

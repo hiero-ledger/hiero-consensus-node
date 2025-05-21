@@ -571,7 +571,8 @@ public class TxnVerbs {
         return new HapiContractCall(abi, contract, params);
     }
 
-    public static HapiContractCall contractCall(String contract, String abi, Function<HapiSpec, Object[]> fn) {
+    public static HapiContractCall contractCall(String contract, String functionName, Function<HapiSpec, Object[]> fn) {
+        final var abi = getABIFor(FUNCTION, functionName, contract);
         return new HapiContractCall(abi, contract, fn);
     }
 

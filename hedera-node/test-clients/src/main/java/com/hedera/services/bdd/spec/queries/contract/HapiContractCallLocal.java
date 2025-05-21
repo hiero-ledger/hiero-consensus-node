@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.contract;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.rethrowSummaryError;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
@@ -238,8 +236,8 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
         final var effContract = contract.startsWith("0x") ? contract.substring(2) : contract;
         if (effContract.length() == HEXED_EVM_ADDRESS_LEN) {
             opBuilder.setContractID(ContractID.newBuilder()
-                    .setShardNum(SHARD)
-                    .setRealmNum(REALM)
+                    .setShardNum(spec.shard())
+                    .setRealmNum(spec.realm())
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effContract))));
         } else {
             opBuilder.setContractID(TxnUtils.asContractId(contract, spec));

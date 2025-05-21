@@ -8,10 +8,12 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,24 +27,34 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeFilter;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeStatusProgressionImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
+import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodePcesResult;
+import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-@SuppressWarnings("removal")
 public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger(TurtleNetwork.class);
+
+    private static final Duration FREEZE_DELAY = Duration.ofSeconds(10);
 
     private enum State {
         INIT,
@@ -93,16 +105,17 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         executorService = Executors.newFixedThreadPool(
                 Math.min(count, Runtime.getRuntime().availableProcessors()));
 
-        final RandomAddressBookBuilder addressBookBuilder =
-                RandomAddressBookBuilder.create(randotron).withSize(count).withRealKeysEnabled(true);
-        final AddressBook addressBook = addressBookBuilder.build();
+        final RandomRosterBuilder rosterBuilder =
+                RandomRosterBuilder.create(randotron).withSize(count).withRealKeysEnabled(true);
+        final Roster roster = rosterBuilder.build();
 
         simulatedNetwork =
-                new SimulatedNetwork(randotron, addressBook, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
+                new SimulatedNetwork(randotron, roster, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
-        final List<TurtleNode> nodeList = addressBook.getNodeIdSet().stream()
+        final List<TurtleNode> nodeList = roster.rosterEntries().stream()
+                .map(RosterUtils::getNodeId)
                 .sorted()
-                .map(nodeId -> createTurtleNode(nodeId, addressBook, addressBookBuilder.getPrivateKeys(nodeId)))
+                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
         nodes.addAll(nodeList);
 
@@ -111,12 +124,9 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     }
 
     private TurtleNode createTurtleNode(
-            @NonNull final NodeId nodeId,
-            @NonNull final AddressBook addressBook,
-            @NonNull final KeysAndCerts privateKeys) {
+            @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(
-                randotron, timeManager.time(), nodeId, addressBook, privateKeys, simulatedNetwork, outputDir);
+        return new TurtleNode(randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, outputDir);
     }
 
     /**
@@ -170,7 +180,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
 
         log.debug("Sending TurtleFreezeTransaction transaction...");
         final TurtleTransaction freezeTransaction =
-                TransactionFactory.createFreezeTransaction(timeManager.time().now());
+                TransactionFactory.createFreezeTransaction(timeManager.now().plus(FREEZE_DELAY));
         nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
 
         log.debug("Waiting for nodes to freeze...");
@@ -200,13 +210,50 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         }
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters) {
+    @NonNull
+    public MultipleNodeConsensusResults getConsensusResult(@Nullable NodeFilter... filters) {
         final NodeFilter combined = NodeFilter.andAll(filters);
         final List<SingleNodeConsensusResult> results =
                 nodes.stream().filter(combined).map(Node::getConsensusResult).toList();
         return new MultipleNodeConsensusResultsImpl(results);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public MultipleNodeLogResults getLogResults() {
+        final List<SingleNodeLogResult> results =
+                nodes.stream().map(Node::getLogResult).toList();
+
+        return new MultipleNodeLogResultsImpl(results);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodeStatusProgression getStatusProgression() {
+        final List<SingleNodeStatusProgression> statusProgressions =
+                nodes.stream().map(Node::getStatusProgression).toList();
+        return new MultipleNodeStatusProgressionImpl(statusProgressions);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodePcesResults getPcesResults() {
+        final List<SingleNodePcesResult> results =
+                nodes.stream().map(Node::getPcesResult).toList();
+        return new MultipleNodePcesResultsImpl(results);
     }
 
     /**
