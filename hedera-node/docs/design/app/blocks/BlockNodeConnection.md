@@ -6,9 +6,9 @@
 2. [Definitions](#definitions)
 3. [Component Responsibilities](#component-responsibilities)
 4. [Component Interaction](#component-interaction)
-   5[State Management](#state-management)
-5. [Sequence Diagrams](#sequence-diagrams)
-6. [Error Handling](#error-handling)
+5. [State Management](#state-management)
+6. [Sequence Diagrams](#sequence-diagrams)
+7. [Error Handling](#error-handling)
 
 ## Abstract
 
