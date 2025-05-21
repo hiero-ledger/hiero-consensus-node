@@ -95,13 +95,6 @@ jobs:
         with:
           node-version: 20.18.0
 
-      # Set up the npm dependencies and cache
-      - name: Install NodeJS Dependencies
-        run: |
-          npm install --prefer-offline --no-audit --progress=false
-          npm cache clean --force
-        working-directory: platform-sdk/regression
-
       # Set up the gradle environment
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244 # v4.3.1
@@ -111,6 +104,13 @@ jobs:
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
+
+      # Set up the npm dependencies and cache
+      - name: Install NodeJS Dependencies
+        run: |
+          npm install --prefer-offline --no-audit --progress=false
+          npm cache clean --force
+        working-directory: platform-sdk/regression
 
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
