@@ -104,6 +104,7 @@ jobs:
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
+        working-directory: ${{ github.workspace }}
 
       # Set up the npm dependencies and cache
       - name: Install NodeJS Dependencies
