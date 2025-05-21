@@ -418,6 +418,15 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the size of the votes array.
+     *
+     * @return the number of elements in the votes array. If the votes array is null, returns 0.
+     */
+    public int getVotesSize() {
+        return votes == null ? 0 : votes.length;
+    }
+
+    /**
      * Set this witness' vote on the witness provided
      *
      * @param witness the witness being voted on

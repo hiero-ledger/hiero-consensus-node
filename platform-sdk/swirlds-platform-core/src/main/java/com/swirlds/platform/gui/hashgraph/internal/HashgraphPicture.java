@@ -277,8 +277,7 @@ public class HashgraphPicture extends JPanel {
             s += " " + event.getRoundCreated();
         }
         if (options.writeVote() && event.isWitness()) {
-            final int size = hashgraphSource.getAddressBook().getSize();
-            for (int i = 0; i < size; i++) {
+            for (int i = 0; i < event.getVotesSize(); i++) {
                 // showing T or F from true/false for readability on the picture
                 final String vote = event.getVote(i) ? "T" : "F";
                 s += vote;
