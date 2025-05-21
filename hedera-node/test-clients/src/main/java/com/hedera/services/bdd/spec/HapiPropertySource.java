@@ -478,10 +478,14 @@ public interface HapiPropertySource {
 
     static ScheduleID asSchedule(String v) {
         long[] nativeParts = asDotDelimitedLongArray(v);
+        return asSchedule(nativeParts[0], nativeParts[1], nativeParts[2]);
+    }
+
+    static ScheduleID asSchedule(long shard, long realm, long num) {
         return ScheduleID.newBuilder()
-                .setShardNum(nativeParts[0])
-                .setRealmNum(nativeParts[1])
-                .setScheduleNum(nativeParts[2])
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setScheduleNum(num)
                 .build();
     }
 
