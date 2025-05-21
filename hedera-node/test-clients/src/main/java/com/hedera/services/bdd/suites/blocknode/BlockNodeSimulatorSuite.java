@@ -228,7 +228,8 @@ public class BlockNodeSimulatorSuite {
                         connectionDropTime::get,
                         Duration.of(15, SECONDS),
                         Duration.of(45, SECONDS),
-                        "Connection task for block node localhost:" + portNumbers.get(1) + " ConnectionState: PENDING",
+                        "Connection task for block node localhost:" + portNumbers.get(1)
+                                + " ConnectionState: PENDING_TO_STREAM",
                         "Connection task for block node localhost:" + portNumbers.get(2)
                                 + " is stopping due to active connection with higher priority",
                         "Transitioning higher priority pending connection: localhost:" + portNumbers.get(1)
