@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.ACTIVE;
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT;
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.UNINITIALIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -107,7 +108,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
 
         // Given
-        final var expectedState = UNINITIALIZED;
+        final var expectedState = PENDING_TO_CONNECT;
 
         // When
         subject.updateConnectionState(expectedState);
@@ -231,7 +232,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         subject.onNext(response);
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
     }
 
     @Test
@@ -247,7 +248,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         subject.onNext(response);
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
     }
 
     @Test
@@ -332,7 +333,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             throw new RuntimeException(e);
         }
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -355,7 +356,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             throw new RuntimeException(e);
         }
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -438,7 +439,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         subject.onNext(response);
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
     }
 
     @Test
@@ -462,34 +463,34 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // 5 EndOfStream within 30 seconds.
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(7000L);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -599,7 +600,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             throw new RuntimeException(e);
         }
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -620,8 +621,8 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             throw new RuntimeException(e);
         }
 
-        // Verify that the connection state is set to UNINITIALIZED
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        // Verify that the connection state is set to PENDING_TO_CONNECT
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -642,8 +643,8 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
             throw new RuntimeException(e);
         }
 
-        // Verify that the connection state is set to UNINITIALIZED
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        // Verify that the connection state is set to PENDING_TO_CONNECT
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -668,7 +669,7 @@ public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         PublishStreamRequest expectedRequest = PublishStreamRequest.newBuilder().build();
 
-        subject.updateConnectionState(UNINITIALIZED);
+        subject.updateConnectionState(PENDING_TO_CONNECT);
         subject.sendRequest(expectedRequest);
 
         // Verify that the request was sent to the correct StreamObserver
