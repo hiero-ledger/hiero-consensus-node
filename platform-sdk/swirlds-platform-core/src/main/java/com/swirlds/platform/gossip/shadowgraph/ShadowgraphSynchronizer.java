@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;

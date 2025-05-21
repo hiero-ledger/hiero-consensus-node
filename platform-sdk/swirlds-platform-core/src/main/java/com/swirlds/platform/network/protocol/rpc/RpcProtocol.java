@@ -24,7 +24,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
-
 /**
  * Implementation of a factory for rpc protocol, encompassing new sync and chatter atm
  */
