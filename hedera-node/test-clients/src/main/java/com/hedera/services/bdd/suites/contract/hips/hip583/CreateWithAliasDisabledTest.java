@@ -41,10 +41,10 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
-import com.hedera.services.bdd.suites.contract.Utils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -97,7 +97,7 @@ public class CreateWithAliasDisabledTest {
                                                 .getECDSASecp256K1()
                                                 .toByteArray(),
                                         HapiParserUtil.asHeadlongAddress((byte[]) ArrayUtils.toPrimitive(
-                                                Utils.asSolidityAddress((int) spec.shard(), spec.realm(), 15252L))),
+                                                HapiPropertySource.asSolidityAddress(spec, 15252L))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(EXISTING_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(

@@ -201,4 +201,24 @@ class ThrottleMetricsTest {
         // then
         verify(gauge).set(-Math.PI);
     }
+
+    @Test
+    void setupAndUpdateOpsDurationMetricSucceeds(
+            @Mock LeakyBucketDeterministicThrottle opsDurationThrottle, @Mock DoubleGauge gauge) {
+        when(opsDurationThrottle.name()).thenReturn("OPS_DURATION");
+        when(opsDurationThrottle.instantaneousPercentUsed()).thenReturn(42.0);
+        // Configure such that OPS_DURATION is tracked
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<OPS_DURATION>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gauge);
+
+        throttleMetrics.setupOpsDurationMetric(opsDurationThrottle, configuration);
+        throttleMetrics.updateAllMetrics();
+
+        verify(metrics).getOrCreate(any(DoubleGauge.Config.class));
+        verify(gauge).set(42.0);
+    }
 }
