@@ -17,7 +17,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalUnit;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -111,11 +110,11 @@ class ConverterServiceTest {
         // given
         ConverterService cs = new ConverterService();
 
-        //when
+        // when
         cs.addConverter(Duration.class, value -> Duration.of(1, ChronoUnit.SECONDS));
         cs.init();
 
-        //then
+        // then
         Assertions.assertEquals(Duration.of(1, ChronoUnit.SECONDS), cs.convert("TEST", Duration.class));
     }
 
