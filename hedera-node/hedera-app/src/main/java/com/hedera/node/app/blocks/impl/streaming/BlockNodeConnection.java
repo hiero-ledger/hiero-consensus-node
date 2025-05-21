@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,6 +17,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 
 /**
@@ -283,9 +286,14 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
     }
 
-    private void handleEndOfStream(@NonNull PublishStreamResponse.EndOfStream endOfStream) {
-        var blockNumber = endOfStream.blockNumber();
-        var responseCode = endOfStream.status();
+    /**
+     * Handles the {@link EndOfStream} response received from the block node.
+     * In most cases it indicates that the block node is unable to continue processing.
+     * @param endOfStream the EndOfStream response received from the block node
+     */
+    private void handleEndOfStream(@NonNull final EndOfStream endOfStream) {
+        final var blockNumber = endOfStream.blockNumber();
+        final var responseCode = endOfStream.status();
 
         logger.debug(
                 "[{}] Received EndOfStream from block node {} at block {} with PublishStreamResponseCode {}",
@@ -294,16 +302,47 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 blockNumber,
                 responseCode);
 
-        // For all error codes, restart after the last verified block + 1
-        long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-        logger.debug(
-                "[{}] Restarting stream at block {} due to {} for node {}",
-                Thread.currentThread().getName(),
-                restartBlockNumber,
-                responseCode,
-                connectionDescriptor);
-        endStreamAndRestartAtBlock(restartBlockNumber);
+        // Always end the stream when we receive an end of stream message
+        close();
+
+        switch (responseCode) {
+            case BEHIND -> {
+                // The block node is behind us, check if we have the last verified block still available in order to
+                // restart the stream from there
+                final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
+                if (blockStreamStateManager.getBlockState(restartBlockNumber) != null) {
+                    logger.warn(
+                            "[{}] Block node {} reported it is behind. Will restart stream at block {}.",
+                            Thread.currentThread().getName(),
+                            connectionDescriptor,
+                            restartBlockNumber);
+
+                    endStreamAndRestartAtBlock(restartBlockNumber);
+                    //restartStreamAtBlock(restartBlockNumber);
+                } else {
+                    // If we don't have the block state, we schedule retry for this connection and establish new one
+                    // with different block node
+                    logger.warn(
+                            "[{}] Block node {} is behind and block state is not available. Closing connection and retrying.",
+                            Thread.currentThread().getName(),
+                            connectionDescriptor);
+
+                    /*PublishStreamRequest.newBuilder().endStream(EndStream.newBuilder()
+                            .endCode(TOO_FAR_BEHIND)
+                            .earliestBlockNumber()
+                            .latestBlockNumber());
+
+                    sendRequest();*/
+                    //blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+                }
+            }
+            default -> {
+                // This should never happen, but if it does, we should close the connection
+                logger.debug("dummy");
+            }
+        }
     }
+
 
     private void handleResendBlock(@NonNull PublishStreamResponse.ResendBlock resendBlock) {
         final var resendBlockNumber = resendBlock.blockNumber();
