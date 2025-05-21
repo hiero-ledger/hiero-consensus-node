@@ -109,7 +109,7 @@ class ConverterService implements ConfigLifecycle {
 
     /**
      * Associates a {@code ConfigConverter} to a {@code Class} so each conversion of that type is performed by the
-     * converter.
+     * converter. Additional converters registeration for a single type will be ignored.
      *
      * @throws IllegalStateException if {@code ConverterService} instance is already initialized
      * @throws NullPointerException if any of the following parameters are {@code null}.
@@ -124,8 +124,13 @@ class ConverterService implements ConfigLifecycle {
         Objects.requireNonNull(converter, "converter must not be null");
 
         if (converters.containsKey(converterType)) {
-            throw new IllegalStateException("Converter for type '" + converterType + "' already registered");
+            if (initialized) {
+                throw new IllegalStateException("Converter for type '" + converterType + "' already registered");
+            } else {
+                return;
+            }
         }
+
         this.converters.put(converterType, converter);
     }
 
@@ -137,82 +142,33 @@ class ConverterService implements ConfigLifecycle {
     public void init() {
         throwIfInitialized();
         // Primitives
-        if(!converters.containsKey(Integer.TYPE)) {
-            addConverter(Integer.TYPE, INTEGER_CONVERTER);
-        }
-        if(!converters.containsKey(Long.TYPE)) {
-            addConverter(Long.TYPE, LONG_CONVERTER);
-        }
-        if(!converters.containsKey(Double.TYPE)) {
-            addConverter(Double.TYPE, DOUBLE_CONVERTER);
-        }
-        if(!converters.containsKey(Float.TYPE)) {
-            addConverter(Float.TYPE, FLOAT_CONVERTER);
-        }
-        if(!converters.containsKey(Short.TYPE)) {
-            addConverter(Short.TYPE, SHORT_CONVERTER);
-        }
-        if(!converters.containsKey(Byte.TYPE)) {
-            addConverter(Byte.TYPE, BYTE_CONVERTER);
-        }
-        if(!converters.containsKey(Boolean.TYPE)) {
-            addConverter(Boolean.TYPE, BOOLEAN_CONVERTER);
-        }
+        addConverter(Integer.TYPE, INTEGER_CONVERTER);
+        addConverter(Long.TYPE, LONG_CONVERTER);
+        addConverter(Double.TYPE, DOUBLE_CONVERTER);
+        addConverter(Float.TYPE, FLOAT_CONVERTER);
+        addConverter(Short.TYPE, SHORT_CONVERTER);
+        addConverter(Byte.TYPE, BYTE_CONVERTER);
+        addConverter(Boolean.TYPE, BOOLEAN_CONVERTER);
 
-        if(!converters.containsKey(String.class)) {
-            addConverter(String.class, STRING_CONVERTER);
-        }
-        if(!converters.containsKey(Integer.class)) {
-            addConverter(Integer.class, INTEGER_CONVERTER);
-        }
-        if(!converters.containsKey(Long.class)) {
-            addConverter(Long.class, LONG_CONVERTER);
-        }
-        if(!converters.containsKey(Double.class)) {
-            addConverter(Double.class, DOUBLE_CONVERTER);
-        }
-        if(!converters.containsKey(Float.class)) {
-            addConverter(Float.class, FLOAT_CONVERTER);
-        }
-        if(!converters.containsKey(Short.class)) {
-            addConverter(Short.class, SHORT_CONVERTER);
-        }
-        if(!converters.containsKey(Byte.class)) {
-            addConverter(Byte.class, BYTE_CONVERTER);
-        }
-        if(!converters.containsKey(Boolean.class)) {
-            addConverter(Boolean.class, BOOLEAN_CONVERTER);
-        }
-        if(!converters.containsKey(BigDecimal.class)) {
-            addConverter(BigDecimal.class, BIG_DECIMAL_CONVERTER);
-        }
-        if(!converters.containsKey(BigInteger.class)) {
-            addConverter(BigInteger.class, BIG_INTEGER_CONVERTER);
-        }
-        if(!converters.containsKey(URL.class)) {
-            addConverter(URL.class, URL_CONVERTER);
-        }
-        if(!converters.containsKey(URI.class)) {
-            addConverter(URI.class, URI_CONVERTER);
-        }
-        if(!converters.containsKey(Path.class)) {
-            addConverter(Path.class, PATH_CONVERTER);
-        }
-        if(!converters.containsKey(File.class)) {
-            addConverter(File.class, FILE_CONVERTER);
-        }
-        if(!converters.containsKey(ZonedDateTime.class)) {
-            addConverter(ZonedDateTime.class, ZONED_DATE_TIME_CONVERTER);
-        }
-        if(!converters.containsKey(Duration.class)) {
-            addConverter(Duration.class, DURATION_CONVERTER);
-        }
-        if(!converters.containsKey(ChronoUnit.class)) {
-            addConverter(ChronoUnit.class, CHRONO_UNIT_CONVERTER);
-        }
-        if(!converters.containsKey(InetAddress.class)) {
-            addConverter(InetAddress.class, INET_ADDRESS_CONFIG_CONVERTER);
-        }
+        addConverter(String.class, STRING_CONVERTER);
+        addConverter(Integer.class, INTEGER_CONVERTER);
+        addConverter(Long.class, LONG_CONVERTER);
+        addConverter(Double.class, DOUBLE_CONVERTER);
+        addConverter(Float.class, FLOAT_CONVERTER);
+        addConverter(Short.class, SHORT_CONVERTER);
+        addConverter(Byte.class, BYTE_CONVERTER);
+        addConverter(Boolean.class, BOOLEAN_CONVERTER);
+        addConverter(BigDecimal.class, BIG_DECIMAL_CONVERTER);
+        addConverter(BigInteger.class, BIG_INTEGER_CONVERTER);
+        addConverter(URL.class, URL_CONVERTER);
+        addConverter(URI.class, URI_CONVERTER);
+        addConverter(Path.class, PATH_CONVERTER);
+        addConverter(File.class, FILE_CONVERTER);
+        addConverter(ZonedDateTime.class, ZONED_DATE_TIME_CONVERTER);
+        addConverter(Duration.class, DURATION_CONVERTER);
+        addConverter(ChronoUnit.class, CHRONO_UNIT_CONVERTER);
+        addConverter(InetAddress.class, INET_ADDRESS_CONFIG_CONVERTER);
+
         initialized = true;
     }
 

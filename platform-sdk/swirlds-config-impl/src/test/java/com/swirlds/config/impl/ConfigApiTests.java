@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.impl;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -421,13 +422,12 @@ class ConfigApiTests {
     @Test
     void registerConverterForTypeMultipleTimes() {
         // given
-        final ConfigurationBuilder configurationBuilder =
-                ConfigurationBuilder.create().withConverter(Duration.class, new DurationConverter());
+        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
+                .withConverter(Duration.class, new DurationConverter())
+                .withConverter(Duration.class, value -> Duration.ofSeconds(2));
+
         // then
-        assertThrows(
-                IllegalStateException.class,
-                () -> configurationBuilder.build(),
-                "One 1 converter for a specific type / class can be registered");
+        assertDoesNotThrow(configurationBuilder::build);
     }
 
     @Test
