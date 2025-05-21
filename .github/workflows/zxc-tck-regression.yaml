@@ -147,6 +147,7 @@ jobs:
           solo network deploy -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo node setup -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo node start -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}"
         working-directory: ${{ github.workspace }}
 
       # Start the TCK server
