@@ -36,7 +36,14 @@ permissions:
   checks: write
   contents: read
 
+env:
+  SOLO_CLUSTER_NAME: "solo-tck-e2e"
+  SOLO_NAMESPACE: "solo-tck-e2e"
+  SOLO_DEPLOYMENT: "solo-tck-deployment"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
+
 jobs:
+  # Execute TCK Regression Tests using specified version of hiero-consensus-node
   tck-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hiero-network-node-linux-large
@@ -47,13 +54,15 @@ jobs:
         with:
           egress-policy: audit
 
+      #  Check out the specified hiero-consensus-node reference
       - name: Checkout Platform Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
-      - name: Checkout Regression Code
+      #  Checkout the sdk-tck repository
+      - name: Checkout Regression Code (workflow_call)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         if: ${{ github.event_name == 'workflow_call' }}
         with:
@@ -71,52 +80,73 @@ jobs:
           token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }} # secret needs to be added
           fetch-depth: "1"
 
+      # Set up Java Environment
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
           java-version: 21.0.6
 
+      # Set up the node environment
+      # Version 20.18.0 is the recommended version for solo.
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 20.18.0
 
+      # Set up the npm dependencies and cache
       - name: Install NodeJS Dependencies
         run: |
           npm install --prefer-offline --no-audit --progress=false
           npm cache clean --force
         working-directory: platform-sdk/regression
 
+      # Set up the gradle environment
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244 # v4.3.1
 
+      # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
         run: ./gradlew assemble
 
-      # currently not working on consensus node use local node
-      - name: Install Local Node
+      # Install solo and configure to use the artifacts from
+      # the hiero-consensus-node build
+      - name: Install Solo
         run: npm install -g @hashgraph/solo
 
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      # Pull in the docker images needed for the TCK tests
       - name: Pull JS TCK Server
-        run: |
-          docker pull ivaylogarnev/js-tck-server-amd:latest
+        run: docker pull ivaylogarnev/js-tck-server-amd:latest
 
       - name: Pull TCK Client
-        run: |
-          docker pull ivaylogarnev/tck-client:latest
+        run: docker pull ivaylogarnev/tck-client:latest
 
-      # I would rather run the node from hiero-consensus-node
-      # let's use solo to do this instead
-      - name: Start Local Node
+      # Set up solo
+      - name: Configure and run solo
         run: |
-          npx @hashgraph/hedera-local start -d --network local --network-tag=0.61.1
-          sleep 30 # Wait for the local node to start
+          kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
+          solo init
+          solo cluster setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+          solo node keys --gossip-keys --tls-keys -i node1,node2,node3
+          solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --context kind-${{ env.SOLO_CLUSTER_NAME }} --email ${{ vars.SOLO_EMAIL }} --deployment-clusters kind-${{ env.SOLO_CLUSTER_NAME }} --deployment "${{ env.SOLO_DEPLOYMENT }}" -i node1,node2,node3
+          solo network deploy -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo node setup -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo node start -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
 
-      # had to modify the docker compose file to run locally on mac.
+      # Start the TCK server
       - name: Start tck-server
-        run: |
-          TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
+        run: TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
         working-directory: platform-sdk/regression # required
 
       - name: Wait for TCK server
@@ -128,14 +158,15 @@ jobs:
           done
           echo "TCK server is ready!"
 
+      # Run the TCK tests
       - name: Run TCK tests
-        run: |
-          docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/tck-client
+        run: docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/tck-client
 
+      # Stop the TCK server
       - name: Stop tck-server
-        run: |
-          docker compose -f ./docker-compose.yml down
+        run: docker compose -f ./docker-compose.yml down
         working-directory: platform-sdk/regression
 
-      - name: Stop the local node
-        run: npx @hashgraph/hedera-local stop
+      # Stop the solo nodes
+      - name: Stop solo
+        run: solo node stop -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
