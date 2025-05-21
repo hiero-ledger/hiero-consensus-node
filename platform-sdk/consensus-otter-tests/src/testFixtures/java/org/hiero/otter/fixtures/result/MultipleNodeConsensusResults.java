@@ -10,7 +10,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  *
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
-public interface MultipleNodeConsensusResults {
+public interface MultipleNodeConsensusResults extends OtterResult {
 
     /**
      * Returns an immutable list of {@link SingleNodeConsensusResult} for all nodes

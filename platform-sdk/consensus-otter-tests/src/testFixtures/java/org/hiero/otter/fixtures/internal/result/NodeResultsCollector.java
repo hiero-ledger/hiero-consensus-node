@@ -6,6 +6,8 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -21,7 +23,7 @@ import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 public class NodeResultsCollector {
 
     private final NodeId nodeId;
-    private final List<ConsensusRound> consensusRounds = new ArrayList<>();
+    private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
 
@@ -77,13 +79,15 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns a snapshot of the consensus rounds created so far.
+     * Returns a snapshot of the consensus rounds created so far starting with the provided index
      *
+     * @param startIndex the index to start from
      * @return the list of consensus rounds
      */
     @NonNull
-    public List<ConsensusRound> currentConsensusRounds() {
-        return new ArrayList<>(consensusRounds);
+    public List<ConsensusRound> currentConsensusRounds(final int startIndex) {
+        final List<ConsensusRound> copy = List.copyOf(consensusRounds);
+        return copy.subList(startIndex, copy.size() - 1);
     }
 
     /**

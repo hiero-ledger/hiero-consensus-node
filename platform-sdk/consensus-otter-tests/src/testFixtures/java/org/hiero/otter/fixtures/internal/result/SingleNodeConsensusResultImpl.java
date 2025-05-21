@@ -15,6 +15,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult {
 
     private final NodeResultsCollector collector;
+    private volatile int startIndex = 0;
 
     /**
      * Creates a new instance of {@link SingleNodeConsensusResultImpl}.
@@ -40,7 +41,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     @Override
     @NonNull
     public List<ConsensusRound> currentConsensusRounds() {
-        return collector.currentConsensusRounds();
+        return collector.currentConsensusRounds(startIndex);
     }
 
     /**
@@ -49,5 +50,13 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     @Override
     public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
         collector.subscribe(subscriber);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void reset() {
+        startIndex = collector.currentConsensusRounds(0).size();
     }
 }

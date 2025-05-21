@@ -10,6 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
@@ -56,5 +57,16 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
     @Override
     public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
         consensusRoundSubscribers.add(subscriber);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The effort is done on a best effort basis. A slower node may collect rounds after a reset that were
+     * discarded on faster nodes. Ideally, this method is only called while all nodes are frozen.
+     */
+    @Override
+    public void reset() {
+        results.forEach(OtterResult::reset);
     }
 }

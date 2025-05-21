@@ -9,7 +9,7 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * Interface that provides access to the consensus results of a single node that are created during a test.
  */
-public interface SingleNodeConsensusResult {
+public interface SingleNodeConsensusResult extends OtterResult {
 
     /**
      * Returns the node ID of the node that created the results.
