@@ -59,8 +59,6 @@ tasks.test {
     )
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
-    systemProperty("hapi.spec.default.shard", 11)
-    systemProperty("hapi.spec.default.realm", 12)
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
@@ -400,8 +398,6 @@ tasks.register<Test>("testEmbedded") {
     )
     // Tell our launcher to target a concurrent embedded network
     systemProperty("hapi.spec.embedded.mode", "concurrent")
-    systemProperty("hapi.spec.default.shard", 11)
-    systemProperty("hapi.spec.default.realm", 12)
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
@@ -445,8 +441,6 @@ tasks.register<Test>("testRepeatable") {
     )
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
-    systemProperty("hapi.spec.default.shard", 11)
-    systemProperty("hapi.spec.default.realm", 12)
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
