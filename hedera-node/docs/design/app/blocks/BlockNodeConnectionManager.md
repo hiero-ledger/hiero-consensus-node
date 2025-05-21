@@ -5,10 +5,9 @@
 1. [Abstract](#abstract)
 2. [Definitions](#definitions)
 3. [Component Responsibilities](#component-responsibilities)
-4. [Details](#details)
-5. [Component Interaction](#component-interaction)
-6. [Sequence Diagrams](#sequence-diagrams)
-7. [Error Handling](#error-handling)
+4. [Component Interaction](#component-interaction)
+5. [Sequence Diagrams](#sequence-diagrams)
+6. [Error Handling](#error-handling)
 
 ## Abstract
 
@@ -41,21 +40,6 @@ with individual `BlockNodeConnection` instances. There should be only one active
 - Remove or replace failed connections.
 - Coordinate with `BlockStreamStateManager` to synchronize active connections and streaming progress.
 - Support lifecycle control (shutdown, waitForConnection, openBlock).
-
-## Details
-
-|             Variables and Methods              |                                Description                                 |
-|------------------------------------------------|----------------------------------------------------------------------------|
-| `connections`                                  | A map of all active `BlockNodeConnection` instances.                       |
-| `handleConnectionError(connection, delay)`     | Handles errors on a specific connection and schedules a retry after delay. |
-| `scheduleRetry(connection, initialDelay)`      | Schedules the reconnection attempt for a failed connection.                |
-| `shutdown()`                                   | Shuts down the manager, disconnecting all active connections.              |
-| `waitForConnection(timeout)`                   | Blocks until a valid connection becomes available or timeout elapses.      |
-| `openBlock(blockNumber)`                       | Signals connections to start streaming from a specific block.              |
-| `updateLastVerifiedBlock(config, blockNumber)` | Updates the last verified block for a specific block node config.          |
-| `getLastVerifiedBlock(config)`                 | Returns the last verified block number for the specified config.           |
-| `selectBlockNodeForStreaming()`                | Chooses the best available connection to use for streaming.                |
-| `getNextPriorityBlockNode()`                   | Picks the next best connection when multiple are available.                |
 
 ## Component Interaction
 

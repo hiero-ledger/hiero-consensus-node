@@ -5,10 +5,9 @@
 1. [Abstract](#abstract)
 2. [Definitions](#definitions)
 3. [Component Responsibilities](#component-responsibilities)
-4. [Details](#details)
-5. [Component Interaction](#component-interaction)
-6. [Sequence Diagram](#sequence-diagram)
-7. [Error Handling](#error-handling)
+4. [Component Interaction](#component-interaction)
+5. [Sequence Diagram](#sequence-diagram)
+6. [Error Handling](#error-handling)
 
 ## Abstract
 
@@ -32,19 +31,6 @@ managing the generation of PublishStreamRequests, and indicating when a block is
 - Track whether all necessary requests for the block have been created.
 - Record the timestamp when the block is considered closed/completed.
 - Expose read-only access to block contents and state.
-
-## Details
-
-|        Variables and Methods         |                               Description                               |
-|--------------------------------------|-------------------------------------------------------------------------|
-| `blockNumber`                        | Identifies the block this instance represents.                          |
-| `items()`                            | Returns the list of BlockItems collected so far.                        |
-| `requests()`                         | Returns the list of PublishStreamRequests created from the block items. |
-| `createRequestFromCurrentItems(...)` | Creates a new PublishStreamRequest from the current items.              |
-| `setRequestsCompleted()`             | Marks the block as having all requests created.                         |
-| `requestsCompleted()`                | Checks whether the block has completed request generation.              |
-| `setCompletionTimestamp()`           | Records the time when the block is finalized.                           |
-| `completionTimestamp()`              | Returns the block’s completion time (if finalized).                     |
 
 ## Component Interaction
 
