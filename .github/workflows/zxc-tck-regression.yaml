@@ -116,7 +116,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@0.36.0-alpha.1
+        run: npm install -g @hashgraph/solo@0.36.0-alpha.2
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -144,7 +144,7 @@ jobs:
           solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
           solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 3
-          solo node keys --gossip-keys --tls-keys -i node1,node2,node3
+          solo node keys --gossip-keys --tls-keys -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
           solo network deploy -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo node setup -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
