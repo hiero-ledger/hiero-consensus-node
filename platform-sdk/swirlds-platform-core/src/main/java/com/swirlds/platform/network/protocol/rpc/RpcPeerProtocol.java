@@ -56,6 +56,7 @@ interface StreamWriter {
 
 /**
  * Message based implementation of gossip; currently supporting sync and simplistic chatter
+ * Responsible for communication with a single peer
  */
 public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
@@ -90,9 +91,9 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private final GossipRpcReceiver receiver;
 
     /**
-     * Id of the remote node we are communicating with
+     * The id of the remote node we are communicating with
      */
-    private final NodeId peerId;
+    private final NodeId remotePeerId;
 
     /**
      * executes tasks in parallel
@@ -196,7 +197,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             @NonNull final SyncConfig syncConfig,
             @NonNull final AncientMode ancientMode) {
         this.executor = Objects.requireNonNull(executor);
-        this.peerId = Objects.requireNonNull(peerId);
+        this.remotePeerId = Objects.requireNonNull(peerId);
         this.gossipHalted = Objects.requireNonNull(gossipHalted);
         this.platformStatus = Objects.requireNonNull(platformStatus);
         this.permitProvider = Objects.requireNonNull(permitProvider);
@@ -283,7 +284,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             executor.doParallel(
                     () -> readMessages(connection), () -> writeMessages(connection), connection::disconnect);
         } catch (final ParallelExecutionException e) {
-            logger.error(NETWORK.getMarker(), "Failure during communication with node {}", peerId, e);
+            logger.error(NETWORK.getMarker(), "Failure during communication with node {}", remotePeerId, e);
         } finally {
             permitProvider.release();
         }
@@ -417,12 +418,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             logger.error(
                     NETWORK.getMarker(),
                     "Received unexpected gossip ping reply from peer {} for correlation id {}",
-                    peerId,
+                    remotePeerId,
                     pingReply.correlationId());
         } else {
             // don't trust remote timestamp for measuring ping
             logger.debug(NETWORK.getMarker(), "Ping {}", time.currentTimeMillis() - original.timestamp());
-            networkMetrics.recordPingTime(peerId, (time.currentTimeMillis() - original.timestamp()) * 1_000_000);
+            networkMetrics.recordPingTime(remotePeerId, (time.currentTimeMillis() - original.timestamp()) * 1_000_000);
         }
     }
 

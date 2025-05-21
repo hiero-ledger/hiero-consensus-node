@@ -141,12 +141,6 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow());
 
-            logger.info(
-                    RECONNECT.getMarker(),
-                    "OLD: Received sync data {}, my data is {}",
-                    theirTipsAndEventWindow.eventWindow(),
-                    myWindow);
-
             if (fallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())
                     != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
                 // aborting the sync since someone has fallen behind
