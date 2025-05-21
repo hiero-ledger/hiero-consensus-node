@@ -101,6 +101,6 @@ public class NodeResultsCollector {
      * @return the {@link SingleNodeStatusProgression}
      */
     public SingleNodeStatusProgression getStatusProgression() {
-        return new SingleNodeStatusProgressionImpl(selfId, new ArrayList<>(platformStatuses));
+        return new SingleNodeStatusProgressionImpl(nodeId, new ArrayList<>(platformStatuses));
     }
 }
