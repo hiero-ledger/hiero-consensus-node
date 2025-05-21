@@ -362,10 +362,6 @@ public final class StartupStateUtils {
 
             final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
 
-            final long genesisFreezeTime = basicConfig.genesisFreezeTime();
-            if (genesisFreezeTime > 0) {
-                v.setFreezeTime(Instant.ofEpochSecond(genesisFreezeTime));
-            }
         });
 
         RosterUtils.setActiveRoster(state, RosterRetriever.buildRoster(addressBook), round);
