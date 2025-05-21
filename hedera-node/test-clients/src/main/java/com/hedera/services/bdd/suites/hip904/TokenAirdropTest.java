@@ -2653,7 +2653,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
                     contractCreate(contract)
                             .payingWith(GENESIS)
                             .adminKey(adminKey)
-                            .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                            .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
 
                     // GET BYTECODE OF THE CREATE2 CONTRACT
                     sourcing(() -> contractCallLocal(

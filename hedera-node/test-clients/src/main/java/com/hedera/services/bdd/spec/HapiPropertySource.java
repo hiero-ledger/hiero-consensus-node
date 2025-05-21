@@ -306,6 +306,14 @@ public interface HapiPropertySource {
                 .build();
     }
 
+    static ContractID asContract(AccountID accountID) {
+        return ContractID.newBuilder()
+                .setShardNum(accountID.getShardNum())
+                .setRealmNum(accountID.getRealmNum())
+                .setContractNum(accountID.getAccountNum())
+                .build();
+    }
+
     static FileID asFile(String shard, String realm, String num) {
         return asFile(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
     }

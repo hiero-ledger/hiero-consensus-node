@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
@@ -289,10 +288,7 @@ public class ContractCallSuite {
                 uploadInitCode(TEST_CONTRACT),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
-                        contractCreate(
-                                        TEST_CONTRACT,
-                                        idAsHeadlongAddress(asAccount(spec.shard(), spec.realm(), 2)),
-                                        BigInteger.ONE)
+                        contractCreate(TEST_CONTRACT, numAsHeadlongAddress(spec, 2), BigInteger.ONE)
                                 .balance(ONE_HBAR))),
                 cryptoCreate(somebody),
                 balanceSnapshot("start", account),
