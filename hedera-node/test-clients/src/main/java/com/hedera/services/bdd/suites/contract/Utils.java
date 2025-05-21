@@ -85,8 +85,8 @@ public class Utils {
     }
 
     public static ByteString parsedToByteString(long shard, long realm, long n) {
-        final var hexString = Bytes.wrap(asSolidityAddress((int) shard, realm, n))
-                .toHexString();
+        final var hexString =
+                Bytes.wrap(asSolidityAddress((int) shard, realm, n)).toHexString();
         return ByteString.copyFrom(Bytes32.fromHexStringLenient(hexString).toArray());
     }
 
@@ -96,8 +96,7 @@ public class Utils {
     }
 
     public static String asHexedAddress(final TokenID id) {
-        return Bytes.wrap(asSolidityAddress(
-                        (int) id.getShardNum(), id.getRealmNum(), id.getTokenNum()))
+        return Bytes.wrap(asSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getTokenNum()))
                 .toHexString();
     }
 
@@ -436,20 +435,19 @@ public class Utils {
     public static Address mirrorAddrWith(AccountID accountID) {
         return Address.wrap(toChecksumAddress(new BigInteger(
                 1,
-                HapiPropertySource.asSolidityAddress(
-                        (int) accountID.getShardNum(), accountID.getRealmNum(), accountID.getAccountNum()))));
+                asSolidityAddress((int) accountID.getShardNum(), accountID.getRealmNum(), accountID.getAccountNum()))));
     }
 
     public static Address mirrorAddrWith(ContractID contractId) {
         return Address.wrap(toChecksumAddress(new BigInteger(
                 1,
-                HapiPropertySource.asSolidityAddress(
+                asSolidityAddress(
                         (int) contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum()))));
     }
 
     public static Address mirrorAddrWith(HapiSpec spec, final long num) {
-        return Address.wrap(toChecksumAddress(
-                new BigInteger(1, HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), num))));
+        return Address.wrap(
+                toChecksumAddress(new BigInteger(1, asSolidityAddress((int) spec.shard(), spec.realm(), num))));
     }
 
     @Deprecated(forRemoval = true)
@@ -466,8 +464,7 @@ public class Utils {
     }
 
     public static Address nonMirrorAddrWith(final long seed, final long num) {
-        return Address.wrap(
-                toChecksumAddress(new BigInteger(1, HapiPropertySource.asSolidityAddress((int) seed, seed, num))));
+        return Address.wrap(toChecksumAddress(new BigInteger(1, asSolidityAddress((int) seed, seed, num))));
     }
 
     public static Address numAsHeadlongAddress(HapiSpec spec, final long num) {

@@ -4751,8 +4751,7 @@ public class TraceabilitySuite {
                         .adminKey(adminKey)
                         .entityMemo(entityMemo)
                         .via(CREATE_2_TXN)
-                        .exposingContractIdTo(
-                                id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 sourcing(() -> contractCallLocal(
                                 create2Factory, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
