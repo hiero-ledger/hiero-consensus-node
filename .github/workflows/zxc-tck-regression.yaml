@@ -150,8 +150,9 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       # Start the TCK server
-      - name: Start tck-server
-        run: TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
+      - name: Start tck-server in background
+        run: |
+          TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
         working-directory: platform-sdk/regression # required
 
       - name: Wait for TCK server
@@ -169,9 +170,11 @@ jobs:
 
       # Stop the TCK server
       - name: Stop tck-server
+        if: ${{ always() }}
         run: docker compose -f ./docker-compose.yml down
         working-directory: platform-sdk/regression
 
       # Stop the solo nodes
       - name: Stop solo
+        if: ${{ always() }}
         run: solo node stop -i node1,node2,node3 --deployment "${{ env.SOLO_DEPLOYMENT }}"
