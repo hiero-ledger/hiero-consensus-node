@@ -196,18 +196,16 @@ public class HelloWorldEthereumSuite {
         return hapiTest(
                 newKeyNamed(adminKey),
                 newKeyNamed(maliciousEOA).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER)
+                        .balance(10 * ONE_MILLION_HBARS)
+                        .exposingCreatedIdTo(id -> relayerEvmAddress.set(asHexedSolidityAddress(id))),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, maliciousEOA, maliciousStartBalance))
+                        .via(maliciousAutoCreation),
                 withOpContext((spec, opLog) -> {
-                    final var create = cryptoCreate(RELAYER)
-                            .balance(10 * ONE_MILLION_HBARS)
-                            .exposingCreatedIdTo(id -> relayerEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), id.getAccountNum())));
-                    final var transfer = cryptoTransfer(
-                                    tinyBarsFromAccountToAlias(GENESIS, maliciousEOA, maliciousStartBalance))
-                            .via(maliciousAutoCreation);
                     final var lookup = getTxnRecord(maliciousAutoCreation)
                             .andAllChildRecords()
                             .logged();
-                    allRunFor(spec, create, transfer, lookup);
+                    allRunFor(spec, lookup);
                     final var childCreation = lookup.getFirstNonStakingChildRecord();
                     maliciousEOAId.set(
                             asAccountString(childCreation.getReceipt().getAccountID()));

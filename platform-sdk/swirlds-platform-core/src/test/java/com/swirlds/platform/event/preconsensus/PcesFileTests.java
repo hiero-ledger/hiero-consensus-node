@@ -12,7 +12,6 @@ import static com.swirlds.platform.event.preconsensus.PcesFile.ORIGIN_PREFIX;
 import static com.swirlds.platform.event.preconsensus.PcesFile.SEQUENCE_NUMBER_PREFIX;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -48,8 +47,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 @DisplayName("PcesFile Tests")
 class PcesFileTests {
@@ -71,12 +69,8 @@ class PcesFileTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
-    protected static Stream<Arguments> buildArguments() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("Invalid Parameters Test")
     void invalidParametersTest(@NonNull final AncientMode ancientMode) {
         assertThrows(
@@ -109,7 +103,7 @@ class PcesFileTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("File Name Test")
     void fileNameTest(@NonNull final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();
@@ -142,7 +136,7 @@ class PcesFileTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("File Path Test")
     void filePathTest(@NonNull final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();
@@ -180,7 +174,7 @@ class PcesFileTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("Parsing Test")
     void parsingTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = getRandomPrintSeed();
@@ -235,7 +229,7 @@ class PcesFileTests {
 
     @SuppressWarnings("resource")
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("Deletion Test")
     void deletionTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = getRandomPrintSeed();
@@ -302,7 +296,7 @@ class PcesFileTests {
 
     @SuppressWarnings("resource")
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("Recycle Test")
     void recycleTest(@NonNull final AncientMode ancientMode) throws IOException {
         final Random random = getRandomPrintSeed();
@@ -387,7 +381,7 @@ class PcesFileTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("compareTo() Test")
     void compareToTest(@NonNull final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();
@@ -426,7 +420,7 @@ class PcesFileTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("canContain() Test")
     void canContainTest(@NonNull final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();
@@ -460,7 +454,7 @@ class PcesFileTests {
     }
 
     @ParameterizedTest
-    @MethodSource("buildArguments")
+    @EnumSource(AncientMode.class)
     @DisplayName("Span Compression Test")
     void spanCompressionTest(@NonNull final AncientMode ancientMode) {
         final Random random = getRandomPrintSeed();

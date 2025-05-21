@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.recordBuilderFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.transfersValue;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.RESULT_CANNOT_BE_EXTERNALIZED;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -219,7 +220,8 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             frame.decrementRemainingGas(gasRequirement);
-            incrementOpsDuration(frame, Math.round(gasRequirement * hederaOpsDuration.precompileDurationMultiplier()));
+            incrementOpsDuration(
+                    frame, gasRequirement * hederaOpsDuration.precompileDurationMultiplier() / MULTIPLIER_FACTOR);
             result = precompile.computePrecompile(frame.getInputData(), frame);
             if (result.isRefundGas()) {
                 frame.incrementRemainingGas(gasRequirement);
@@ -260,7 +262,8 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             if (!fullResult.isRefundGas()) {
                 frame.decrementRemainingGas(gasRequirement);
                 incrementOpsDuration(
-                        frame, Math.round(gasRequirement * hederaOpsDuration.systemContractDurationMultiplier()));
+                        frame,
+                        gasRequirement * hederaOpsDuration.systemContractDurationMultiplier() / MULTIPLIER_FACTOR);
             }
             result = fullResult.result();
         }

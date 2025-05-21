@@ -101,6 +101,7 @@ public class ThrottleAccumulator {
     private boolean lastTxnWasGasThrottled;
     private LeakyBucketDeterministicThrottle bytesThrottle;
     private LeakyBucketDeterministicThrottle gasThrottle;
+    private LeakyBucketDeterministicThrottle opsDurationThrottle;
     private List<DeterministicThrottle> activeThrottles = emptyList();
 
     @Nullable
@@ -543,15 +544,16 @@ public class ThrottleAccumulator {
             @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
         final long nominalGas =
                 switch (function) {
-                    case CONTRACT_CREATE -> txnBody.contractCreateInstanceOrThrow()
-                            .gas();
+                    case CONTRACT_CREATE ->
+                        txnBody.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
-                    case ETHEREUM_TRANSACTION -> Optional.of(txnBody.ethereumTransactionOrThrow()
-                                    .ethereumData()
-                                    .toByteArray())
-                            .map(EthTxData::populateEthTxData)
-                            .map(EthTxData::gasLimit)
-                            .orElse(0L);
+                    case ETHEREUM_TRANSACTION ->
+                        Optional.of(txnBody.ethereumTransactionOrThrow()
+                                        .ethereumData()
+                                        .toByteArray())
+                                .map(EthTxData::populateEthTxData)
+                                .map(EthTxData::gasLimit)
+                                .orElse(0L);
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
@@ -895,6 +897,27 @@ public class ThrottleAccumulator {
         }
     }
 
+    public void applyDurationConfig() {
+        final var configuration = configSupplier.get();
+        final var contractConfig = configuration.getConfigData(ContractsConfig.class);
+        final var maxOpsDuration = contractConfig.maxOpsDuration();
+        if (contractConfig.throttleThrottleByOpsDuration() && maxOpsDuration == 0) {
+            log.warn("{} ops duration throttles are enabled, but limited to 0 ops/sec", throttleType.name());
+        }
+        opsDurationThrottle =
+                new LeakyBucketDeterministicThrottle(maxOpsDuration, "OpsDuration", DEFAULT_BURST_SECONDS);
+        if (throttleMetrics != null) {
+            throttleMetrics.setupOpsDurationMetric(opsDurationThrottle, configuration);
+        }
+        if (verbose == Verbose.YES) {
+            log.info(
+                    "Resolved {} ops duration throttle -\n {} ops duration/sec (throttling {})",
+                    throttleType.name(),
+                    opsDurationThrottle.capacity(),
+                    (contractConfig.throttleThrottleByOpsDuration() ? "ON" : "OFF"));
+        }
+    }
+
     @NonNull
     private ThrottleGroup<HederaFunctionality> hapiGroupFromPbj(
             @NonNull final com.hedera.hapi.node.transaction.ThrottleGroup pbjThrottleGroup) {
@@ -937,6 +960,13 @@ public class ThrottleAccumulator {
      */
     public @NonNull LeakyBucketDeterministicThrottle bytesLimitThrottle() {
         return requireNonNull(bytesThrottle, "");
+    }
+
+    /**
+     * Gets the ops duration throttle.
+     */
+    public @NonNull LeakyBucketDeterministicThrottle opsDurationThrottle() {
+        return requireNonNull(opsDurationThrottle, "");
     }
 
     public enum ThrottleType {

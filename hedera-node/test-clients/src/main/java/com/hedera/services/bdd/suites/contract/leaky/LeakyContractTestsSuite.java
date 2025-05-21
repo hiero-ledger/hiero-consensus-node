@@ -2,11 +2,9 @@
 package com.hedera.services.bdd.suites.contract.leaky;
 
 import static com.google.protobuf.ByteString.EMPTY;
-import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -152,7 +150,6 @@ import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -697,8 +694,8 @@ public class LeakyContractTestsSuite {
         final var adminKey = "adminKey";
         final var entityMemo = "JUST DO IT";
         final var customAutoRenew = 7776001L;
-        final AtomicReference<String> childLiteralId = new AtomicReference<>();
-        final AtomicReference<String> grandChildLiteralId = new AtomicReference<>();
+        final AtomicLong childNum = new AtomicLong();
+        final AtomicLong grandChildNum = new AtomicLong();
         final AtomicReference<ByteString> expectedChildAddress = new AtomicReference<>();
         final AtomicReference<ByteString> expectedParentAddress = new AtomicReference<>();
 
@@ -715,8 +712,7 @@ public class LeakyContractTestsSuite {
                 withOpContext((spec, opLog) -> {
                     final var parentNum = spec.registry().getContractId(contract);
 
-                    final var expectedParentContractAddress = asHeadlongAddress(asEvmAddress(
-                                    parentNum.getShardNum(), parentNum.getRealmNum(), parentNum.getContractNum()))
+                    final var expectedParentContractAddress = asHeadlongAddress(asSolidityAddress(parentNum))
                             .toString()
                             .toLowerCase()
                             .substring(2);
@@ -725,26 +721,15 @@ public class LeakyContractTestsSuite {
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
-
-                    final var childId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentNum.getContractNum() + 1L)
-                            .build();
-                    childLiteralId.set(HapiPropertySource.asContractString(childId));
+                    childNum.set(parentNum.getContractNum() + 1L);
                     expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
-                    final var grandChildId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentNum.getContractNum() + 2L)
-                            .build();
-                    grandChildLiteralId.set(HapiPropertySource.asContractString(grandChildId));
+                    grandChildNum.set(parentNum.getContractNum() + 2L);
 
                     final var parentContractInfo =
                             getContractInfo(contract).has(contractWith().addressOrAlias(expectedParentContractAddress));
-                    final var childContractInfo = getContractInfo(childLiteralId.get())
+                    final var childContractInfo = getContractInfo(String.valueOf(childNum.get()))
                             .has(contractWith().addressOrAlias(expectedChildContractAddress.toUnprefixedHexString()));
-                    final var grandChildContractInfo = getContractInfo(grandChildLiteralId.get())
+                    final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildNum.get()))
                             .has(contractWith()
                                     .addressOrAlias(expectedGrandChildContractAddress.toUnprefixedHexString()))
                             .logged();
@@ -760,8 +745,8 @@ public class LeakyContractTestsSuite {
                         recordWith()
                                 .contractCreateResult(resultWith().create1EvmAddress(expectedChildAddress.get(), 1L))
                                 .status(SUCCESS))),
-                sourcing(() ->
-                        getContractInfo(childLiteralId.get()).has(contractWith().propertiesInheritedFrom(contract))));
+                sourcing(() -> getContractInfo(String.valueOf(childNum.get()))
+                        .has(contractWith().propertiesInheritedFrom(contract))));
     }
 
     @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
@@ -870,7 +855,7 @@ public class LeakyContractTestsSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(6_000_000),
                             emptyChildRecordsCheck(mirrorTxn, CONTRACT_REVERT_EXECUTED),
-                            getAccountInfo(asEntityString(spec.shard(), spec.realm(), NONEXISTENT_CONTRACT_NUM))
+                            getAccountInfo(String.valueOf(NONEXISTENT_CONTRACT_NUM))
                                     .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // given a reverting contract call, should also revert the hollow account creation
                             contractCall(LAZY_CREATE_CONTRACT, revertingCallLazyCreateFunction, address)
