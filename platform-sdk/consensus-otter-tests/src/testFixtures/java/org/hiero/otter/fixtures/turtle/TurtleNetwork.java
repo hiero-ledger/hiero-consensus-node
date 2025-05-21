@@ -215,7 +215,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     @NonNull
-    public MultipleNodeConsensusResults getConsensusResult(@Nullable NodeFilter... filters) {
+    public MultipleNodeConsensusResults getConsensusResults(@Nullable NodeFilter... filters) {
         final NodeFilter combined = NodeFilter.andAll(filters);
         final List<SingleNodeConsensusResult> results =
                 nodes.stream().filter(combined).map(Node::getConsensusResult).toList();

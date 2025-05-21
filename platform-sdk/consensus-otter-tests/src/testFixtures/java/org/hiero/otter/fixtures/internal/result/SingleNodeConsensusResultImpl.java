@@ -21,7 +21,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      *
      * @param collector the {@link NodeResultsCollector} that collects the results
      */
-    public SingleNodeConsensusResultImpl(NodeResultsCollector collector) {
+    public SingleNodeConsensusResultImpl(@NonNull final NodeResultsCollector collector) {
         this.collector = Objects.requireNonNull(collector);
     }
 
@@ -39,15 +39,15 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      */
     @Override
     @NonNull
-    public List<ConsensusRound> createSnapshot() {
-        return collector.createConsensusRoundsSnapshot();
+    public List<ConsensusRound> currentConsensusRounds() {
+        return collector.currentConsensusRounds();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NonNull ConsensusRoundSubscriber subscriber) {
+    public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
         collector.subscribe(subscriber);
     }
 }

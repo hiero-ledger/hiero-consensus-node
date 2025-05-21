@@ -55,16 +55,6 @@ public class MultipleNodeConsensusResultsAssert
     }
 
     /**
-     * Creates a continuous assertion for the given {@link MultipleNodeConsensusResults}.
-     *
-     * @return a continuous assertion for the given {@link MultipleNodeConsensusResults}
-     */
-    @NonNull
-    public MultipleNodeConsensusResultsAssertCont continuously() {
-        return new MultipleNodeConsensusResultsAssertCont(actual);
-    }
-
-    /**
      * Verifies that all nodes reached consensus on the same, provided round.
      * Naturally, this check only makes sense while the nodes are halted.
      *
@@ -100,7 +90,7 @@ public class MultipleNodeConsensusResultsAssert
 
         // create list of snapshots
         final List<RoundListResult> snapshots = actual.results().stream()
-                .map(nodeResult -> new RoundListResult(nodeResult.nodeId(), nodeResult.createSnapshot()))
+                .map(nodeResult -> new RoundListResult(nodeResult.nodeId(), nodeResult.currentConsensusRounds()))
                 .toList();
 
         // find longest and shortest list

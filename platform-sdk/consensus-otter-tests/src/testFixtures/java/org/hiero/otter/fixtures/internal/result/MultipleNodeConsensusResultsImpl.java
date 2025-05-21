@@ -28,14 +28,16 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
         // To implement this, we define a meta-subscriber that will be subscribed to the results of all nodes.
         // This meta-subscriber will notify all child-subscribers to this class (among them A).
         // If a child-subscriber wants to be unsubscribed, it will return SubscriberAction.UNSUBSCRIBE.
-        final ConsensusRoundSubscriber subscriber = (nodeId, rounds) -> {
-            // iterate over all child-subscribers and evtl. remove the ones that wish to be unsubscribed
+        final ConsensusRoundSubscriber metaSubscriber = (nodeId, rounds) -> {
+            // iterate over all child-subscribers and eventually remove the ones that wish to be unsubscribed
             consensusRoundSubscribers.removeIf(
                     current -> current.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+
+            // the meta-subscriber never unsubscribes
             return SubscriberAction.CONTINUE;
         };
         for (final SingleNodeConsensusResult result : results) {
-            result.subscribe(subscriber);
+            result.subscribe(metaSubscriber);
         }
     }
 
@@ -52,7 +54,7 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
      * {@inheritDoc}
      */
     @Override
-    public void subscribe(@NonNull ConsensusRoundSubscriber subscriber) {
+    public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
         consensusRoundSubscribers.add(subscriber);
     }
 }

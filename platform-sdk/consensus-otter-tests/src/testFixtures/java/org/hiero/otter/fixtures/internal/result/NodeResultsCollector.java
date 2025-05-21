@@ -82,7 +82,7 @@ public class NodeResultsCollector {
      * @return the list of consensus rounds
      */
     @NonNull
-    public List<ConsensusRound> createConsensusRoundsSnapshot() {
+    public List<ConsensusRound> currentConsensusRounds() {
         return new ArrayList<>(consensusRounds);
     }
 

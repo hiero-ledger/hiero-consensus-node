@@ -12,6 +12,9 @@ import org.hiero.consensus.model.node.NodeId;
 @FunctionalInterface
 public interface ConsensusRoundSubscriber {
 
+    /**
+     * Return value to indicate whether the subscriber should continue receiving rounds or unsubscribe.
+     */
     enum SubscriberAction {
         CONTINUE,
         UNSUBSCRIBE

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
+import static org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction.CONTINUE;
+import static org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction.UNSUBSCRIBE;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,9 +19,9 @@ import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 /**
  * Continues assertions for {@link MultipleNodeConsensusResults}.
  */
-@SuppressWarnings("UnusedReturnValue")
-public class MultipleNodeConsensusResultsAssertCont
-        extends AbstractAssert<MultipleNodeConsensusResultsAssertCont, MultipleNodeConsensusResults>
+@SuppressWarnings({"UnusedReturnValue", "unused"})
+public class MultipleNodeConsensusResultsContinuousAssert
+        extends AbstractAssert<MultipleNodeConsensusResultsContinuousAssert, MultipleNodeConsensusResults>
         implements ContinuousAssertion {
 
     private final AtomicBoolean stopped = new AtomicBoolean(false);
@@ -27,8 +31,21 @@ public class MultipleNodeConsensusResultsAssertCont
      *
      * @param multipleNodeConsensusResults the actual {@link MultipleNodeConsensusResults} to assert
      */
-    MultipleNodeConsensusResultsAssertCont(MultipleNodeConsensusResults multipleNodeConsensusResults) {
-        super(multipleNodeConsensusResults, MultipleNodeConsensusResultsAssertCont.class);
+    public MultipleNodeConsensusResultsContinuousAssert(
+            @NonNull final MultipleNodeConsensusResults multipleNodeConsensusResults) {
+        super(multipleNodeConsensusResults, MultipleNodeConsensusResultsContinuousAssert.class);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodeConsensusResults}.
+     *
+     * @param actual the {@link MultipleNodeConsensusResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeConsensusResults}
+     */
+    @NonNull
+    public static MultipleNodeConsensusResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeConsensusResults actual) {
+        return new MultipleNodeConsensusResultsContinuousAssert(actual);
     }
 
     /**
@@ -46,7 +63,7 @@ public class MultipleNodeConsensusResultsAssertCont
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssertCont hasEqualRounds() {
+    public MultipleNodeConsensusResultsContinuousAssert haveEqualRounds() {
         isNotNull();
 
         final ConsensusRoundSubscriber subscriber = new ConsensusRoundSubscriber() {
@@ -54,11 +71,15 @@ public class MultipleNodeConsensusResultsAssertCont
             final Map<Long, RoundResult> referenceRounds = new ConcurrentHashMap<>();
 
             @Override
-            public SubscriberAction onConsensusRounds(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
+            public SubscriberAction onConsensusRounds(
+                    @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
+                if (stopped.get()) {
+                    return UNSUBSCRIBE;
+                }
                 for (final ConsensusRound round : rounds) {
                     final RoundResult reference =
                             referenceRounds.computeIfAbsent(round.getRoundNum(), key -> new RoundResult(nodeId, round));
-                    if (!round.equals(reference.round())) {
+                    if (!nodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
                         throw new AssertionError(
                                 "Expected rounds to be equal, but round %d differs. Node %s produced %s, while node %s produced %s"
                                         .formatted(
@@ -69,7 +90,7 @@ public class MultipleNodeConsensusResultsAssertCont
                                                 reference.round()));
                     }
                 }
-                return stopped.get() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+                return CONTINUE;
             }
         };
 

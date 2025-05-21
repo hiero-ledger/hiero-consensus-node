@@ -13,7 +13,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 public interface MultipleNodeConsensusResults {
 
     /**
-     * Returns the list of {@link SingleNodeConsensusResult} for all nodes
+     * Returns an immutable list of {@link SingleNodeConsensusResult} for all nodes
      *
      * @return the list of results
      */
@@ -21,7 +21,7 @@ public interface MultipleNodeConsensusResults {
     List<SingleNodeConsensusResult> results();
 
     /**
-     * Subscribes to {@link ConsensusRound}s created by this node.
+     * Subscribes to {@link ConsensusRound}s created by the nodes.
      *
      * @param subscriber the subscriber that will receive the rounds
      */

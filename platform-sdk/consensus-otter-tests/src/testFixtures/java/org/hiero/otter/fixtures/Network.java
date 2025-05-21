@@ -81,7 +81,7 @@ public interface Network {
      * @return the consensus rounds of the filtered nodes
      */
     @NonNull
-    MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters);
+    MultipleNodeConsensusResults getConsensusResults(@NonNull NodeFilter... filters);
 
     /**
      * Gets the log results of all nodes.

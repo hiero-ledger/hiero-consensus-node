@@ -25,7 +25,7 @@ public interface SingleNodeConsensusResult {
      * @return the last round or {@code -1} if no rounds were created
      */
     default long lastRoundNum() {
-        return createSnapshot().stream()
+        return currentConsensusRounds().stream()
                 .mapToLong(ConsensusRound::getRoundNum)
                 .max()
                 .orElse(-1L);
@@ -37,7 +37,7 @@ public interface SingleNodeConsensusResult {
      * @return the list of consensus rounds
      */
     @NonNull
-    List<ConsensusRound> createSnapshot();
+    List<ConsensusRound> currentConsensusRounds();
 
     /**
      * Subscribes to {@link ConsensusRound}s created by the node.

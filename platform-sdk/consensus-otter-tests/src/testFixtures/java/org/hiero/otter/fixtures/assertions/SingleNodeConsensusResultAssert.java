@@ -80,10 +80,10 @@ public class SingleNodeConsensusResultAssert
     @NonNull
     public SingleNodeConsensusResultAssert hasRounds(@NonNull final List<ConsensusRound> expected) {
         isNotNull();
-        Assertions.assertThat(actual.createSnapshot())
+        Assertions.assertThat(actual.currentConsensusRounds())
                 .withFailMessage(
                         "Expected consensus rounds of node %s to be <%s> but was <%s>",
-                        actual.nodeId(), expected, actual.createSnapshot())
+                        actual.nodeId(), expected, actual.currentConsensusRounds())
                 .containsExactlyElementsOf(expected);
         return this;
     }
