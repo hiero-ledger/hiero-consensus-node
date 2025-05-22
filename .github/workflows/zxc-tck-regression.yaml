@@ -180,4 +180,5 @@ jobs:
         if: ${{ always() }}
         run: |
           solo node stop -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
+          solo mirror-node destroy --deployment "${{ env.SOLO_DEPLOYMENT }}" --force
+          solo network destroy --deployment "${{ env.SOLO_DEPLOYMENT }}" --force
