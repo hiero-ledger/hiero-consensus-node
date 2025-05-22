@@ -17,7 +17,6 @@ import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ExecutionException;
@@ -434,7 +433,6 @@ class VirtualMapHashingTest {
         assertDoesNotThrow(() -> doFullRehash(root));
     }
 
-
     @AfterEach
     void tearDown() {
         assertEventuallyEquals(
@@ -442,7 +440,5 @@ class VirtualMapHashingTest {
                 MerkleDbDataSource::getCountOfOpenDatabases,
                 Duration.of(5, ChronoUnit.SECONDS),
                 "All databases should be closed");
-
     }
-
 }

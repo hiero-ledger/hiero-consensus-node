@@ -356,11 +356,11 @@ public abstract class VirtualMapReconnectTestBase {
 
     @AfterEach
     void tearDown() throws IOException {
-        if(teacherMap.getReservationCount() > 0) {
+        if (teacherMap.getReservationCount() > 0) {
             teacherMap.release();
         }
 
-        if(learnerMap.getReservationCount() > 0) {
+        if (learnerMap.getReservationCount() > 0) {
             learnerMap.release();
         }
         assertEventuallyEquals(

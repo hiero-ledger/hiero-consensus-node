@@ -342,7 +342,6 @@ public abstract class VirtualMapReconnectTestBase {
         }
     }
 
-
     @AfterEach
     void tearDown() {
         assertEventuallyEquals(
@@ -350,7 +349,5 @@ public abstract class VirtualMapReconnectTestBase {
                 MerkleDbDataSource::getCountOfOpenDatabases,
                 Duration.of(5, ChronoUnit.SECONDS),
                 "All databases should be closed");
-
     }
-
 }

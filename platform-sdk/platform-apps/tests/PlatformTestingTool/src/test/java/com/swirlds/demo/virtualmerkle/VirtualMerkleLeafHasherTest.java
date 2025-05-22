@@ -213,7 +213,5 @@ class VirtualMerkleLeafHasherTest {
                 MerkleDbDataSource::getCountOfOpenDatabases,
                 Duration.of(5, ChronoUnit.SECONDS),
                 "All databases should be closed");
-
     }
-
 }

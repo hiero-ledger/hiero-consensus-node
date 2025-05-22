@@ -148,7 +148,7 @@ class OnDiskTest extends MerkleTestBase {
         // We will now make another fast copy of our working copy of the tree.
         // Then we will hash the immutable copy and write it out. Then we will
         // release the immutable copy.
-        VirtualMap copy = virtualMap.copy();// throw away the copy, we won't use it
+        VirtualMap copy = virtualMap.copy(); // throw away the copy, we won't use it
         copy.release();
         CRYPTO.digestTreeSync(virtualMap);
 

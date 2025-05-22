@@ -1137,7 +1137,6 @@ class VirtualMapTests extends VirtualTestBase {
         return hits;
     }
 
-
     @AfterEach
     void tearDown() {
         assertEventuallyEquals(
@@ -1145,7 +1144,5 @@ class VirtualMapTests extends VirtualTestBase {
                 MerkleDbDataSource::getCountOfOpenDatabases,
                 Duration.of(5, ChronoUnit.SECONDS),
                 "All databases should be closed");
-
     }
-
 }
