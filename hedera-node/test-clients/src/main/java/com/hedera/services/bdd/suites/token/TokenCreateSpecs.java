@@ -152,18 +152,20 @@ public class TokenCreateSpecs {
                 .then(
                         submitModified(withSuccessivelyVariedBodyIds(), () -> tokenCreate("fungibleToken")
                                 .treasury(TOKEN_TREASURY)
+                                .autoRenewAccount("autoRenewAccount")
                                 .withCustom(fixedHbarFee(1L, "feeCollector"))
                                 .withCustom(fixedHtsFee(1L, "feeToken", "feeCollector"))
                                 .withCustom(fractionalFee(1L, 100L, 1L, OptionalLong.of(5L), "feeCollector"))
-                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, "feeCollector")),
+                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, "feeCollector", "autoRenewAccount")),
                         submitModified(withSuccessivelyVariedBodyIds(), () -> tokenCreate("nonFungibleToken")
                                 .treasury(TOKEN_TREASURY)
                                 .tokenType(NON_FUNGIBLE_UNIQUE)
                                 .initialSupply(0L)
                                 .supplyKey("supplyKey")
+                                .autoRenewAccount("autoRenewAccount")
                                 .withCustom(royaltyFeeWithFallback(
                                         1L, 10L, fixedHbarFeeInheritingRoyaltyCollector(123L), "feeCollector"))
-                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY)));
+                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, "autoRenewAccount")));
     }
 
     @HapiTest
@@ -1184,8 +1186,7 @@ public class TokenCreateSpecs {
                         .supplyKey(GENESIS)
                         .initialSupply(0L)
                         .treasury(TOKEN_TREASURY)
-                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS)
-                        .hasPrecheck(INVALID_AUTORENEW_ACCOUNT));
+                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS));
     }
 
     private final long hbarAmount = 1_234L;
