@@ -167,8 +167,7 @@ class MerkleDbCompactionCoordinator {
         if (!compactionEnabled.get()) {
             return;
         }
-        final Future<?> f = futuresByName.get(key);
-        if ((f != null) && !f.isDone()) {
+        if (isCompactionRunning(key)) {
             logger.info(MERKLE_DB.getMarker(), "Compaction for {} is already in progress", key);
             return;
         }

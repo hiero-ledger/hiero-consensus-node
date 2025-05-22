@@ -361,36 +361,60 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
      */
     public void sanitize(final int expectedIndex, final int expectedMaskBits) {
         final int expectedMask = (1 << expectedMaskBits) - 1;
-        assert (expectedIndex & ~expectedMask) == 0;
         bucketData.resetPosition();
+        long srcIndex = 0;
+        long dstIndex = 0;
         while (bucketData.hasRemaining()) {
             final long fieldOffset = bucketData.position();
             final int tag = bucketData.readVarInt(false);
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
             if (fieldNum == FIELD_BUCKET_INDEX.number()) {
                 bucketData.writeInt(expectedIndex);
+                final long fieldLenWithTag = bucketData.position() - fieldOffset;
+                srcIndex += fieldLenWithTag;
+                dstIndex += fieldLenWithTag;
             } else if (fieldNum == FIELD_BUCKET_ENTRIES.number()) {
                 final int entrySize = bucketData.readVarInt(false);
                 final long nextEntryOffset = bucketData.position() + entrySize;
+                final long entryLenWithTag = nextEntryOffset - fieldOffset;
                 final long oldLimit = bucketData.limit();
                 bucketData.limit(nextEntryOffset);
                 final int entryHashCode = readBucketEntryHashCode(bucketData);
                 bucketData.limit(oldLimit);
-                if ((entryHashCode & expectedMask) != expectedIndex) {
-                    final long remainderSize = oldLimit - nextEntryOffset;
-                    bucketData.position(fieldOffset);
-                    if (remainderSize > 0) {
-                        final BufferedData remainder = bucketData.slice(nextEntryOffset, remainderSize);
-                        bucketData.writeBytes(remainder);
-                    }
-                    bucketData.flip();
-                    bucketData.position(fieldOffset);
-                } else {
-                    bucketData.position(nextEntryOffset);
+                if ((entryHashCode & expectedMask) == expectedIndex) {
+                    copyBucketDataBytes(srcIndex, dstIndex, entryLenWithTag);
+                    dstIndex += entryLenWithTag;
                 }
+                srcIndex += entryLenWithTag;
+                bucketData.position(nextEntryOffset);
             }
         }
-        bucketData.flip();
+        bucketData.position(0);
+        bucketData.limit(dstIndex);
+    }
+
+    /**
+     * Copies len {@link #bucketData} bytes from src offset to dst offset.
+     *
+     * <p>If src and dst offsets are equal, this method is a no-op. This method makes no
+     * checks against the length and the offsets, assuming they are within bucket data
+     * buffer limits.
+     */
+    private void copyBucketDataBytes(final long src, final long dst, final long len) {
+        if (src == dst) {
+            return;
+        }
+        final long limit = bucketData.limit();
+        final long pos = bucketData.position();
+        final BufferedData srcBuf = bucketData.slice(src, len);
+        try {
+            bucketData.position(dst);
+            bucketData.limit(dst + len);
+            bucketData.writeBytes(srcBuf);
+        } finally {
+            bucketData.limit(limit);
+            bucketData.position(pos);
+        }
     }
 
     // =================================================================================================================

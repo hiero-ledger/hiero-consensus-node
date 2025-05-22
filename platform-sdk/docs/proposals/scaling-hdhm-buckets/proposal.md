@@ -168,7 +168,7 @@ off-heap, disk). Expanding from 1M buckets to 2M buckets (which corresponds to v
 implementation may be needed.
 
 Bucket updates to remove stale entries with wrong hash codes. Buckets are sanitized only on write
-in the end of a flush. Reads are not affected. Real worls experiments show that to have another
+in the end of a flush. Reads are not affected. Real world experiments show that to have another
 run through all bucket entries and removing those that are staled does not have impact on TPS
 in end to end benchmarks.
 

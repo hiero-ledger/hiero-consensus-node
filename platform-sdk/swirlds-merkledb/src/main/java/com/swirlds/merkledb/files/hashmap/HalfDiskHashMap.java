@@ -163,12 +163,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private static ForkJoinPool getFlushingPool(final @NonNull Configuration config) {
         requireNonNull(config);
-        final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
         ForkJoinPool pool = flushingPool;
         if (pool == null) {
             synchronized (HalfDiskHashMap.class) {
                 pool = flushingPool;
                 if (pool == null) {
+                    final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
                     final int hashingThreadCount = merkleDbConfig.getNumHalfDiskHashMapFlushThreads();
                     pool = new ForkJoinPool(hashingThreadCount);
                     flushingPool = pool;
@@ -900,7 +900,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public void resizeIfNeeded(final long firstLeafPath, final long lastLeafPath) {
         final long currentSize = lastLeafPath - firstLeafPath + 1;
-        if (currentSize / numOfBuckets.get() <= goodAverageBucketEntryCount * 80 / 100) {
+        if (currentSize / numOfBuckets.get() * 100 <= goodAverageBucketEntryCount * 70L) {
             // No need to resize yet
             return;
         }
