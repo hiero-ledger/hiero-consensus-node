@@ -150,11 +150,9 @@ jobs:
           solo node setup -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo node start -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
-          solo explorer deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
-          solo relay deploy -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           
-          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
-          kubectl port-forward svc/hiero-explorer -n "${{ env.SOLO_NAMESPACE }}" 8080:80 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/hiero-explorer -n "${{ env.SOLO_NAMESPACE }}" 8080:80 > /dev/null 2>&1 &
         working-directory: ${{ github.workspace }}
 
       # Start the TCK server
@@ -186,7 +184,5 @@ jobs:
       - name: Stop solo
         if: ${{ always() }}
         run: |
-          solo relay destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}"
-          solo mirror-node destroy --deployment "${{ env.SOLO_DEPLOYMENT }}" --force
-          solo explorer destroy --deployment "${{ env.SOLO_DEPLOYMENT }}" --force
+          solo node stop -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
