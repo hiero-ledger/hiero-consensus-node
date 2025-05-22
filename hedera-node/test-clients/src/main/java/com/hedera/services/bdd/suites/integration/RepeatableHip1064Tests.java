@@ -681,9 +681,9 @@ public class RepeatableHip1064Tests {
                     "Expected node reward debit was " + expectedDebit + ", but was " + nodeRewardDebit
                             + " (expectedPerNode = " + expectedPerNode + ")");
             // node2 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(5L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(5L), "Node 2 reward is not as expected");
             // node3 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(6L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(6L), "Node 3 reward is not as expected");
         };
     }
 

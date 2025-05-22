@@ -469,7 +469,7 @@ public class TipsetEventCreator implements EventCreator {
      * @return the creation time for the new event
      */
     @NonNull
-    static Instant calculateNewEventCreationTime(
+    private static Instant calculateNewEventCreationTime(
             @NonNull final Instant now,
             @NonNull final Instant selfParentCreationTime,
             final int selfParentTransactionCount) {

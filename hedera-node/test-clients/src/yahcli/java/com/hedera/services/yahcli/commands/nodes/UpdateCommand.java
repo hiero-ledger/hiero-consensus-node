@@ -88,6 +88,16 @@ public class UpdateCommand implements Callable<Integer> {
             paramLabel = "path to the updated admin key to use")
     String newAdminKeyPath;
 
+    @CommandLine.Option(
+            names = {"--stop-declining-rewards", "--stopDecliningRewards"},
+            paramLabel = "triggers a node to begin accepting reward payments")
+    Boolean stopDecliningRewards;
+
+    @CommandLine.Option(
+            names = {"--start-declining-rewards", "--startDecliningRewards"},
+            paramLabel = "triggers a node to begin declining reward payments")
+    Boolean startDecliningRewards;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
@@ -145,6 +155,12 @@ public class UpdateCommand implements Callable<Integer> {
         } else {
             newHapiCertificateHash = null;
         }
+        Boolean declineReward = null;
+        if (startDecliningRewards != null) {
+            declineReward = Boolean.TRUE;
+        } else if (stopDecliningRewards != null) {
+            declineReward = Boolean.FALSE;
+        }
         final var delegate = new UpdateNodeSuite(
                 config,
                 targetNodeId,
@@ -156,7 +172,8 @@ public class UpdateCommand implements Callable<Integer> {
                 newGossipEndpoints,
                 newHapiEndpoints,
                 newGossipCaCertificate,
-                newHapiCertificateHash);
+                newHapiCertificateHash,
+                declineReward);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

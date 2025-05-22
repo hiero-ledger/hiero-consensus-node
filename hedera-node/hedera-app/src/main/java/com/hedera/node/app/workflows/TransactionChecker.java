@@ -281,19 +281,18 @@ public class TransactionChecker {
      * modules themselves).</p>
      *
      * @param signedTx the {@link SignedTransaction} that needs to be checked
-     * @param serializedTx if set, the serialized transaction bytes to include in the {@link TransactionInfo}
+     * @param serializedSignedTx if set, the serialized transaction bytes to include in the {@link TransactionInfo}
      * @return an {@link TransactionInfo} with the parsed and checked entities
      * @throws PreCheckException if the data is not valid
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @NonNull
-    public TransactionInfo checkSigned(@NonNull final SignedTransaction signedTx, @Nullable Bytes serializedTx)
+    public TransactionInfo checkSigned(@NonNull final SignedTransaction signedTx, @NonNull Bytes serializedSignedTx)
             throws PreCheckException {
         final var tx = Transaction.newBuilder()
-                .bodyBytes(signedTx.bodyBytes())
-                .sigMap(signedTx.sigMap())
+                .signedTransactionBytes(serializedSignedTx)
                 .build();
-        return check(tx, tx.bodyBytes(), tx.sigMap(), serializedTx);
+        return check(tx, signedTx.bodyBytes(), signedTx.sigMap(), null);
     }
 
     public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) throws PreCheckException {

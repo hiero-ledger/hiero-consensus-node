@@ -327,7 +327,7 @@ public final class IngestChecker {
 
         // Verify the signatures
         final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
-        final var verifier = new DefaultKeyVerifier(sigPairs.size(), hederaConfig, results);
+        final var verifier = new DefaultKeyVerifier(hederaConfig, results);
         final SignatureVerification payerKeyVerification;
         if (!isHollow(payer)) {
             payerKeyVerification = verifier.verificationFor(payerKey);

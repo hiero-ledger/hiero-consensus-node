@@ -3943,8 +3943,8 @@ public class TraceabilitySuite {
                 uploadInitCode(contract),
                 contractCreate(contract)
                         .via(CREATE_TXN)
-                        .exposingNumTo(
-                                num -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(
+                                id -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(id))),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
@@ -4752,16 +4752,13 @@ public class TraceabilitySuite {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(create2Factory),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(create2Factory)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(entityMemo)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    HapiPropertySource.asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(create2Factory)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(entityMemo)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(
+                                id -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 sourcing(() -> contractCallLocal(
                                 create2Factory, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)

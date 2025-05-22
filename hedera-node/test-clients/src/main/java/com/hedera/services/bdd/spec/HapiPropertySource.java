@@ -287,6 +287,18 @@ public interface HapiPropertySource {
                 .build();
     }
 
+    static AccountID asAccount(final HapiSpec spec, long num) {
+        return asAccount(spec.shard(), spec.realm(), num);
+    }
+
+    static AccountID asAccount(final HapiSpec spec, ByteString alias) {
+        return AccountID.newBuilder()
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
+                .setAlias(alias)
+                .build();
+    }
+
     static ContractID asContract(String shard, String realm, String num) {
         return asContract(Long.parseLong(shard), Long.parseLong(realm), Long.parseLong(num));
     }
@@ -296,6 +308,14 @@ public interface HapiPropertySource {
                 .setShardNum(shard)
                 .setRealmNum(realm)
                 .setContractNum(num)
+                .build();
+    }
+
+    static ContractID asContract(AccountID accountID) {
+        return ContractID.newBuilder()
+                .setShardNum(accountID.getShardNum())
+                .setRealmNum(accountID.getRealmNum())
+                .setContractNum(accountID.getAccountNum())
                 .build();
     }
 
@@ -458,10 +478,14 @@ public interface HapiPropertySource {
 
     static ScheduleID asSchedule(String v) {
         long[] nativeParts = asDotDelimitedLongArray(v);
+        return asSchedule(nativeParts[0], nativeParts[1], nativeParts[2]);
+    }
+
+    static ScheduleID asSchedule(long shard, long realm, long num) {
         return ScheduleID.newBuilder()
-                .setShardNum(nativeParts[0])
-                .setRealmNum(nativeParts[1])
-                .setScheduleNum(nativeParts[2])
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setScheduleNum(num)
                 .build();
     }
 
@@ -499,6 +523,14 @@ public interface HapiPropertySource {
         return asSolidityAddress((int) accountId.getShardNum(), accountId.getRealmNum(), accountId.getAccountNum());
     }
 
+    static Address numAsHeadlongAddress(HapiSpec spec, final long num) {
+        return idAsHeadlongAddress(AccountID.newBuilder()
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
+                .setAccountNum(num)
+                .build());
+    }
+
     static Address idAsHeadlongAddress(final AccountID accountId) {
         return asHeadlongAddress(
                 asSolidityAddress((int) accountId.getShardNum(), accountId.getRealmNum(), accountId.getAccountNum()));
@@ -507,6 +539,10 @@ public interface HapiPropertySource {
     static Address idAsHeadlongAddress(final TokenID tokenId) {
         return asHeadlongAddress(
                 asSolidityAddress((int) tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum()));
+    }
+
+    static String asHexedSolidityAddress(final HapiSpec spec, final long num) {
+        return CommonUtils.hex(asSolidityAddress(spec, num));
     }
 
     static String asHexedSolidityAddress(final AccountID accountId) {
@@ -537,6 +573,10 @@ public interface HapiPropertySource {
         arraycopy(Longs.toByteArray(num), 0, solidityAddress, 12, 8);
 
         return solidityAddress;
+    }
+
+    static byte[] asSolidityAddress(HapiSpec spec, final long num) {
+        return HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), num);
     }
 
     static String asHexedSolidityAddress(final int shard, final long realm, final long num) {

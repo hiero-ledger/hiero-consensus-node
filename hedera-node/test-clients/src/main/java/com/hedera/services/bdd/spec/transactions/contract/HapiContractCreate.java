@@ -42,7 +42,6 @@ import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import org.hiero.base.utility.CommonUtils;
@@ -75,11 +74,6 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
 
     @Nullable
     private BiConsumer<HapiSpec, ContractCreateTransactionBody.Builder> spec;
-
-    public HapiContractCreate exposingNumTo(LongConsumer obs) {
-        newNumObserver = Optional.of(obs);
-        return this;
-    }
 
     public HapiContractCreate exposingContractIdTo(Consumer<ContractID> obs) {
         newIdObserver = Optional.of(obs);
