@@ -353,15 +353,12 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
                             if (autoRenewAccount.isPresent()) {
                                 final var id = TxnUtils.asId(autoRenewAccount.get(), spec);
                                 b.setAutoRenewAccount(id);
-                                if (!skipAutoRenewPeriod) {
-                                    final long secs = autoRenewPeriod.orElse(spec.setup()
-                                            .defaultAutoRenewPeriod()
-                                            .getSeconds());
-                                    b.setAutoRenewPeriod(Duration.newBuilder()
-                                            .setSeconds(secs)
-                                            .build());
+                                if (autoRenewPeriod.isEmpty() && !skipAutoRenewPeriod) {
+                                    b.setAutoRenewPeriod(spec.setup().defaultAutoRenewPeriod());
                                 }
                             }
+                            autoRenewPeriod.ifPresent(p -> b.setAutoRenewPeriod(
+                                    Duration.newBuilder().setSeconds(p).build()));
                             if (autoRenewPeriod.isEmpty()) {
                                 expiry.ifPresentOrElse(
                                         t -> b.setExpiry(Timestamp.newBuilder()

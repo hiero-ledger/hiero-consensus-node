@@ -121,7 +121,7 @@ public class TokenCreateSpecs {
     private static final String PAYER = "payer";
     public static final String INVALID_ACCOUNT = "999.999.999";
 
-    private static String TOKEN_TREASURY = "treasury";
+    private static final String TOKEN_TREASURY = "treasury";
 
     private static final String A_TOKEN = "TokenA";
     private static final String B_TOKEN = "TokenB";
@@ -152,20 +152,18 @@ public class TokenCreateSpecs {
                 .then(
                         submitModified(withSuccessivelyVariedBodyIds(), () -> tokenCreate("fungibleToken")
                                 .treasury(TOKEN_TREASURY)
-                                .autoRenewAccount("autoRenewAccount")
                                 .withCustom(fixedHbarFee(1L, "feeCollector"))
                                 .withCustom(fixedHtsFee(1L, "feeToken", "feeCollector"))
                                 .withCustom(fractionalFee(1L, 100L, 1L, OptionalLong.of(5L), "feeCollector"))
-                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, "feeCollector", "autoRenewAccount")),
+                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, "feeCollector")),
                         submitModified(withSuccessivelyVariedBodyIds(), () -> tokenCreate("nonFungibleToken")
                                 .treasury(TOKEN_TREASURY)
                                 .tokenType(NON_FUNGIBLE_UNIQUE)
                                 .initialSupply(0L)
                                 .supplyKey("supplyKey")
-                                .autoRenewAccount("autoRenewAccount")
                                 .withCustom(royaltyFeeWithFallback(
                                         1L, 10L, fixedHbarFeeInheritingRoyaltyCollector(123L), "feeCollector"))
-                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY, "autoRenewAccount")));
+                                .signedBy(DEFAULT_PAYER, TOKEN_TREASURY)));
     }
 
     @HapiTest
@@ -1173,9 +1171,22 @@ public class TokenCreateSpecs {
                         .supplyKey(GENESIS)
                         .initialSupply(0L)
                         .treasury(TOKEN_TREASURY)
-                        .expiry(0)
                         .autoRenewAccount("autoRenewAccount")
                         .hasPrecheck(INVALID_RENEWAL_PERIOD));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenCreateWithAutoRenewPeriodAndNoAccount() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS)
+                        .hasPrecheck(INVALID_AUTORENEW_ACCOUNT));
     }
 
     private final long hbarAmount = 1_234L;
