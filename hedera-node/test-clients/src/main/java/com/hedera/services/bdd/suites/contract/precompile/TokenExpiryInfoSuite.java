@@ -19,7 +19,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -29,6 +28,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
@@ -146,8 +146,7 @@ public class TokenExpiryInfoSuite {
         @DisplayName("still cannot set an invalid auto-renew account")
         final Stream<DynamicTest> cannotSetInvalidAutoRenewAccount() {
             return hapiTest(withOpContext((spec, log) -> {
-                final var missingLongZeroAddress = asHeadlongAddress(toAddressStringWithShardAndRealm(
-                        (int) spec.shard(), spec.realm(), Long.toHexString(Integer.MAX_VALUE)));
+                final var missingLongZeroAddress = asHeadlongAddress(asSolidityAddress(spec, Integer.MAX_VALUE));
                 // This function takes four arguments---a token address, an expiry second, an auto-renew account
                 // address, and an auto-renew period---and tries to update the token at that address with the given
                 // metadata; here we set an invalid auto-renew account address

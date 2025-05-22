@@ -251,7 +251,7 @@ public class MerkleTestBase extends StateTestBase {
             registry.registerConstructables("com.swirlds.virtualmap");
             registry.registerConstructables("com.swirlds.common.merkle");
             registry.registerConstructables("com.swirlds.common");
-            registry.registerConstructables("org.hiero.base.crypto");
+            registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
             ConstructableRegistry.getInstance()

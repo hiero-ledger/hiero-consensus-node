@@ -81,6 +81,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -238,10 +239,7 @@ public class CryptoUpdateSuite {
         final var stakedAccountId = 20;
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate("user")
-                        .key(ADMIN_KEY)
-                        .stakedAccountId(stakedAccountId)
-                        .declinedReward(true),
+                cryptoCreate("user").key(ADMIN_KEY).stakedAccountId(20).declinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
                                 .stakedAccountId(stakedAccountId)
@@ -254,10 +252,7 @@ public class CryptoUpdateSuite {
                 cryptoUpdate("user").newStakedNodeId(-25L).hasKnownStatus(INVALID_STAKING_ID),
                 getAccountInfo("user")
                         .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(false)),
-                cryptoUpdate("user")
-                        .key(ADMIN_KEY)
-                        .newStakedAccountId(stakedAccountId)
-                        .newDeclinedReward(true),
+                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("20").newDeclinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
                                 .stakedAccountId(stakedAccountId)
@@ -451,18 +446,14 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateFailsWithContractKey() {
-        AtomicLong id = new AtomicLong();
+        final var id = new AtomicReference<ContractID>();
         final var CONTRACT = "Multipurpose";
         return hapiTest(
                 cryptoCreate(TARGET_ACCOUNT),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).exposingNumTo(id::set),
+                contractCreate(CONTRACT).exposingContractIdTo(id::set),
                 sourcing(() -> cryptoUpdate(TARGET_ACCOUNT)
-                        .protoKey(Key.newBuilder()
-                                .setContractID(ContractID.newBuilder()
-                                        .setContractNum(id.get())
-                                        .build())
-                                .build())
+                        .protoKey(Key.newBuilder().setContractID(id.get()).build())
                         .hasKnownStatus(INVALID_SIGNATURE)));
     }
 

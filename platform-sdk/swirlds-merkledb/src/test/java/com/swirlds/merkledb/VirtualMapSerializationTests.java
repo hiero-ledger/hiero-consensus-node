@@ -66,7 +66,7 @@ class VirtualMapSerializationTests {
         registry.registerConstructables("com.swirlds.merkledb");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero.consensus");
+        registry.registerConstructables("org.hiero");
         ConstructableRegistry.getInstance()
                 .registerConstructable(new ClassConstructorPair(
                         MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));

@@ -43,4 +43,9 @@ public class ResettableRandom extends Random {
     public long getInitialSeed() {
         return initialSeed;
     }
+
+    @Override
+    public String toString() {
+        return "ResettableRandom{" + initialSeed + "L}";
+    }
 }

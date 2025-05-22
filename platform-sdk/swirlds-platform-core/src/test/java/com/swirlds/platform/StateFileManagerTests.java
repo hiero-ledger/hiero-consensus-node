@@ -89,7 +89,7 @@ class StateFileManagerTests {
     static void beforeAll() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero.base.crypto");
+        registry.registerConstructables("org.hiero");
         registerMerkleStateRootClassIds();
     }
 

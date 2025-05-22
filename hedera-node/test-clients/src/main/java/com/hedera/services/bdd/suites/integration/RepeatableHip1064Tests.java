@@ -21,7 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
@@ -88,7 +89,8 @@ public class RepeatableHip1064Tests {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(1)
     final Stream<DynamicTest> rewardsDontExceedRewardAccountBalance() {
-        final AtomicLong expectedNodeFees = new AtomicLong(0);
+        final AtomicLong preCollectionNodeFees = new AtomicLong(0);
+        final AtomicLong additionalNodeFees = new AtomicLong(0);
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
@@ -112,22 +114,26 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
-                // Collect some node fees with a non-system payer
+                // First get any node fees already collected at the end of this block
+                sleepForBlockPeriod(),
                 cryptoCreate(CIVILIAN_PAYER),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(
+                        TokenService.NAME,
+                        "NODE_REWARDS",
+                        (nodeRewards) -> preCollectionNodeFees.set(nodeRewards.nodeFeesCollected())),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
-                // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
-                getTxnRecord("notFree").exposingTo(r -> {
-                    expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                            .filter(a -> a.getAccountID().getAccountNum() == 3L)
-                            .findFirst()
-                            .orElseThrow()
-                            .getAmount());
-                }),
-                // validate all network fees go to 0.0.801
+                // Validate all network fees go to 0.0.801
                 validateRecordFees("notFree", List.of(3L, 801L)),
+                // Get the additional fee node fee collected
+                getTxnRecord("notFree")
+                        .exposingTo(r -> additionalNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
                 doWithStartupConfig(
                         "nodes.targetYearlyNodeRewardsUsd",
                         target -> doWithStartupConfig(
@@ -137,17 +143,20 @@ public class RepeatableHip1064Tests {
                                             / Integer.parseInt(numPeriods);
                                     final long targetTinybars =
                                             spec.ratesProvider().toTbWithActiveRates(targetReward);
-                                    final long prePaidRewards = expectedNodeFees.get() / 4;
+                                    final long prePaidRewards =
+                                            (preCollectionNodeFees.get() + additionalNodeFees.get()) / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
-                sleepForSeconds(2),
+                sleepForBlockPeriod(),
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
-                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
+                    final long expectedNodeFees = preCollectionNodeFees.get() + additionalNodeFees.get();
+                    assertEquals(
+                            expectedNodeFees, nodeRewards.nodeFeesCollected(), "Node fees collected did not match");
                     // Update node 1 to have missed more than 10% of rounds
                     return nodeRewards
                             .copyBuilder()
@@ -215,13 +224,12 @@ public class RepeatableHip1064Tests {
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
                 // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
-                getTxnRecord("notFree").exposingTo(r -> {
-                    expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                            .filter(a -> a.getAccountID().getAccountNum() == 3L)
-                            .findFirst()
-                            .orElseThrow()
-                            .getAmount());
-                }),
+                getTxnRecord("notFree")
+                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
                 // validate all network fees go to 0.0.801
                 validateRecordFees("notFree", List.of(3L, 801L)),
                 doWithStartupConfig(
@@ -236,7 +244,7 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
-                sleepForSeconds(2),
+                sleepForBlockPeriod(),
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
@@ -340,7 +348,7 @@ public class RepeatableHip1064Tests {
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                     expectedMinNodeReward.set(minRewardTinybars);
                                 }))),
-                sleepForSeconds(2),
+                sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
@@ -433,7 +441,7 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = 0;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
-                sleepForSeconds(2),
+                sleepForBlockPeriod(),
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
@@ -516,7 +524,7 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
-                sleepForSeconds(2),
+                sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
@@ -578,13 +586,12 @@ public class RepeatableHip1064Tests {
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
                 // Collects ~1.8M tinybar in node fees; so ~450k tinybar per node
-                getTxnRecord("notFree").exposingTo(r -> {
-                    expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                            .filter(a -> a.getAccountID().getAccountNum() == 3L)
-                            .findFirst()
-                            .orElseThrow()
-                            .getAmount());
-                }),
+                getTxnRecord("notFree")
+                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
+                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
+                                .findFirst()
+                                .orElseThrow()
+                                .getAmount())),
                 // validate all network fees go to 0.0.801
                 validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
                 doWithStartupConfig(
@@ -599,7 +606,7 @@ public class RepeatableHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
                                 }))),
-                sleepForSeconds(2),
+                sleepForBlockPeriod(),
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
@@ -663,15 +670,20 @@ public class RepeatableHip1064Tests {
             // node2 and node3 only expected to receive (node0 is system, node1 was inactive)
             long expectedDebit = -2 * expectedPerNode;
             if (Math.abs(expectedDebit) > nodeRewardBalance.getAsLong()) {
-                expectedDebit = -nodeRewardBalance.getAsLong();
                 expectedPerNode = nodeRewardBalance.getAsLong() / 2;
+                expectedDebit = 2 * -expectedPerNode;
             }
+            final long nodeRewardDebit =
+                    bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
             assertEquals(
-                    expectedDebit, bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount")));
+                    expectedDebit,
+                    nodeRewardDebit,
+                    "Expected node reward debit was " + expectedDebit + ", but was " + nodeRewardDebit
+                            + " (expectedPerNode = " + expectedPerNode + ")");
             // node2 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(5L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(5L), "Node 2 reward is not as expected");
             // node3 credit
-            assertEquals(expectedPerNode, bodyAdjustments.get(6L));
+            assertEquals(expectedPerNode, bodyAdjustments.get(6L), "Node 3 reward is not as expected");
         };
     }
 
