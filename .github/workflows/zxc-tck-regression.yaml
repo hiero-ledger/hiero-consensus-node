@@ -151,7 +151,7 @@ jobs:
           solo node setup -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo node start -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
-          
+
           nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/haproxy-node2-svc -n "${{ env.SOLO_NAMESPACE }}" 50212:50212 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
