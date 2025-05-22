@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
