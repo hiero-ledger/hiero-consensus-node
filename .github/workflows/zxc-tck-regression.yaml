@@ -88,6 +88,10 @@ jobs:
         with:
           node-version: 20.18.0
 
+      - name: Setup PNPM
+        run: |
+          npm install -g pnpm
+
       # Set up the gradle environment
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@06832c7b30a0129d7fb559bcc6e43d26f6374244 # v4.3.1
@@ -110,9 +114,9 @@ jobs:
       - name: Install NodeJS Dependencies (sdk-server)
         id: start-sdk-server
         run: |
-          npm install --prefer-offline --no-audit --progress=false
-          npm cache clean --force
-          nohup npm start &
+          pnpm add @hashgraph/sdk@^2.63.0-beta.1 long@^5.2.3 @hashgraph/proto@^2.17.0-beta.1
+          pnpm install
+          nohup pnpm start &
           server_pid=$!
           echo "Server PID: sdk-server-pid=${server_pid}" >> "${GITHUB_OUTPUT}"
         working-directory: platform-sdk/sdk-server/tck
@@ -155,8 +159,8 @@ jobs:
 
         working-directory: ${{ github.workspace }}
 
-      # Start the TCK server
-      - name: Start tck-server in background
+      # Start the TCK client
+      - name: Start tck-client
         run: |
           npx ts-node --files ./src/services/RunTestsInContainer.ts
         working-directory: platform-sdk/regression # required
@@ -165,7 +169,6 @@ jobs:
       - name: Stop tck-server
         if: ${{ always() }}
         run: kill -9 ${{ steps.start-sdk-server.outputs.sdk-server-pid }}
-        working-directory: platform-sdk/sdk-server/tck
 
       # Stop the solo nodes
       - name: Stop solo
