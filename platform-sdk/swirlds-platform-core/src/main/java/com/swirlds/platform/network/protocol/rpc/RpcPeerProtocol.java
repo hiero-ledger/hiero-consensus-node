@@ -74,6 +74,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private static final int PING = 5;
     private static final int PING_REPLY = 6;
 
+    private static final int EVENT_BATCH_SIZE = 512;
+
     /**
      * All pending messages to be sent; instead of just messages, it is holding references to lambdas writing to network
      * (in most cases, putting number of messages, type of message and serialized PBJ on the wire)
@@ -479,7 +481,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     @Override
     public void sendEvents(@NonNull final List<GossipEvent> gossipEvents) {
         outputQueue.add(out -> {
-            final List<List<GossipEvent>> batches = Lists.partition(gossipEvents, 1024 * 1024);
+            final List<List<GossipEvent>> batches = Lists.partition(gossipEvents, EVENT_BATCH_SIZE);
             {
                 for (final List<GossipEvent> batch : batches) {
                     if (!batch.isEmpty()) {

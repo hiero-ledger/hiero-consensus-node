@@ -43,9 +43,24 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
 
     private static final Logger logger = LogManager.getLogger(GossipRpcShadowgraphSynchronizer.class);
 
+    /**
+     * List of all started sync conversations
+     */
     private final List<SyncConversation> allConversations = new CopyOnWriteArrayList<>();
+
+    /**
+     * Our own node id
+     */
     private final NodeId selfId;
+
+    /**
+     * How long should we wait between sync attempts
+     */
     private final Duration syncPeriod;
+
+    /**
+     * Configuration for various sync parameters
+     */
     private final SyncConfig syncConfig;
 
     /**
@@ -125,12 +140,39 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         private final NodeId selfId;
         private final Duration sleepAfterSync;
 
+        /**
+         * Event window we have reserved during start of sync process with remote node
+         */
         private ReservedEventWindow shadowWindow;
+
+        /**
+         * Sync data we have sent to remote party
+         */
         private SyncData mySyncData;
+
+        /**
+         * Sync data we have received from remote party
+         */
         private SyncData remoteSyncData;
+
+        /**
+         * List of tips we have sent to remote party
+         */
         private List<ShadowEvent> myTips;
+
+        /**
+         * Has remote node reported it has falled behind
+         */
         private boolean remoteFallenBehind;
+
+        /**
+         * What was the time we have finished sync last
+         */
         private Instant lastSyncTime = Instant.MIN;
+
+        /**
+         * Remote party is still sending us events, so we shouldn't bother it with another sync request
+         */
         private boolean remoteStillSendingEvents = false;
 
         /**
@@ -259,7 +301,6 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
             // create a send list based on the known set
             final List<PlatformEvent> sendList =
                     createSendList(selfId, eventsTheyHave, mySyncData.eventWindow(), remoteSyncData.eventWindow());
-            // logger.info(SYNC_INFO.getMarker(), "Sending {} events", sendList.size());
             sender.sendEvents(
                     sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
             sender.sendEndOfEvents().thenRun(this::finishedSendingEvents);
@@ -272,12 +313,7 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         @Override
         public void receiveEvents(@NonNull final List<GossipEvent> gossipEvents) {
             final long start = System.nanoTime();
-            gossipEvents.forEach(gossipEvent -> {
-                final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
-                platformEvent.setSenderId(otherNodeId);
-                intakeEventCounter.eventEnteredIntakePipeline(otherNodeId);
-                eventHandler.accept(platformEvent);
-            });
+            gossipEvents.forEach(this::handleIncomingEvent);
             syncMetrics.eventsReceived(start, gossipEvents.size());
         }
 
@@ -340,6 +376,18 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         private boolean isSyncCooldownComplete() {
             final Duration elapsed = Duration.between(lastSyncTime, time.now());
             return isGreaterThanOrEqualTo(elapsed, sleepAfterSync);
+        }
+
+        /**
+         * Propagate single event down the intake pipeline
+         *
+         * @param gossipEvent event received from the remote peer
+         */
+        private void handleIncomingEvent(@NonNull final GossipEvent gossipEvent) {
+            final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+            platformEvent.setSenderId(otherNodeId);
+            intakeEventCounter.eventEnteredIntakePipeline(otherNodeId);
+            eventHandler.accept(platformEvent);
         }
     }
 }
