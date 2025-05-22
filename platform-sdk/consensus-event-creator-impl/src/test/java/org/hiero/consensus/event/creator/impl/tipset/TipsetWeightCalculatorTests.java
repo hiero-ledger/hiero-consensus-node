@@ -3,7 +3,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -171,7 +170,7 @@ class TipsetWeightCalculatorTests {
                 parentTipsets.add(tipsetTracker.getTipset(parent));
             }
 
-            final Tipset newTipset = merge(parentTipsets, roster);
+            final Tipset newTipset = new Tipset(roster).merge(parentTipsets);
 
             final TipsetAdvancementWeight expectedAdvancementScoreChange =
                     previousSnapshot.getTipAdvancementWeight(selfId, newTipset).minus(runningAdvancementScore);

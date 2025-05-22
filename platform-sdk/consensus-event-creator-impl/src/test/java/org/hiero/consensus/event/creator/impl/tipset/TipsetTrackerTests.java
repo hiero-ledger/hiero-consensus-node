@@ -3,7 +3,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -146,7 +145,7 @@ class TipsetTrackerTests {
                 parentTipsets.add(expectedTipsets.get(event.getSelfParent()));
             }
 
-            final Tipset expectedTipset = merge(parentTipsets, roster);
+            final Tipset expectedTipset = new Tipset(roster).merge(parentTipsets);
 
             if (!creator.equals(selfId)) {
                 expectedTipset.advance(creator, nGen);

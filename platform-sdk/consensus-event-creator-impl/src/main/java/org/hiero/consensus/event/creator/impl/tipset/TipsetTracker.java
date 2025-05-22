@@ -2,7 +2,6 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
@@ -119,7 +118,7 @@ public class TipsetTracker {
         // will be assigned by the orphan buffer later. Furthermore, we do not want to assign it
         // here because the orphan buffer might disagree about the value given that event windows
         // are process asynchronously.
-        final Tipset eventTipset = merge(parentTipsets, roster);
+        final Tipset eventTipset = new Tipset(roster).merge(parentTipsets);
 
         tipsets.put(selfEventDesc, eventTipset);
 
@@ -139,7 +138,8 @@ public class TipsetTracker {
 
         final List<Tipset> parentTipsets = getParentTipsets(event.getAllParents());
 
-        final Tipset eventTipset = merge(parentTipsets, roster).advance(event.getCreatorId(), event.getNGen());
+        final Tipset eventTipset =
+                new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getNGen());
 
         tipsets.put(event.getDescriptor(), eventTipset);
         latestGenerations = latestGenerations.advance(event.getCreatorId(), event.getNGen());
