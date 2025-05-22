@@ -322,21 +322,6 @@ public class UtilVerbs {
 
     /**
      * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
-     * with the startup value of the given property on the target network; and execute its delegate.
-     *
-     * @param factory the factory for the delegate operation
-     * @return the operation that will execute the delegate created from the target network's startup value
-     */
-    public static SpecOperation doWithShardAndRealm(@NonNull final BiFunction<Long, Long, SpecOperation> factory) {
-        return withOpContext((spec, opLog) -> {
-            final long shard = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.shard");
-            final long realm = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.realm");
-            allRunFor(spec, factory.apply(shard, realm));
-        });
-    }
-
-    /**
-     * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
      * with the startup value of the given property on the target network and its current consensus time; and
      * execute its delegate.
      *
@@ -1552,10 +1537,7 @@ public class UtilVerbs {
             long tinyBarMaxNetworkFee,
             long tinyBarMaxServiceFee) {
         return withOpContext((spec, opLog) -> {
-            var shard = spec.startupProperties().getLong("hedera.shard");
-            var realm = spec.startupProperties().getLong("hedera.realm");
-
-            if (!spec.setup().defaultNode().equals(asAccount(String.format("%d.%d.3", shard, realm)))) {
+            if (!spec.setup().defaultNode().equals(asAccount(spec, 3))) {
                 opLog.info("Sleeping to wait for fee reduction...");
                 Thread.sleep(20000);
                 return;
@@ -2145,8 +2127,6 @@ public class UtilVerbs {
     }
 
     public static HapiSpecOperation validateRecordTransactionFees(HapiSpec spec, String txn) {
-        var shard = spec.startupProperties().getLong("hedera.shard");
-        var realm = spec.startupProperties().getLong("hedera.realm");
         var fundingAccount = spec.startupProperties().getLong("ledger.fundingAccount");
         var stakingRewardAccount = spec.startupProperties().getLong("accounts.stakingRewardAccount");
         var nodeRewardAccount = spec.startupProperties().getLong("accounts.nodeRewardAccount");
@@ -2154,10 +2134,10 @@ public class UtilVerbs {
         return validateRecordTransactionFees(
                 txn,
                 Set.of(
-                        asAccount(String.format("%s.%s.3", shard, realm)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, fundingAccount)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, stakingRewardAccount)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, nodeRewardAccount))));
+                        asAccount(spec, 3),
+                        asAccount(spec, fundingAccount),
+                        asAccount(spec, stakingRewardAccount),
+                        asAccount(spec, nodeRewardAccount)));
     }
 
     /**

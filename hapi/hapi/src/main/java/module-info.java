@@ -68,15 +68,16 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.block.stream.schema;
     exports com.hedera.hapi.node.state.tss;
     exports com.hedera.hapi.services.auxiliary.tss;
-    exports com.hedera.hapi.block.protoc;
+    exports org.hiero.block.api.protoc;
     exports com.hedera.hapi.block.stream.protoc;
     exports com.hedera.hapi.block.stream.output.protoc;
-    exports com.hedera.hapi.block;
+    exports org.hiero.block.api;
     exports com.hedera.hapi.services.auxiliary.tss.legacy;
     exports com.hedera.hapi.services.auxiliary.hints;
     exports com.hedera.hapi.services.auxiliary.history;
     exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.node.state.entity;
+    exports org.hiero.block.api.codec;
 
     // for testing against Google protobuf
     opens com.hedera.hapi.block.stream.input.protoc;
