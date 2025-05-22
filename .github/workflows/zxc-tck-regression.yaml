@@ -171,7 +171,9 @@ jobs:
       # Stop the TCK server
       - name: Stop tck-server
         if: ${{ always() }}
-        run: kill -9 ${{ steps.start-sdk-server.outputs.sdk-server-pid }}
+        run: |
+          echo ${{ steps.start-sdk-server.outputs.sdk-server-pid }}
+          kill -9 ${{ steps.start-sdk-server.outputs.sdk-server-pid }}
 
       # Stop the solo nodes
       - name: Stop solo
