@@ -118,7 +118,7 @@ jobs:
           pnpm install
           nohup pnpm start &
           server_pid=$!
-          echo "Server PID: sdk-server-pid=${server_pid}" >> "${GITHUB_OUTPUT}"
+          echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
         working-directory: platform-sdk/sdk-server/tck
 
       # Install solo and configure to use the artifacts from
@@ -173,8 +173,8 @@ jobs:
       - name: Stop tck-server
         if: ${{ always() }}
         run: |
-          echo ${{ steps.start-sdk-server.outputs.sdk-server-pid }}
-          kill -9 ${{ steps.start-sdk-server.outputs.sdk-server-pid }}
+          echo ${{ steps.start-sdk-server.outputs.pid }}
+          kill -9 ${{ steps.start-sdk-server.outputs.pid }}
 
       # Stop the solo nodes
       - name: Stop solo
