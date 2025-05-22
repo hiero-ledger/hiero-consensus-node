@@ -159,20 +159,14 @@ jobs:
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50212:50212 > /dev/null 2>&1 &
           kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 8080:8080 > /dev/null 2>&1 &
           TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
-        working-directory: platform-sdk/regression # required
-
-      - name: Wait for TCK server
-        run: |
           echo "Waiting for TCK server on port 8544..."
           until bash -c 'exec 3>/dev/tcp/localhost/8544'; do
             echo "Still waiting..."
             sleep 1
           done
           echo "TCK server is ready!"
-
-      # Run the TCK tests
-      - name: Run TCK tests
-        run: docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/tck-client
+          docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/tck-client
+        working-directory: platform-sdk/regression # required
 
       # Stop the TCK server
       - name: Stop tck-server
