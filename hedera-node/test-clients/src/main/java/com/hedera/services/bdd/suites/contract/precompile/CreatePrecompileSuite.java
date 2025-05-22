@@ -47,6 +47,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
@@ -54,7 +55,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
@@ -839,8 +839,7 @@ public class CreatePrecompileSuite {
                                         TOKEN_CREATE_CONTRACT,
                                         CREATE_NFT_WITH_KEYS_AND_EXPIRY_FUNCTION,
                                         HapiParserUtil.asHeadlongAddress((byte[]) ArrayUtils.toPrimitive(
-                                                Utils.asSolidityAddress(
-                                                        (int) spec.shard(), spec.realm(), 999_999_999L))),
+                                                HapiPropertySource.asSolidityAddress(spec, 999_999_999L))),
                                         spec.registry()
                                                 .getKey(ED25519KEY)
                                                 .getEd25519()

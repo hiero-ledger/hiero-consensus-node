@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -200,7 +201,10 @@ public class ScheduleSignTest {
                 scheduleSign(schedule).alsoSigningWith(newSenderKey).sigControl(forKey(newSenderKey, firstSigThree)),
                 getAccountBalance(receiver).hasTinyBars(0L),
                 cryptoUpdate(sender).key(newSenderKey),
-                scheduleSign(schedule).signedBy(RANDOM_KEY).payingWith("random"),
+                scheduleSign(schedule)
+                        .signedBy(RANDOM_KEY)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(RANDOM_KEY))
+                        .payingWith("random"),
                 getAccountBalance(receiver).hasTinyBars(1L),
                 scheduleSign(schedule)
                         .alsoSigningWith(newSenderKey)

@@ -66,6 +66,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -108,6 +109,8 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.utils.Signing;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -264,10 +267,7 @@ public class ContractCreateSuite {
         final var contract = "Multipurpose";
 
         return hapiTest(uploadInitCode(contract), contractCreate(contract).balance(666), withOpContext((spec, log) -> {
-            Object[] donationArgs = new Object[] {
-                new BigInteger(HapiPropertySource.asSolidityAddress((int) spec.shard(), spec.realm(), 666666L)),
-                "Hey, Ma!"
-            };
+            final Object[] donationArgs = {new BigInteger(asSolidityAddress(spec, 666_666L)), "Hey, Ma!"};
             final var callOp = contractCall(contract, "donate", donationArgs).hasKnownStatus(CONTRACT_REVERT_EXECUTED);
             allRunFor(spec, callOp);
         }));
@@ -569,8 +569,8 @@ public class ContractCreateSuite {
         final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var newKey = "delegateContractKey";
 
-        final AtomicLong justSendContractNum = new AtomicLong();
-        final AtomicLong beneficiaryAccountNum = new AtomicLong();
+        final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
+        final AtomicReference<AccountID> beneficiaryAccountId = new AtomicReference<>();
 
         return hapiTest(
                 uploadInitCode(justSendContract, sendInternalAndDelegateContract),
@@ -578,44 +578,34 @@ public class ContractCreateSuite {
                 // when it has EVM address alias (isNotPriority check fails)
                 contractCreate(justSendContract)
                         .gas(300_000L)
-                        .exposingNumTo(justSendContractNum::set)
+                        .exposingContractIdTo(justSendContractId::set)
                         .refusingEthConversion(),
                 contractCreate(sendInternalAndDelegateContract).gas(300_000L).balance(2 * totalToSend),
                 cryptoCreate(beneficiary)
                         .balance(0L)
                         .keyShape(origKey.signedWith(sigs(ON, sendInternalAndDelegateContract)))
                         .receiverSigRequired(true)
-                        .exposingCreatedIdTo(id -> beneficiaryAccountNum.set(id.getAccountNum())),
+                        .exposingCreatedIdTo(beneficiaryAccountId::set),
                 /* Without delegateContractId permissions, the second send via delegate call will
                  * fail, so only half of totalToSend will make it to the beneficiary. (Note the entire
                  * call doesn't fail because exceptional halts in "raw calls" don't automatically
                  * propagate up the stack like a Solidity revert does.) */
-                withOpContext((spec, logger) -> {
-                    final var callOP = contractCall(
-                            sendInternalAndDelegateContract,
-                            "sendRepeatedlyTo",
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), justSendContractNum.get())),
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
-                            BigInteger.valueOf(totalToSend / 2));
-                    allRunFor(spec, callOP);
-                }),
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
                 /* But now we update the beneficiary to have a delegateContractId */
                 newKeyNamed(newKey).shape(revisedKey.signedWith(sigs(ON, sendInternalAndDelegateContract))),
                 cryptoUpdate(beneficiary).key(newKey),
-                withOpContext((spec, logger) -> {
-                    final var callOp = contractCall(
-                            sendInternalAndDelegateContract,
-                            "sendRepeatedlyTo",
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), justSendContractNum.get())),
-                            new BigInteger(HapiPropertySource.asSolidityAddress(
-                                    (int) spec.shard(), spec.realm(), beneficiaryAccountNum.get())),
-                            BigInteger.valueOf(totalToSend / 2));
-                    allRunFor(spec, callOp);
-                }),
+                sourcing(() -> contractCall(
+                        sendInternalAndDelegateContract,
+                        "sendRepeatedlyTo",
+                        new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
+                        BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
 

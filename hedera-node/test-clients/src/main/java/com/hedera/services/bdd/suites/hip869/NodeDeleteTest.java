@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -88,6 +89,7 @@ public class NodeDeleteTest {
                         .setNode(5)
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("multipleSigsDeletion"),
                 validateChargedUsdWithin("multipleSigsDeletion", 0.0011276316, 3.0),

@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDE
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
@@ -20,7 +21,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -109,6 +109,7 @@ public class UpdateAccountEnabledTest {
                         .setNode(5)
                         .payingWith("payer")
                         .signedBy("payer", "payer", "randomAccount", "testKey")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .accountId("1000")
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
@@ -128,12 +129,6 @@ public class UpdateAccountEnabledTest {
                         viewNode(
                                 "testNode",
                                 node -> assertEquals(
-                                        AccountID.newBuilder()
-                                                .shardNum(spec.shard())
-                                                .realmNum(spec.realm())
-                                                .accountNum(1000)
-                                                .build(),
-                                        node.accountId(),
-                                        "Node accountId should be updated")))));
+                                        1000, node.accountId().accountNum(), "Node accountId should be updated")))));
     }
 }

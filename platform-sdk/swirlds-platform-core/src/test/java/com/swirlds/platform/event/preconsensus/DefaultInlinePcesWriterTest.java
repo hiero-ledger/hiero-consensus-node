@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.preconsensus;
 
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
@@ -24,40 +23,39 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class DefaultInlinePcesWriterTest {
 
     @TempDir
     private Path tempDir;
 
-    private final AncientMode ancientMode = GENERATION_THRESHOLD;
     private final int numEvents = 1_000;
     private final NodeId selfId = NodeId.of(0);
 
-    private PlatformContext platformContext;
-
-    @BeforeEach
-    void beforeEach() {
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, ancientMode == BIRTH_ROUND_THRESHOLD)
-                .withValue(PcesConfig_.DATABASE_DIRECTORY, tempDir.toString())
-                .getOrCreateConfig();
-        platformContext = buildContext(configuration);
-    }
-
     @NonNull
-    private PlatformContext buildContext(@NonNull final Configuration configuration) {
+    private static PlatformContext buildContext(@NonNull final Configuration configuration) {
         return TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .withTime(new FakeTime(Duration.ofMillis(1)))
                 .build();
     }
 
-    @Test
-    void standardOperationTest() throws Exception {
+    @NonNull
+    private PlatformContext getPlatformContext(final AncientMode ancientMode) {
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(PcesConfig_.DATABASE_DIRECTORY, tempDir.toString())
+                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, ancientMode == BIRTH_ROUND_THRESHOLD)
+                .getOrCreateConfig();
+        return buildContext(configuration);
+    }
+
+    @ParameterizedTest
+    @EnumSource(AncientMode.class)
+    void standardOperationTest(final AncientMode ancientMode) throws Exception {
+        final PlatformContext platformContext = getPlatformContext(ancientMode);
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
@@ -83,11 +81,12 @@ class DefaultInlinePcesWriterTest {
         PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0, ancientMode);
     }
 
-    @Test
-    void ancientEventTest() throws Exception {
+    @ParameterizedTest
+    @EnumSource(AncientMode.class)
+    void ancientEventTest(final AncientMode ancientMode) throws Exception {
 
         final Random random = RandomUtils.getRandomPrintSeed();
-
+        final PlatformContext platformContext = getPlatformContext(ancientMode);
         final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
 
         final int stepsUntilAncient = random.nextInt(50, 100);
