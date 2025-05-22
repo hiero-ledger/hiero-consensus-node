@@ -36,6 +36,9 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -44,6 +47,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class TokenCreateValidator {
+    private static final Logger log = LoggerFactory.getLogger(TokenCreateValidator.class);
     private final TokenAttributesValidator tokenAttributesValidator;
 
     /**
@@ -73,7 +77,10 @@ public class TokenCreateValidator {
 
         validateFalsePreCheck(maxSupply > 0 && initialSupply > maxSupply, INVALID_TOKEN_INITIAL_SUPPLY);
         validateTruePreCheck(op.hasTreasury(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
-        validateTrue(!op.hasAutoRenewAccount() || op.autoRenewPeriod().seconds() >= 0, INVALID_RENEWAL_PERIOD);
+        log.info(op.toString());
+        if (op.hasAutoRenewAccount()) {
+            validateTrue(op.hasAutoRenewPeriod() && op.autoRenewPeriod().seconds() >= 0, INVALID_RENEWAL_PERIOD);
+        }
 
         if (tokenType == NON_FUNGIBLE_UNIQUE) {
             validateTruePreCheck(op.hasSupplyKey(), TOKEN_HAS_NO_SUPPLY_KEY);

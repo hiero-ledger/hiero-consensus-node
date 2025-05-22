@@ -644,6 +644,8 @@ public class TokenCreateSpecs {
 
     @HapiTest
     final Stream<DynamicTest> onlyValidCustomFeeScheduleCanBeCreated() {
+        final long negativeHtsFee = -100L;
+        final String invalidEntityId = "1.2.786";
         return defaultHapiSpec("OnlyValidCustomFeeScheduleCanBeCreated")
                 .given(
                         newKeyNamed(customFeesKey),
@@ -1160,6 +1162,22 @@ public class TokenCreateSpecs {
                         .hasKnownStatus(INVALID_EXPIRATION_TIME));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> tokenCreateWithAutoRenewAccountAndNoPeriod() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate(token)
+                        .skipAutoRenewPeriod()
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .expiry(0)
+                        .autoRenewAccount("autoRenewAccount")
+                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+    }
+
     private final long hbarAmount = 1_234L;
     private final long htsAmount = 2_345L;
     private final long numerator = 1;
@@ -1171,7 +1189,5 @@ public class TokenCreateSpecs {
     private final String hbarCollector = "hbarFee";
     private final String htsCollector = "denomFee";
     private final String tokenCollector = "fractionalFee";
-    private final String invalidEntityId = "1.2.786";
-    private final long negativeHtsFee = -100L;
     private final String customFeesKey = "antique";
 }
