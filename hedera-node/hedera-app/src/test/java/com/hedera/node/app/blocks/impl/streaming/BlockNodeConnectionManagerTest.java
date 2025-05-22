@@ -1,162 +1,177 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.ACTIVE;
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.UNINITIALIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
-import com.hedera.node.app.spi.fixtures.util.LogCaptor;
-import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
-import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
-import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.hapi.block.PublishStreamResponse;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import io.grpc.stub.StreamObserver;
-import java.io.IOException;
+import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Supplier;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
-class BlockNodeConnectionManagerTest {
-    private static final Duration INITIAL_DELAY = Duration.ofMillis(10);
+@ExtendWith(MockitoExtension.class)
+class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
-    @LoggingSubject
+    // Block Node Communication Components
+    private BlockNodeConnection subject;
+    private BlockNodeConnection subject2;
     private BlockNodeConnectionManager blockNodeConnectionManager;
-
-    @LoggingTarget
-    private LogCaptor logCaptor;
-
-    @Mock
-    private Supplier<Void> mockSupplier;
-
-    @Mock
-    private BlockNodeConnection mockConnection;
+    private BlockStreamMetrics blockStreamMetrics;
+    private BlockStreamStateManager blockStreamStateManager;
+    private ConfigProvider configProvider;
+    private BlockNodeConfig nodeConfig;
+    private BlockNodeConfig nodeConfig2;
 
     @Mock
-    private BlockStreamStateManager mockStateManager;
+    private Metrics mockMetrics;
 
     @Mock
-    private BlockNodeConfigExtractorImpl blockNodeConfigExtractorImpl;
+    private NodeInfo mockNodeInfo;
 
-    private static Server testServer;
+    @Mock
+    private GrpcServiceClient mockGrpcServiceClient;
 
-    @BeforeAll
-    static void beforeAll() throws IOException {
-        final var blockNodeConfigExtractorImpl = new BlockNodeConfigExtractorImpl("./src/test/resources/bootstrap");
-        final int testServerPort =
-                blockNodeConfigExtractorImpl.getAllNodes().getFirst().port();
-        testServer = ServerBuilder.forPort(testServerPort)
-                .addService(new BlockStreamServiceTestImpl())
-                .build();
-        testServer.start();
-    }
+    private StreamObserver<Object> genericMockStreamObserver;
+
+    @Mock
+    private StreamObserver<PublishStreamResponse> mockStreamObserver;
 
     @BeforeEach
     void setUp() {
-        blockNodeConnectionManager = new BlockNodeConnectionManager(blockNodeConfigExtractorImpl, mockStateManager);
+        // Setup ConfigProvider
+        configProvider = createConfigProvider();
+        nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
+        nodeConfig2 = new BlockNodeConfig("localhost", 8080, 2);
+
+        // Create a mock of StreamObserver<Object> and cast it to StreamObserver<PublishStreamResponse>
+        genericMockStreamObserver = Mockito.mock(StreamObserver.class);
+        when(mockGrpcServiceClient.bidi(any(), (StreamObserver<Object>) any())).thenReturn(genericMockStreamObserver);
+
+        // Setup BlockStreamMetrics with mocks
+        when(mockNodeInfo.nodeId()).thenReturn(0L);
+        blockStreamMetrics = new BlockStreamMetrics(mockMetrics, mockNodeInfo);
+
+        // Setup BlockStreamStateManager
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+
+        // Setup BlockNodeConnectionManager
+        blockNodeConnectionManager = Mockito.spy(
+                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics));
+
+        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
+
+        // Set up BlockNodeConnection
+        subject = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                blockNodeConnectionManager,
+                blockStreamStateManager,
+                mockGrpcServiceClient,
+                blockStreamMetrics);
+
+        subject2 = new BlockNodeConnection(
+                configProvider,
+                nodeConfig2,
+                blockNodeConnectionManager,
+                blockStreamStateManager,
+                mockGrpcServiceClient,
+                blockStreamMetrics);
+
+        doReturn(subject).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
     }
 
     @Test
-    void testNewBlockNodeConnectionManager() {
-        final var expectedGrpcEndpoint =
-                BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
-        assertEquals(expectedGrpcEndpoint, blockNodeConnectionManager.getGrpcEndPoint());
+    void testShutdownBlockNodeConnectionManager() {
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+
+        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
+                .isTrue();
+        assertEquals(subject.getConnectionState(), ACTIVE);
+
+        blockNodeConnectionManager.shutdown();
+
+        assertEquals(subject.getConnectionState(), UNINITIALIZED);
     }
 
     @Test
-    void testRetrySuccessOnFirstAttempt() {
-        blockNodeConnectionManager.retry(mockSupplier, INITIAL_DELAY);
+    void testExceptionHandlingOnRetryTasks() throws InterruptedException {
+        // Stub the method to throw an exception initially
+        Mockito.doThrow(new RuntimeException("Simulated Connection Exception"))
+                .when(mockGrpcServiceClient)
+                .bidi(any(), (StreamObserver<Object>) any());
 
-        verify(mockSupplier, times(1)).get();
+        // Trigger the connection logic
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
 
-        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
+        // Verify the connection state is UNINITIALIZED after the exception
+        assertEquals(subject.getConnectionState(), UNINITIALIZED);
+
+        // Allow time for retry logic
+        Thread.sleep(3000);
+
+        // Reset the mock and stub the method to return a valid response
+        Mockito.reset(mockGrpcServiceClient);
+        when(mockGrpcServiceClient.bidi(any(), (StreamObserver<Object>) any())).thenReturn(genericMockStreamObserver);
+
+        // Allow time for retry logic to succeed
+        Thread.sleep(3000);
+
+        // Verify the connection state is ACTIVE after retry
+        assertEquals(subject.getConnectionState(), ACTIVE);
     }
 
     @Test
-    void testRetrySuccessOnRetry() {
-        when(mockSupplier.get())
-                .thenThrow(new RuntimeException("First attempt failed"))
-                .thenReturn(null);
+    void testBlockStreamWorkerLoop() throws InterruptedException {
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
 
-        blockNodeConnectionManager.retry(mockSupplier, INITIAL_DELAY);
+        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
+                .isTrue();
+        assertEquals(subject.getConnectionState(), ACTIVE);
 
-        verify(mockSupplier, times(2)).get();
-        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY));
-        assertThat(logCaptor.debugLogs())
-                .containsAnyElementsOf(generateExpectedRetryLogs(INITIAL_DELAY.multipliedBy(2)));
-    }
+        blockStreamStateManager.openBlock(0L);
 
-    @Test
-    void testScheduleReconnect() throws InterruptedException {
-        when(mockConnection.getNodeConfig()).thenReturn(new BlockNodeConfig("localhost", 8080));
-        when(mockConnection.getIsActiveLock()).thenReturn(new ReentrantLock());
-
-        blockNodeConnectionManager.scheduleReconnect(mockConnection);
-        verify(mockConnection, times(0)).establishStream();
-
-        final var initialDelay = BlockNodeConnectionManager.INITIAL_RETRY_DELAY;
-        Thread.sleep(initialDelay.plusMillis(100));
-
-        assertThat(logCaptor.debugLogs()).containsAnyElementsOf(generateExpectedRetryLogs(initialDelay));
-        verify(mockConnection, times(1)).establishStream();
-    }
-
-    @AfterAll
-    static void afterAll() {
-        testServer.shutdownNow();
-    }
-
-    private List<String> generateExpectedRetryLogs(Duration delay) {
-        final long start = delay.toMillis() / 2;
-        final long end = delay.toMillis();
-        final List<String> logs = new ArrayList<>();
-        for (long i = start; i <= end; i++) {
-            logs.add(String.format("Retrying in %d ms", i));
+        for (int i = 0; i < BATCH_SIZE; i++) {
+            blockStreamStateManager.addItem(0L, BlockItem.newBuilder().build());
         }
+        // Add a BlockItem in the next batch
+        blockStreamStateManager.addItem(0L, BlockItem.newBuilder().build());
 
-        return logs;
-    }
+        // Trigger Streaming PreBlockProofItems
+        blockStreamStateManager.streamPreBlockProofItems(0L);
 
-    private static class BlockStreamServiceTestImpl extends BlockStreamServiceGrpc.BlockStreamServiceImplBase {
-        private static final Logger logger = LogManager.getLogger(BlockStreamServiceTestImpl.class);
+        // Close Block
+        blockStreamStateManager.closeBlock(0L);
 
-        @Override
-        public StreamObserver<PublishStreamRequest> publishBlockStream(
-                StreamObserver<PublishStreamResponse> responseObserver) {
-            return new StreamObserver<>() {
-                @Override
-                public void onNext(PublishStreamRequest request) {
-                    // no-op
-                }
+        // Add BlockProof
+        blockStreamStateManager.addItem(
+                0L,
+                BlockItem.newBuilder()
+                        .blockProof(BlockProof.newBuilder().build())
+                        .build());
 
-                @Override
-                public void onError(Throwable t) {
-                    // no-op
-                }
+        blockStreamStateManager.openBlock(1L);
 
-                @Override
-                public void onCompleted() {
-                    responseObserver.onCompleted();
-                }
-            };
-        }
+        Thread.sleep(1000);
+
+        // Block Stream Worker Thread should move to Block #1
+        assertEquals(1L, blockNodeConnectionManager.getStreamingBlockNumber().get());
     }
 }
