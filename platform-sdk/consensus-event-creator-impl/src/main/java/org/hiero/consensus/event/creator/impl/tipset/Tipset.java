@@ -61,7 +61,7 @@ public class Tipset {
      */
     public @NonNull Tipset merge(@NonNull final List<Tipset> tipsets) {
         if (tipsets.isEmpty()) {
-            return new Tipset(roster);
+            return this;
         }
 
         final int length = tipsets.get(0).tips.length;
