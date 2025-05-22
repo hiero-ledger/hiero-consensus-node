@@ -167,11 +167,23 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 }
             }
 
-            return SubProcessNetwork.newSharedNetwork(
+            SubProcessNetwork subProcessNetwork = (SubProcessNetwork) SubProcessNetwork.newSharedNetwork(
                     networkName != null ? networkName : SHARED_NETWORK_NAME,
                     networkSize,
                     getConfigShard(),
                     getConfigRealm());
+
+            String blockNodeModeProperty = System.getProperty("hapi.spec.blocknode.mode");
+            if (blockNodeModeProperty != null && !blockNodeModeProperty.isEmpty()) {
+                if (blockNodeModeProperty.equalsIgnoreCase("SIM")) {
+                    subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
+                } else {
+                    log.warn("Invalid hapi.spec.blocknode.mode value: {}. Using NONE.", blockNodeModeProperty);
+                    subProcessNetwork.setBlockNodeMode(BlockNodeMode.NONE);
+                }
+            }
+
+            return subProcessNetwork;
         }
 
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {

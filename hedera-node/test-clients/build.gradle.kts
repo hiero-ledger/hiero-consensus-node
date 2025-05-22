@@ -104,7 +104,7 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC",
         "hapiTestSmartContract" to "tss.historyEnabled=false",
         "hapiTestRestart" to
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC",
         "hapiTestMisc" to "nodes.nodeRewardsEnabled=false",
         "hapiTestTimeConsuming" to "nodes.nodeRewardsEnabled=false",
     )
@@ -225,6 +225,7 @@ tasks.register<Test>("testSubprocess") {
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
+    systemProperty("hapi.spec.blocknode.mode", System.getProperty("hapi.spec.blocknode.mode"))
 
     // Limit heap and number of processors
     maxHeapSize = "8g"

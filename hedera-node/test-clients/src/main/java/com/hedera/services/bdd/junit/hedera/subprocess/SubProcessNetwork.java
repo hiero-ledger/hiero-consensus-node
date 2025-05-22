@@ -28,9 +28,11 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.AbstractGrpcNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
@@ -100,6 +102,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final long realm;
 
     private List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
+    private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
+    private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
 
     /**
      * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner
@@ -199,6 +203,23 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
+        if (blockNodeMode == BlockNodeMode.SIMULATOR) {
+            log.info("Starting simulated block nodes for {} nodes", nodes.size());
+            for (HederaNode node : nodes) {
+                try {
+                    int port = findAvailablePort();
+                    SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
+                    server.start();
+                    simulatedBlockNodes.add(server);
+                    log.info("Started simulated block node @ localhost:{}", port);
+                } catch (IOException e) {
+                    log.error("Failed to start simulated block node {}", e.toString());
+                }
+            }
+        } else {
+            log.info("Skipping block nodes as mode is: {}", blockNodeMode);
+        }
+
         nodes.forEach(node -> {
             node.initWorkingDir(configTxt);
             executePostInitWorkingDirActions(node);
@@ -657,5 +678,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         } catch (IOException e) {
             log.error("Error updating log4j2.xml: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Configure the block node mode for this network.
+     * @param mode the block node mode to use
+     */
+    public void setBlockNodeMode(BlockNodeMode mode) {
+        log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
+        this.blockNodeMode = mode;
     }
 }
