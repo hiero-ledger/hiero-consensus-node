@@ -61,6 +61,7 @@ additional API is needed for this.
 
 Once all the conditions are met, we can quiesce. This is done by simply stopping event creation. The consensus module
 will stay in this state until:
+
 - A transaction is submitted to the node that needs to be put into an event
 - OR a node sends us an event with transactions that need to reach consensus
 
@@ -68,10 +69,28 @@ If either of these conditions is met, we will break quiescence.
 
 ### Breaking quiescence
 
+Breaking quiescence is simply starting event creation again. The complication comes from the tipset algorithm and other
+mechanisms that prevent uncontrolled event creation. Creating an event that does not advance consensus is generally
+considered a bad thing. But if only one node receives a transaction from an end user, it might not be possible to create
+an event that advances consensus. This means that for quiescence, we need to introduce an exception.
+
+The proposal is that we can have events that are ignored by tipset and other algorithms. These events will be used for
+breaking quiescence in situations like the one described above. An event used to break quiescence will be called a QB
+(Quiescence Breaker). A QB will not have other-parents, only a self-parent. To prevent malicious nodes from flooding the
+network with QBs, a QB should not be allowed to have another QB as a self-parent.
+
 ### Side effects of quiescence
 
-- old state detector
-- platform status
+Various parts of the system assume that events are constantly being created and consensus is always advancing. With
+quiescence, this is not the case. This means that we various parts of the system need to be modified to account for
+this.
+
+- The `SignedStateSentinel` uses wall-clock time to determine if a signed state is old. This will need to be modified to
+  use the take quiescence into account.
+- The platform status `ACTIVE` currently moves to `CHECKING` based on wall-clock time. We will need to add a
+  `QUIESCING` status.
+- Various metrics can be misleading if the network is quiescing.
+- NOTE FOR REVIEWERS: I probably haven't thought of all the side effects yet, please add any you can think of.
 
 ---
 
@@ -79,56 +98,43 @@ If either of these conditions is met, we will break quiescence.
 
 ### Architecture and/or Components
 
-Describe any new or modified components or architectural changes. This includes thread management changes, state
-changes, disk I/O changes, platform wiring changes, etc. Include diagrams of architecture changes.
-
-Remove this section if not applicable.
-
-### Module Organization and Repositories
-
-Describe any new or modified modules or repositories.
-
-Remove this section if not applicable.
-
-### Core Behaviors
-
-Describe any new or modified behavior. What are the new or modified algorithms and protocols? Include any diagrams that
-help explain the behavior.
-
-Remove this section if not applicable.
+- Each transaction we store in an event or the transaction pool needs to have an additional boolean that indicates if it
+  needs to reach consensus or not.
+- We will need functionality to detect non-ancient transactions that need to reach consensus. This should be part of the
+  event creation module.
+- The event creator should stop creating events if there are no transactions that need to reach consensus, unless there
+  are pending transactions.
+- The event creator should update the platform status to `QUIESCING` when appropriate.
+- The event creator should create a QB if there are transactions that need to reach consensus, and there are
+  restrictions on creating events that advance consensus.
 
 ### Public API
 
-Describe any public API changes or additions. Include stakeholders of the API.
-
-Examples of public API include:
-
-* Anything defined in protobuf
-* Any functional API that is available for use outside the module that provides it.
-* Anything written or read from disk
-
-Code can be included in the proposal directory, but not committed to the code base.
-
-Remove this section if not applicable.
+An additional API is needed for the consensus module to determine if a transaction needs to reach consensus or not.
+This should be part of `ApplicationCallbacks`. This method should be added to the `SwirldMain` interface.
 
 ### Configuration
 
-Describe any new or modified configuration.
-
-Remove this section if not applicable.
+A new configuration option is needed to enable/disable quiescence.
 
 ### Metrics
 
-Are there new metrics? Are the computation of existing metrics changing? Are there expected observable metric impacts
-that change how someone should relate to the metric?
+The following metrics should be added:
 
-Remove this section if not applicable.
+- `numTransNeedCons` the number of non-ancient transactions that need to reach consensus.
 
-### Performance
+The following metrics should be modified:
 
-Describe any expected performance impacts. This section is mandatory for platform wiring changes.
+- `secC2C` & `secR2C` should be modified to only track events that have transactions that need to reach consensus. If
+  this is not done, these metrics will have huge spikes when quiescence is broken.
 
-Remove this section if not applicable.
+The following metrics should be removed since they would need to be modified, but are not used:
+
+- `secC2RC`
+- `secSC2T`
+- `secOR2T`
+- `secR2F`
+- `secR2nR`
 
 ---
 
@@ -136,31 +142,22 @@ Remove this section if not applicable.
 
 ### Unit Tests
 
-Describe critical test scenarios and any higher level functionality tests that can run at the unit test level.
+New unit tests for the event creator should be written for the following scenarios:
 
-Examples:
-
-* Subtle edge cases that might be overlooked.
-* Use of simulators or frameworks to test complex component interaction.
-
-Remove this section if not applicable.
+- If no non-ancient transactions need to reach consensus, it should stop creating events.
+- If it is quiescing and there is a pending transaction that does not need to reach consensus (a state/block signature),
+  it should create only a single event with that transaction.
+- If it is quiescing and there is a pending transaction that needs to reach consensus, it should create a QB event with
+  that transaction.
+- If a QB is created, it should not create another QB with the same self-parent even if there are pending transactions
+  that need to reach consensus.
 
 ### Integration Tests
 
-Describe any integration tests needed. Integration tests include migration, reconnect, restart, etc.
+An Otter test should be created that submits transactions periodically and validates the following:
+- event creation is stopped when there are no transactions
+- event creation is started again when a transaction is submitted
+- platform status is updated to `QUIESCING` when event creation is stopped
 
-Remove this section if not applicable.
 
-### Performance Tests
 
-Describe any performance tests needed. Performance tests include high TPS, specific work loads that stress the system,
-JMH benchmarks, or longevity tests.
-
-Remove this section if not applicable.
-
----
-
-## Implementation and Delivery Plan
-
-How should the proposal be implemented? Is there a necessary order to implementation? What are the stages or phases
-needed for the delivery of capabilities? What configuration flags will be used to manage deployment of capability? 
