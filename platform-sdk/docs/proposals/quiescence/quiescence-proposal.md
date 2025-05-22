@@ -7,7 +7,7 @@
 Quiescence is a feature that stops event creation when there are no transactions. The purpose of this is to reduce the
 amount of data produced and bandwidth used by low volume networks.
 
-| Metadata           | Entities             | 
+|      Metadata      |       Entities       |
 |--------------------|----------------------|
 | Designers          | Lazar Petrović       |
 | Functional Impacts | Consensus, Execution |
@@ -158,6 +158,3 @@ An Otter test should be created that submits transactions periodically and valid
 - event creation is stopped when there are no transactions
 - event creation is started again when a transaction is submitted
 - platform status is updated to `QUIESCING` when event creation is stopped
-
-
-
