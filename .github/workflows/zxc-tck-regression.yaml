@@ -162,7 +162,7 @@ jobs:
       # Start the TCK client
       - name: Start tck-client
         env:
-          OPERATOR_ACCOUNT_ID: "0.0.1001"
+          OPERATOR_ACCOUNT_ID: "0.0.1002"
           OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b657004220420a608e2130a0a3cb34f86e757303c862bee353d9ab77ba4387ec084f881d420d4"
         run: |
           solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 100000
@@ -180,6 +180,4 @@ jobs:
       - name: Stop solo
         if: ${{ always() }}
         run: |
-          solo node stop -i node1,node2 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror-node destroy --deployment "${{ env.SOLO_DEPLOYMENT }}" --force
-          solo network destroy --deployment "${{ env.SOLO_DEPLOYMENT }}" --force
+          kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
