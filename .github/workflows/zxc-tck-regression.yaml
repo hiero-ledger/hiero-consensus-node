@@ -21,10 +21,6 @@ on:
         description: "The custom job name to use for the job."
         required: false
         type: string
-    secrets:
-      access-token:
-        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
-        required: true
 
 defaults:
   run:
@@ -62,23 +58,20 @@ jobs:
           ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
-      #  Checkout the sdk-tck repository
-      - name: Checkout Regression Code (workflow_call)
+      #  Checkout the sdk-tck repository and the TCK SDK Client
+      - name: Checkout Regression Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        if: ${{ github.event_name == 'workflow_call' }}
         with:
           path: platform-sdk/regression
           repository: hiero-ledger/hiero-sdk-tck
-          token: ${{ secrets.access-token }}
           fetch-depth: "1"
 
-      - name: Checkout Regression Code (workflow_dispatch)
+      # Checkout the JS-SDK server
+      - name: Checkout JS-SDK Server
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         with:
-          path: platform-sdk/regression
-          repository: hiero-ledger/hiero-sdk-tck
-          token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }} # secret needs to be added
+          path: platform-sdk/sdk-server
+          repository: hiero-ledger/hiero-sdk-js
           fetch-depth: "1"
 
       # Set up Java Environment
@@ -106,12 +99,23 @@ jobs:
         run: ${GRADLE_EXEC} assemble
         working-directory: ${{ github.workspace }}
 
-      # Set up the npm dependencies and cache
-      - name: Install NodeJS Dependencies
+      # Set up the npm dependencies and cache on the tck-client
+      - name: Set up the tck-client
         run: |
           npm install --prefer-offline --no-audit --progress=false
           npm cache clean --force
         working-directory: platform-sdk/regression
+
+      # Set up the npm dependencies and cache on the sdk-server
+      - name: Install NodeJS Dependencies (sdk-server)
+        id: start-sdk-server
+        run: |
+          npm install --prefer-offline --no-audit --progress=false
+          npm cache clean --force
+          nohup npm start &
+          server_pid=$!
+          echo "Server PID: sdk-server-pid=${server_pid}" >> "${GITHUB_OUTPUT}"
+        working-directory: platform-sdk/sdk-server/tck
 
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
@@ -129,13 +133,6 @@ jobs:
           verbosity: 3
           wait: 120s
 
-      # Pull in the docker images needed for the TCK tests
-      - name: Pull JS TCK Server
-        run: docker pull ivaylogarnev/js-tck-server-amd:latest
-
-      - name: Pull TCK Client
-        run: docker pull ivaylogarnev/hiero-tck-client:latest
-
       # Set up solo
       - name: Configure and run solo
         run: |
@@ -152,7 +149,7 @@ jobs:
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
           
           nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50212:50212 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/haproxy-node2-svc -n "${{ env.SOLO_NAMESPACE }}" 50212:50212 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:8084 > /dev/null 2>&1 &
 
@@ -161,27 +158,14 @@ jobs:
       # Start the TCK server
       - name: Start tck-server in background
         run: |
-          TEST=$(docker compose -f ./docker-compose.yml up -d tck-server)
+          npx ts-node --files ./src/services/RunTestsInContainer.ts
         working-directory: platform-sdk/regression # required
-
-      - name: Wait for TCK server
-        run: |
-          echo "Waiting for TCK server on port 8544..."
-          until bash -c 'exec 3>/dev/tcp/localhost/8544'; do
-            echo "Still waiting..."
-            sleep 1
-          done
-          echo "TCK server is ready!"
-
-      # Run the TCK tests
-      - name: Run TCK tests
-        run: docker run --network host -e JSON_RPC_SERVER_URL=http://host.docker.internal:8544 ivaylogarnev/hiero-tck-client
 
       # Stop the TCK server
       - name: Stop tck-server
         if: ${{ always() }}
-        run: docker compose -f ./docker-compose.yml down
-        working-directory: platform-sdk/regression
+        run: kill -9 ${{ steps.start-sdk-server.outputs.sdk-server-pid }}
+        working-directory: platform-sdk/sdk-server/tck
 
       # Stop the solo nodes
       - name: Stop solo
