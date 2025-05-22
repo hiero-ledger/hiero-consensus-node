@@ -1179,7 +1179,6 @@ public class TokenCreateSpecs {
     final Stream<DynamicTest> tokenCreateWithAutoRenewPeriodAndNoAccount() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate("autoRenewAccount"),
                 tokenCreate(token)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(GENESIS)

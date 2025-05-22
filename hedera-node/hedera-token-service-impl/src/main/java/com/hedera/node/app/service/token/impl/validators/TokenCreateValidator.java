@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_DECIMALS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_INITIAL_SUPPLY;
@@ -76,8 +75,6 @@ public class TokenCreateValidator {
         validateTruePreCheck(op.hasTreasury(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
         if (op.hasAutoRenewAccount()) {
             validateTrue(op.hasAutoRenewPeriod() && op.autoRenewPeriod().seconds() >= 0, INVALID_RENEWAL_PERIOD);
-        } else {
-            validateFalse(op.hasAutoRenewPeriod(), INVALID_AUTORENEW_ACCOUNT);
         }
 
         if (tokenType == NON_FUNGIBLE_UNIQUE) {
