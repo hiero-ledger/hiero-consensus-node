@@ -291,7 +291,13 @@ public class TxnUtils {
     }
 
     public static ScheduleID asScheduleId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asSchedule(s) : lookupSpec.registry().getScheduleId(s);
+        if (isIdLiteral(s)) {
+            return asSchedule(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asSchedule(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getScheduleId(s);
     }
 
     public static TopicID asTopicId(final String s, final HapiSpec lookupSpec) {

@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -24,10 +25,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoT
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
@@ -72,6 +75,42 @@ import org.junit.jupiter.api.Nested;
 
 @HapiTestLifecycle
 public class AtomicBatchTest {
+    @HapiTest
+    public Stream<DynamicTest> validateFeesForChildren() {
+        final double BASE_FEE_BATCH_TRANSACTION = 0.001;
+        final double BASE_FEE_HBAR_CRYPTO_TRANSFER = 0.0001;
+        final double BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE = 0.05;
+
+        final var innerTxn1 = cryptoTransfer(tinyBarsFromTo("alice", "bob", ONE_HBAR))
+                .payingWith("alice")
+                .txnId("innerTxnId")
+                .blankMemo()
+                .batchKey("batchOperator");
+        final var innerTxn2 = submitMessageTo("topic")
+                .message("TEST")
+                .payingWith("bob")
+                .txnId("innerTxnId2")
+                .blankMemo()
+                .batchKey("batchOperator");
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                newKeyNamed("submitKey"),
+                newKeyNamed("feeScheduleKey"),
+                cryptoCreate("batchOperator").balance(ONE_HBAR),
+                cryptoCreate("alice").balance(2 * ONE_HBAR),
+                cryptoCreate("bob").balance(4 * ONE_HBAR),
+                cryptoCreate("collector").balance(0L),
+                createTopic("topic")
+                        .adminKeyName("adminKey")
+                        .feeScheduleKeyName("feeScheduleKey")
+                        .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, "collector")),
+                usableTxnIdNamed("innerTxnId").payerId("alice"),
+                usableTxnIdNamed("innerTxnId2").payerId("bob"),
+                atomicBatch(innerTxn1, innerTxn2).payingWith("batchOperator").via("batchTxn"),
+                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                validateInnerTxnChargedUsd("innerTxnId", "batchTxn", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5),
+                validateInnerTxnChargedUsd("innerTxnId2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5));
+    }
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -447,20 +486,38 @@ public class AtomicBatchTest {
         @DisplayName("Batch should finalize hollow account")
         final Stream<DynamicTest> batchFinalizeHollowAccount() {
             final var alias = "alias";
+            final var alias2 = "alias2";
             final var batchOperator = "batchOperator";
             return hapiTest(flattened(
                     cryptoCreate("innerRecipient").balance(0L),
                     cryptoCreate(batchOperator),
+                    cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
                     newKeyNamed(alias).shape(SECP_256K1_SHAPE),
+                    newKeyNamed(alias2).shape(SECP_256K1_SHAPE),
                     createHollowAccountFrom(alias),
+                    createHollowAccountFrom(alias2),
                     getAliasedAccountInfo(alias).isHollow(),
-                    atomicBatch(cryptoTransfer(tinyBarsFromTo(GENESIS, "innerRecipient", 123L))
+                    getAliasedAccountInfo(alias2).isHollow(),
+                    atomicBatch(cryptoCreate("test")
+                                    .payingWith("payer")
+                                    .signedBy(batchOperator)
                                     .batchKey(batchOperator))
                             .payingWith(alias)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
-                            .signedBy(alias, batchOperator),
-                    getAliasedAccountInfo(alias).has(accountWith().hasNonEmptyKey()),
-                    getAccountBalance("innerRecipient").hasTinyBars(123L)));
+                            .signedBy(alias, batchOperator)
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    getAliasedAccountInfo(alias)
+                            .has(accountWith().hasNonEmptyKey())
+                            .logged(),
+                    atomicBatch(cryptoTransfer(tinyBarsFromTo("payer", batchOperator, ONE_HBAR))
+                                    .payingWith("payer")
+                                    .batchKey(batchOperator))
+                            .payingWith(alias2)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(alias2))
+                            .signedBy(alias2, batchOperator),
+                    getAliasedAccountInfo(alias2)
+                            .has(accountWith().hasNonEmptyKey())
+                            .logged()));
         }
 
         @HapiTest
@@ -573,8 +630,8 @@ public class AtomicBatchTest {
                             .via("batchTxn"),
                     // validate the fee charged for the batch txn and the inner txns
                     validateChargedUsd("batchTxn", 0.001),
-                    validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 30),
-                    validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 30));
+                    validateInnerTxnChargedUsd("innerTxn1", "batchTxn", 0.05, 5),
+                    validateInnerTxnChargedUsd("innerTxn2", "batchTxn", 0.05, 5));
         }
     }
 
