@@ -21,8 +21,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -123,15 +121,16 @@ public class DataFileCompactor {
     /**
      * Indicates whether compaction is in progress at the time when {@link #pauseCompaction()}
      * is called. This flag is then checked in {@link DataFileCompactor#resumeCompaction()} )} to start a new
-     * compacted file or not.
+     * compacted file or not. This field is synchronized using {@link #snapshotCompactionLock}.
      */
-    private final AtomicBoolean compactionWasInProgress = new AtomicBoolean(false);
+    private boolean compactionWasInProgress = false;
 
     /**
      * This variable keeps track of the compaction level that was in progress at the time when it was suspended.
-     * Once the compaction is resumed, this level is used to start a new compacted file, and then it's reset to 0.
+     * Once the compaction is resumed, this level is used to start a new compacted file, and then it's reset to
+     * 0. This field is synchronized using {@link #snapshotCompactionLock}.
      */
-    private final AtomicInteger compactionLevelInProgress = new AtomicInteger(0);
+    private int compactionLevelInProgress = 0;
 
     /**
      * A flag used to interrupt this compaction task rather than using {@link Thread#interrupt()}.
@@ -361,8 +360,8 @@ public class DataFileCompactor {
         // it's included to the snapshot
         final DataFileWriter compactionWriter = currentWriter.get();
         if (compactionWriter != null) {
-            compactionWasInProgress.set(true);
-            compactionLevelInProgress.set(compactionWriter.getMetadata().getCompactionLevel());
+            compactionWasInProgress = true;
+            compactionLevelInProgress = compactionWriter.getMetadata().getCompactionLevel();
             finishCurrentCompactionFile();
             // Don't start a new compaction file here, as it would be included to snapshots, but
             // it shouldn't, as it isn't fully written yet. Instead, a new file will be started
@@ -388,10 +387,12 @@ public class DataFileCompactor {
      */
     public void resumeCompaction() throws IOException {
         try {
-            if (compactionWasInProgress.getAndSet(false)) {
+            if (compactionWasInProgress) {
+                compactionWasInProgress = false;
                 assert currentWriter.get() == null;
                 assert currentReader.get() == null;
-                startNewCompactionFile(compactionLevelInProgress.getAndSet(0));
+                startNewCompactionFile(compactionLevelInProgress);
+                compactionLevelInProgress = 0;
             }
         } finally {
             snapshotCompactionLock.unlock();
