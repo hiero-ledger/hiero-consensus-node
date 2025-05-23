@@ -55,7 +55,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @BeforeEach
     void setUp() {
         // Setup ConfigProvider
-        configProvider = createConfigProvider();
+        configProvider = createConfigProvider(BATCH_SIZE);
         nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
         nodeConfig2 = new BlockNodeConfig("localhost", 8080, 2);
 

@@ -12,6 +12,7 @@ import com.hedera.hapi.block.PublishStreamResponse.SkipBlock;
 import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -68,18 +69,24 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected ConfigProvider createConfigProvider() {
+    protected ConfigProvider createConfigProvider(long batchSize) {
         final var configPath = Objects.requireNonNull(
-                        BlockNodeConnectionManagerTest.class.getClassLoader().getResource("bootstrap/"))
+                        BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
                 .getPath();
         assertThat(Files.exists(Path.of(configPath))).isTrue();
 
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
+                .withValue("blockStream.blockItemBatchSize", batchSize)
                 .getOrCreateConfig();
         return () -> new VersionedConfigImpl(config, 1L);
+    }
+
+    protected static BlockItem newBlockHeaderItem() {
+        return BlockItem.newBuilder()
+                .blockHeader(BlockHeader.newBuilder().build())
+                .build();
     }
 
     protected static BlockItem newBlockTxItem() {
