@@ -53,6 +53,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
@@ -3943,8 +3944,7 @@ public class TraceabilitySuite {
                 uploadInitCode(contract),
                 contractCreate(contract)
                         .via(CREATE_TXN)
-                        .exposingContractIdTo(
-                                id -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(id))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
@@ -4119,7 +4119,7 @@ public class TraceabilitySuite {
                                                                     "callSha256AndIsToken",
                                                                     toHash.getBytes(),
                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                            HapiPropertySource.asHexedSolidityAddress(
+                                                                            asHexedSolidityAddress(
                                                                                     vanillaTokenID.get()))))
                                                     .setOutput(
                                                             ByteStringUtils.wrapUnsafely(
@@ -4160,10 +4160,9 @@ public class TraceabilitySuite {
                                                                     Function.parse("isToken" + "(address)")
                                                                             .encodeCallWithArgs(
                                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                                            HapiPropertySource
-                                                                                                    .asHexedSolidityAddress(
-                                                                                                            vanillaTokenID
-                                                                                                                    .get())))
+                                                                                            asHexedSolidityAddress(
+                                                                                                    vanillaTokenID
+                                                                                                            .get())))
                                                                             .array()))
                                                     .setOutput(
                                                             ByteStringUtils.wrapUnsafely(
@@ -4499,20 +4498,18 @@ public class TraceabilitySuite {
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(somebody)
                         .maxAutomaticTokenAssociations(2)
-                        .exposingCreatedIdTo(
-                                id -> somebodyMirrorAddr.set(HapiPropertySource.asHexedSolidityAddress(id))),
+                        .exposingCreatedIdTo(id -> somebodyMirrorAddr.set(asHexedSolidityAddress(id))),
                 cryptoCreate(somebodyElse)
                         .maxAutomaticTokenAssociations(2)
-                        .exposingCreatedIdTo(
-                                id -> somebodyElseMirrorAddr.set(HapiPropertySource.asHexedSolidityAddress(id))),
+                        .exposingCreatedIdTo(id -> somebodyElseMirrorAddr.set(asHexedSolidityAddress(id))),
                 newKeyNamed(someSupplyKey),
                 tokenCreate(tokenInQuestion)
                         .supplyKey(someSupplyKey)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0)
-                        .exposingCreatedIdTo(idLit -> tiqMirrorAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(idLit)))),
+                        .exposingCreatedIdTo(
+                                idLit -> tiqMirrorAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(idLit)))),
                 mintToken(
                         tokenInQuestion,
                         List.of(ByteString.copyFromUtf8("A penny for"), ByteString.copyFromUtf8("the Old Guy"))),
@@ -4547,12 +4544,12 @@ public class TraceabilitySuite {
                                                                     APPROVE_BY_DELEGATE,
                                                                     "doIt",
                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                            HapiPropertySource.asHexedSolidityAddress(
+                                                                            asHexedSolidityAddress(
                                                                                     spec.registry()
                                                                                             .getTokenID(
                                                                                                     tokenInQuestion))),
                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                            HapiPropertySource.asHexedSolidityAddress(
+                                                                            asHexedSolidityAddress(
                                                                                     spec.registry()
                                                                                             .getAccountID(
                                                                                                     somebodyElse))),
@@ -4580,11 +4577,10 @@ public class TraceabilitySuite {
                                                                     Function.parse("approve(address,uint256)")
                                                                             .encodeCallWithArgs(
                                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                                            HapiPropertySource
-                                                                                                    .asHexedSolidityAddress(
-                                                                                                            spec.registry()
-                                                                                                                    .getAccountID(
-                                                                                                                            somebodyElse))),
+                                                                                            asHexedSolidityAddress(
+                                                                                                    spec.registry()
+                                                                                                            .getAccountID(
+                                                                                                                    somebodyElse))),
                                                                                     serialNumberId)
                                                                             .array()))
                                                     .setRevertReason(ByteString.EMPTY)
@@ -4622,21 +4618,19 @@ public class TraceabilitySuite {
                                                                                             encodeTuple(
                                                                                                     "(address)",
                                                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                                                            HapiPropertySource
-                                                                                                                    .asHexedSolidityAddress(
-                                                                                                                            spec.registry()
-                                                                                                                                    .getTokenID(
-                                                                                                                                            tokenInQuestion)))),
+                                                                                                            asHexedSolidityAddress(
+                                                                                                                    spec.registry()
+                                                                                                                            .getTokenID(
+                                                                                                                                    tokenInQuestion)))),
                                                                                             12,
                                                                                             32)),
                                                                             Function.parse("approve(address,uint256)")
                                                                                     .encodeCallWithArgs(
                                                                                             hexedSolidityAddressToHeadlongAddress(
-                                                                                                    HapiPropertySource
-                                                                                                            .asHexedSolidityAddress(
-                                                                                                                    spec.registry()
-                                                                                                                            .getAccountID(
-                                                                                                                                    somebodyElse))),
+                                                                                                    asHexedSolidityAddress(
+                                                                                                            spec.registry()
+                                                                                                                    .getAccountID(
+                                                                                                                            somebodyElse))),
                                                                                             serialNumberId)
                                                                                     .array())))
                                                     .setError(ByteString.copyFrom("PRECOMPILE_ERROR".getBytes()))
@@ -4757,8 +4751,7 @@ public class TraceabilitySuite {
                         .adminKey(adminKey)
                         .entityMemo(entityMemo)
                         .via(CREATE_2_TXN)
-                        .exposingContractIdTo(
-                                id -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(id))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 sourcing(() -> contractCallLocal(
                                 create2Factory, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
