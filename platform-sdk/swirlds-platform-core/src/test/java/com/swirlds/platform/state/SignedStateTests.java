@@ -82,6 +82,7 @@ class SignedStateTests {
         if (releaseCallback != null) {
             doAnswer(invocation -> {
                         releaseCallback.run();
+                        invocation.callRealMethod();
                         return null;
                     })
                     .when(state)
