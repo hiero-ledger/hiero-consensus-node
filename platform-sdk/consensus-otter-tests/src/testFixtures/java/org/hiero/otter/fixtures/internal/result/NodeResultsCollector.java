@@ -26,6 +26,7 @@ public class NodeResultsCollector {
     private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
+    private volatile boolean destroyed = false;
 
     /**
      * Creates a new instance of {@link NodeResultsCollector}.
@@ -53,9 +54,11 @@ public class NodeResultsCollector {
      */
     public void addConsensusRounds(@NonNull final List<ConsensusRound> rounds) {
         requireNonNull(rounds);
-        consensusRounds.addAll(rounds);
-        consensusRoundSubscribers.removeIf(
-                subscriber -> subscriber.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+        if (! destroyed) {
+            consensusRounds.addAll(rounds);
+            consensusRoundSubscribers.removeIf(
+                    subscriber -> subscriber.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+        }
     }
 
     /**
@@ -65,7 +68,9 @@ public class NodeResultsCollector {
      */
     public void addPlatformStatus(@NonNull final PlatformStatus status) {
         requireNonNull(status);
-        platformStatuses.add(status);
+        if (!destroyed) {
+            platformStatuses.add(status);
+        }
     }
 
     /**
@@ -106,5 +111,12 @@ public class NodeResultsCollector {
      */
     public SingleNodeStatusProgression getStatusProgression() {
         return new SingleNodeStatusProgressionImpl(nodeId, new ArrayList<>(platformStatuses));
+    }
+
+    /**
+     * Destroys the collector and prevents any further updates.
+     */
+    public void destroy() {
+        destroyed = true;
     }
 }

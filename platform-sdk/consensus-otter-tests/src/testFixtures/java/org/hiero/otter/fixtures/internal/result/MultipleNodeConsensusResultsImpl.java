@@ -4,9 +4,11 @@ package org.hiero.otter.fixtures.internal.result;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.base.Objects;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -21,6 +23,11 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
     private final List<SingleNodeConsensusResult> results;
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
 
+    /**
+     * Constructor for {@link MultipleNodeConsensusResultsImpl}.
+     *
+     * @param results the list of {@link SingleNodeConsensusResult} for all nodes
+     */
     public MultipleNodeConsensusResultsImpl(@NonNull final List<SingleNodeConsensusResult> results) {
         this.results = unmodifiableList(requireNonNull(results));
 
@@ -61,8 +68,19 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
 
     /**
      * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodeConsensusResults suppressingNode(@NonNull final NodeId nodeId) {
+        final List<SingleNodeConsensusResult> newResults = results.stream()
+                .filter(result -> !Objects.equal(nodeId, result.nodeId())).toList();
+        return new MultipleNodeConsensusResultsImpl(newResults);
+    }
+
+    /**
+     * {@inheritDoc}
      *
-     * <p>The effort is done on a best effort basis. A slower node may collect rounds after a reset that were
+     * <p>The change is done on a best effort basis. A slower node may collect rounds after a reset that were
      * discarded on faster nodes. Ideally, this method is only called while all nodes are in the state
      * {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE}.
      */
