@@ -286,6 +286,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);
+                subProcessNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(subProcessNetwork::configureBlockNodeCommunicationLogLevel);
             }
         }
     }

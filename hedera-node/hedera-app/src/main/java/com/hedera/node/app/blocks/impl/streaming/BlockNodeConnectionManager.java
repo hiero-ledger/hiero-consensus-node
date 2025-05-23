@@ -33,10 +33,13 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -71,6 +74,8 @@ public class BlockNodeConnectionManager {
             BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
     // Maximum retry delay to prevent excessively long waits
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(10);
+    private static final Set<ConnectionState> RETRY_STATES = Collections.unmodifiableSet(
+            EnumSet.of(ConnectionState.PENDING_TO_STREAM, ConnectionState.PENDING_TO_CONNECT));
 
     // Add a random number generator for retry jitter
     private final Random random = new Random();
@@ -389,11 +394,10 @@ public class BlockNodeConnectionManager {
             // Filter nodes not in retry, and select one randomly
             final List<BlockNodeConfig> nextPriorityGroup = priorityGroups.get(priority).stream()
                     .filter(node -> !blockStreamStateManager.getConnections().containsKey(node)
-                            || !blockStreamStateManager
+                            || !RETRY_STATES.contains(blockStreamStateManager
                                     .getConnections()
                                     .get(node)
-                                    .getConnectionState()
-                                    .equals(ConnectionState.PENDING)) // Check if node is marked for retry
+                                    .getConnectionState())) // Check if node is marked for retry
                     .toList();
 
             if (!nextPriorityGroup.isEmpty()) {
@@ -516,6 +520,10 @@ public class BlockNodeConnectionManager {
         return lastVerifiedBlockPerConnection.computeIfAbsent(blockNodeConfig, key -> -1L);
     }
 
+    public void setJumpTargetBlock(long blockNumber) {
+        jumpTargetBlock.set(blockNumber);
+    }
+
     /**
      * Runnable task to handle the connection attempt logic.
      * Schedules itself for subsequent retries upon failure using the connectionExecutor.
@@ -533,6 +541,12 @@ public class BlockNodeConnectionManager {
             // Ensure initial delay is non-negative for backoff calculation
             this.currentBackoffDelay = initialDelay.isNegative() ? Duration.ZERO : initialDelay;
             this.blockNumber = blockNumber;
+
+            // if the connection is scheduled for retry, we need to set the state to PENDING_TO_STREAM
+            // and filter out those connection in getNextPriorityBlockNode()
+            if (!initialDelay.isZero() && !ConnectionState.PENDING_TO_CONNECT.equals(connection.getConnectionState())) {
+                connection.updateConnectionState(ConnectionState.PENDING_TO_STREAM);
+            }
         }
 
         /**
@@ -565,18 +579,19 @@ public class BlockNodeConnectionManager {
                                 "[{}] Connection task for block node {} is stopping due to active connection with higher priority",
                                 Thread.currentThread().getName(),
                                 blockNodeName(nodeConfig));
-                    } else if (connection.getConnectionState().equals(ConnectionState.UNINITIALIZED)) {
+                    } else if (connection.getConnectionState().equals(ConnectionState.UNINITIALIZED)
+                            || connection.getConnectionState().equals(ConnectionState.PENDING_TO_CONNECT)) {
                         // This is either the first connection attempt ever or the connection was closed and needs
                         // to be re-established
                         connection.createRequestObserver(); // This may throw an exception if the connection fails
-                        connection.updateConnectionState(ConnectionState.PENDING);
+                        connection.updateConnectionState(ConnectionState.PENDING_TO_STREAM);
                         logger.debug(
                                 "[{}] Connection task for block node {} ConnectionState: {}",
                                 Thread.currentThread().getName(),
                                 blockNodeName(nodeConfig),
                                 connection.getConnectionState());
                         transitionActiveIfNoConnectionsAreActive(nodeConfig);
-                    } else if (connection.getConnectionState().equals(ConnectionState.PENDING)) {
+                    } else if (connection.getConnectionState().equals(ConnectionState.PENDING_TO_STREAM)) {
                         transitionActiveIfNoConnectionsAreActive(nodeConfig);
                     }
                 }
@@ -827,7 +842,7 @@ public class BlockNodeConnectionManager {
         BlockNodeConnection highestPri = null;
         for (BlockNodeConnection connection :
                 this.blockStreamStateManager.getConnections().values()) {
-            if (connection.getConnectionState().equals(ConnectionState.PENDING)
+            if (connection.getConnectionState().equals(ConnectionState.PENDING_TO_STREAM)
                     && connection.getNodeConfig().priority()
                             < blockNodeConnection.getNodeConfig().priority()) {
                 if (highestPri == null

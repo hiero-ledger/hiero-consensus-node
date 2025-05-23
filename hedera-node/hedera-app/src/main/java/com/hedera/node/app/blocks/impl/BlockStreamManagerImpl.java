@@ -313,10 +313,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             onDiskPendingBlocks.forEach(block -> {
                 try {
                     final var pendingWriter = writerSupplier.get();
-                    pendingWriter.openBlock(block.number());
+                    pendingWriter.openBlock(block.number(), true);
                     block.items()
-                            .forEach(item -> pendingWriter.writeItem(
-                                    BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+                            .forEach(
+                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
                     final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),

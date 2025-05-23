@@ -119,6 +119,11 @@ public class BlockStreamStateManager {
                 .streamToBlockNodes();
     }
 
+    public void setBlockNumberToJumpTo(long blockNumber) {
+        logger.debug("Setting target block number to jump to {}", blockNumber);
+        blockNodeConnectionManager.setJumpTargetBlock(blockNumber);
+    }
+
     /**
      * The type of item that can be in the block stream queue.
      */
@@ -618,7 +623,7 @@ public class BlockStreamStateManager {
             // Find a pending connection with the highest priority greater than the current connection
             BlockNodeConnection highestPri = null;
             for (BlockNodeConnection connection : connections.values()) {
-                if (connection.getConnectionState().equals(ConnectionState.PENDING)
+                if (connection.getConnectionState().equals(ConnectionState.PENDING_TO_STREAM)
                         && connection.getNodeConfig().priority()
                                 < blockNodeConnection.getNodeConfig().priority()) {
                     if (highestPri == null

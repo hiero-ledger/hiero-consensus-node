@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.ACTIVE;
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT;
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.UNINITIALIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -241,7 +242,7 @@ public class BlockNodeConnectionRedoneTest {
 
         subject.onNext(response);
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
     }
 
     @Test
@@ -257,7 +258,7 @@ public class BlockNodeConnectionRedoneTest {
 
         subject.onNext(response);
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
     }
 
     @Test
@@ -342,7 +343,7 @@ public class BlockNodeConnectionRedoneTest {
             throw new RuntimeException(e);
         }
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -365,7 +366,7 @@ public class BlockNodeConnectionRedoneTest {
             throw new RuntimeException(e);
         }
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -448,7 +449,7 @@ public class BlockNodeConnectionRedoneTest {
 
         subject.onNext(response);
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
     }
 
     @Test
@@ -472,34 +473,34 @@ public class BlockNodeConnectionRedoneTest {
 
         // 5 EndOfStream within 30 seconds.
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(2000L);
         assertEquals(ACTIVE, subject.getConnectionState());
 
         subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         Thread.sleep(7000L);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -609,7 +610,7 @@ public class BlockNodeConnectionRedoneTest {
             throw new RuntimeException(e);
         }
 
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -631,7 +632,7 @@ public class BlockNodeConnectionRedoneTest {
         }
 
         // Verify that the connection state is set to UNINITIALIZED
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 
@@ -653,7 +654,7 @@ public class BlockNodeConnectionRedoneTest {
         }
 
         // Verify that the connection state is set to UNINITIALIZED
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        assertEquals(PENDING_TO_CONNECT, subject.getConnectionState());
         assertEquals(ACTIVE, subject2.getConnectionState());
     }
 

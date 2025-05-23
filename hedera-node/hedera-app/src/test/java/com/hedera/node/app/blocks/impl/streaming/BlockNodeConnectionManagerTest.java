@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.ACTIVE;
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.PENDING_TO_CONNECT;
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.UNINITIALIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -106,7 +107,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         blockNodeConnectionManager.shutdown();
 
-        assertEquals(subject.getConnectionState(), UNINITIALIZED);
+        assertEquals(subject.getConnectionState(), PENDING_TO_CONNECT);
     }
 
     @Test
@@ -117,20 +118,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .bidi(any(), (StreamObserver<Object>) any());
 
         // Trigger the connection logic
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(2));
 
         // Verify the connection state is UNINITIALIZED after the exception
         assertEquals(subject.getConnectionState(), UNINITIALIZED);
 
         // Allow time for retry logic
-        Thread.sleep(3000);
+        Thread.sleep(1500);
 
         // Reset the mock and stub the method to return a valid response
         Mockito.reset(mockGrpcServiceClient);
         when(mockGrpcServiceClient.bidi(any(), (StreamObserver<Object>) any())).thenReturn(genericMockStreamObserver);
 
         // Allow time for retry logic to succeed
-        Thread.sleep(3000);
+        Thread.sleep(1500);
 
         // Verify the connection state is ACTIVE after retry
         assertEquals(subject.getConnectionState(), ACTIVE);

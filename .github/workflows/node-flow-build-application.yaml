@@ -53,6 +53,7 @@ jobs:
       enable-hapi-tests-misc: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-crypto: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-iss: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-bn-communication: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-token: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-smart-contract: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-time-consuming: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
