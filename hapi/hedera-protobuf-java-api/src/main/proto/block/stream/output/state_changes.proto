@@ -204,313 +204,315 @@ message StateChange {
  */
 enum StateIdentifier {
     /**
-     * A state identifier for the Topics state.
+       * An "unset value" flag, this value SHALL NOT be used.<br/>
+       * This status indicates the server software failed to set a
+       * status, and SHALL be considered a software defect.
      */
-    STATE_ID_TOPICS = 0;
+    UNKNOWN = 0;
 
     /**
-     * A state identifier for the next entity Identifier.
+     * A state identifier for the next entity Identifier. Singleton state.
      */
     STATE_ID_ENTITY_ID = 1;
 
     /**
-     * A state identifier for the Accounts state.
+     * A state identifier for the Accounts state. Key/value state.
      */
     STATE_ID_ACCOUNTS = 2;
 
     /**
-     * A state identifier for account aliases.
+     * A state identifier for account aliases. Key/value state.
      */
     STATE_ID_ALIASES = 3;
 
     /**
-     * A state identifier for contract storage slots.
+     * A state identifier for contract storage slots. Key/value state.
      */
     STATE_ID_CONTRACT_STORAGE = 4;
 
     /**
-     * A state identifier for contract bytecode.
+     * A state identifier for contract bytecode. Key/value state.
      */
     STATE_ID_CONTRACT_BYTECODE = 5;
 
     /**
-     * A state identifier for Hedera File Service (HFS).
+     * A state identifier for Hedera File Service (HFS). Key/value state.
      */
     STATE_ID_FILES = 6;
 
     /**
-     * A state identifier for Hedera Token Service (HTS).
+     * A state identifier for Hedera Token Service (HTS). Key/value state.
      */
     STATE_ID_TOKENS = 7;
 
     /**
-     * A state identifier for non-fungible/unique tokens.
+     * A state identifier for non-fungible/unique tokens. Key/value state.
      */
     STATE_ID_NFTS = 8;
 
     /**
-     * A state identifier for token relationships.
+     * A state identifier for token relationships. Key/value state.
      */
     STATE_ID_TOKEN_RELATIONS = 9;
 
     /**
-     * A state identifier for network staking information.
+     * A state identifier for network staking information. Key/value state.
      */
     STATE_ID_STAKING_INFO = 10;
 
     /**
-     * A state identifier for network staking rewards.
+     * A state identifier for network staking rewards. Singleton state.
      */
     STATE_ID_NETWORK_REWARDS = 11;
 
     /**
-     * A state identifier for throttle usage.
+     * A state identifier for throttle usage. Singleton state.
      */
     STATE_ID_THROTTLE_USAGE = 12;
 
     /**
-     * A state identifier for network congestion start times.
+     * A state identifier for network congestion start times. Singleton state.
      */
     STATE_ID_CONGESTION_STARTS = 13;
 
     /**
-     * A state identifier for scheduled transactions.
+     * A state identifier for scheduled transactions. Key/value state.
      */
     STATE_ID_SCHEDULES_BY_ID = 14;
 
     /**
-     * A state identifier for scheduled transaction expiration.
+     * A state identifier for scheduled transaction expiration. Key/value state.
      */
     STATE_ID_SCHEDULES_BY_EXPIRY = 15;
 
     /**
-     * A state identifier for scheduled transaction deduplication.
+     * A state identifier for scheduled transaction deduplication. Key/value state.
      */
     STATE_ID_SCHEDULES_BY_EQUALITY = 16;
 
     /**
-     * A state identifier for conversion rate updates.
+     * A state identifier for conversion rate updates. Singleton state.
      */
     STATE_ID_MIDNIGHT_RATES = 17;
 
     /**
-     * A state identifier for the network running hash(es).
+     * A state identifier for the network running hash(es). Singleton state.
      */
     STATE_ID_RUNNING_HASHES = 18;
 
     /**
-     * A state identifier for network block information.
+     * A state identifier for network block information. Singleton state.
      */
     STATE_ID_BLOCK_INFO = 19;
 
     /**
-     * A state identifier for address book nodes.
+     * A state identifier for address book nodes. Key/value state.
      */
     STATE_ID_NODES = 20;
 
     /**
-     * A state identifier for the next "upgrade" file.
-     */
-    STATE_ID_UPGRADE_FILE = 21;
+    * A state identifier for the Topics state. Key/value state.
+    */
+    STATE_ID_TOPICS = 21;
 
     /**
-     * A state identifier for the hash of the next "upgrade" file.
+     * A state identifier for the hash of the next "upgrade" file. Singleton state.
      */
     STATE_ID_UPGRADE_FILE_HASH = 22;
 
     /**
-     * A state identifier for the next network freeze time.
+     * A state identifier for the next network freeze time. Singleton state.
      */
     STATE_ID_FREEZE_TIME = 23;
 
     /**
-     * A state identifier for the block stream status singleton.
+     * A state identifier for the block stream status. Singleton state.
      */
     STATE_ID_BLOCK_STREAM_INFO = 24;
 
     /**
-     * A state identifier for pending airdrops.
+     * A state identifier for pending airdrops. Key/value state.
      */
     STATE_ID_PENDING_AIRDROPS = 25;
 
     /**
-     * A state identifier for the platform state singleton.
+     * A state identifier for the platform state. Singleton state.
      */
     STATE_ID_PLATFORM_STATE = 26;
 
     /**
-     * A state identifier for the roster state singleton.
+     * A state identifier for the roster state. Singleton state.
      */
     STATE_ID_ROSTER_STATE = 27;
 
     /**
-     * A state identifier for the rosters key/value map.
+     * A state identifier for the rosters. Key/value state.
      */
     STATE_ID_ROSTERS = 28;
 
     /**
     * A state identifier for counts of transactions scheduled and
-    * processed in a second.
+    * processed in a second. Key/value state.
     */
     STATE_ID_SCHEDULED_COUNTS = 29;
 
     /**
-     * A state identifier for scheduled transaction deduplication.
+     * A state identifier for scheduled transaction deduplication. Key/value state.
      */
     STATE_ID_SCHEDULE_ID_BY_EQUALITY = 30;
 
     /**
-     * A state identifier for TSS messages.
+     * A state identifier for TSS messages. Key/value state.
      */
     STATE_ID_TSS_MESSAGES = 31;
 
     /**
-     * A state identifier for TSS votes.
+     * A state identifier for TSS votes. Key/value state.
      */
     STATE_ID_TSS_VOTES = 32;
 
     /**
-    * A state identifier for the ordering of scheduled transactions.
+    * A state identifier for the ordering of scheduled transactions. Key/value state.
     */
     STATE_ID_SCHEDULED_ORDERS = 33;
 
     /**
-     * A state identifier for scheduled throttle usage snapshots.
+     * A state identifier for scheduled throttle usage snapshots. Key/value state.
      */
     STATE_ID_SCHEDULED_USAGES = 34;
 
     /**
-     * A state identifier for the TSS encryption keys.
+     * A state identifier for the TSS encryption keys. Key/value state.
      */
     STATE_ID_TSS_ENCRYPTION_KEYS = 35;
 
     /**
-     * A state identifier for the TSS status.
+     * A state identifier for the TSS status. No state associated.
      */
     STATE_ID_TSS_STATUS = 36;
 
     /**
-     * A state identifier for hinTS key sets.
+     * A state identifier for hinTS key sets. Key/value state.
      */
     STATE_ID_HINTS_KEY_SETS = 37;
 
     /**
-     * A state identifier for the active hinTS construction.
+     * A state identifier for the active hinTS construction. Singleton state.
      */
     STATE_ID_ACTIVE_HINTS_CONSTRUCTION = 38;
 
     /**
-     * A state identifier for the next hinTS construction.
+     * A state identifier for the next hinTS construction. Singleton state.
      */
     STATE_ID_NEXT_HINTS_CONSTRUCTION = 39;
 
     /**
-     * A state identifier for hinTS preprocessing output votes.
+     * A state identifier for hinTS preprocessing output votes. Key/value state.
      */
     STATE_ID_PREPROCESSING_VOTES = 40;
 
     /**
-     * A state identifier for the entity counts.
+     * A state identifier for the entity counts. Singleton state.
      */
     STATE_ID_ENTITY_COUNTS = 41;
 
     /**
-     * A state identifier for the ledger id.
+     * A state identifier for the ledger id. Singleton state.
      */
     STATE_ID_LEDGER_ID = 42;
 
     /**
-     * A state identifier for history proof key sets.
+     * A state identifier for history proof key sets. Key/value state.
      */
     STATE_ID_PROOF_KEY_SETS = 43;
 
     /**
-     * A state identifier for the active proof construction.
+     * A state identifier for the active proof construction. Singleton state.
      */
     STATE_ID_ACTIVE_PROOF_CONSTRUCTION = 44;
 
     /**
-     * A state identifier for the next proof construction.
+     * A state identifier for the next proof construction. Singleton state.
      */
     STATE_ID_NEXT_PROOF_CONSTRUCTION = 45;
 
     /**
-     * A state identifier for signatures on roster transition histories.
+     * A state identifier for signatures on roster transition histories. Key/value state.
      */
     STATE_ID_HISTORY_SIGNATURES = 46;
 
     /**
-     * A state identifier for votes on history proofs.
+     * A state identifier for votes on history proofs. Key/value state.
      */
     STATE_ID_PROOF_VOTES = 47;
 
     /**
-     * A state identifier for the CRS state.
+     * A state identifier for the CRS state. Singleton state.
      */
     STATE_ID_CRS_STATE = 48;
 
     /**
-     * A state identifier for the CRS publications.
+     * A state identifier for the CRS publications. Key/value state.
      */
     STATE_ID_CRS_PUBLICATIONS = 49;
 
     /**
-     * A state identifier for the node rewards
+     * A state identifier for the node rewards. Singleton state.
      */
     STATE_ID_NODE_REWARDS = 50;
 
     /**
-     * A state identifier for the round receipts queue.
+     * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;
 
     /**
-     * A state for the `150` upgrade file data
+     * A state for the `150` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_150 = 10001;
 
     /**
-     * A state for the `151` upgrade file data
+     * A state for the `151` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_151 = 10002;
 
     /**
-     * A state for the `152` upgrade file data
+     * A state for the `152` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_152 = 10003;
 
     /**
-     * A state for the `153` upgrade file data
+     * A state for the `153` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_153 = 10004;
 
     /**
-     * A state for the `154` upgrade file data
+     * A state for the `154` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_154 = 10005;
 
     /**
-     * A state for the `155` upgrade file data
+     * A state for the `155` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_155 = 10006;
 
     /**
-     * A state for the `156` upgrade file data
+     * A state for the `156` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_156 = 10007;
 
     /**
-     * A state for the `157` upgrade file data
+     * A state for the `157` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_157 = 10008;
 
     /**
-     * A state for the `158` upgrade file data
+     * A state for the `158` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_158 = 10009;
 
     /**
-     * A state for the `159` upgrade file data
+     * A state for the `159` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_159 = 10010;
 }

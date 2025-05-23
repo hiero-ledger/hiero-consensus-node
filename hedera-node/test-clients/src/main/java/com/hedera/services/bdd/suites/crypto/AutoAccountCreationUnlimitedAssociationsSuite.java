@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -37,6 +36,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.NFT_INFINITE_SUPPLY_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.assertAliasBalanceAndFeeInChildRecord;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;

@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
@@ -25,6 +24,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static java.util.function.Function.identity;
 
 import com.esaulpaugh.headlong.abi.Tuple;

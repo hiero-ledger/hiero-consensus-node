@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -39,6 +38,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.FREEZABLE_TOKEN_ON_BY_DEFAULT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.KNOWABLE_TOKEN;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.TBD_TOKEN;
