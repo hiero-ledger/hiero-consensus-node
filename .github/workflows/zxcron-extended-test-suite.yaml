@@ -200,8 +200,6 @@ jobs:
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "SDK TCK Regression"
-    secrets:
-      access-token: ${{ secrets.SDK_TCK_GH_ACCESS_TOKEN }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
