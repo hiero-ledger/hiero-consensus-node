@@ -460,6 +460,12 @@ enum StateIdentifier {
      * A state identifier for the node rewards. Singleton state.
      */
     STATE_ID_NODE_REWARDS = 50;
+
+    /**
+    * A state identifier for the Topics state. Singleton state.
+    */
+    STATE_ID_VIRTUAL_MAP_STATE = 51;
+
     /**
      * A state identifier for the round receipts queue. Queue state.
      */

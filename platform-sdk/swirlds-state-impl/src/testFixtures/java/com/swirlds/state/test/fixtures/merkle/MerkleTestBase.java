@@ -3,7 +3,7 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForKv;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -309,14 +309,8 @@ public class MerkleTestBase extends StateTestBase {
 
     /** A convenience method for adding a k/v pair to a virtual map */
     protected void add(
-            VirtualMap map,
-            String serviceName,
-            String stateKey,
-            Codec<String> keyCodec,
-            Codec<String> valueCodec,
-            String key,
-            String value) {
-        map.put(getVirtualMapKey(serviceName, stateKey, key, keyCodec), value, valueCodec);
+            VirtualMap map, String serviceName, String stateKey, Codec<String> valueCodec, String key, String value) {
+        map.put(getVirtualMapKeyForKv(serviceName, stateKey, key), value, valueCodec);
     }
 
     /** A convenience method used to serialize a merkle tree */

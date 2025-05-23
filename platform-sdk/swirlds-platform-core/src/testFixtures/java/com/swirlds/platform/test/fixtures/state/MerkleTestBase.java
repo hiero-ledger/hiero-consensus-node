@@ -138,7 +138,6 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
                 map,
                 md.serviceName(),
                 md.stateDefinition().stateKey(),
-                md.stateDefinition().keyCodec(),
                 md.stateDefinition().valueCodec(),
                 key,
                 value);
