@@ -263,11 +263,16 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
             this.remoteFallenBehind = false;
             this.remoteStillSendingEvents = false;
 
+            this.remoteSyncData = syncMessage;
+
             if (this.mySyncData == null) {
-                sendSyncData();
+                return;
             }
 
-            this.remoteSyncData = syncMessage;
+            bothSentSyncData();
+        }
+
+        private void bothSentSyncData() {
 
             syncMetrics.eventWindow(mySyncData.eventWindow(), remoteSyncData.eventWindow());
 
@@ -355,6 +360,9 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
             this.mySyncData = new SyncData(this.shadowWindow.getEventWindow(), tipHashes);
             sender.sendSyncData(this.mySyncData);
             syncMetrics.outgoingSyncRequestSent();
+            if (this.remoteSyncData != null) {
+                bothSentSyncData();
+            }
         }
 
         private void sendKnownTips() {
