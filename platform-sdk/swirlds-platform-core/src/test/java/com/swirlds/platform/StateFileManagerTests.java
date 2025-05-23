@@ -155,15 +155,9 @@ class StateFileManagerTests {
                 .digestTreeSync(signedState.getState().getRoot());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
-        assertNotSame(
-                signedState,
-                originalState,
-                "deserialized object should not be the same");
+        assertNotSame(signedState, originalState, "deserialized object should not be the same");
 
-        assertEquals(
-                originalState.getState().getHash(),
-                signedState.getState().getHash(),
-                "hash should match");
+        assertEquals(originalState.getState().getHash(), signedState.getState().getHash(), "hash should match");
         assertEquals(originalState.getState().getHash(), deserializedSignedState.originalHash(), "hash should match");
 
         signedState.getState().release();

@@ -2,7 +2,6 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -56,7 +55,7 @@ class SignedStateTests {
 
     @AfterEach
     void tearDown() {
-        releaseAllBuiltSignedStates();
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
     }
 
     /**
@@ -83,7 +82,6 @@ class SignedStateTests {
         if (releaseCallback != null) {
             doAnswer(invocation -> {
                         releaseCallback.run();
-                        invocation.callRealMethod();
                         return null;
                     })
                     .when(state)

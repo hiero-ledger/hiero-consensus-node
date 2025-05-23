@@ -119,7 +119,7 @@ final class ReconnectTest {
                 .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
-        try (final PairedStreams pairedStreams = new PairedStreams(); ) {
+        try (final PairedStreams pairedStreams = new PairedStreams()) {
             final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)

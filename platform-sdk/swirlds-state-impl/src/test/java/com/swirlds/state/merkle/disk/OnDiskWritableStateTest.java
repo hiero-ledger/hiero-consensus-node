@@ -5,7 +5,6 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEq
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
-import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;

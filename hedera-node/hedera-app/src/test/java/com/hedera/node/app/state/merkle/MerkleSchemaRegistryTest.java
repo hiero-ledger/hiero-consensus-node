@@ -34,7 +34,6 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -221,7 +220,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         @AfterEach
         void tearDown() {
             merkleTree.release();
-            if(fruitVirtualMap != null && fruitVirtualMap.getReservationCount() >= 0) {
+            if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() >= 0) {
                 fruitVirtualMap.release();
             }
         }
@@ -744,6 +743,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             }
         }
     }
+
     @AfterEach
     void tearDown() {
         if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
@@ -755,5 +755,4 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                 Duration.of(5, ChronoUnit.SECONDS),
                 "All databases should be closed");
     }
-
 }
