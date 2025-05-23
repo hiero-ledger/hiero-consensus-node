@@ -203,23 +203,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
-        if (blockNodeMode == BlockNodeMode.SIMULATOR) {
-            log.info("Starting simulated block nodes for {} nodes", nodes.size());
-            for (HederaNode node : nodes) {
-                try {
-                    int port = findAvailablePort();
-                    SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                    server.start();
-                    simulatedBlockNodes.add(server);
-                    log.info("Started simulated block node @ localhost:{}", port);
-                } catch (IOException e) {
-                    log.error("Failed to start simulated block node {}", e.toString());
-                }
-            }
-        } else {
-            log.info("Skipping block nodes as mode is: {}", blockNodeMode);
-        }
-
         nodes.forEach(node -> {
             node.initWorkingDir(configTxt);
             executePostInitWorkingDirActions(node);

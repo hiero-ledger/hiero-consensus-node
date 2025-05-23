@@ -520,6 +520,10 @@ public class BlockNodeConnectionManager {
         return lastVerifiedBlockPerConnection.computeIfAbsent(blockNodeConfig, key -> -1L);
     }
 
+    public void setJumpTargetBlock(long blockNumber) {
+        jumpTargetBlock.set(blockNumber);
+    }
+
     /**
      * Runnable task to handle the connection attempt logic.
      * Schedules itself for subsequent retries upon failure using the connectionExecutor.
