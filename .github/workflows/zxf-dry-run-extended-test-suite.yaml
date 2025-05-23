@@ -9,6 +9,26 @@ on:
       branch_name:
         required: true
         description: "The branch name, for JRS Panel output"
+      run-extended-test-suite:
+        required: true
+        type: boolean
+        default: true
+        description: "Whether to run the extended test suite or not"
+      run-abbreviated-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Whether to run the abbreviated panel or not"
+      run-hedera-node-jrs-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Whether to run the Hedera Node JRS panel or not"
+      run-sdk-tck-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Whether to run the SDK TCK regression panel or not"
 
 permissions:
   id-token: write
@@ -25,6 +45,7 @@ defaults:
 jobs:
   extended-test-suite:
     name: Execute eXtended Test Suite
+    if: ${{ inputs.run-extended-test-suite == true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       custom-job-label: "Dry-Run: Execute eXtended Test Suite"
@@ -41,6 +62,7 @@ jobs:
 
   abbreviated-panel:
     name: JRS Panel
+    if: ${{ inputs.run-abbreviated-panel == true }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
       custom-job-name: "Dry-Run: Platform SDK"
@@ -65,6 +87,7 @@ jobs:
 
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
+    if: ${{ inputs.run-hedera-node-jrs-panel == true }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
       custom-job-name: "Dry-Run: Abbrev Update Test"
@@ -87,6 +110,7 @@ jobs:
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
+    if: ${{ inputs.run-sdk-tck-regression-panel == true }}
     uses: ./.github/workflows/zxc-tck-regression.yaml
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
