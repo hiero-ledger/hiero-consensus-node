@@ -27,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -73,6 +74,9 @@ class HtsSystemContractTest {
     @Mock
     private ContractMetrics contractMetrics;
 
+    @Mock
+    private HederaOpsDuration hederaOpsDuration;
+
     private MockedStatic<FrameUtils> frameUtils;
 
     private HtsSystemContract subject;
@@ -81,7 +85,7 @@ class HtsSystemContractTest {
     @BeforeEach
     void setUp() {
         frameUtils = Mockito.mockStatic(FrameUtils.class);
-        subject = new HtsSystemContract(gasCalculator, attemptFactory, contractMetrics);
+        subject = new HtsSystemContract(gasCalculator, attemptFactory, contractMetrics, hederaOpsDuration);
     }
 
     @AfterEach

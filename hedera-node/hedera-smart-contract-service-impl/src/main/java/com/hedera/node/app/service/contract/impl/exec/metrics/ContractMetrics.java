@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.platform.prometheus.NameConverter;
 import com.swirlds.metrics.api.Counter;
@@ -49,6 +50,10 @@ public class ContractMetrics {
     private boolean p1MetricsEnabled;
     private boolean p2MetricsEnabled;
     private final SystemContractMethodRegistry systemContractMethodRegistry;
+    private final ContractOperationMetrics operationMetrics;
+    private final EvmOperationMetrics evmOperationMetrics;
+    private final PrecompileMetrics precompileMetrics;
+    private final TransactionDurationMetrics transactionDurationMetrics;
 
     // Counters that are the P1 metrics
 
@@ -136,6 +141,10 @@ public class ContractMetrics {
                 requireNonNull(contractsConfigSupplier, "contracts configuration supplier must not be null");
         this.systemContractMethodRegistry =
                 requireNonNull(systemContractMethodRegistry, "systemContractMethodRegistry must not be null");
+        this.operationMetrics = new ContractOperationMetrics(metrics);
+        this.evmOperationMetrics = new EvmOperationMetrics(metrics);
+        this.precompileMetrics = new PrecompileMetrics(metrics);
+        this.transactionDurationMetrics = new TransactionDurationMetrics(metrics);
     }
 
     // --------------------
@@ -346,6 +355,84 @@ public class ContractMetrics {
                 // per missing member and system contract method.  (So logs don't get spammed over and over.)
             }
         }
+    }
+
+    /**
+     * Records the duration of a system contract operation in nanoseconds
+     *
+     * @param method the system contract method that was executed
+     * @param durationNanos the duration in nanoseconds
+     */
+    public void recordSystemContractDuration(@NonNull final SystemContractMethod method, final long durationNanos) {
+        operationMetrics.recordOperationDuration(method, durationNanos);
+    }
+
+    /**
+     * Gets the current average duration for a specific system contract operation
+     *
+     * @param method the system contract method to get duration for
+     * @return the average duration in nanoseconds
+     */
+    public double getAverageSystemContractDuration(@NonNull final SystemContractMethod method) {
+        return operationMetrics.getAverageSystemContractDuration(method);
+    }
+
+    /**
+     * Records the duration of an EVM operation in nanoseconds
+     *
+     * @param opCode the EVM op code that was executed
+     * @param durationNanos the duration in nanoseconds
+     */
+    public void recordEVMOperationDuration(@NonNull final int opCode, final long durationNanos) {
+        evmOperationMetrics.recordOperationDuration(opCode, durationNanos);
+    }
+
+    /**
+     * Gets the current average duration for a specific operation
+     *
+     * @param opCode the EVM op code to get duration for
+     * @return the average duration in nanoseconds
+     */
+    public double getAverageEVMOperationDuration(@NonNull final int opCode) {
+        return evmOperationMetrics.getAverageOperationDuration(opCode);
+    }
+
+    /**
+     * Records the duration of an EVM operation in nanoseconds
+     *
+     * @param precompile the precompile op that was executed
+     * @param durationNanos the duration in nanoseconds
+     */
+    public void recordPrecompileDuration(@NonNull final String precompile, final long durationNanos) {
+        precompileMetrics.recordPrecompileDuration(precompile, durationNanos);
+    }
+
+    /**
+     * Gets the current average duration for a specific precompile
+     *
+     * @param precompile the precompile op to get duration for
+     * @return the average duration in nanoseconds
+     */
+    public double getAveragePrecompileDuration(@NonNull final String precompile) {
+        return precompileMetrics.getAveragePrecompileDuration(precompile);
+    }
+
+    /**
+     * Records the duration of a transaction in nanoseconds
+     * @param transaction the transaction to be recorded
+     * @param durationNanos the duration in nanoseconds
+     */
+    public void recordTransactionDuration(@NonNull final HederaEvmTransaction transaction, final long durationNanos) {
+        transactionDurationMetrics.recordTransactionDuration(transaction, durationNanos);
+    }
+
+    /**
+     * Gets the current duration for a specific transaction
+     * @param transaction the transaction to get duration for
+     * @return the duration in nanoseconds
+     */
+    public long getTransactionDuration(@NonNull final HederaEvmTransaction transaction) {
+        return transactionDurationMetrics.getDuration(transaction);
     }
 
     private final ConcurrentHashMap<SystemContractMethod, SystemContractMethod> methodsThatHaveCallsWithNullMethod =
