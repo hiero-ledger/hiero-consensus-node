@@ -799,11 +799,9 @@ public abstract class AbstractLongList<C> implements LongList {
             return true;
         }
         Objects.requireNonNull(action);
+        final BooleanSupplier condition = cond != null ? cond : () -> true;
         long i = minValidIndex.get();
-        for (; i <= max; i++) {
-            if ((cond != null) && !cond.getAsBoolean()) {
-                break;
-            }
+        for (; (i <= max) && condition.getAsBoolean(); i++) {
             final long value = get(i);
             if (value != IMPERMISSIBLE_VALUE) {
                 action.handle(i, value);

@@ -105,7 +105,7 @@ class MerkleDbCompactionCoordinator {
      * critical for snapshots (e.g. update an index), it will be stopped until {@link
      * #resumeCompaction()}} is called.
      */
-    public synchronized void pauseCompaction() throws IOException {
+    synchronized void pauseCompaction() throws IOException {
         for (final DataFileCompactor compactor : compactorsByName.values()) {
             compactor.pauseCompaction();
         }
@@ -114,7 +114,7 @@ class MerkleDbCompactionCoordinator {
     /**
      * Resumes previously stopped data file collection compaction.
      */
-    public synchronized void resumeCompaction() throws IOException {
+    synchronized void resumeCompaction() throws IOException {
         for (final DataFileCompactor compactor : compactorsByName.values()) {
             compactor.resumeCompaction();
         }
@@ -172,7 +172,7 @@ class MerkleDbCompactionCoordinator {
      * @param key Compactor name
      * @return {@code true} if compaction with this name is currently running, {@code false} otherwise
      */
-    public boolean isCompactionRunning(final String key) {
+    synchronized boolean isCompactionRunning(final String key) {
         return compactorsByName.containsKey(key);
     }
 

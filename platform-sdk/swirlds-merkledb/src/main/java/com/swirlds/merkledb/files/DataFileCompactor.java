@@ -138,7 +138,7 @@ public class DataFileCompactor {
      * This flag is set in {@link #interruptCompaction()} and checked periodically in the main
      * compaction loop.
      */
-    private final AtomicBoolean interruptFlag = new AtomicBoolean(false);
+    private volatile boolean interruptFlag = false;
 
     /**
      * @param dbConfig                       MerkleDb config
@@ -192,7 +192,7 @@ public class DataFileCompactor {
             return Collections.emptyList();
         }
 
-        interruptFlag.set(false);
+        interruptFlag = false;
 
         // create a merge time stamp, this timestamp is the newest time of the set of files we are
         // merging
@@ -407,12 +407,12 @@ public class DataFileCompactor {
      * after this method is called, but it's stopped in reasonable time.
      */
     public void interruptCompaction() {
-        interruptFlag.set(true);
+        interruptFlag = true;
     }
 
     // A helper method to avoid using a lambda in compactFiles()
     public boolean notInterrupted() {
-        return !interruptFlag.get();
+        return !interruptFlag;
     }
 
     /**
