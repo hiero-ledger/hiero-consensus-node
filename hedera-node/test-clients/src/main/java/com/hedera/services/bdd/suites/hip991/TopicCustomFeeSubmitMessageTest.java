@@ -54,6 +54,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -68,6 +69,7 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -1817,7 +1819,8 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .via("submit1024"),
                     submitMessageTo(TOPIC)
                             .message("test")
-                            .signedBy(SUBMIT_KEY, SUBMITTER)
+                            .signedBy(SUBMITTER, SUBMIT_KEY)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(SUBMITTER, SUBMIT_KEY))
                             .payingWith(SUBMITTER)
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
@@ -1885,6 +1888,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                 .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, submitTxnRecord);
+                        validateTransactionFees(submitTxnRecord.getResponseRecord());
                     }),
                     // assert topic fee collector balance
                     getAccountBalance(collector).hasTokenBalance(tokenName, 1),
@@ -1892,6 +1896,14 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     getAccountBalance(denomCollector)
                             .hasTokenBalance(denomToken, 1)
                             .hasTinyBars(ONE_HBAR)));
+        }
+
+        private void validateTransactionFees(final TransactionRecord record) {
+            final var feeCreditSum = record.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAccountID().getAccountNum() < 1000)
+                    .mapToInt(aa -> (int) aa.getAmount())
+                    .sum();
+            assertEquals(record.getTransactionFee(), feeCreditSum);
         }
 
         @HapiTest

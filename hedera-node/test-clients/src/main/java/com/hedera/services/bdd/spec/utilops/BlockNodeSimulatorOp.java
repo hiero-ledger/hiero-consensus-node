@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -11,6 +10,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
 
 /**
  * A utility operation for interacting with the block node simulator.
@@ -20,7 +20,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
 
     private final int nodeIndex;
     private final BlockNodeSimulatorAction action;
-    private final PublishStreamResponseCode responseCode;
+    private final EndOfStream.Code responseCode;
     private final long blockNumber;
     private final AtomicLong lastVerifiedBlockNumber;
     private final Consumer<Long> lastVerifiedBlockConsumer;
@@ -28,7 +28,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
     private BlockNodeSimulatorOp(
             int nodeIndex,
             BlockNodeSimulatorAction action,
-            PublishStreamResponseCode responseCode,
+            EndOfStream.Code responseCode,
             long blockNumber,
             AtomicLong lastVerifiedBlockNumber,
             Consumer<Long> lastVerifiedBlockConsumer) {
@@ -189,8 +189,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param responseCode the response code to send
      * @return a builder for the operation
      */
-    public static SendEndOfStreamBuilder sendEndOfStreamImmediately(
-            int nodeIndex, PublishStreamResponseCode responseCode) {
+    public static SendEndOfStreamBuilder sendEndOfStreamImmediately(int nodeIndex, EndOfStream.Code responseCode) {
         return new SendEndOfStreamBuilder(nodeIndex, responseCode);
     }
 
@@ -281,12 +280,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
      */
     public static class SendEndOfStreamBuilder extends UtilOp {
         private final int nodeIndex;
-        private final PublishStreamResponseCode responseCode;
+        private final EndOfStream.Code responseCode;
         private long blockNumber = 0;
         private AtomicLong lastVerifiedBlockNumber;
         private Consumer<Long> lastVerifiedBlockConsumer;
 
-        private SendEndOfStreamBuilder(int nodeIndex, PublishStreamResponseCode responseCode) {
+        private SendEndOfStreamBuilder(int nodeIndex, EndOfStream.Code responseCode) {
             this.nodeIndex = nodeIndex;
             this.responseCode = responseCode;
         }

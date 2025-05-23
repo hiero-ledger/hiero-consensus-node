@@ -33,7 +33,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingWithAllowance;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithShardAndRealm;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -785,7 +784,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    final Stream<DynamicTest> transferNonFungibleWithRoyaltySameHTSTreasuryТоRandom() {
+    final Stream<DynamicTest> transferNonFungibleWithRoyaltySameHTSTreasuryToRandom() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
                 cryptoCreate(alice).balance(ONE_MILLION_HBARS),
@@ -824,7 +823,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
-    final Stream<DynamicTest> transferNonFungibleWithRoyaltyAnotherHTSTreasuryТоRandom() {
+    final Stream<DynamicTest> transferNonFungibleWithRoyaltyAnotherHTSTreasuryToRandom() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
                 cryptoCreate(carol).balance(ONE_MILLION_HBARS),
@@ -1401,6 +1400,8 @@ public class TransferWithCustomRoyaltyFees {
                                             .setToken(asTokenId(fungibleToken, spec))
                                             .addTransfers(AccountAmount.newBuilder()
                                                     .setAccountID(AccountID.newBuilder()
+                                                            .setShardNum(spec.shard())
+                                                            .setRealmNum(spec.realm())
                                                             .setAlias(ownerKey.toByteString())
                                                             .build())
                                                     .setAmount(-xferAmount)
@@ -1408,6 +1409,8 @@ public class TransferWithCustomRoyaltyFees {
                                                     .build())
                                             .addTransfers(AccountAmount.newBuilder()
                                                     .setAccountID(AccountID.newBuilder()
+                                                            .setShardNum(spec.shard())
+                                                            .setRealmNum(spec.realm())
                                                             .setAlias(evmAddress)
                                                             .build())
                                                     .setAmount(xferAmount)
@@ -1475,7 +1478,7 @@ public class TransferWithCustomRoyaltyFees {
                 cryptoApproveAllowance()
                         .addTokenAllowance(tokenOwner, fungibleToken, bufferAccount, xferAmount)
                         .signedByPayerAnd(tokenOwner, bufferAccount),
-                doWithShardAndRealm((shard, realm) -> cryptoTransfer((spec, tl) -> {
+                cryptoTransfer((spec, tl) -> {
                             final var ownerId = asId(tokenOwner, spec);
                             tl.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(asTokenId(fungibleToken, spec))
@@ -1486,10 +1489,12 @@ public class TransferWithCustomRoyaltyFees {
                                                     .build())
                                             .addTransfers(AccountAmount.newBuilder()
                                                     .setAccountID(AccountID.newBuilder()
-                                                            .setShardNum(shard)
-                                                            .setRealmNum(realm)
+                                                            .setShardNum(spec.shard())
+                                                            .setRealmNum(spec.realm())
                                                             .setAlias(ByteString.copyFrom(asEvmAddress(
-                                                                    shard, realm, ownerId.getAccountNum())))
+                                                                    ownerId.getShardNum(),
+                                                                    ownerId.getRealmNum(),
+                                                                    ownerId.getAccountNum())))
                                                             .build())
                                                     .setAmount(xferAmount)
                                                     .setIsApproval(false)
@@ -1505,7 +1510,7 @@ public class TransferWithCustomRoyaltyFees {
                         .payingWith(bufferAccount)
                         .signedBy(bufferAccount, tokenOwner, tokenReceiver)
                         .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS)
-                        .via("txn")),
+                        .via("txn"),
                 getTxnRecord("txn").hasPriority(recordWith().tokenTransfers(spec -> tokenTransfers -> {
                     try {
                         assertTrue(tokenTransfers.isEmpty());

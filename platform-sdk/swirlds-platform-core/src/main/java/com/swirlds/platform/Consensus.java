@@ -2,7 +2,6 @@
 package com.swirlds.platform;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -51,13 +50,6 @@ public interface Consensus {
      * @return the round number
      */
     long getFameDecidedBelow();
-
-    /**
-     * Retrieves the consensus rounds.
-     *
-     * @return an instance of {@link ConsensusRounds} containing the consensus rounds.
-     */
-    ConsensusRounds getRounds();
 
     /**
      * @return the latest round for which fame has been decided

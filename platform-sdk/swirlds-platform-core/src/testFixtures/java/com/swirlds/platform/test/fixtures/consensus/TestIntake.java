@@ -19,7 +19,7 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.RoundCalculationUtils;
+import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
@@ -141,11 +141,7 @@ public class TestIntake {
     }
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
-        final EventWindow eventWindow = new EventWindow(
-                snapshot.round(),
-                RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot),
-                RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot),
-                ancientMode);
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, ancientMode, roundsNonAncient);
 
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
         consensusEngineWiring

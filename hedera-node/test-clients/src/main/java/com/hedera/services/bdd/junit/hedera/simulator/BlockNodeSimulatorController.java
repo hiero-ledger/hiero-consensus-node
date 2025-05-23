@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.simulator;
 
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import java.io.IOException;
 import java.util.HashMap;
@@ -10,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.protoc.PublishStreamResponse;
+import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
 
 /**
  * A utility class to control simulated block node servers in a SubProcessNetwork.
@@ -42,7 +43,7 @@ public class BlockNodeSimulatorController {
      * @param responseCode the response code to send
      * @param blockNumber the block number to include in the response
      */
-    public void setEndOfStreamResponse(PublishStreamResponseCode responseCode, long blockNumber) {
+    public void setEndOfStreamResponse(PublishStreamResponse.EndOfStream.Code responseCode, long blockNumber) {
         for (SimulatedBlockNodeServer server : simulatedBlockNodes) {
             server.setEndOfStreamResponse(responseCode, blockNumber);
         }
@@ -56,7 +57,7 @@ public class BlockNodeSimulatorController {
      * @param responseCode the response code to send
      * @param blockNumber the block number to include in the response
      */
-    public void setEndOfStreamResponse(int index, PublishStreamResponseCode responseCode, long blockNumber) {
+    public void setEndOfStreamResponse(int index, EndOfStream.Code responseCode, long blockNumber) {
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             simulatedBlockNodes.get(index).setEndOfStreamResponse(responseCode, blockNumber);
             log.info("Set EndOfStream response code {} for block {} on simulator {}", responseCode, blockNumber, index);
@@ -73,7 +74,7 @@ public class BlockNodeSimulatorController {
      * @param blockNumber the block number to include in the response
      * @return the last verified block number from the first simulator
      */
-    public long sendEndOfStreamImmediately(PublishStreamResponseCode responseCode, long blockNumber) {
+    public long sendEndOfStreamImmediately(EndOfStream.Code responseCode, long blockNumber) {
         long lastVerifiedBlockNumber = 0L;
         for (int i = 0; i < simulatedBlockNodes.size(); i++) {
             SimulatedBlockNodeServer server = simulatedBlockNodes.get(i);
@@ -99,7 +100,7 @@ public class BlockNodeSimulatorController {
      * @param blockNumber the block number to include in the response
      * @return the last verified block number from the simulator, or 0 if the index is invalid
      */
-    public long sendEndOfStreamImmediately(int index, PublishStreamResponseCode responseCode, long blockNumber) {
+    public long sendEndOfStreamImmediately(int index, EndOfStream.Code responseCode, long blockNumber) {
         long lastVerifiedBlockNumber = 0L;
         if (index >= 0 && index < simulatedBlockNodes.size()) {
             SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);

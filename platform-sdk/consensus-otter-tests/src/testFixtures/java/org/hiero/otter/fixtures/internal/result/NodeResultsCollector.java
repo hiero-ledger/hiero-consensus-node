@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 
 /**
  * Helper class that collects all test results of a node.
@@ -17,6 +19,7 @@ public class NodeResultsCollector {
 
     private final NodeId selfId;
     private final List<ConsensusRound> consensusRounds = new ArrayList<>();
+    private final List<PlatformStatus> platformStatuses = new ArrayList<>();
 
     /**
      * Creates a new instance of {@link NodeResultsCollector}.
@@ -38,6 +41,16 @@ public class NodeResultsCollector {
     }
 
     /**
+     * Adds a {@link PlatformStatus} to the list of collected statuses.
+     *
+     * @param status the {@link PlatformStatus} to add
+     */
+    public void addPlatformStatus(@NonNull final PlatformStatus status) {
+        requireNonNull(status);
+        platformStatuses.add(status);
+    }
+
+    /**
      * Returns a {@link SingleNodeConsensusResult} of the current state.
      *
      * @return the {@link SingleNodeConsensusResult}
@@ -45,5 +58,14 @@ public class NodeResultsCollector {
     @NonNull
     public SingleNodeConsensusResult getConsensusResult() {
         return new SingleNodeConsensusResultImpl(selfId, new ArrayList<>(consensusRounds));
+    }
+
+    /**
+     * Returns a {@link SingleNodeStatusProgression} of the current state.
+     *
+     * @return the {@link SingleNodeStatusProgression}
+     */
+    public SingleNodeStatusProgression getStatusProgression() {
+        return new SingleNodeStatusProgressionImpl(selfId, new ArrayList<>(platformStatuses));
     }
 }
