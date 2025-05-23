@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -12,15 +13,19 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.stream.IntStream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -427,5 +432,14 @@ class VirtualMapHashingTest {
         root.enableFlush();
         // shouldn't throw any exceptions
         assertDoesNotThrow(() -> doFullRehash(root));
+    }
+
+    @AfterEach
+    void tearDown() {
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 }

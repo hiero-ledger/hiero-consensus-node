@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -15,6 +16,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -22,8 +24,11 @@ import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -42,6 +47,18 @@ class PlatformStateFacadeTest {
         emptyState = new TestMerkleStateRoot();
         platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
+    }
+
+    @AfterAll
+    static void tearDown() {
+        state.release();
+        emptyState.release();
+
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 
     @Test
@@ -96,6 +113,7 @@ class PlatformStateFacadeTest {
         final TestMerkleStateRoot noPlatformState = new TestMerkleStateRoot();
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
+        noPlatformState.release();
     }
 
     @Test
@@ -189,6 +207,7 @@ class PlatformStateFacadeTest {
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);
         assertEquals(newSnapshot, platformStateModifier.getSnapshot());
+        randomState.release();
     }
 
     @Test

@@ -41,6 +41,7 @@ testModuleInfo {
 timingSensitiveModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.common")
+    requires("com.swirlds.merkledb")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions")

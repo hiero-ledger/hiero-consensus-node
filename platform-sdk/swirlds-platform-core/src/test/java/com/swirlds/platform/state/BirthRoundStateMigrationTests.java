@@ -2,6 +2,7 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
@@ -14,11 +15,14 @@ import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -42,6 +46,11 @@ class BirthRoundStateMigrationTests {
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 
     @NonNull

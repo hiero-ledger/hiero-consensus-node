@@ -14,6 +14,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NO
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER;
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -73,11 +74,15 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.State;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import java.time.Duration;
 import java.time.InstantSource;
+import java.time.temporal.ChronoUnit;
 import java.util.function.Function;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -211,6 +216,16 @@ class QueryWorkflowImplTest extends AppTestBase {
                 opWorkflowMetrics,
                 true,
                 softwareVersionFactory);
+    }
+
+    @AfterEach
+    void tearDown() {
+        state.release();
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 
     @SuppressWarnings("ConstantConditions")

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -11,13 +12,17 @@ import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.interfaces.HasMerkleRoute;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Random;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -43,6 +48,8 @@ class StateTest {
         assertFalse(state.isDestroyed(), "copy should not have been deleted");
         assertEquals(0, ((Reservable) copy).getReservationCount(), "copy should have no references");
         assertSame(((HasMerkleRoute) state).getRoute(), ((HasMerkleRoute) copy).getRoute(), "route should be recycled");
+        state.release();
+        copy.release();
     }
 
     /**
@@ -83,5 +90,14 @@ class StateTest {
                 new PlatformStateFacade());
         signedState.getState().setHash(CryptoRandomUtils.randomHash(random));
         return signedState;
+    }
+
+    @AfterEach
+    void tearDown() {
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 }
