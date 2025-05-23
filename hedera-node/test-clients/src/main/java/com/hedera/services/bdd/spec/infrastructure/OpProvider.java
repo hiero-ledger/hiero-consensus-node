@@ -60,15 +60,15 @@ public interface OpProvider {
         return plus(STANDARD_PERMISSIBLE_QUERY_PRECHECKS, more);
     }
 
-    default ResponseCodeEnum[] standardPrechecksAnd(ResponseCodeEnum... more) {
+    static ResponseCodeEnum[] standardPrechecksAnd(ResponseCodeEnum... more) {
         return plus(STANDARD_PERMISSIBLE_PRECHECKS, more);
     }
 
-    default ResponseCodeEnum[] standardOutcomesAnd(ResponseCodeEnum... more) {
+    static ResponseCodeEnum[] standardOutcomesAnd(ResponseCodeEnum... more) {
         return plus(STANDARD_PERMISSIBLE_OUTCOMES, more);
     }
 
-    default ResponseCodeEnum[] plus(ResponseCodeEnum[] some, ResponseCodeEnum[] more) {
+    static ResponseCodeEnum[] plus(ResponseCodeEnum[] some, ResponseCodeEnum[] more) {
         return Stream.concat(Stream.of(some), Stream.of(more)).toArray(n -> new ResponseCodeEnum[n]);
     }
 

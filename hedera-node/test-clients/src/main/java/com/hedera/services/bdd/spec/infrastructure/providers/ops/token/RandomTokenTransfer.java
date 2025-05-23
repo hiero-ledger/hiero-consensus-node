@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.token;
 
+import static com.hedera.services.bdd.spec.infrastructure.OpProvider.plus;
+import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardOutcomesAnd;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.token.RandomTokenDissociation.explicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
@@ -17,11 +19,8 @@ import com.hedera.services.bdd.spec.infrastructure.listeners.TokenAccountRegistr
 import com.hedera.services.bdd.spec.infrastructure.providers.names.RegistrySourcedNameProvider;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.Optional;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class RandomTokenTransfer implements OpProvider {
-    private static final Logger log = LogManager.getLogger(RandomTokenTransfer.class);
 
     private final RegistrySourcedNameProvider<TokenAccountRegistryRel> tokenRels;
     private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(
