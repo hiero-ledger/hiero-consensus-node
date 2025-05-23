@@ -120,6 +120,7 @@ public class ScheduleSignTest {
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
                         .payingWith(DEFAULT_PAYER)
                         .alsoSigningWith(sender)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, sender))
                         .sigControl(ControlForKey.forKey(senderKey, sigOne)),
                 getAccountBalance(receiver).hasTinyBars(0L),
                 cryptoUpdate(sender).key(NEW_SENDER_KEY),
@@ -157,6 +158,7 @@ public class ScheduleSignTest {
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
                         .payingWith(DEFAULT_PAYER)
                         .alsoSigningWith(sender)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, sender))
                         .sigControl(ControlForKey.forKey(senderKey, sigOne)),
                 getAccountBalance(receiver).hasTinyBars(0L),
                 scheduleSign(schedule)
@@ -196,6 +198,7 @@ public class ScheduleSignTest {
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
                         .payingWith(DEFAULT_PAYER)
                         .alsoSigningWith(sender)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, sender))
                         .sigControl(ControlForKey.forKey(senderKey, sigOne)),
                 getAccountBalance(receiver).hasTinyBars(0L),
                 scheduleSign(schedule).alsoSigningWith(newSenderKey).sigControl(forKey(newSenderKey, firstSigThree)),
@@ -231,6 +234,7 @@ public class ScheduleSignTest {
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
                         .payingWith(DEFAULT_PAYER)
                         .alsoSigningWith(sender)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, senderKey))
                         .sigControl(ControlForKey.forKey(senderKey, sigOne)),
                 getAccountBalance(receiver).hasTinyBars(0L),
                 scheduleSign(schedule).alsoSigningWith(senderKey).sigControl(forKey(senderKey, sigTwo)),
@@ -265,11 +269,13 @@ public class ScheduleSignTest {
                 getAccountBalance(receiver).hasTinyBars(1L),
                 scheduleSign(schedule)
                         .alsoSigningWith(senderKey)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, senderKey))
                         .sigControl(forKey(senderKey, sigTwo))
                         .hasKnownStatus(SCHEDULE_ALREADY_EXECUTED),
                 getAccountBalance(receiver).hasTinyBars(1L),
                 scheduleSign(schedule)
                         .alsoSigningWith(senderKey)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, senderKey))
                         .sigControl(forKey(senderKey, sigThree))
                         .hasKnownStatus(SCHEDULE_ALREADY_EXECUTED),
                 getAccountBalance(receiver).hasTinyBars(1L));
@@ -326,6 +332,7 @@ public class ScheduleSignTest {
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
                         .payingWith(DEFAULT_PAYER)
                         .alsoSigningWith(sender)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, sender))
                         .sigControl(forKey(senderKey, sigOne)),
                 getAccountBalance(receiver).hasTinyBars(0L),
                 cryptoUpdate(receiver).receiverSigRequired(true),
@@ -363,6 +370,7 @@ public class ScheduleSignTest {
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
                         .memo(randomUppercase(100))
                         .payingWith(sender)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(sender))
                         .sigControl(forKey(sender, sigOne)),
                 getAccountBalance(receiver).hasTinyBars(1L),
                 scheduleSign(schedule)
