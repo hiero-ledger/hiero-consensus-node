@@ -107,7 +107,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
             rootLoggerConfig.setLevel(Level.ALL);
 
             final PatternLayout layout = PatternLayout.newBuilder()
-                    .withPattern("%d{yyyy-MM-dd HH:mm:ss.SSS} [%X] [%t] [%marker] %-5level %logger{36} - %msg %n")
+                    .withPattern(
+                            "%d{yyyy-MM-dd HH:mm:ss.SSS} %notEmpty{[nodeId-%X{nodeId}] }[%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n")
                     .withConfiguration(loggerContextConfig)
                     .build();
 
