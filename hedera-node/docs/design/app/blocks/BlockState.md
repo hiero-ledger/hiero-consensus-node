@@ -34,9 +34,9 @@ managing the generation of PublishStreamRequests, and indicating when a block is
 
 ## Component Interaction
 
-- Used by `BlockStreamStateManager` to aggregate block items and create streamable requests.
 - Passed into streaming pipelines that require access to individual block data.
-- Supplies request metadata to `BlockNodeConnection` for stream transmission.
+- Supplies request metadata to connections for stream transmission.
+- Used to create streamable requests.
 
 ## Sequence Diagram
 
@@ -54,8 +54,7 @@ sequenceDiagram
 ## Error Handling
 
 - If invalid input is passed (e.g., empty items during forced request creation), the method exits early.
-- Prevents creating requests when there are no items or the batch size is invalid.
-- Logging is used for observability but the class itself does not throw exceptions or emit error signals directly.
+- Ensures the batch size is a minimum of 1.
 
 ```mermaid
 sequenceDiagram

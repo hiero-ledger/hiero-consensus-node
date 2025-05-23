@@ -12,7 +12,7 @@
 
 ## Abstract
 
-`BlockNodeConnection` represents a single connection between two block nodes.
+`BlockNodeConnection` represents a single connection between a consensus node and a block node.
 It manages connection state, handles communication, and reports errors to the `BlockNodeConnectionManager`.
 
 ## Definitions
@@ -31,7 +31,7 @@ It manages connection state, handles communication, and reports errors to the `B
 - Handle incoming and outgoing message flow.
 - Report connection errors promptly.
 - Coordinate with `BlockNodeConnectionManager` on lifecycle events.
-- Synchronize streaming state with `BlockStreamStateManager`.
+- Notify the state manager when a block has been acknowledged and therefore eligible to be pruned from the buffer.
 
 ## Component Interaction
 

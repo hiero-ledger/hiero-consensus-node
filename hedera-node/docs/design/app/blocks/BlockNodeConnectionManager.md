@@ -13,7 +13,8 @@
 
 This document describes the internal design and responsibilities of the `BlockNodeConnectionManager` class.
 This component manages active connections, handling connection lifecycle, and coordinating
-with individual `BlockNodeConnection` instances. There should be only one active connection at a time. The class also interacts with the `BlockStreamStateManager` to synchronize stream state.
+with individual connection instances. There should be only one active connection at a time.
+The class also interacts with the `BlockStreamStateManager` to synchronize stream state.
 
 ## Definitions
 
@@ -33,17 +34,16 @@ with individual `BlockNodeConnection` instances. There should be only one active
 
 ## Component Responsibilities
 
-- Maintain a registry of active `BlockNodeConnection` instances.
+- Maintain a registry of active connection instances.
 - Track the latest verified block for each connection.
-- Select the most appropriate `BlockNodeConnection` for streaming blocks (selectBlockNodeForStreaming).
-- Retry failed connections with exponential backoff (handleConnectionError, scheduleRetry).
+- Select the most appropriate connection for streaming blocks.
+- Retry failed connections with exponential backoff.
 - Remove or replace failed connections.
-- Coordinate with `BlockStreamStateManager` to synchronize active connections and streaming progress.
-- Support lifecycle control (shutdown, waitForConnection, openBlock).
+- Support lifecycle control.
 
 ## Component Interaction
 
-- Maintains a bidirectional association with each `BlockNodeConnection`.
+- Maintains a bidirectional association with each connection.
 - Delegates block-related streaming control to the `BlockStreamStateManager`.
 - Updates connection state and retry schedule based on feedback from connections.
 
