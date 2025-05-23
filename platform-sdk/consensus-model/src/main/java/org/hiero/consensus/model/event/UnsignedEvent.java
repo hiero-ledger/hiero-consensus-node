@@ -68,8 +68,6 @@ public class UnsignedEvent implements Hashable {
                 creatorId.id(),
                 birthRound,
                 HapiUtils.asTimestamp(timeCreated),
-                // this is where parents used to be stored
-                Collections.emptyList(),
                 softwareVersion);
     }
 
