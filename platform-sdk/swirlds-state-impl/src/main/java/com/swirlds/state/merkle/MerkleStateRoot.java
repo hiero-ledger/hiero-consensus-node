@@ -8,7 +8,8 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.decomposeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForQueue;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -1071,7 +1072,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                     final var codec = originalStore.getCodec();
                     final var value =
                             Objects.requireNonNull(originalStore.getValue(), "Null value is not expected here");
-                    virtualMap.put(getVirtualMapKey(serviceName, stateKey), value, codec);
+                    virtualMap.put(getVirtualMapKeyForSingleton(serviceName, stateKey), value, codec);
 
                     long migrationTimeMs = System.currentTimeMillis() - migrationStartTime;
                     logger.info(
@@ -1109,7 +1110,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     }
 
     private static void validateSingletonStateMigrated(VirtualMap virtualMap, String serviceName, String stateKey) {
-        assert virtualMap.containsKey(getVirtualMapKey(serviceName, stateKey));
+        assert virtualMap.containsKey(getVirtualMapKeyForSingleton(serviceName, stateKey));
     }
 
     private void migrateQueueStates(
@@ -1151,13 +1152,16 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                             older.release();
                             virtualMapRef.set(currentMap);
                         }
-                        virtualMapRef.get().put(getVirtualMapKey(serviceName, stateKey, tail++), value, codec);
+                        virtualMapRef.get().put(getVirtualMapKeyForQueue(serviceName, stateKey, tail++), value, codec);
                     }
 
                     final var queueState = new QueueState(head, tail);
                     virtualMapRef
                             .get()
-                            .put(getVirtualMapKey(serviceName, stateKey), queueState, QueueStateCodec.INSTANCE);
+                            .put(
+                                    getVirtualMapKeyForSingleton(serviceName, stateKey),
+                                    queueState,
+                                    QueueStateCodec.INSTANCE);
 
                     long migrationTimeMs = System.currentTimeMillis() - migrationStartTime;
                     logger.info(
@@ -1201,11 +1205,11 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private static void validateQueueStateMigrated(
             VirtualMap virtualMap, String serviceName, String stateKey, long head, long tail) {
         // Validate Queue State object
-        assert virtualMap.containsKey(getVirtualMapKey(serviceName, stateKey));
+        assert virtualMap.containsKey(getVirtualMapKeyForSingleton(serviceName, stateKey));
 
         // Validate Queue State values
         for (long i = head; i < tail; i++) {
-            assert virtualMap.containsKey(getVirtualMapKey(serviceName, stateKey, i));
+            assert virtualMap.containsKey(getVirtualMapKeyForQueue(serviceName, stateKey, i));
         }
     }
 
@@ -1227,7 +1231,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                     final var labelPair = decomposeLabel(virtualMapToMigrate.getLabel());
                     final var serviceName = labelPair.key();
                     final var stateKey = labelPair.value();
-                    final var stateIdBytes = getVirtualMapKey(serviceName, stateKey);
+                    final var stateIdBytes = getVirtualMapKeyForSingleton(serviceName, stateKey);
 
                     InterruptableConsumer<Pair<Bytes, Bytes>> handler = (pair) -> {
                         VirtualMap currentMap = virtualMapRef.get();
