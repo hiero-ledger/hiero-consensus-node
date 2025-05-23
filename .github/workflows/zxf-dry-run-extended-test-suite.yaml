@@ -13,22 +13,22 @@ on:
         required: true
         type: boolean
         default: true
-        description: "Whether to run the extended test suite or not"
+        description: "Run Extended Test Suite"
       run-abbreviated-panel:
         required: true
         type: boolean
         default: true
-        description: "Whether to run the abbreviated panel or not"
+        description: "Run Abbreviated JRS Panel"
       run-hedera-node-jrs-panel:
         required: true
         type: boolean
         default: true
-        description: "Whether to run the Hedera Node JRS panel or not"
+        description: "Run Hedera Node JRS Panel"
       run-sdk-tck-regression-panel:
         required: true
         type: boolean
         default: true
-        description: "Whether to run the SDK TCK regression panel or not"
+        description: "Run SDK TCK Regression Panel"
 
 permissions:
   id-token: write
