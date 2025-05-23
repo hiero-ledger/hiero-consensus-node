@@ -55,16 +55,18 @@ and ensures consistent delivery and recovery during block synchronization.
 
 ## Backpressure Mechanism
 
-The block stream system implements a backpressure mechanism to prevent memory exhaustion when the block state buffer grows too large.
-This is particularly important when block nodes fall behind in processing or when network conditions cause delays in block acknowledgments.
+The block stream system implements a backpressure mechanism to ensure that block nodes keep pace with the incoming block stream.
+If block acknowledgments are delayed beyond a configurable threshold, this mechanism activates to halt further block production and transaction handling on the consensus node.
+This ensures system stability and prevents the accumulation of unacknowledged blocks in the stream buffer.
 
 ### Buffer Management
 
 The system maintains a buffer of block states in `BlockStreamStateManager` with the following characteristics:
 
 - Each block state contains the block items and requests for a specific block number
-- The buffer has a configurable TTL (Time To Live) for entries
-- A periodic pruning mechanism removes expired entries, if acknowledged
+- The buffer tracks acknowledgment status for each block
+- Entries remain in the buffer until acknowledged or expired, according to a configurable TTL (Time To Live)
+- A periodic pruning mechanism removes acknowledged and expired entries
 - The buffer size is monitored to implement backpressure when needed
 
 ### Backpressure Implementation
@@ -78,8 +80,8 @@ The backpressure mechanism operates at two levels:
    - If buffer size exceeds safe thresholds after pruning, backpressure is applied
 2. **HandleWorkflow Level**
    - `HandleWorkflow` checks for backpressure signals before processing each round of transactions
-   - When backpressure is active, transaction processing temporarily pauses
-   - Processing resumes once buffer pressure reduces to safe levels
+   - When backpressure is active, block production and transaction handling are paused
+   - Processing resumes only after acknowledgment flow recovers and buffer saturation is reduced
 
 ### Backpressure Flow
 
@@ -89,17 +91,18 @@ The backpressure mechanism operates at two levels:
    - Buffer metrics are updated for monitoring purposes
 2. **Triggering Phase**
    - Backpressure triggers when:
-     - Buffer size grows beyond safe threshold
+     - Acknowledgments do not arrive within the configured TTL
+     - Buffer size grows beyond safe threshold due to unacknowledged or delayed block responses
      - Pruning cannot reduce buffer size sufficiently
      - Block nodes fall significantly behind in processing
 3. **Application Phase**
    - `HandleWorkflow` receives backpressure signal
-   - Transaction processing pauses
-   - Existing block states continue streaming to block nodes
+   - Block production and transaction processing pauses
+   - Streaming continues for already generated blocks to allow block nodes to catch up
    - Buffer gradually reduces as blocks are acknowledged
 4. **Recovery Phase**
    - Buffer size reduces through:
-     - Block acknowledgments from block nodes
+     - Incoming block acknowledgments from block nodes
      - Pruning of expired states
      - Natural processing of buffered blocks
    - Once buffer reaches safe levels, backpressure releases
