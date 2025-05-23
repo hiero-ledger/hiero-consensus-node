@@ -83,7 +83,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
     }
 
     private void add(String serviceName, String stateKey, String key, String value) {
-        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, STRING_CODEC, key, value);
+        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, key, value);
     }
 
     @Nested
@@ -147,12 +147,12 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         }
 
         boolean merkleMapContainsKey(String key) {
-            final Bytes keyBytes = StateUtils.getVirtualMapKey(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key, STRING_CODEC);
+            final Bytes keyBytes = StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key);
             return fruitVirtualMap.containsKey(keyBytes);
         }
 
         String readValueFromMerkleMap(String key) {
-            final Bytes keyBytes = StateUtils.getVirtualMapKey(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key, STRING_CODEC);
+            final Bytes keyBytes = StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, key);
             return fruitVirtualMap.get(keyBytes, STRING_CODEC);
         }
 

@@ -30,7 +30,7 @@ class OnDiskReadableStateTest extends MerkleTestBase {
     }
 
     private void add(String serviceName, String stateKey, String key, String value) {
-        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, STRING_CODEC, key, value);
+        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, key, value);
     }
 
     @Nested
@@ -111,8 +111,7 @@ class OnDiskReadableStateTest extends MerkleTestBase {
         final var state = new OnDiskReadableKVState<>(
                 FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, virtualMapMock);
         state.warm(A_KEY);
-        verify(virtualMapMock)
-                .warm(StateUtils.getVirtualMapKey(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, STRING_CODEC));
+        verify(virtualMapMock).warm(StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY));
     }
 
     @AfterEach
