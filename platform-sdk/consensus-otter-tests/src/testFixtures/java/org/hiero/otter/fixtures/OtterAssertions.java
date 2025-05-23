@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.assertj.core.api.Assertions;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeStatusProgressionAssert;
@@ -48,6 +49,18 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static MultipleNodeConsensusResultsAssert assertThat(@Nullable final MultipleNodeConsensusResults actual) {
         return MultipleNodeConsensusResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodeConsensusResults}.
+     *
+     * @param actual the {@link MultipleNodeConsensusResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeConsensusResults}
+     */
+    @NonNull
+    public static MultipleNodeConsensusResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeConsensusResults actual) {
+        return MultipleNodeConsensusResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
