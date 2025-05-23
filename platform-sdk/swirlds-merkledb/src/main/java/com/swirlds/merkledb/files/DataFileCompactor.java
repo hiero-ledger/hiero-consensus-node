@@ -181,7 +181,7 @@ public class DataFileCompactor {
      * @throws IOException          If there was a problem with the compaction
      * @throws InterruptedException If the compaction thread was interrupted
      */
-    synchronized List<Path> compactFiles(
+    List<Path> compactFiles(
             final CASableLongIndex index,
             final List<? extends DataFileReader> filesToCompact,
             final int targetCompactionLevel)
