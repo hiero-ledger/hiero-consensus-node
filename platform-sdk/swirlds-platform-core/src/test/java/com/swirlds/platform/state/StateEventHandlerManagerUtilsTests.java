@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
-import org.junit.jupiter.api.BeforeEach;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 public class StateEventHandlerManagerUtilsTests {
-
-    @BeforeEach
-    void setup() {}
 
     @Test
     void testFastCopyIsMutable() {
@@ -38,5 +39,16 @@ public class StateEventHandlerManagerUtilsTests {
                 1,
                 state.getRoot().getReservationCount(),
                 "Fast copy should return a new state with a reference count of 1.");
+        state.release();
+        result.release();
+    }
+
+    @AfterEach
+    void tearDown() {
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 }
