@@ -2,8 +2,6 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
@@ -19,6 +17,7 @@ import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.metrics.PlatformMetricsProvider;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
@@ -49,6 +48,7 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -61,15 +61,18 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeMetricsResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMetricsResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
+import org.hiero.otter.fixtures.turtle.metric.MetricsCollector;
 
 /**
  * A node in the turtle network.
@@ -97,6 +100,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private final SimulatedNetwork network;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
+    private final PlatformMetricsProvider metricsProvider;
+    private final MetricsCollector metricCollector;
 
     private final PlatformStatusChangeListener platformStatusChangeListener;
 
@@ -115,7 +120,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
-            @NonNull final Path outputDirectory) {
+            @NonNull final Path outputDirectory,
+            @NonNull final PlatformMetricsProvider metricsProvider,
+            @NonNull final MetricsCollector metricCollector) {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
@@ -132,6 +139,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                 TurtleNode.this.platformStatus = newStatus;
                 resultsCollector.addPlatformStatus(newStatus);
             };
+            this.metricsProvider = requireNonNull(metricsProvider);
+            this.metricCollector = requireNonNull(metricCollector);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -263,6 +272,12 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         return resultsCollector.getStatusProgression();
     }
 
+    @NonNull
+    @Override
+    public SingleNodeMetricsResult getMetricsResultFor(@NonNull final String identifier) {
+        return new SingleNodeMetricsResultImpl(selfId, identifier, metricCollector.getNumbers(selfId, identifier));
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -340,7 +355,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private void doShutdownNode() throws InterruptedException {
         if (lifeCycle == LifeCycle.STARTED) {
             // TODO: Release all resources
-            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
             platformWiring.stop();
             platform.getNotificationEngine().unregisterAll();
             platformStatus = null;
@@ -354,27 +368,31 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private void doStartNode() {
 
         final Configuration currentConfiguration = nodeConfiguration.createConfiguration();
+        final Metrics nodeMetrics = metricsProvider.createPlatformMetrics(selfId);
 
-        setupGlobalMetrics(currentConfiguration);
+        final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
+        final RecycleBin recycleBin = RecycleBin.create(
+                nodeMetrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final PlatformContext platformContext = TestPlatformContextBuilder.create()
+                .withTime(time)
+                .withConfiguration(currentConfiguration)
+                .withFileSystemManager(fileSystemManager)
+                .withMetrics(nodeMetrics)
+                .withRecycleBin(recycleBin)
+                .build();
 
+        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
+                .withDeterministicModeEnabled(true)
+                .withUncaughtExceptionHandler((t, e) -> {
+                    Assertions.fail("Unexpected exception in wiring framework", e);
+                })
+                .build();
         final SemanticVersion version =
                 currentConfiguration.getValue(TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class);
         assert version != null; // avoids a warning, not really needed as there is always a default
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
-        final RecycleBin recycleBin = RecycleBin.create(
-                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
-
-        platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(currentConfiguration)
-                .withFileSystemManager(fileSystemManager)
-                .withMetrics(metrics)
-                .withRecycleBin(recycleBin)
-                .build();
 
         model = WiringModelBuilder.create(platformContext.getMetrics(), time)
                 .withDeterministicModeEnabled(true)

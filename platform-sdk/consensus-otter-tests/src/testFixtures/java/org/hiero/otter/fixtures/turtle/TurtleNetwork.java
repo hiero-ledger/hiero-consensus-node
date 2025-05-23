@@ -9,7 +9,15 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETW
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.metrics.PlatformMetricsProvider;
+import com.swirlds.common.metrics.config.MetricsConfig_;
+import com.swirlds.common.metrics.platform.DefaultMetricsProvider;
+import com.swirlds.common.metrics.platform.prometheus.PrometheusConfig_;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.CryptoMetrics;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +27,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,10 +44,12 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeFilter;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeMetricsResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeStatusProgressionImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMetricsResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -46,6 +57,7 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
+import org.hiero.otter.fixtures.turtle.metric.MetricsCollector;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
@@ -70,6 +82,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     private List<Node> publicNodes = List.of();
     private ExecutorService executorService;
     private SimulatedNetwork simulatedNetwork;
+    private DefaultMetricsProvider metricsProvider;
 
     private State state = State.INIT;
 
@@ -112,10 +125,21 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         simulatedNetwork =
                 new SimulatedNetwork(randotron, roster, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
+        final MetricsCollector metricCollector = new MetricsCollector();
+        final Configuration globalConfig = new TestConfigBuilder()
+                .withValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true)
+                .withValue(MetricsConfig_.CSV_WRITE_FREQUENCY, 1)
+                .withValue(PrometheusConfig_.ENDPOINT_ENABLED, false)
+                .getOrCreateConfig();
+        metricsProvider = new DefaultMetricsProvider(globalConfig, List.of(metricCollector::handleSnapshots));
+        final Metrics globalMetrics = metricsProvider.createGlobalMetrics();
+        CryptoMetrics.registerMetrics(globalMetrics);
+
         final List<TurtleNode> nodeList = roster.rosterEntries().stream()
                 .map(RosterUtils::getNodeId)
                 .sorted()
-                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
+                .map(nodeId -> createTurtleNode(
+                        nodeId, roster, rosterBuilder.getPrivateKeys(nodeId), metricsProvider, metricCollector))
                 .toList();
         nodes.addAll(nodeList);
 
@@ -124,9 +148,22 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     }
 
     private TurtleNode createTurtleNode(
-            @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
+            @NonNull final NodeId nodeId,
+            @NonNull final Roster roster,
+            @NonNull final KeysAndCerts privateKeys,
+            @NonNull final PlatformMetricsProvider metricsProvider,
+            @NonNull final MetricsCollector metricCollector) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, outputDir);
+        return new TurtleNode(
+                randotron,
+                timeManager.time(),
+                nodeId,
+                roster,
+                privateKeys,
+                simulatedNetwork,
+                outputDir,
+                metricsProvider,
+                metricCollector);
     }
 
     /**
@@ -143,6 +180,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         for (final TurtleNode node : nodes) {
             node.start();
         }
+        metricsProvider.start();
 
         log.debug("Waiting for nodes to become active...");
         if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
@@ -243,6 +281,14 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         final List<SingleNodeStatusProgression> statusProgressions =
                 nodes.stream().map(Node::getStatusProgression).toList();
         return new MultipleNodeStatusProgressionImpl(statusProgressions);
+    }
+
+    @NonNull
+    @Override
+    public MultipleNodeMetricsResults getMetricsResultsFor(@NonNull final String identifier) {
+        Objects.requireNonNull(identifier, "identifier cannot be null.");
+        return new MultipleNodeMetricsResultsImpl(
+                nodes.stream().map(node -> node.getMetricsResultFor(identifier)).toList());
     }
 
     /**
