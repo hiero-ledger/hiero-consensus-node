@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
@@ -23,7 +24,6 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.token.Account;
@@ -59,9 +59,11 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
@@ -94,7 +96,6 @@ public final class IngestChecker {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
-    private final SemanticVersion softwareVersionFactory;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -131,7 +132,6 @@ public final class IngestChecker {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            @NonNull final SemanticVersion softwareVersionFactory,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
@@ -148,7 +148,6 @@ public final class IngestChecker {
                 requireNonNull(synchronizedThrottleAccumulator, "synchronizedThrottleAccumulator must not be null");
         this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
         this.workflowMetrics = requireNonNull(workflowMetrics, "workflowMetrics must not be null");
-        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
@@ -222,11 +221,11 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        assertThrottlingPreconditions(txInfo, configuration);
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        if (hederaConfig.ingestThrottleEnabled() && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state)) {
-            workflowMetrics.incrementThrottled(functionality);
-            throw new PreCheckException(BUSY);
+        checkThrottles(state, configuration, txInfo);
+        // If the transaction is a batch transaction, we need to check the throttling for each inner transaction
+        if (functionality == ATOMIC_BATCH) {
+            checkThrottlesForInnerTxns(
+                    state, configuration, requireNonNull(txBody.atomicBatch()).transactions());
         }
 
         // 4a. Run pure checks
@@ -266,6 +265,73 @@ public final class IngestChecker {
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 
         return txInfo;
+    }
+
+    private void checkThrottles(
+            @NonNull final State state, @NonNull final Configuration configuration, final TransactionInfo txn)
+            throws PreCheckException {
+        assertThrottlingPreconditions(txn, configuration);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        if (hederaConfig.ingestThrottleEnabled() && synchronizedThrottleAccumulator.shouldThrottle(txn, state)) {
+            workflowMetrics.incrementThrottled(txn.functionality());
+            throw new PreCheckException(BUSY);
+        }
+    }
+
+    /**
+     * Validates throttling constraints for nested transactions while ensuring accurate capacity accounting.
+     *
+     * @param state Current network state for throttle evaluation
+     * @param configuration System configuration
+     * @param innerTxnsBytes Serialized inner transactions to validate
+     * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
+     */
+    private void checkThrottlesForInnerTxns(
+            @NonNull final State state, @NonNull final Configuration configuration, final List<Bytes> innerTxnsBytes)
+            throws PreCheckException {
+
+        if (innerTxnsBytes == null || innerTxnsBytes.isEmpty()) {
+            return;
+        }
+
+        final Map<HederaFunctionality, Integer> usedCapacity = new EnumMap<>(HederaFunctionality.class);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        final var ingestThrottleEnabled = hederaConfig.ingestThrottleEnabled();
+        final var maxParseSize = maxIngestParseSize(configuration);
+
+        try {
+            for (final var bytes : innerTxnsBytes) {
+                final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
+                final var functionality = innerTxn.functionality();
+                assertThrottlingPreconditions(innerTxn, configuration);
+
+                if (ingestThrottleEnabled) {
+                    if (synchronizedThrottleAccumulator.shouldThrottle(innerTxn, state)) {
+                        workflowMetrics.incrementThrottled(functionality);
+                        throw new PreCheckException(BUSY);
+                    }
+                    // Only track successfully claimed capacity
+                    usedCapacity.merge(functionality, 1, Integer::sum);
+                }
+            }
+        } catch (PreCheckException e) {
+            if (ingestThrottleEnabled) {
+                // Release capacity for all inner transactions that claimed capacity
+                releaseAccumulatedCapacity(usedCapacity);
+                // Release capacity for the atomic batch itself
+                releaseAccumulatedCapacity(Map.of(ATOMIC_BATCH, 1));
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Releases capacity for all tracked functionalities.
+     *
+     * @param usedCapacity Map of functionality to capacity count
+     */
+    private void releaseAccumulatedCapacity(final Map<HederaFunctionality, Integer> usedCapacity) {
+        usedCapacity.forEach(synchronizedThrottleAccumulator::leakCapacityForNOfUnscaled);
     }
 
     private static int maxIngestParseSize(Configuration configuration) {
