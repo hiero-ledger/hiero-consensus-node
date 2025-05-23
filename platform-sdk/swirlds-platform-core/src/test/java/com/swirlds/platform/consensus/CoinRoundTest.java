@@ -24,7 +24,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class CoinRoundTest extends PlatformTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"coin-round-test/0.60-20250225-114602/", "coin-round-test/0.59-20250302-104332/"})
+    @ValueSource(strings = {"coin-round-test/0.62-20250514-101342/"})
     void coinRound(final String resources) throws URISyntaxException, IOException {
         final PlatformContext context = createDefaultPlatformContext();
 

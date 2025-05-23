@@ -9,7 +9,6 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGAT
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.hedera.hapi.util.EventMigrationUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
@@ -148,7 +147,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "timeCreated";
         } else if (eventCore.version() == null) {
             nullField = "version";
-        } else if (EventMigrationUtils.getParents(gossipEvent).stream().anyMatch(Objects::isNull)) {
+        } else if (gossipEvent.parents().stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
         } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {
             nullField = "transaction";
@@ -184,7 +183,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             fieldLengthAccumulator.update(1);
             return false;
         }
-        if (EventMigrationUtils.getParents(gossipEvent).stream()
+        if (gossipEvent.parents().stream()
                 .map(EventDescriptor::hash)
                 .anyMatch(hash -> hash.length() != DigestType.SHA_384.digestLength())) {
             fieldLengthLogger.error(
@@ -230,14 +229,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the parent hashes and generations of the event are internally consistent, otherwise false
      */
     private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
-        if (!EventMigrationUtils.areParentsPopulatedCorrectly(event.getGossipEvent())) {
-            invalidParentsLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Event %s has parents populated in both EventCore and GossipEvent".formatted(event));
-            invalidParentsAccumulator.update(1);
-            return false;
-        }
-
         // If a parent is not missing, then the generation and birth round must be valid.
         final EventDescriptorWrapper selfParent = event.getSelfParent();
         if (selfParent != null) {
