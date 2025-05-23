@@ -8,11 +8,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 
@@ -24,7 +25,14 @@ public class MultipleNodeConsensusResultsContinuousAssert
         extends AbstractAssert<MultipleNodeConsensusResultsContinuousAssert, MultipleNodeConsensusResults>
         implements ContinuousAssertion {
 
-    private final AtomicBoolean stopped = new AtomicBoolean(false);
+    private enum State {
+        ACTIVE,
+        PAUSED,
+        DESTROYED
+    }
+
+    private final Set<NodeId> suppressedNodeIds = ConcurrentHashMap.newKeySet();
+    private volatile State state = State.ACTIVE;
 
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeConsensusResults}.
@@ -52,8 +60,70 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * {@inheritDoc}
      */
     @Override
-    public void stop() {
-        stopped.set(true);
+    public void pause() {
+        state = State.PAUSED;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resume() {
+        state = State.ACTIVE;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        state = State.DESTROYED;
+    }
+
+    /**
+     * Suppresses the given node from the assertions.
+     *
+     * @param nodeId the id of the node to suppress
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(@NonNull final NodeId nodeId) {
+        suppressedNodeIds.add(nodeId);
+        return this;
+    }
+
+    /**
+     * Suppresses the given node from the assertions.
+     *
+     * @param node the {@link Node} to suppress
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(@NonNull final Node node) {
+        return startSuppressingNode(node.getSelfId());
+    }
+
+    /**
+     * Stops suppressing the given node from the assertions.
+     *
+     * @param nodeId the id of the node
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(@NonNull final NodeId nodeId) {
+        suppressedNodeIds.remove(nodeId);
+        return this;
+    }
+
+    /**
+     * Stops suppressing the given node from the assertions.
+     *
+     * @param node the {@link Node}
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(@NonNull final Node node) {
+        return stopSuppressingNode(node.getSelfId());
     }
 
     /**
@@ -73,18 +143,23 @@ public class MultipleNodeConsensusResultsContinuousAssert
             @Override
             public SubscriberAction onConsensusRounds(
                     @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
-                if (stopped.get()) {
-                    return UNSUBSCRIBE;
-                }
-                for (final ConsensusRound round : rounds) {
-                    final RoundFromNode reference = referenceRounds.computeIfAbsent(
-                            round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
-                    if (!nodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
-                        throw new AssertionError(summarizeDifferences(
-                                reference.nodeId, nodeId, round.getRoundNum(), reference.round(), round));
+                return switch (state) {
+                    case ACTIVE -> {
+                        if (!suppressedNodeIds.contains(nodeId)) {
+                            for (final ConsensusRound round : rounds) {
+                                final RoundFromNode reference = referenceRounds.computeIfAbsent(
+                                        round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
+                                if (!nodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
+                                    failWithMessage(summarizeDifferences(
+                                            reference.nodeId, nodeId, round.getRoundNum(), reference.round(), round));
+                                }
+                            }
+                        }
+                        yield CONTINUE;
                     }
-                }
-                return CONTINUE;
+                    case PAUSED -> CONTINUE;
+                    case DESTROYED -> UNSUBSCRIBE;
+                };
             }
         };
 
@@ -93,7 +168,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
         return this;
     }
 
-    private String summarizeDifferences(
+    private static String summarizeDifferences(
             @NonNull final NodeId node1,
             @NonNull final NodeId node2,
             final long roundNum,

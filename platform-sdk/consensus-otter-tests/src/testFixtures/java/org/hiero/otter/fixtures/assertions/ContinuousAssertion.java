@@ -3,14 +3,29 @@ package org.hiero.otter.fixtures.assertions;
 
 /**
  * A {@link ContinuousAssertion} checks assertions continuously until the end of the test or until stopped manually by
- * calling {@link #stop()}.
+ * calling {@link #destroy()}.
  */
 @SuppressWarnings("unused")
 public interface ContinuousAssertion {
+
+    /**
+     * Pauses the continuous assertion. The assertion will not be checked until it is resumed.
+     *
+     * <p>This method is idempotent, meaning that it is safe to call multiple times.
+     */
+    void pause();
+
+    /**
+     * Resumes the continuous assertion. The assertion will be checked again.
+     *
+     * <p>This method is idempotent, meaning that it is safe to call multiple times.
+     */
+    void resume();
+
     /**
      * Stops the continuous assertion. All resources are released. Once stopped, the assertions cannot be restarted again.
      *
      * <p>This method is idempotent, meaning that it is safe to call multiple times.
      */
-    void stop();
+    void destroy();
 }
