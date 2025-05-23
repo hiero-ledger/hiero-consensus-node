@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.classiccalls;
 
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
+
 import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.swirlds.base.utility.Pair;
@@ -18,9 +19,9 @@ public class ClassicInventory {
     public static final String CRYPTO_KEY = "cryptoKey";
     public static final String FAILABLE_CALLS_CONTRACT = "FailableClassicCalls";
     public static final String FAILABLE_CONTROL_KEY = "authorizedContractKey";
-    public static final Address INVALID_TOKEN_ADDRESS = HapiPropertySource.idAsHeadlongAddress(
-            TokenID.newBuilder().setTokenNum(Long.MAX_VALUE).build());
-    public static final Address INVALID_ACCOUNT_ADDRESS = HapiPropertySource.idAsHeadlongAddress(
+    public static final Address INVALID_TOKEN_ADDRESS =
+            idAsHeadlongAddress(TokenID.newBuilder().setTokenNum(Long.MAX_VALUE).build());
+    public static final Address INVALID_ACCOUNT_ADDRESS = idAsHeadlongAddress(
             AccountID.newBuilder().setAccountNum(Long.MAX_VALUE).build());
     public static final String[] VALID_ACCOUNT_IDS = new String[] {ALICE, BOB};
 
