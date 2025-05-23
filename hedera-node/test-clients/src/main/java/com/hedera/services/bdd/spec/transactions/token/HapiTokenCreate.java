@@ -68,6 +68,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     private boolean advertiseCreation = false;
     private boolean asCallableContract = false;
+    private boolean skipAutoRenewPeriod = false;
     private Optional<TokenType> tokenType = Optional.empty();
     private Optional<SubType> tokenSubType = Optional.empty();
     private Optional<TokenSupplyType> supplyType = Optional.empty();
@@ -156,6 +157,11 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     public HapiTokenCreate asCallableContract() {
         asCallableContract = true;
+        return this;
+    }
+
+    public HapiTokenCreate skipAutoRenewPeriod() {
+        skipAutoRenewPeriod = true;
         return this;
     }
 
@@ -347,11 +353,12 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
                             if (autoRenewAccount.isPresent()) {
                                 final var id = TxnUtils.asId(autoRenewAccount.get(), spec);
                                 b.setAutoRenewAccount(id);
-                                final long secs = autoRenewPeriod.orElse(
-                                        spec.setup().defaultAutoRenewPeriod().getSeconds());
-                                b.setAutoRenewPeriod(
-                                        Duration.newBuilder().setSeconds(secs).build());
+                                if (autoRenewPeriod.isEmpty() && !skipAutoRenewPeriod) {
+                                    b.setAutoRenewPeriod(spec.setup().defaultAutoRenewPeriod());
+                                }
                             }
+                            autoRenewPeriod.ifPresent(p -> b.setAutoRenewPeriod(
+                                    Duration.newBuilder().setSeconds(p).build()));
                             if (autoRenewPeriod.isEmpty()) {
                                 expiry.ifPresentOrElse(
                                         t -> b.setExpiry(Timestamp.newBuilder()
