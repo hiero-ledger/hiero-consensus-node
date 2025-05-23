@@ -17,7 +17,6 @@ import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -175,6 +174,9 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
          */
         private boolean remoteStillSendingEvents = false;
 
+        private int chatterIncomingCounter = 0;
+        private int syncIncomingCounter = 0;
+
         /**
          * Create new state class for a RPC sync conversation between two nodes.
          *
@@ -240,8 +242,10 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
          * @param gossipEvent event to be sent
          */
         void broadcastEvent(@NonNull final GossipEvent gossipEvent) {
-            if (!this.remoteFallenBehind) {
-                sender.sendEvents(Collections.singletonList(gossipEvent));
+            // don't spam remote side if it is going to reconnect
+            // or if we haven't completed even a first sync, as it might be a recovery phase for either for us
+            if (!this.remoteFallenBehind && this.lastSyncTime != Instant.MIN) {
+                sender.sendChatterEvent(gossipEvent);
             }
         }
 
@@ -303,7 +307,15 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
                     createSendList(selfId, eventsTheyHave, mySyncData.eventWindow(), remoteSyncData.eventWindow());
             sender.sendEvents(
                     sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
-            sender.sendEndOfEvents().thenRun(this::finishedSendingEvents);
+            sender.sendEndOfEvents().thenRun(() -> {
+                //                logger.info(LogMarker.RECONNECT.getMarker(),
+                //                        "Sync finished with {} sent {} events, my round {} their round {}, sync
+                // incoming events {}, chatter incoming events {}", otherNodeId,
+                //                        sendList.size(), mySyncData.eventWindow().latestConsensusRound(),
+                //                        remoteSyncData.eventWindow().latestConsensusRound(), syncIncomingCounter,
+                // chatterIncomingCounter);
+                finishedSendingEvents();
+            });
             syncMetrics.syncDone(new SyncResult(false, otherNodeId, 0, sendList.size()));
         }
 
@@ -313,6 +325,7 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         @Override
         public void receiveEvents(@NonNull final List<GossipEvent> gossipEvents) {
             final long start = System.nanoTime();
+            syncIncomingCounter += gossipEvents.size();
             gossipEvents.forEach(this::handleIncomingEvent);
             syncMetrics.eventsReceived(start, gossipEvents.size());
         }
@@ -323,6 +336,13 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
         @Override
         public void receiveEventsFinished() {
             this.remoteStillSendingEvents = false;
+        }
+
+        @Override
+        public void receiveChatterEvent(final GossipEvent gossipEvent) {
+            chatterIncomingCounter++;
+            final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+            eventHandler.accept(platformEvent);
         }
 
         // UTILITY METHODS
@@ -368,6 +388,8 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
             this.myTips = null;
             eventsTheyHave.clear();
             this.lastSyncTime = time.now();
+            this.syncIncomingCounter = 0;
+            this.chatterIncomingCounter = 0;
         }
 
         /**

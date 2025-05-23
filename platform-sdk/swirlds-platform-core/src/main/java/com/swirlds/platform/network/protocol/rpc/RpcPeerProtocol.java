@@ -55,8 +55,8 @@ interface StreamWriter {
 }
 
 /**
- * Message based implementation of gossip; currently supporting sync and simplistic chatter
- * Responsible for communication with a single peer
+ * Message based implementation of gossip; currently supporting sync and simplistic chatter Responsible for
+ * communication with a single peer
  */
 public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
@@ -73,6 +73,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private static final int EVENTS_FINISHED = 4;
     private static final int PING = 5;
     private static final int PING_REPLY = 6;
+    private static final int CHATTER_EVENT = 7;
 
     private static final int EVENT_BATCH_SIZE = 512;
 
@@ -337,10 +338,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * <p>
      * <b>processMessagesToSend</b> means remote side said to us they want to end conversation and we should behave
      * <p>
-     * <b>gossipHalted</b> means there is reconnect happening very soon, so we need to exit ASAP and free the permits and
+     * <b>gossipHalted</b> means there is reconnect happening very soon, so we need to exit ASAP and free the permits
+     * and
      * connection
      * <p>
-     * <b>permitProvider health</b> indicates that system is overloaded and we are getting backpressure; we need to give up on
+     * <b>permitProvider health</b> indicates that system is overloaded and we are getting backpressure; we need to give
+     * up on
      * spamming network and/or reading new messages and let things settle down
      *
      * @return true if sending messages loop should continue
@@ -395,6 +398,10 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             receiver.receiveEvents(
                                     Collections.singletonList(input.readPbjRecord(GossipEvent.PROTOBUF)));
                             break;
+                        case CHATTER_EVENT:
+                            receiver.receiveChatterEvent(input.readPbjRecord(GossipEvent.PROTOBUF));
+                            break;
+
                         case EVENTS_FINISHED:
                             receiver.receiveEventsFinished();
                             break;
@@ -493,6 +500,15 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     }
                 }
             }
+        });
+    }
+
+    @Override
+    public void sendChatterEvent(final GossipEvent gossipEvent) {
+        outputQueue.add(out -> {
+            out.writeShort(1);
+            out.write(CHATTER_EVENT);
+            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
         });
     }
 

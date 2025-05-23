@@ -29,4 +29,9 @@ public interface GossipRpcReceiver {
      * {@link GossipRpcSender#sendEndOfEvents()}
      */
     void receiveEventsFinished();
+
+    /**
+     * {@link GossipRpcSender#sendChatterEvent(GossipEvent)}
+     */
+    void receiveChatterEvent(GossipEvent gossipEvent);
 }
