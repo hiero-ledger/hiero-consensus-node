@@ -16,6 +16,7 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.throttle.NetworkUtilizationManagerImpl;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -75,6 +76,9 @@ class NetworkUtilizationManagerImplTest {
     @Mock
     private WritableSingletonState writableCongestionLevelsStartsState;
 
+    @Mock
+    private StreamBuilder streamBuilder;
+
     @BeforeEach
     void setUp() {
         subject = new NetworkUtilizationManagerImpl(throttleAccumulator, congestionMultipliers);
@@ -109,5 +113,14 @@ class NetworkUtilizationManagerImplTest {
         // then
         verify(throttleAccumulator).checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
+    }
+
+    @Test
+    void verifyShouldThrottlePostHandle() {
+        // when
+        subject.shouldThrottlePostHandle(transactionInfo, streamBuilder, consensusNow);
+
+        // then
+        verify(throttleAccumulator).checkAndEnforcePostHandleThrottle(transactionInfo, streamBuilder, consensusNow);
     }
 }

@@ -80,6 +80,23 @@ public class DispatchUsageManager {
     }
 
     /**
+     * Tracks usage of the given dispatch after processing by a handler. The only current example for now is the
+     * ops duration throttle.  This method presumes that the state for the throttles has already been loaded by a call
+     * to {@link DispatchUsageManager#screenForCapacity}
+     *
+     * @param dispatch the dispatch
+     * @throws ThrottleException if the dispatch should be throttled
+     */
+    public void postHandleScreenForCapacity(@NonNull final Dispatch dispatch) throws ThrottleException {
+        if (dispatch.throttleStrategy() == ON) {
+            if (networkUtilizationManager.shouldThrottlePostHandle(
+                    dispatch.txnInfo(), dispatch.streamBuilder(), dispatch.consensusNow())) {
+                throw ThrottleException.newNativeThrottleException();
+            }
+        }
+    }
+
+    /**
      * Tracks the final work done by handling this user transaction.
      * @param dispatch the dispatch
      */

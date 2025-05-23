@@ -17,8 +17,6 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive com.esaulpaugh.headlong;
-    requires transitive com.fasterxml.jackson.annotation;
-    requires transitive com.fasterxml.jackson.databind;
     requires transitive dagger;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;

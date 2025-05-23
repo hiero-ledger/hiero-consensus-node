@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.Optional;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
@@ -57,15 +57,25 @@ import org.slf4j.LoggerFactory;
  * Adds support for calculating an alternate ops gas schedule tracking.
  */
 public class HederaEVM extends EVM {
-    private final OperationRegistry operations;
     private static final Logger LOG = LoggerFactory.getLogger(HederaEVM.class);
+
+    private final OperationRegistry operations;
     private final GasCalculator gasCalculator;
     private final Operation endOfScriptStop;
     private final EvmSpecVersion evmSpecVersion;
-    private final boolean enableShanghai;
-    private final Map<Integer, Long> opsDurationValueMap;
-    private final long opsDurationMultiplier;
 
+    // Optimized operation flags
+    private final boolean enableShanghai;
+    private final HederaOpsDuration hederaOpsDuration;
+
+    /**
+     * Instantiates a new Evm.
+     *
+     * @param operations       the operations
+     * @param gasCalculator    the gas calculator
+     * @param evmConfiguration the evm configuration
+     * @param evmSpecVersion   the evm spec version
+     */
     public HederaEVM(
             @NonNull final OperationRegistry operations,
             @NonNull final GasCalculator gasCalculator,
@@ -77,9 +87,9 @@ public class HederaEVM extends EVM {
         this.gasCalculator = gasCalculator;
         this.endOfScriptStop = new VirtualOperation(new StopOperation(gasCalculator));
         this.evmSpecVersion = evmSpecVersion;
-        this.enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
-        this.opsDurationValueMap = opsDuration.getOpsDuration();
-        this.opsDurationMultiplier = opsDuration.opsDurationMultiplier();
+
+        enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
+        this.hederaOpsDuration = opsDuration;
     }
 
     @Override
@@ -201,8 +211,11 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                usedOpsDuration +=
-                        opsDurationValueMap.getOrDefault(opcode, result.getGasCost() * opsDurationMultiplier);
+                usedOpsDuration += hederaOpsDuration
+                        .getOpsDuration()
+                        .getOrDefault(
+                                opcode,
+                                result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR);
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {

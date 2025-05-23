@@ -53,6 +53,7 @@ import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
@@ -91,7 +92,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class ThrottleAccumulator {
     private static final Logger log = LogManager.getLogger(ThrottleAccumulator.class);
-    private static final Set<HederaFunctionality> GAS_THROTTLED_FUNCTIONS =
+    private static final Set<HederaFunctionality> CONTRACT_FUNCTIONS =
             EnumSet.of(CONTRACT_CALL_LOCAL, CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION);
     private static final Set<HederaFunctionality> AUTO_CREATE_FUNCTIONS =
             EnumSet.of(CRYPTO_TRANSFER, ETHEREUM_TRANSACTION);
@@ -150,12 +151,14 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleType throttleType,
             @NonNull final ThrottleMetrics throttleMetrics,
             @NonNull final LeakyBucketDeterministicThrottle gasThrottle,
-            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle) {
+            @NonNull final LeakyBucketDeterministicThrottle bytesThrottle,
+            @NonNull final LeakyBucketDeterministicThrottle opsDurationThrottle) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.gasThrottle = requireNonNull(gasThrottle, "gasThrottle must not be null");
         this.bytesThrottle = requireNonNull(bytesThrottle, "bytesThrottle must not be null");
+        this.opsDurationThrottle = requireNonNull(opsDurationThrottle, "opsDurationThrottle must not be null");
 
         this.throttleMetrics = throttleMetrics;
         this.throttleMetrics.setupGasThrottleMetric(gasThrottle, configSupplier.get());
@@ -187,6 +190,36 @@ public class ThrottleAccumulator {
     }
 
     /**
+     * Determines if there is capacity in throttles that should be checked after the transaction handler has been called.
+     * Currently only relevant for contract ops duration throttle.
+     *
+     * @param txnInfo the transaction information
+     * @param txnStream the StreamBuilder containing the results of executing the transaction
+     * @param now the instant of time the transaction throttling should be checked for
+     * @return whether the transaction should be throttled
+     */
+    public boolean checkAndEnforcePostHandleThrottle(
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final StreamBuilder txnStream,
+            @NonNull final Instant now) {
+        if (throttleType == NOOP_THROTTLE) {
+            return false;
+        }
+        opsDurationThrottle.resetLastAllowedUse();
+
+        final boolean shouldThrottleByOpsDuration =
+                configSupplier.get().getConfigData(ContractsConfig.class).throttleThrottleByOpsDuration();
+        if (shouldThrottleByOpsDuration
+                && isContractFunction(txnInfo.functionality())
+                && opsDurationThrottle.allow(now, txnStream.getOpsDurationForContractTxn())) {
+            opsDurationThrottle.reclaimLastAllowedUse();
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Updates the throttle requirements for the given query and returns whether the query should be throttled.
      *
      * @param queryFunction the functionality of the query
@@ -209,7 +242,7 @@ public class ThrottleAccumulator {
         if (throttleExempt(queryPayerId, configuration)) {
             return false;
         }
-        if (isGasThrottled(queryFunction)) {
+        if (isContractFunction(queryFunction)) {
             final var enforceGasThrottle =
                     configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
             return enforceGasThrottle
@@ -348,13 +381,13 @@ public class ThrottleAccumulator {
     }
 
     /**
-     * Checks if the given functionality should be throttled by gas.
+     * Checks if the given functionality is a contract function.
      *
      * @param function the functionality to check
-     * @return whether the given functionality should be throttled by gas
+     * @return whether the given functionality is a contract function
      */
-    public static boolean isGasThrottled(@NonNull final HederaFunctionality function) {
-        return GAS_THROTTLED_FUNCTIONS.contains(function);
+    public static boolean isContractFunction(@NonNull final HederaFunctionality function) {
+        return CONTRACT_FUNCTIONS.contains(function);
     }
 
     public static boolean canAutoCreate(@NonNull final HederaFunctionality function) {
@@ -567,7 +600,7 @@ public class ThrottleAccumulator {
         final boolean shouldThrottleByGas =
                 configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
         return shouldThrottleByGas
-                && isGasThrottled(txnInfo.functionality())
+                && isContractFunction(txnInfo.functionality())
                 && !gasThrottle.allow(now, getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality()));
     }
 

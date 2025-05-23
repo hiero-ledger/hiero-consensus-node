@@ -138,6 +138,7 @@ public class DispatchProcessor {
         try {
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
+            dispatchUsageManager.postHandleScreenForCapacity(dispatch);
             dispatch.streamBuilder().status(SUCCESS);
             if (functionality == ETHEREUM_TRANSACTION) {
                 final boolean refundsEnabled =

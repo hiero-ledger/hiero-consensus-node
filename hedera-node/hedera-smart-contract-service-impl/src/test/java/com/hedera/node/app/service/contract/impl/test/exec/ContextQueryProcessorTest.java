@@ -15,6 +15,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.QueryContext;
@@ -51,12 +52,21 @@ class ContextQueryProcessorTest {
     @Mock
     private EntityIdFactory entityIdFactory;
 
+    @Mock
+    private HederaOpsDuration hederaOpsDuration;
+
     @Test
     void callsComponentInfraAsExpectedForValidQuery() {
         final var processors = processorsForAllCurrentEvmVersions(processor);
 
         final var subject = new ContextQueryProcessor(
-                context, hederaEvmContext, tracer, proxyWorldUpdater, hevmStaticTransactionFactory, processors);
+                context,
+                hederaEvmContext,
+                tracer,
+                proxyWorldUpdater,
+                hevmStaticTransactionFactory,
+                processors,
+                hederaOpsDuration);
 
         given(context.configuration()).willReturn(CONFIGURATION);
         given(context.query()).willReturn(Query.DEFAULT);

@@ -46,6 +46,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.data.RatesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -125,6 +126,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(PlatformStatusConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(AddressBookConfig.class)
+                .withConfigDataType(OpsDurationConfig.class)
                 /*
                 These data types from the platform were not available on the classpath. Add if needed later.
                 .withConfigDataType(ThreadConfig.class)
