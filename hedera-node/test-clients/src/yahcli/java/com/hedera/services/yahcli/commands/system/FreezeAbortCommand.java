@@ -22,15 +22,14 @@ public class FreezeAbortCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var config = ConfigUtils.configFrom(yahcli);
 
-        final var delegate = new FreezeHelperSuite(config.asSpecConfig(), null, true);
+        final var delegate = new FreezeHelperSuite(config, null, true);
 
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - freeze aborted and/or staged upgrade discarded");
         } else {
-            COMMON_MESSAGES.warn(
-                    "FAILED - Scheduled freeze is not aborted and/or staged upgrade is not" + " discarded");
+            COMMON_MESSAGES.warn("FAILED - Scheduled freeze is not aborted and/or staged upgrade is not discarded");
             return 1;
         }
 
