@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto;
 
+import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardPrechecksAnd;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -16,8 +17,8 @@ import java.util.Optional;
 public class RandomAccountRecords implements OpProvider {
     private final RegistrySourcedNameProvider<AccountID> accounts;
 
-    private final ResponseCodeEnum[] permissibleCostAnswerPrechecks = standardPrechecksAnd(ACCOUNT_DELETED);
-    private final ResponseCodeEnum[] permissibleAnswerOnlyPrechecks =
+    static final ResponseCodeEnum[] permissibleCostAnswerPrechecks = standardPrechecksAnd(ACCOUNT_DELETED);
+    static final ResponseCodeEnum[] permissibleAnswerOnlyPrechecks =
             standardPrechecksAnd(ACCOUNT_DELETED, INSUFFICIENT_TX_FEE);
 
     public RandomAccountRecords(RegistrySourcedNameProvider<AccountID> accounts) {

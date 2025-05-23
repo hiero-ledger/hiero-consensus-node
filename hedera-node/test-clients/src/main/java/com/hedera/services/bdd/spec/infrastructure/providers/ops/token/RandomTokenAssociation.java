@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.token;
 
+import static com.hedera.services.bdd.spec.infrastructure.OpProvider.plus;
+import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardOutcomesAnd;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
@@ -16,11 +18,8 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class RandomTokenAssociation implements OpProvider {
-    static final Logger log = LogManager.getLogger(RandomTokenAssociation.class);
 
     public static final int MAX_TOKENS_PER_OP = 2;
     public static final int DEFAULT_CEILING_NUM = 10_000;
