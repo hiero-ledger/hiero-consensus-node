@@ -24,10 +24,10 @@ import org.apache.logging.log4j.Logger;
 public final class V0570ScheduleSchema extends Schema {
     private static final Logger log = LogManager.getLogger(V0570ScheduleSchema.class);
 
-    private static final long MAX_SCHEDULED_COUNTS = 50_000_000L;
-    private static final long MAX_SCHEDULED_ORDERS = 50_000_000L;
-    private static final long MAX_SCHEDULED_USAGES = 50_000_000L;
-    private static final long MAX_SCHEDULE_ID_BY_EQUALITY = 50_000_000L;
+    private static final long MAX_SCHEDULED_COUNTS = 50_000L;
+    private static final long MAX_SCHEDULED_ORDERS = 50_000L;
+    private static final long MAX_SCHEDULED_USAGES = 50_000L;
+    private static final long MAX_SCHEDULE_ID_BY_EQUALITY = 50_000L;
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(57).patch(0).build();
     /**
