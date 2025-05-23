@@ -106,9 +106,8 @@ public class EventMetadata extends AbstractHashable {
     public EventMetadata(@NonNull final GossipEvent gossipEvent) {
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
         this.creatorId = NodeId.of(gossipEvent.eventCore().creatorNodeId());
-        this.allParents = gossipEvent.parents().stream()
-                .map(EventDescriptorWrapper::new)
-                .toList();
+        this.allParents =
+                gossipEvent.parents().stream().map(EventDescriptorWrapper::new).toList();
         if (!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)) {
             // this event has a self parent
             this.selfParent = allParents.getFirst();
