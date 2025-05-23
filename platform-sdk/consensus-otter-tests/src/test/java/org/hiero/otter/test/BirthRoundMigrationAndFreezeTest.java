@@ -98,7 +98,7 @@ public class BirthRoundMigrationAndFreezeTest {
                 .hasEqualRoundsIgnoringLast(withPercentage(5));
 
         assertBirthRoundsBeforeAndAfterFreeze(
-                network.getNodes().getFirst().getConsensusResult().currentConsensusRounds(),
+                network.getNodes().getFirst().getConsensusResult().consensusRounds(),
                 postFreezeShutdownTime,
                 freezeRound);
     }

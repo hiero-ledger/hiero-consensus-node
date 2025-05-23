@@ -20,12 +20,12 @@ public interface SingleNodeConsensusResult extends OtterResult {
     NodeId nodeId();
 
     /**
-     * Returns the last round created so far.
+     * Returns the number of the last round created so far.
      *
-     * @return the last round or {@code -1} if no rounds were created
+     * @return the last round number or {@code -1} if no rounds were created
      */
     default long lastRoundNum() {
-        return currentConsensusRounds().stream()
+        return consensusRounds().stream()
                 .mapToLong(ConsensusRound::getRoundNum)
                 .max()
                 .orElse(-1L);
@@ -37,7 +37,7 @@ public interface SingleNodeConsensusResult extends OtterResult {
      * @return the list of consensus rounds
      */
     @NonNull
-    List<ConsensusRound> currentConsensusRounds();
+    List<ConsensusRound> consensusRounds();
 
     /**
      * Subscribes to {@link ConsensusRound}s created by the node.

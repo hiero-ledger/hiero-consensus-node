@@ -63,10 +63,11 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
      * {@inheritDoc}
      *
      * <p>The effort is done on a best effort basis. A slower node may collect rounds after a reset that were
-     * discarded on faster nodes. Ideally, this method is only called while all nodes are frozen.
+     * discarded on faster nodes. Ideally, this method is only called while all nodes are in the state
+     * {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE}.
      */
     @Override
-    public void reset() {
-        results.forEach(OtterResult::reset);
+    public void clear() {
+        results.forEach(OtterResult::clear);
     }
 }

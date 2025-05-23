@@ -40,7 +40,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      */
     @Override
     @NonNull
-    public List<ConsensusRound> currentConsensusRounds() {
+    public List<ConsensusRound> consensusRounds() {
         return collector.currentConsensusRounds(startIndex);
     }
 
@@ -56,7 +56,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      * {@inheritDoc}
      */
     @Override
-    public void reset() {
+    public void clear() {
         startIndex = collector.currentConsensusRounds(0).size();
     }
 }

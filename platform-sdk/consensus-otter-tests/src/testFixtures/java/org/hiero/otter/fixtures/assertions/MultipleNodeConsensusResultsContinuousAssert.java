@@ -17,7 +17,7 @@ import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 
 /**
- * Continues assertions for {@link MultipleNodeConsensusResults}.
+ * Continuous assertions for {@link MultipleNodeConsensusResults}.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeConsensusResultsContinuousAssert
@@ -32,7 +32,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @param multipleNodeConsensusResults the actual {@link MultipleNodeConsensusResults} to assert
      */
     public MultipleNodeConsensusResultsContinuousAssert(
-            @NonNull final MultipleNodeConsensusResults multipleNodeConsensusResults) {
+            @Nullable final MultipleNodeConsensusResults multipleNodeConsensusResults) {
         super(multipleNodeConsensusResults, MultipleNodeConsensusResultsContinuousAssert.class);
     }
 
@@ -57,7 +57,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
     }
 
     /**
-     * Verifies that all nodes produce the same rounds. This check only compares the rounds produced by the nodes, i.e.,
+     * Verifies that all nodes produce equal rounds as they are produces. This check only compares the rounds produced by the nodes, i.e.,
      * if a node produces no rounds or is significantly behind the others, this check will NOT fail.
      *
      * @return this assertion object for method chaining
@@ -68,7 +68,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
 
         final ConsensusRoundSubscriber subscriber = new ConsensusRoundSubscriber() {
 
-            final Map<Long, RoundResult> referenceRounds = new ConcurrentHashMap<>();
+            final Map<Long, RoundFromNode> referenceRounds = new ConcurrentHashMap<>();
 
             @Override
             public SubscriberAction onConsensusRounds(
@@ -77,17 +77,11 @@ public class MultipleNodeConsensusResultsContinuousAssert
                     return UNSUBSCRIBE;
                 }
                 for (final ConsensusRound round : rounds) {
-                    final RoundResult reference =
-                            referenceRounds.computeIfAbsent(round.getRoundNum(), key -> new RoundResult(nodeId, round));
+                    final RoundFromNode reference = referenceRounds.computeIfAbsent(
+                            round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
                     if (!nodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
-                        throw new AssertionError(
-                                "Expected rounds to be equal, but round %d differs. Node %s produced %s, while node %s produced %s"
-                                        .formatted(
-                                                round.getRoundNum(),
-                                                nodeId,
-                                                round,
-                                                reference.nodeId(),
-                                                reference.round()));
+                        throw new AssertionError(summarizeDifferences(
+                                reference.nodeId, nodeId, round.getRoundNum(), reference.round(), round));
                     }
                 }
                 return CONTINUE;
@@ -99,5 +93,32 @@ public class MultipleNodeConsensusResultsContinuousAssert
         return this;
     }
 
-    private record RoundResult(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
+    private String summarizeDifferences(
+            @NonNull final NodeId node1,
+            @NonNull final NodeId node2,
+            final long roundNum,
+            @NonNull final ConsensusRound round1,
+            @NonNull final ConsensusRound round2) {
+        if (round1.getEventCount() != round2.getEventCount()) {
+            return "Expected rounds to be equal, but round %d of node %s has %d events, while the same round of node %s has %d events."
+                    .formatted(roundNum, node1, round1.getEventCount(), node2, round2.getEventCount());
+        }
+
+        final StringBuilder sb = new StringBuilder();
+        sb.append("Expected rounds to be equal, but round ")
+                .append(roundNum)
+                .append(" has the following differences:\n");
+        for (int i = 0; i < round1.getEventCount(); i++) {
+            final var event1 = round1.getConsensusEvents().get(i);
+            final var event2 = round2.getConsensusEvents().get(i);
+            if (!event1.equals(event2)) {
+                sb.append("Event ").append(i).append(" differs:\n");
+                sb.append("Node ").append(node1).append(" produced\n").append(event1);
+                sb.append("Node ").append(node2).append(" produced\n").append(event2);
+            }
+        }
+        return sb.toString();
+    }
+
+    private record RoundFromNode(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}
 }

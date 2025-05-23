@@ -79,7 +79,7 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns a snapshot of the consensus rounds created so far starting with the provided index
+     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided index.
      *
      * @param startIndex the index to start from
      * @return the list of consensus rounds

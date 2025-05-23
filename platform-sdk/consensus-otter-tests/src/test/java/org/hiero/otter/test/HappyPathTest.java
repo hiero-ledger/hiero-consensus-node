@@ -45,7 +45,7 @@ public class HappyPathTest {
         assertThat(network.getStatusProgression())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
+        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1);
 
         assertThat(network.getConsensusResults()).hasEqualRoundsIgnoringLast(Percentage.withPercentage(1));
     }

@@ -88,21 +88,21 @@ public class MultipleNodeConsensusResultsAssert
     public MultipleNodeConsensusResultsAssert hasEqualRoundsIgnoringLast(@NonNull final Percentage expectedDifference) {
         isNotNull();
 
-        // create list of snapshots
-        final List<RoundListResult> snapshots = actual.results().stream()
-                .map(nodeResult -> new RoundListResult(nodeResult.nodeId(), nodeResult.currentConsensusRounds()))
+        // create list of current rounds
+        final List<RoundListResult> currentRoundResults = actual.results().stream()
+                .map(nodeResult -> new RoundListResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
                 .toList();
 
         // find longest and shortest list
         final Optional<RoundListResult> optionalLongestResult =
-                snapshots.stream().max(comparingInt(RoundListResult::size));
+                currentRoundResults.stream().max(comparingInt(RoundListResult::size));
         if (optionalLongestResult.isEmpty()) {
             // no consensus rounds collected
             return this;
         }
         final RoundListResult longestResult = optionalLongestResult.get();
         final int longestSize = longestResult.size();
-        final int shortestSize = snapshots.stream()
+        final int shortestSize = currentRoundResults.stream()
                 .min(comparingInt(RoundListResult::size))
                 .orElseThrow()
                 .size();
@@ -116,7 +116,7 @@ public class MultipleNodeConsensusResultsAssert
         }
 
         // Check that all nodes produced the same consensus rounds as are in the longest list
-        for (final RoundListResult currentNodeResult : snapshots) {
+        for (final RoundListResult currentNodeResult : currentRoundResults) {
             if (currentNodeResult.nodeId().equals(longestResult.nodeId())) {
                 continue;
             }

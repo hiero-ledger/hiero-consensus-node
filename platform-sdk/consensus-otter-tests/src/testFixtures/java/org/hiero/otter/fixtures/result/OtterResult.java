@@ -7,7 +7,7 @@ package org.hiero.otter.fixtures.result;
 public interface OtterResult {
 
     /**
-     * Resets the result. All results that have been collected previously are discarded.
+     * Clear the result. All results that have been collected previously are discarded.
      */
-    void reset();
+    void clear();
 }
