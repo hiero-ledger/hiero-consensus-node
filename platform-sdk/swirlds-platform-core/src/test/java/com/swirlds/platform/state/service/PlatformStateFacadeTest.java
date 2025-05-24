@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -15,33 +16,53 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestNewMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class PlatformStateFacadeTest {
 
-    private static TestPlatformStateFacade platformStateFacade;
-    private static MerkleNodeState state;
-    private static MerkleNodeState emptyState;
-    private static PlatformStateModifier platformStateModifier;
+    private TestPlatformStateFacade platformStateFacade;
+    private MerkleNodeState state;
+    private MerkleNodeState emptyState;
+    private PlatformStateModifier platformStateModifier;
 
-    @BeforeAll
-    static void beforeAll() {
-        state = new TestMerkleStateRoot();
+    @BeforeEach
+    void beforeEach() {
+        final String virtualMapLabelForState =
+                "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        state = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabelForState);
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);
-        emptyState = new TestMerkleStateRoot();
+        final String virtualMapLabelForEmptyState =
+                "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        emptyState = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabelForEmptyState);
         platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
+    }
+
+    @AfterEach
+    void tearDown() {
+        state.release();
+        emptyState.release();
+
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 
     @Test
@@ -93,9 +114,13 @@ class PlatformStateFacadeTest {
 
     @Test
     void testPlatformStateOf_noPlatformState() {
-        final TestMerkleStateRoot noPlatformState = new TestMerkleStateRoot();
+        final var virtualMapLabel =
+                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final TestNewMerkleStateRoot noPlatformState =
+                TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabel);
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
+        noPlatformState.release();
     }
 
     @Test
@@ -183,12 +208,15 @@ class PlatformStateFacadeTest {
 
     @Test
     void testSetSnapshotTo() {
-        TestMerkleStateRoot randomState = new TestMerkleStateRoot();
+        final String virtualMapLabel =
+                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        TestNewMerkleStateRoot randomState = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabel);
         TestingAppStateInitializer.DEFAULT.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);
         assertEquals(newSnapshot, platformStateModifier.getSnapshot());
+        randomState.release();
     }
 
     @Test
@@ -223,9 +251,6 @@ class PlatformStateFacadeTest {
                 .contains("Root hash:")
                 .contains("First BR Version:")
                 .contains("Last round before BR:")
-                .contains("Lowest Judge Gen before BR")
-                .contains("Lowest Judge Gen before BR")
-                .contains("SingletonNode")
-                .contains("PlatformStateService.PLATFORM_STATE");
+                .contains("Lowest Judge Gen before BR");
     }
 }

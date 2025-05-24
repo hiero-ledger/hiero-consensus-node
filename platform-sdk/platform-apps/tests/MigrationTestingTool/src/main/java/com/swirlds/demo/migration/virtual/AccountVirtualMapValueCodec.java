@@ -21,8 +21,8 @@ public class AccountVirtualMapValueCodec implements Codec<AccountVirtualMapValue
 
     @NonNull
     @Override
-    public AccountVirtualMapValue parse(@NonNull ReadableSequentialData in, boolean strictMode, int maxDepth)
-            throws ParseException {
+    public AccountVirtualMapValue parse(
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new AccountVirtualMapValue(in);
     }
 

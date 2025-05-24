@@ -5,7 +5,6 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -20,9 +19,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
@@ -90,15 +86,6 @@ public class Turtle {
         simulationGranularity = builder.getSimulationGranularity();
         timeReportingEnabled = builder.isTimeReportingEnabled();
         consensusRoundValidator = builder.getConsensusRoundValidator();
-
-        try {
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(
-                            new ClassConstructorPair(TestMerkleStateRoot.class, TestMerkleStateRoot::new));
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
-
         threadPool = Executors.newFixedThreadPool(
                 Math.min(builder.getNodeCount(), Runtime.getRuntime().availableProcessors()));
         time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
