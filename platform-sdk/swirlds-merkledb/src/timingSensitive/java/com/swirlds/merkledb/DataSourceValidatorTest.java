@@ -6,8 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.merkledb.test.fixtures.TestType;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -34,10 +32,8 @@ class DataSourceValidatorTest {
 
     @Test
     void testValidateValidDataSource() throws IOException {
-        final KeySerializer keySerializer = TestType.fixed_fixed.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = TestType.fixed_fixed.dataType().getValueSerializer();
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.fixed_fixed, count, 0, dataSource -> {
+                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
                     // check db count
                     assertEventuallyEquals(
                             1L,
@@ -45,7 +41,7 @@ class DataSourceValidatorTest {
                             Duration.ofSeconds(1),
                             "Expected only 1 db");
 
-                    final var validator = new DataSourceValidator<>(keySerializer, valueSerializer, dataSource);
+                    final var validator = new DataSourceValidator(dataSource);
                     // create some node hashes
                     dataSource.saveRecords(
                             count - 1,
@@ -53,8 +49,7 @@ class DataSourceValidatorTest {
                             IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                             IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
-                                            i -> TestType.fixed_fixed.dataType().createVirtualLeafRecord(i))
-                                    .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                                            i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
                             Stream.empty());
 
                     assertTrue(validator.validate());
@@ -63,17 +58,15 @@ class DataSourceValidatorTest {
 
     @Test
     void testValidateInvalidDataSource() throws IOException {
-        final KeySerializer keySerializer = TestType.fixed_fixed.dataType().getKeySerializer();
-        final ValueSerializer valueSerializer = TestType.fixed_fixed.dataType().getValueSerializer();
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.fixed_fixed, count, 0, dataSource -> {
+                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
                     // check db count
                     assertEventuallyEquals(
                             1L,
                             MerkleDbDataSource::getCountOfOpenDatabases,
                             Duration.ofSeconds(1),
                             "Expected only 1 db");
-                    final var validator = new DataSourceValidator<>(keySerializer, valueSerializer, dataSource);
+                    final var validator = new DataSourceValidator(dataSource);
                     // create some node hashes
                     dataSource.saveRecords(
                             count - 1,
