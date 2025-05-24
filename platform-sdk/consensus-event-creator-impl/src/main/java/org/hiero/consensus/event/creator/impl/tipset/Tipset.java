@@ -59,10 +59,9 @@ public class Tipset {
      *                else this method has undefined behavior
      * @return a new tipset
      */
-    public static @NonNull Tipset merge(@NonNull final List<Tipset> tipsets) {
-        Objects.requireNonNull(tipsets, "tipsets must not be null");
+    public @NonNull Tipset merge(@NonNull final List<Tipset> tipsets) {
         if (tipsets.isEmpty()) {
-            throw new IllegalArgumentException("Cannot merge an empty list of tipsets");
+            return this;
         }
 
         final int length = tipsets.get(0).tips.length;
