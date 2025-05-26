@@ -15,9 +15,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -40,8 +38,6 @@ import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -95,6 +91,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final SimulatedNetwork network;
+    private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
@@ -115,7 +112,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
+            @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
+        logging.addNodeLogging(selfId, outputDirectory);
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
@@ -125,6 +124,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             this.roster = requireNonNull(roster);
             this.keysAndCerts = requireNonNull(keysAndCerts);
             this.network = requireNonNull(network);
+            this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
             this.platformStatusChangeListener = data -> {
@@ -297,17 +297,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
-            // Clean the output directory and start the node
-            final String rootPath =
-                    nodeConfiguration.createConfiguration().getValue(FileSystemManagerConfig_.ROOT_PATH);
-            log.info("Deleting directory: {}", rootPath);
-            if (rootPath != null) {
-                try {
-                    FileUtils.deleteDirectory(new File(rootPath).toPath());
-                } catch (IOException ex) {
-                    log.warn("Failed to delete directory: {}", rootPath, ex);
-                }
-            }
             doStartNode();
 
         } finally {
@@ -325,6 +314,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
             doShutdownNode();
             lifeCycle = LifeCycle.DESTROYED;
+
+            logging.removeNodeLogging(selfId);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
