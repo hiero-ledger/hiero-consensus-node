@@ -3,7 +3,6 @@ package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.hedera.hapi.util.EventMigrationUtils;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -107,9 +106,8 @@ public class EventMetadata extends AbstractHashable {
     public EventMetadata(@NonNull final GossipEvent gossipEvent) {
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
         this.creatorId = NodeId.of(gossipEvent.eventCore().creatorNodeId());
-        this.allParents = EventMigrationUtils.getParents(gossipEvent).stream()
-                .map(EventDescriptorWrapper::new)
-                .toList();
+        this.allParents =
+                gossipEvent.parents().stream().map(EventDescriptorWrapper::new).toList();
         if (!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)) {
             // this event has a self parent
             this.selfParent = allParents.getFirst();
