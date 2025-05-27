@@ -24,14 +24,10 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 import org.junit.jupiter.api.extension.TestInstancePreDestroyCallback;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
-import org.junit.jupiter.api.extension.TestWatcher;
 import org.junit.jupiter.params.ParameterizedTest;
 
 public class OtterTestExtension
-        implements TestInstancePreDestroyCallback,
-                ParameterResolver,
-                TestWatcher,
-                TestTemplateInvocationContextProvider {
+        implements TestInstancePreDestroyCallback, ParameterResolver, TestTemplateInvocationContextProvider {
 
     /**
      * The namespace of the extension.
@@ -92,12 +88,12 @@ public class OtterTestExtension
     }
 
     /**
-     * Removes the seed from the extension context.
+     * Removes the {@code TestEnvironment} from the {@code extensionContext}
      *
      * @param extensionContext the current extension context; never {@code null}
      */
     @Override
-    public void preDestroyTestInstance(final ExtensionContext extensionContext) throws Exception {
+    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) throws Exception {
         final TestEnvironment testEnvironment =
                 (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
         if (testEnvironment != null) {
