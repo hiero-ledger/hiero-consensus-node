@@ -1,16 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: TCK Regression"
 on:
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "The branch, tag or SHA to checkout:"
-        required: false
-        type: string
-      custom-job-name:
-        description: "The custom job name to use for the job."
-        required: false
-        type: string
   workflow_call:
     inputs:
       ref:
@@ -124,7 +114,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@0.36.0-alpha.2
+        run: npm install -g @hashgraph/solo@0.36.0
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
