@@ -115,6 +115,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                 if (error.isPresent()) {
                     throw error.get();
                 }
+                setTxnSubmittedFrom(spec);
                 op.updateStateFromRecord(recordQuery.getResponseRecord(), spec);
             }
         }

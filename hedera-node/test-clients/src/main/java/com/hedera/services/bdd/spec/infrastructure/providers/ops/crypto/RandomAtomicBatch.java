@@ -4,24 +4,32 @@ package com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 public class RandomAtomicBatch implements OpProvider {
 
-    private OpProvider[] ops;
-
-    // TODO: fix
+    private final OpProvider[] ops;
     private final ResponseCodeEnum[] permissibleOutcomes = OpProvider.standardOutcomesAnd(INNER_TRANSACTION_FAILED);
-    private final ResponseCodeEnum[] permissiblePrechecks = OpProvider.standardPrechecksAnd();
 
     public RandomAtomicBatch(OpProvider... ops) {
         this.ops = ops;
+    }
+
+    @Override
+    public List<SpecOperation> suggestedInitializers() {
+        var innerTransactionsInitializers = new ArrayList<SpecOperation>();
+        for (var op : ops) {
+            innerTransactionsInitializers.addAll(op.suggestedInitializers());
+        }
+        return innerTransactionsInitializers;
     }
 
     @Override
@@ -45,11 +53,9 @@ public class RandomAtomicBatch implements OpProvider {
             .payingWith(UNIQUE_PAYER_ACCOUNT)
             .hasPrecheckFrom(flattenResponseCodes(
                 STANDARD_PERMISSIBLE_PRECHECKS,
-                permissiblePrechecks,
                 RandomAccount.permissiblePrechecks,
                 RandomAccountDeletion.permissiblePrechecks,
                 RandomAccountDeletionWithReceiver.permissiblePrechecks,
-                // RandomAccountInfo.permissiblePrechecks, TODO: what to do with these?
                 RandomTransferFromSigner.permissiblePrechecks,
                 RandomTransferToSigner.permissiblePrechecks))
             .hasKnownStatusFrom(flattenResponseCodes(
@@ -59,15 +65,11 @@ public class RandomAtomicBatch implements OpProvider {
                 RandomAccountDeletion.permissibleOutcomes,
                 RandomAccountDeletionWithReceiver.permissibleOutcomes,
                 RandomAccountUpdate.permissibleOutcomes,
-                RandomTransfer.permissibleOutcomes,
-                // RandomAccountInfo.permissiblePrechecks, TODO: what to do with these?
-                RandomTransferFromSigner.permissibleOutcomes,
-                RandomTransferToSigner.permissibleOutcomes));
+                RandomTransfer.permissibleOutcomes));
 
         return Optional.of(atomicBatch);
     }
 
-    // TODO: test this
     private static ResponseCodeEnum[] flattenResponseCodes(ResponseCodeEnum[]... listOfResponseCodeEnums) {
         var flattened = new ArrayList<ResponseCodeEnum>();
         for (var responseCodeEnum : listOfResponseCodeEnums) {
