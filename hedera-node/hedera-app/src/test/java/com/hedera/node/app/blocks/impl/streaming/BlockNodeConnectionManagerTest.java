@@ -132,7 +132,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @BeforeEach
     void beforeEach() {
-        final ConfigProvider configProvider = createConfigProvider(BATCH_SIZE);
+        final ConfigProvider configProvider = createConfigProvider();
         stateManager = mock(BlockStreamStateManager.class);
         metrics = mock(BlockStreamMetrics.class);
         executorService = mock(ScheduledExecutorService.class);

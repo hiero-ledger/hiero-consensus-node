@@ -76,10 +76,6 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     protected ConfigProvider createConfigProvider() {
-        return createConfigProvider(BATCH_SIZE);
-    }
-
-    protected ConfigProvider createConfigProvider(final int batchSize) {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
                 .getPath();
@@ -88,7 +84,7 @@ public abstract class BlockNodeCommunicationTestBase {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
-                .withValue("blockStream.blockItemBatchSize", batchSize)
+                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
                 .getOrCreateConfig();
         return () -> new VersionedConfigImpl(config, 1L);
     }
