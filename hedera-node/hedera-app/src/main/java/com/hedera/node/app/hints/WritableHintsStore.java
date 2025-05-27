@@ -54,7 +54,10 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @return the updated construction
      */
     HintsConstruction setHintsScheme(
-            long constructionId, @NonNull PreprocessedKeys keys, @NonNull Map<Long, Integer> nodePartyIds);
+            long constructionId,
+            @NonNull PreprocessedKeys keys,
+            @NonNull Map<Long, Integer> nodePartyIds,
+            @NonNull Map<Long, Long> nodeWeights);
 
     /**
      * Sets the preprocessing start time for the construction with the given ID and returns the updated construction.

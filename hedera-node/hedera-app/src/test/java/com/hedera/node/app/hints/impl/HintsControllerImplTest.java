@@ -312,7 +312,8 @@ class HintsControllerImplTest {
 
         given(weights.sourceWeightOf(1L)).willReturn(2L);
         given(weights.sourceWeightThreshold()).willReturn(1L);
-        given(store.setHintsScheme(CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of()))
+        given(store.setHintsScheme(
+                        CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of(), weights.targetNodeWeights()))
                 .willReturn(FINISHED_CONSTRUCTION);
 
         assertTrue(subject.addPreprocessingVote(1L, vote, store));
@@ -335,7 +336,8 @@ class HintsControllerImplTest {
         given(weights.sourceWeightOf(2L)).willReturn(1L);
         final var congruentVote =
                 PreprocessingVote.newBuilder().congruentNodeId(1L).build();
-        given(store.setHintsScheme(CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of()))
+        given(store.setHintsScheme(
+                        CONSTRUCTION_WITH_START_TIME.constructionId(), keys, Map.of(), weights.targetNodeWeights()))
                 .willReturn(FINISHED_CONSTRUCTION);
         assertTrue(subject.addPreprocessingVote(2L, congruentVote, store));
 
