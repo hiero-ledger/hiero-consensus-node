@@ -6,6 +6,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
+import java.io.IOException;
 import java.util.Spliterators;
 import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -307,5 +308,10 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             assertThat(readValueFromMerkleMap(D_KEY)).isEqualTo(DATE);
             assertThat(readValueFromMerkleMap(E_KEY)).isEqualTo(ELDERBERRY);
         }
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        fruitVirtualMap.getDataSource().close();
     }
 }
