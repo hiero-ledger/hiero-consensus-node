@@ -344,8 +344,7 @@ public class MerkleTestBase extends StateTestBase {
         return TestArgumentUtils.legalIdentifiers();
     }
 
-    @AfterEach
-    void cleanUp() {
+    protected void cleanUp() {
         MerkleDb.resetDefaultInstancePath();
 
         if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
@@ -353,5 +352,10 @@ public class MerkleTestBase extends StateTestBase {
         }
 
         MerkleDbTestUtils.assertAllDatabasesClosed();
+    }
+
+    @AfterEach
+    void tearDown() {
+        cleanUp();
     }
 }
