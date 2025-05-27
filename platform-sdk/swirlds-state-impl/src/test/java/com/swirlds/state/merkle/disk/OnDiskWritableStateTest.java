@@ -67,7 +67,9 @@ class OnDiskWritableStateTest extends MerkleTestBase {
 
         @AfterEach
         void tearDown() {
-            cleanUp();
+            if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
+                fruitVirtualMap.release();
+            }
         }
     }
 
@@ -128,7 +130,9 @@ class OnDiskWritableStateTest extends MerkleTestBase {
 
         @AfterEach
         void tearDown() {
-            cleanUp();
+            if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
+                fruitVirtualMap.release();
+            }
         }
     }
 
@@ -302,11 +306,6 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             assertThat(readValueFromMerkleMap(C_KEY)).isNull();
             assertThat(readValueFromMerkleMap(D_KEY)).isEqualTo(DATE);
             assertThat(readValueFromMerkleMap(E_KEY)).isEqualTo(ELDERBERRY);
-        }
-
-        @AfterEach
-        void tearDown() {
-            cleanUp();
         }
     }
 }

@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -64,11 +63,6 @@ class OnDiskReadableStateTest extends MerkleTestBase {
                     new OnDiskReadableKVState<>(FRUIT_STATE_KEY, onDiskKeyClassId(), STRING_CODEC, fruitVirtualMap);
             assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
         }
-
-        @AfterEach
-        void tearDown() {
-            cleanUp();
-        }
     }
 
     @Nested
@@ -94,11 +88,6 @@ class OnDiskReadableStateTest extends MerkleTestBase {
             assertThat(state.get(E_KEY)).isNull();
             assertThat(state.get(F_KEY)).isNull();
             assertThat(state.get(G_KEY)).isNull();
-        }
-
-        @AfterEach
-        void tearDown() {
-            cleanUp();
         }
     }
 
