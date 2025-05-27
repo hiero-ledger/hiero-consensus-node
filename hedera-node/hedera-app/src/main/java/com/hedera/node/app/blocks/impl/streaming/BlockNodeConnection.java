@@ -15,10 +15,10 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
-import org.hiero.block.api.PublishStreamRequest.EndStream;
 
 /**
  * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
@@ -312,7 +312,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             restartBlockNumber);
 
                     endStreamAndRestartAtBlock(restartBlockNumber);
-                    //restartStreamAtBlock(restartBlockNumber);
+                    // restartStreamAtBlock(restartBlockNumber);
                 } else {
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
@@ -321,13 +321,18 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             Thread.currentThread().getName(),
                             connectionDescriptor);
 
-                    /*PublishStreamRequest.newBuilder().endStream(EndStream.newBuilder()
-                            .endCode(TOO_FAR_BEHIND)
-                            .earliestBlockNumber()
-                            .latestBlockNumber());
+                    final var lastVerifiedBlockNumber =
+                            blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig);
 
-                    sendRequest();*/
-                    //blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+                    final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
+                            .endStream(EndStream.newBuilder()
+                                    .endCode(EndStream.Code.TOO_FAR_BEHIND)
+                                    // .earliestBlockNumber()
+                                    .latestBlockNumber(lastVerifiedBlockNumber))
+                            .build();
+
+                    sendRequest(endStream);
+                    // blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
                 }
             }
             default -> {

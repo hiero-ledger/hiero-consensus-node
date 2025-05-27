@@ -101,17 +101,13 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -1241,19 +1237,5 @@ public class CryptoTokenHandlerTestBase extends StateBuilderUtil {
 
         given(context.readableStore(ReadableNetworkStakingRewardsStore.class)).willReturn(readableRewardsStore);
         given(context.writableStore(WritableNetworkStakingRewardsStore.class)).willReturn(writableRewardsStore);
-    }
-
-    public static void assertNoNullFieldsExcept(Object obj, String... excludedFields) {
-        Set<String> excluded = new HashSet<>(Arrays.asList(excludedFields));
-        for (Field field : obj.getClass().getDeclaredFields()) {
-            field.setAccessible(true);
-            try {
-                if (!excluded.contains(field.getName()) && field.get(obj) == null) {
-                    throw new AssertionError("Field '" + field.getName() + "' is null");
-                }
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException("Failed to access field: " + field.getName(), e);
-            }
-        }
     }
 }
