@@ -2,6 +2,7 @@
 package com.hedera.hapi.util.test;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.of;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -35,7 +36,7 @@ final class HapiUtilsTest {
     void isBefore(@NonNull final Instant i1, @NonNull final Instant i2) {
         final var t1 = asTimestamp(i1);
         final var t2 = asTimestamp(i2);
-        Assertions.assertThat(HapiUtils.isBefore(t1, t2)).isTrue();
+        assertThat(HapiUtils.isBefore(t1, t2)).isTrue();
     }
 
     @ParameterizedTest
@@ -49,7 +50,7 @@ final class HapiUtilsTest {
     void isAfter(@NonNull final Instant i1, @NonNull final Instant i2) {
         final var t1 = asTimestamp(i1);
         final var t2 = asTimestamp(i2);
-        Assertions.assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
+        assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
     }
 
     @ParameterizedTest
@@ -64,7 +65,7 @@ final class HapiUtilsTest {
     void isEqual(@NonNull final Instant i1, @NonNull final Instant i2) {
         final var t1 = asTimestamp(i1);
         final var t2 = asTimestamp(i2);
-        Assertions.assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
+        assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
     }
 
     @Test
@@ -75,7 +76,7 @@ final class HapiUtilsTest {
         // When we convert it into a timestamp
         final var timestamp = asTimestamp(instant);
         // Then we find the timestamp matches the original instant
-        Assertions.assertThat(timestamp)
+        assertThat(timestamp)
                 .isEqualTo(Timestamp.newBuilder().seconds(1000).nanos(123456789).build());
     }
 
@@ -87,7 +88,7 @@ final class HapiUtilsTest {
         // When we count up the number of primitive keys
         final var count = HapiUtils.countOfCryptographicKeys(key);
         // Then we find the answer is expected
-        Assertions.assertThat(count).isEqualTo(expectedCount);
+        assertThat(count).isEqualTo(expectedCount);
     }
 
     public static Stream<Arguments> cryptoKeys() {
