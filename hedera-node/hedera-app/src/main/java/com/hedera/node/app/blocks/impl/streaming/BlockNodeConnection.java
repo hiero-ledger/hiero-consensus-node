@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,9 +16,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
-import org.hiero.block.api.PublishStreamRequest.EndStream;
-import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 
 /**
  * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
@@ -286,14 +285,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
     }
 
-    /**
-     * Handles the {@link EndOfStream} response received from the block node.
-     * In most cases it indicates that the block node is unable to continue processing.
-     * @param endOfStream the EndOfStream response received from the block node
-     */
     private void handleEndOfStream(@NonNull final EndOfStream endOfStream) {
-        final var blockNumber = endOfStream.blockNumber();
-        final var responseCode = endOfStream.status();
+        var blockNumber = endOfStream.blockNumber();
+        var responseCode = endOfStream.status();
 
         logger.debug(
                 "[{}] Received EndOfStream from block node {} at block {} with PublishStreamResponseCode {}",
@@ -342,7 +336,6 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             }
         }
     }
-
 
     private void handleResendBlock(@NonNull PublishStreamResponse.ResendBlock resendBlock) {
         final var resendBlockNumber = resendBlock.blockNumber();

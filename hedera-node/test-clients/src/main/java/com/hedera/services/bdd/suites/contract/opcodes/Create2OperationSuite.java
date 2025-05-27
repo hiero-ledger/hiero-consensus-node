@@ -3,13 +3,8 @@ package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.accountIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
-import static com.hedera.services.bdd.spec.HapiPropertySource.literalIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -65,11 +60,16 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.aliasContractIdKey;
 import static com.hedera.services.bdd.suites.contract.Utils.aliasDelegateContractKey;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.contract.Utils.literalIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.A_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
@@ -166,7 +166,10 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                contractCreate(contract).payingWith(GENESIS).via(CREATION).exposingNumTo(outerCreatorNum::set),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .via(CREATION)
+                        .exposingContractIdTo(id -> outerCreatorNum.set(id.getContractNum())),
                 contractCall(contract, "startChain", msg).gas(4_000_000).via(noisyTxn),
                 sourcing(() -> {
                     final var idOfFirstThreeLogs = String.valueOf(outerCreatorNum.get() + 1);
@@ -201,8 +204,7 @@ public class Create2OperationSuite {
                 contractCreate(contract)
                         .payingWith(GENESIS)
                         .via(CREATION)
-                        .exposingContractIdTo(id -> factoryEvmAddress.set(
-                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum()))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 sourcing(
                         () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
                                 .exposingTypedResultsTo(results -> {
@@ -241,15 +243,9 @@ public class Create2OperationSuite {
 
         return hapiTest(
                 uploadInitCode(contract),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .via(creation)
-                            .exposingNumTo(num -> {
-                                factoryEntityNum.set(num);
-                                factoryEvmAddress.set(asHexedSolidityAddress((int) spec.shard(), spec.realm(), num));
-                            });
-                    allRunFor(spec, op);
+                contractCreate(contract).payingWith(GENESIS).via(creation).exposingContractIdTo(id -> {
+                    factoryEntityNum.set(id.getContractNum());
+                    factoryEvmAddress.set(asHexedSolidityAddress(id));
                 }),
                 sourcing(
                         () -> contractCallLocal(contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), foo)
@@ -384,13 +380,8 @@ public class Create2OperationSuite {
                                 .status(SUCCESS))),
                 withOpContext((spec, opLog) -> {
                     final var parentId = spec.registry().getContractId(contract);
-                    final var childId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentId.getContractNum() + 2L)
-                            .build();
-                    mirrorLiteralId.set(String.valueOf(childId.getContractNum()));
-                    expectedMirrorAddress.set(hex(asSolidityAddress(childId)));
+                    mirrorLiteralId.set(String.valueOf(parentId.getContractNum() + 2L));
+                    expectedMirrorAddress.set(hex(asSolidityAddress(spec, parentId.getContractNum() + 2L)));
                 }),
                 sourcing(() -> getContractBytecode(mirrorLiteralId.get()).exposingBytecodeTo(bytecodeFromMirror::set)),
                 // https://github.com/hashgraph/hedera-services/issues/2874
@@ -577,7 +568,7 @@ public class Create2OperationSuite {
                         .supplyKey(multiKey),
                 mintToken(nft, List.of(ByteString.copyFromUtf8("PRICELESS"))),
                 tokenUpdate(nft)
-                        .supplyKey(spec -> aliasContractIdKey(spec.shard(), spec.realm(), userAliasAddr.get()))
+                        .supplyKey(spec -> aliasContractIdKey(spec, userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
@@ -680,7 +671,7 @@ public class Create2OperationSuite {
                 // https://github.com/hashgraph/hedera-services/issues/2876 (mint via
                 // delegatable_contract_id)
                 tokenUpdate(nft)
-                        .supplyKey(spec -> aliasDelegateContractKey(spec.shard(), spec.realm(), userAliasAddr.get()))
+                        .supplyKey(spec -> aliasDelegateContractKey(spec, userAliasAddr.get()))
                         .signedByPayerAnd(multiKey),
                 sourcing(() -> contractCallWithFunctionAbi(
                                 userAliasAddr.get(),
@@ -709,7 +700,7 @@ public class Create2OperationSuite {
                                                     .setSerialNumber(2L)
                                                     .setSenderAccountID(tt)
                                                     .setReceiverAccountID(Utils.accountIdWithHexedEvmAddress(
-                                                            spec.shard(), spec.realm(), userMirrorAddr.get()))));
+                                                            spec, userMirrorAddr.get()))));
                         })
                         .signedBy(DEFAULT_PAYER, TOKEN_TREASURY),
                 sourcing(() -> getContractInfo(userLiteralId.get()).logged()));
@@ -967,16 +958,12 @@ public class Create2OperationSuite {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(ENTITY_MEMO)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(ENTITY_MEMO)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 // GET BYTECODE OF THE CREATE2 CONTRACT
                 sourcing(() -> contractCallLocal(
@@ -1053,16 +1040,12 @@ public class Create2OperationSuite {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(ENTITY_MEMO)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(ENTITY_MEMO)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1161,16 +1144,12 @@ public class Create2OperationSuite {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(ENTITY_MEMO)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(ENTITY_MEMO)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1270,16 +1249,12 @@ public class Create2OperationSuite {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                withOpContext((spec, log) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(ENTITY_MEMO)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(ENTITY_MEMO)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1368,16 +1343,12 @@ public class Create2OperationSuite {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                withOpContext((spec, log) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(ENTITY_MEMO)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(ENTITY_MEMO)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(NFT_INFINITE_SUPPLY_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)

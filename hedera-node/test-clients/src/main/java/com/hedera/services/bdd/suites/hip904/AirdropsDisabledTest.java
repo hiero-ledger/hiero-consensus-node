@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairsInAnyOrder;
@@ -40,8 +38,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CONTRACT_REPORTED_LOG_MESSAGE;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATE_2_TXN;
@@ -160,17 +160,13 @@ public class AirdropsDisabledTest {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(ENTITY_MEMO)
-                            .gas(10_000_000L)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(ENTITY_MEMO)
+                        .gas(10_000_000L)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -276,16 +272,12 @@ public class AirdropsDisabledTest {
         givenOps[0] = newKeyNamed(adminKey);
         givenOps[1] = newKeyNamed(MULTI_KEY);
         givenOps[2] = uploadInitCode(contract);
-        givenOps[3] = withOpContext((spec, opLog) -> {
-            final var op = contractCreate(contract)
-                    .payingWith(GENESIS)
-                    .adminKey(adminKey)
-                    .entityMemo(ENTITY_MEMO)
-                    .via(CREATE_2_TXN)
-                    .exposingNumTo(num ->
-                            factoryEvmAddress.set(asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-            allRunFor(spec, op);
-        });
+        givenOps[3] = contractCreate(contract)
+                .payingWith(GENESIS)
+                .adminKey(adminKey)
+                .entityMemo(ENTITY_MEMO)
+                .via(CREATE_2_TXN)
+                .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id)));
         givenOps[4] = cryptoCreate(PARTY).maxAutomaticTokenAssociations(2);
         givenOps[5] = setIdentifiers(Optional.empty(), Optional.empty(), Optional.of(partyId), Optional.of(partyAlias));
 
@@ -484,16 +476,12 @@ public class AirdropsDisabledTest {
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
                 uploadInitCode(contract),
-                withOpContext((spec, opLog) -> {
-                    final var op = contractCreate(contract)
-                            .payingWith(GENESIS)
-                            .adminKey(adminKey)
-                            .entityMemo(ENTITY_MEMO)
-                            .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), num)));
-                    allRunFor(spec, op);
-                }),
+                contractCreate(contract)
+                        .payingWith(GENESIS)
+                        .adminKey(adminKey)
+                        .entityMemo(ENTITY_MEMO)
+                        .via(CREATE_2_TXN)
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)

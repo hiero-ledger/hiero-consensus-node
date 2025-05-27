@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.4.0" }
+plugins { id("org.hiero.gradle.build") version "0.4.1" }
 
 javaModules {
     // This "intermediate parent project" should be removed
@@ -10,7 +10,7 @@ javaModules {
 
     // The Hedera platform modules
     directory("platform-sdk") {
-        group = "com.swirlds"
+        group = "com.hedera.hashgraph"
         module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
     }
@@ -44,11 +44,11 @@ javaModules {
     }
 
     // Platform-base demo applications
-    directory("example-apps") { group = "com.swirlds" }
+    directory("example-apps") { group = "com.hedera.hashgraph" }
 
     // Platform demo applications
-    directory("platform-sdk/platform-apps/demos") { group = "com.swirlds" }
+    directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
 
     // Platform test applications
-    directory("platform-sdk/platform-apps/tests") { group = "com.swirlds" }
+    directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
 }

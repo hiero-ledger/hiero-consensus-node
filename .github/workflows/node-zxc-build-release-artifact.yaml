@@ -793,14 +793,7 @@ jobs:
             gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
           echo "::endgroup::"
 
-      - name: Gradle Publish Platform to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
-        if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        env:
-          NEXUS_USERNAME: ${{ secrets.sdk-ossrh-username }}
-          NEXUS_PASSWORD: ${{ secrets.sdk-ossrh-password }}
-        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.swirlds -Ps01SonatypeHost=true -PpublishSigningEnabled=true --no-configuration-cache
-
-      - name: Gradle Publish Services to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
+      - name: Gradle Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
         if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}

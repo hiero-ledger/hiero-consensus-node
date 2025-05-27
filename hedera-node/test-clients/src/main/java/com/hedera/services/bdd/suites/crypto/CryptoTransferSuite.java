@@ -4,10 +4,8 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.accountIdFromHexedMirrorAddress;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -89,6 +87,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromHexedMirrorAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
@@ -706,25 +706,13 @@ public class CryptoTransferSuite {
                                     key.getECDSASecp256K1().toByteArray()));
                             builder.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setShardNum(spec.shard())
-                                                    .setRealmNum(spec.realm())
-                                                    .setAccountNum(2L)
-                                                    .build())
+                                            .setAccountID(asAccount(spec, 2L))
                                             .setAmount(-2 * ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setShardNum(spec.shard())
-                                                    .setRealmNum(spec.realm())
-                                                    .setAlias(evmAddress)
-                                                    .build())
+                                            .setAccountID(asAccount(spec, evmAddress))
                                             .setAmount(+ONE_HBAR))
                                     .addAccountAmounts(AccountAmount.newBuilder()
-                                            .setAccountID(AccountID.newBuilder()
-                                                    .setShardNum(spec.shard())
-                                                    .setRealmNum(spec.realm())
-                                                    .setAlias(keyAlias)
-                                                    .build())
+                                            .setAccountID(asAccount(spec, keyAlias))
                                             .setAmount(+ONE_HBAR))
                                     .build());
                         })
@@ -1250,8 +1238,7 @@ public class CryptoTransferSuite {
     @HapiTest
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
-                .mapToObj(i -> withOpContext((spec, log) ->
-                                allRunFor(spec, getAccountBalance(asEntityString(spec.shard(), spec.realm(), i))))
+                .mapToObj(i -> withOpContext((spec, log) -> allRunFor(spec, getAccountBalance(String.valueOf(i))))
                         .logged())
                 .toArray(HapiSpecOperation[]::new));
     }

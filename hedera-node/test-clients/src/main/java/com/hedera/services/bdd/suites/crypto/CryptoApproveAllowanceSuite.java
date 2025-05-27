@@ -46,7 +46,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -103,7 +102,6 @@ import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -269,20 +267,16 @@ public class CryptoApproveAllowanceSuite {
     @HapiTest
     final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
-        final var contractNum = new AtomicLong();
         final var contract = "PayableConstructor";
         return hapiTest(
                 newKeyNamed(cryptoAdminKey),
                 uploadInitCode(contract),
-                contractCreate(contract)
-                        .adminKey(cryptoAdminKey)
-                        .balance(ONE_HUNDRED_HBARS)
-                        .exposingNumTo(contractNum::set),
-                sourcing(() -> cryptoTransfer(tinyBarsFromTo(contract, FUNDING, 1))
+                contractCreate(contract).adminKey(cryptoAdminKey).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromTo(contract, FUNDING, 1))
                         .fee(ONE_HBAR)
-                        .payingWith("0.0." + contractNum.longValue())
+                        .payingWith(contract)
                         .signedBy(cryptoAdminKey)
-                        .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND)));
+                        .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND));
     }
 
     @HapiTest
