@@ -13,7 +13,7 @@ import java.util.List;
  * nature. Generally that nature is that each prefix is be the shortest unique prefix to
  * identify its corresponding public key among all that sign; though in some cases we
  * must always include the full prefix. (E.g., to trigger a hollow account completion.)
- *In case of {@link Nature#FULL_PREFIXES} the prefixes are the full public keys.
+ * In case of {@link Nature#FULL_PREFIXES} the prefixes are the full public keys.
  *
  * <p>For negative testing there are also natures like {@link Nature#AMBIGUOUS_PREFIXES}
  * and {@link Nature#CONFUSED_PREFIXES} which may construct invalid maps.
