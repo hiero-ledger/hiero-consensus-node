@@ -5,7 +5,7 @@ on:
     inputs:
       commit_sha:
         required: true
-        description: "The commit sha to check out"
+        description: "The commit sha, tag, or branch to check out"
       branch_name:
         required: true
         description: "The branch name, for JRS Panel output"
