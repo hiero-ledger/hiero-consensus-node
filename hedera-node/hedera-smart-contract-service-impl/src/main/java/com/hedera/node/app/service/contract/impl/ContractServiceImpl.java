@@ -109,6 +109,11 @@ public class ContractServiceImpl implements ContractService {
         return component.handlers();
     }
 
+    /**
+     * Returns the {@link NativeLibVerifier} instance used to verify the native libraries required by the Hedera smart
+     * contract service.
+     * @return the {@link NativeLibVerifier} instance
+     */
     public NativeLibVerifier nativeLibVerifier() {
         return component.nativeLibVerifier();
     }

@@ -8,6 +8,9 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * A class to verify the presence of the Besu native libraries required by the Hedera smart contract service.
+ */
 @Singleton
 public final class NativeLibVerifier {
     private static final Logger LOGGER = LogManager.getLogger(NativeLibVerifier.class);
@@ -26,10 +29,8 @@ public final class NativeLibVerifier {
     /**
      * Verifies that all native libraries are enabled.
      * Logs warning if any native library is not enabled
-     *
-     * @throws IllegalStateException if any native library is not enabled and nativeLibVerificationHaltEnabled is true
      */
-    public void verifyNativeLibs() throws IllegalStateException {
+    public void verifyNativeLibs() {
         final var nodeHaltEnabled = contractsConfigSupplier.get().nativeLibVerificationHaltEnabled();
         LOGGER.info("Native library verification is {}", nodeHaltEnabled ? "enabled" : "disabled");
         NativeLibrary.getDefaultNativeLibs().stream()
@@ -38,6 +39,8 @@ public final class NativeLibVerifier {
                 .findAny()
                 .ifPresent(lib -> {
                     if (nodeHaltEnabled) {
+                        // if any of the native libraries is not present on the environment and
+                        // `nativeLibVerificationHaltEnabled` is true we throw an exception to halt the node
                         LOGGER.error(
                                 "Native library {} is not present with halt mode enabled! Shutting down node.",
                                 lib.name());
