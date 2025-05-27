@@ -13,7 +13,6 @@ import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
-
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -37,21 +36,21 @@ public class SpecialFileHashSuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> getSpecialFileHash() {
-		long target = Utils.rationalized(specialFile);
-		final var fileSpec = new HapiSpec("GetSpecialFileHash",
-				new MapPropertySource(configManager.asSpecConfig()), new HapiSpecOperation[] {
-				UtilVerbs.withOpContext((spec, opLog) -> {
-					final var lookup = QueryVerbs.getFileInfo(
-							asEntityString(spec.shard(), spec.realm(), target));
-					CustomSpecAssert.allRunFor(spec, lookup);
-					final var synthMemo =
-							lookup.getResponse().getFileGetInfo().getFileInfo().getMemo();
-					COMMON_MESSAGES.info(
-							"The SHA-384 hash of the " + specialFile + " is:\n" + synthMemo);
-				})
-		});
-		return HapiSpecUtils.targeted(fileSpec, configManager);
-	}
+        long target = Utils.rationalized(specialFile);
+        final var fileSpec = new HapiSpec(
+                "GetSpecialFileHash", new MapPropertySource(configManager.asSpecConfig()), new HapiSpecOperation[] {
+                    UtilVerbs.withOpContext((spec, opLog) -> {
+                        final var lookup = QueryVerbs.getFileInfo(asEntityString(spec.shard(), spec.realm(), target));
+                        CustomSpecAssert.allRunFor(spec, lookup);
+                        final var synthMemo = lookup.getResponse()
+                                .getFileGetInfo()
+                                .getFileInfo()
+                                .getMemo();
+                        COMMON_MESSAGES.info("The SHA-384 hash of the " + specialFile + " is:\n" + synthMemo);
+                    })
+                });
+        return HapiSpecUtils.targeted(fileSpec, configManager);
+    }
 
     @Override
     protected Logger getResultsLogger() {

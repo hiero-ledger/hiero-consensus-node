@@ -14,7 +14,6 @@ import com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
 import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.util.HapiSpecUtils;
-
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
@@ -43,12 +42,16 @@ public class SysFileDownloadSuite extends HapiSuite {
 
     final Stream<DynamicTest> downloadSysFiles() {
         long[] targets = Utils.rationalized(sysFilesToDownload);
-		final var spec = new HapiSpec("downloadSysFiles", new MapPropertySource(configManager.asSpecConfig()), Arrays.stream(targets).mapToObj(this::appropriateQuery).toArray(HapiSpecOperation[]::new));
-		return HapiSpecUtils.targeted(spec, configManager);
+        final var spec = new HapiSpec(
+                "downloadSysFiles",
+                new MapPropertySource(configManager.asSpecConfig()),
+                Arrays.stream(targets).mapToObj(this::appropriateQuery).toArray(HapiSpecOperation[]::new));
+        return HapiSpecUtils.targeted(spec, configManager);
     }
 
     private HapiGetFileContents appropriateQuery(final long fileNum) {
-        final String fid = asEntityString(configManager.shard().getShardNum(), configManager.realm().getRealmNum(), fileNum);
+        final String fid = asEntityString(
+                configManager.shard().getShardNum(), configManager.realm().getRealmNum(), fileNum);
         if (Utils.isSpecialFile(fileNum)) {
             final String fqLoc = Utils.specialFileLoc(destDir, fileNum);
             return QueryVerbs.getFileContents(fid)
