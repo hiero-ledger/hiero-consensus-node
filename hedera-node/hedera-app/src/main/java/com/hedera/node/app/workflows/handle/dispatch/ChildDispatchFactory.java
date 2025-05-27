@@ -462,7 +462,7 @@ public class ChildDispatchFactory {
 
                     @Override
                     public int numSignaturesVerified() {
-                        return 0;
+                        return verifier.numSignaturesVerified();
                     }
 
                     @Override

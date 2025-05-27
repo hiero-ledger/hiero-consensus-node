@@ -52,14 +52,11 @@ public class TrieSigMapGenerator implements SigMapGenerator {
     }
 
     public static SigMapGenerator withNature(Nature nature) {
-        switch (nature) {
-            default:
-                return uniqueInstance;
-            case AMBIGUOUS_PREFIXES:
-                return ambiguousInstance;
-            case CONFUSED_PREFIXES:
-                return confusedInstance;
-        }
+        return switch (nature) {
+            case AMBIGUOUS_PREFIXES -> ambiguousInstance;
+            case CONFUSED_PREFIXES -> confusedInstance;
+            default -> uniqueInstance;
+        };
     }
 
     public static SigMapGenerator uniqueWithFullPrefixesFor(String... fullPrefixKeys) {
@@ -138,25 +135,20 @@ public class TrieSigMapGenerator implements SigMapGenerator {
     private Function<byte[], byte[]> getPrefixCalcFor(ByteTrie trie) {
         return key -> {
             byte[] prefix = {};
-            switch (nature) {
-                case UNIQUE_PREFIXES:
-                    prefix = trie.shortestPrefix(key, 1);
-                    break;
-                case AMBIGUOUS_PREFIXES:
-                    prefix = trie.shortestPrefix(key, Integer.MAX_VALUE);
-                    break;
-                case CONFUSED_PREFIXES:
-                    prefix = trie.randomPrefix(key.length);
-                    break;
-            }
+            prefix = switch (nature) {
+                case UNIQUE_PREFIXES -> trie.shortestPrefix(key, 1);
+                case AMBIGUOUS_PREFIXES -> trie.shortestPrefix(key, Integer.MAX_VALUE);
+                case CONFUSED_PREFIXES -> trie.randomPrefix(key.length);
+                default -> prefix;
+            };
             final String message = String.format("%s gets prefix %s", CommonUtils.hex(key), CommonUtils.hex(prefix));
             log.debug(message);
             return prefix;
         };
     }
 
-    class ByteTrie {
-        class Node {
+    static class ByteTrie {
+        static class Node {
             int count = 1;
             Node[] children = new Node[256];
         }
@@ -167,7 +159,7 @@ public class TrieSigMapGenerator implements SigMapGenerator {
         Random r = new Random(870235L);
 
         public ByteTrie(List<byte[]> allA) {
-            allA.stream().forEach(a -> insert(a));
+            allA.forEach(this::insert);
         }
 
         private void insert(byte[] a) {
