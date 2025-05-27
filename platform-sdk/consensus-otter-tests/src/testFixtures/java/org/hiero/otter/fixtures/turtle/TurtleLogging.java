@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,53 +44,73 @@ public class TurtleLogging {
     }
 
     private void updateLogging() {
-        final ConfigurationBuilder<BuiltConfiguration> configuration = ConfigurationBuilderFactory.newConfigurationBuilder();
+        final ConfigurationBuilder<BuiltConfiguration> configuration =
+                ConfigurationBuilderFactory.newConfigurationBuilder();
 
-        final LayoutComponentBuilder globalLogLayout = configuration.newLayout("PatternLayout")
-                .addAttribute("pattern", "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n");
-        final LayoutComponentBuilder nodeLogLayout = configuration.newLayout("PatternLayout")
-                .addAttribute("pattern", "%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n");
+        final LayoutComponentBuilder globalLogLayout = configuration
+                .newLayout("PatternLayout")
+                .addAttribute(
+                        "pattern",
+                        "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n");
+        final LayoutComponentBuilder nodeLogLayout = configuration
+                .newLayout("PatternLayout")
+                .addAttribute(
+                        "pattern",
+                        "%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n");
 
-        final FilterComponentBuilder infoFilter = configuration.newFilter("ThresholdFilter", Result.NEUTRAL, Result.DENY)
+        final FilterComponentBuilder infoFilter = configuration
+                .newFilter("ThresholdFilter", Result.NEUTRAL, Result.DENY)
                 .addAttribute("level", Level.INFO);
 
-        final ComponentBuilder<?> globalFilter = configuration.newComponent("filters")
-                .addComponent(infoFilter);
+        final ComponentBuilder<?> globalFilter =
+                configuration.newComponent("filters").addComponent(infoFilter);
 
         final RootLoggerComponentBuilder rootLogger = configuration.newRootLogger(Level.ALL);
 
         for (final Map.Entry<NodeId, Path> entry : nodeIdConfigurations.entrySet()) {
             final NodeId nodeId = entry.getKey();
             final Path outputDirectory = entry.getValue();
-            final KeyValuePairComponentBuilder keyValuePair = configuration.newKeyValuePair("nodeId", nodeId.toString());
+            final KeyValuePairComponentBuilder keyValuePair =
+                    configuration.newKeyValuePair("nodeId", nodeId.toString());
 
-            final FilterComponentBuilder excludeNodeFilter = configuration.newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)
+            final FilterComponentBuilder excludeNodeFilter = configuration
+                    .newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)
                     .addComponent(keyValuePair);
             globalFilter.addComponent(excludeNodeFilter);
 
-            final FilterComponentBuilder nodeOnlyFilter = configuration.newFilter("ThreadContextMapFilter", Result.NEUTRAL, Result.DENY)
+            final FilterComponentBuilder nodeOnlyFilter = configuration
+                    .newFilter("ThreadContextMapFilter", Result.NEUTRAL, Result.DENY)
                     .addComponent(keyValuePair);
-            final FilterComponentBuilder excludeHashStateFilter = configuration.newFilter("MarkerFilter", Result.DENY, Result.NEUTRAL)
+            final FilterComponentBuilder excludeHashStateFilter = configuration
+                    .newFilter("MarkerFilter", Result.DENY, Result.NEUTRAL)
                     .addAttribute("marker", "STATE_HASH");
-            final FilterComponentBuilder hashStateOnlyFilter = configuration.newFilter("MarkerFilter", Result.NEUTRAL, Result.DENY)
+            final FilterComponentBuilder hashStateOnlyFilter = configuration
+                    .newFilter("MarkerFilter", Result.NEUTRAL, Result.DENY)
                     .addAttribute("marker", "STATE_HASH");
 
-            final ComponentBuilder regularNodeFilter = configuration.newComponent("filters")
+            final ComponentBuilder regularNodeFilter = configuration
+                    .newComponent("filters")
                     .addComponent(infoFilter)
                     .addComponent(nodeOnlyFilter)
                     .addComponent(excludeHashStateFilter);
-            final AppenderComponentBuilder regularNodeFileAppender = configuration.newAppender("FileLogger-" + nodeId, "File")
-                    .addAttribute("fileName", outputDirectory.resolve("swirlds.log").toString())
+            final AppenderComponentBuilder regularNodeFileAppender = configuration
+                    .newAppender("FileLogger-" + nodeId, "File")
+                    .addAttribute(
+                            "fileName", outputDirectory.resolve("swirlds.log").toString())
                     .addAttribute("append", true)
                     .add(nodeLogLayout)
                     .addComponent(regularNodeFilter);
 
-            final ComponentBuilder hashStateNodeFilter = configuration.newComponent("filters")
+            final ComponentBuilder hashStateNodeFilter = configuration
+                    .newComponent("filters")
                     .addComponent(infoFilter)
                     .addComponent(nodeOnlyFilter)
                     .addComponent(hashStateOnlyFilter);
-            final AppenderComponentBuilder hashStateFileAppender = configuration.newAppender("HashStreamLogger-" + nodeId, "File")
-                    .addAttribute("fileName", outputDirectory.resolve("swirlds-hashstream.log").toString())
+            final AppenderComponentBuilder hashStateFileAppender = configuration
+                    .newAppender("HashStreamLogger-" + nodeId, "File")
+                    .addAttribute(
+                            "fileName",
+                            outputDirectory.resolve("swirlds-hashstream.log").toString())
                     .addAttribute("append", true)
                     .add(nodeLogLayout)
                     .addComponent(hashStateNodeFilter);
@@ -101,20 +122,19 @@ public class TurtleLogging {
         }
 
         final AppenderComponentBuilder inMemoryAppender = configuration.newAppender("InMemory", "InMemoryAppender");
-        final AppenderComponentBuilder consoleAppender = configuration.newAppender("ConsoleMarker", "Console")
+        final AppenderComponentBuilder consoleAppender = configuration
+                .newAppender("ConsoleMarker", "Console")
                 .addAttribute("target", ConsoleAppender.Target.SYSTEM_OUT)
                 .add(globalLogLayout)
                 .addComponent(globalFilter);
-        final AppenderComponentBuilder globalFileAppender = configuration.newAppender("FileLogger", "File")
+        final AppenderComponentBuilder globalFileAppender = configuration
+                .newAppender("FileLogger", "File")
                 .addAttribute("fileName", globalLogFile.toString())
                 .addAttribute("append", true)
                 .add(globalLogLayout)
                 .addComponent(globalFilter);
 
-        configuration
-                .add(inMemoryAppender)
-                .add(consoleAppender)
-                .add(globalFileAppender);
+        configuration.add(inMemoryAppender).add(consoleAppender).add(globalFileAppender);
 
         rootLogger
                 .add(configuration.newAppenderRef("InMemory"))
