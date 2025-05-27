@@ -131,7 +131,6 @@ public class IsValidAliasCallTest extends CallTestBase {
     void failsWhenLongZeroAccountDoesNotExist() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), OWNER_ADDRESS))

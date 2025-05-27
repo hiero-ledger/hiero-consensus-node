@@ -423,7 +423,6 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(MISSING_ENTITY_NUMBER);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertThrows(IllegalArgumentException.class, () -> subject.getIdNumber(EVM_ADDRESS));
     }
@@ -434,7 +433,6 @@ class DispatchingEvmFrameStateTest {
                         DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertEquals(ACCOUNT_NUM, subject.getIdNumber(EVM_ADDRESS));
     }
 
@@ -591,7 +589,6 @@ class DispatchingEvmFrameStateTest {
                         Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
 
@@ -604,7 +601,6 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.configuration()).willReturn(configuration);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
 
         assertTrue(reasonLazyCreationFailed.isEmpty());
@@ -614,7 +610,6 @@ class DispatchingEvmFrameStateTest {
     void translatesMaxAccountsCreated() {
         given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
                 .willReturn(ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
 
@@ -624,7 +619,6 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void throwsOnLazyCreateOfLongZeroAddress() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var reasonLazyCreationFailed = subject.tryLazyCreation(LONG_ZERO_ADDRESS);
         assertTrue(reasonLazyCreationFailed.isPresent());
         assertEquals(INVALID_ALIAS_KEY, reasonLazyCreationFailed.get());
@@ -633,7 +627,6 @@ class DispatchingEvmFrameStateTest {
     @Test
     void throwsOnLazyCreateOfNonExpiredAccount() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), eq(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe()))))
                 .willReturn(ACCOUNT_NUM);
@@ -777,7 +770,6 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void missingAliasIsNotHollow() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertFalse(subject.isHollowAccount(EVM_ADDRESS));
     }
@@ -790,7 +782,6 @@ class DispatchingEvmFrameStateTest {
                         Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertFalse(subject.isHollowAccount(EVM_ADDRESS));
     }
 
@@ -804,7 +795,6 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.configuration()).willReturn(configuration);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID)
                 .key(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertTrue(subject.isHollowAccount(EVM_ADDRESS));
     }
 

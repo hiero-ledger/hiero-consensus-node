@@ -95,7 +95,6 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), RECEIVER_ADDRESS))
                 .willReturn(MISSING_ENTITY_NUMBER);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(DEFAULT_CONFIG);
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
