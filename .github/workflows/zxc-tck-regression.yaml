@@ -96,7 +96,7 @@ jobs:
       # Set up the npm dependencies and cache on the tck-client
       - name: Set up the tck-client
         run: |
-          npm install --prefer-offline --no-audit --progress=false
+          npm install
           npm cache clean --force
         working-directory: platform-sdk/regression
 
