@@ -69,9 +69,7 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -331,23 +329,13 @@ class ConversionUtilsTest {
 
     @Test
     void asTokenId() {
-        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000500000000000000060000000000000007");
+        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000000000000000000000000000000000007");
 
         var tokenId = ConversionUtils.asTokenId(address);
 
-        assertEquals(5, tokenId.shardNum());
-        assertEquals(6, tokenId.realmNum());
+        assertEquals(0, tokenId.shardNum());
+        assertEquals(0, tokenId.realmNum());
         assertEquals(7, tokenId.tokenNum());
-    }
-
-    @ParameterizedTest
-    @MethodSource("asTokenIdWithNegativeValuesProvideParameters")
-    void asTokenIdWithNegativeValues(String hex, String errorMessage) {
-        final var address = com.esaulpaugh.headlong.abi.Address.wrap(hex);
-
-        IllegalArgumentException exception =
-                assertThrows(IllegalArgumentException.class, () -> ConversionUtils.asTokenId(address));
-        assertEquals(errorMessage, exception.getMessage());
     }
 
     private static Stream<Arguments> asTokenIdWithNegativeValuesProvideParameters() {

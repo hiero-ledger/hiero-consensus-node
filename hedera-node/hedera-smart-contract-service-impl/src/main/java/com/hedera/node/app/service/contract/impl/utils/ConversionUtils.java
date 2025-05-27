@@ -114,11 +114,7 @@ public class ConversionUtils {
      */
     public static TokenID asTokenId(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
         final var explicit = explicitFromHeadlong(address);
-        return TokenID.newBuilder()
-                .shardNum(shardOfLongZero(explicit))
-                .realmNum(realmOfLongZero(explicit))
-                .tokenNum(numberOfLongZero(explicit))
-                .build();
+        return TokenID.newBuilder().tokenNum(numberOfLongZero(explicit)).build();
     }
 
     /**
@@ -780,42 +776,6 @@ public class ConversionUtils {
             throw new IllegalArgumentException("Number is negative");
         }
         return number;
-    }
-
-    /**
-     * Given an explicit 20-byte addresss, returns its realm value.
-     *
-     * @param explicit the explicit 20-byte address
-     * @return its realm value
-     */
-    public static long realmOfLongZero(@NonNull final byte[] explicit) {
-        final var realm = longFrom(
-                explicit[4],
-                explicit[5],
-                explicit[6],
-                explicit[7],
-                explicit[8],
-                explicit[9],
-                explicit[10],
-                explicit[11]);
-        if (realm < 0) {
-            throw new IllegalArgumentException("Realm is negative");
-        }
-        return realm;
-    }
-
-    /**
-     * Given an explicit 20-byte addresss, returns its shard value.
-     *
-     * @param explicit the explicit 20-byte address
-     * @return its shard value
-     */
-    public static int shardOfLongZero(@NonNull final byte[] explicit) {
-        final var shard = longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
-        if (shard < 0) {
-            throw new IllegalArgumentException("Shard is negative");
-        }
-        return shard;
     }
 
     // too many arguments
