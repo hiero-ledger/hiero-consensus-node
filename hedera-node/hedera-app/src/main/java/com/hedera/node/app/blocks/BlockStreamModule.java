@@ -19,6 +19,7 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
 
@@ -38,8 +39,11 @@ public interface BlockStreamModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockStreamStateManager blockStreamStateManager,
             @NonNull final BlockStreamMetrics blockStreamMetrics) {
-        final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics);
+        final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
+                configProvider,
+                blockStreamStateManager,
+                blockStreamMetrics,
+                Executors.newSingleThreadScheduledExecutor());
         blockStreamStateManager.setBlockNodeConnectionManager(manager);
         return manager;
     }

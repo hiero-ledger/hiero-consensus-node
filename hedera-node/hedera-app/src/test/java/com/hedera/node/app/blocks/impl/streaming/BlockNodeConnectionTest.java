@@ -1,677 +1,623 @@
-// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.ACTIVE;
-import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState.UNINITIALIZED;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.PublishStreamResponse.Acknowledgement;
+import com.hedera.hapi.block.PublishStreamResponse.BlockAcknowledgement;
+import com.hedera.hapi.block.PublishStreamResponse.ResponseOneOfType;
 import com.hedera.hapi.block.PublishStreamResponseCode;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.hedera.pbj.runtime.OneOf;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.VarHandle;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Queue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.Mockito;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * Unit tests for {@link BlockNodeConnection}.
- */
 @ExtendWith(MockitoExtension.class)
-public class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
+class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
-    // Block Node Communication Components
-    private BlockNodeConnection subject;
-    private BlockNodeConnection subject2;
-    private BlockNodeConnectionManager blockNodeConnectionManager;
-    private BlockStreamMetrics blockStreamMetrics;
-    private BlockStreamStateManager blockStreamStateManager;
-    private ConfigProvider configProvider;
-    private BlockNodeConfig nodeConfig;
-    private BlockNodeConfig nodeConfig2;
+    private static final VarHandle eosTimestampsHandle;
 
-    @Mock
-    private Metrics mockMetrics;
+    static {
+        try {
+            final Lookup lookup = MethodHandles.lookup();
+            eosTimestampsHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
+                    .findVarHandle(BlockNodeConnection.class, "endOfStreamTimestamps", Queue.class);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-    @Mock
-    private NodeInfo mockNodeInfo;
+    private BlockNodeConnection connection;
 
-    @Mock
-    private GrpcServiceClient mockGrpcServiceClient;
-
-    private StreamObserver<Object> genericMockStreamObserver;
-
-    @Mock
-    private StreamObserver<PublishStreamResponse> mockStreamObserver;
+    private BlockNodeConnectionManager connectionManager;
+    private BlockStreamStateManager stateManager;
+    private GrpcServiceClient grpcServiceClient;
+    private BlockStreamMetrics metrics;
+    private final String grpcEndpoint = "foo";
+    private StreamObserver<PublishStreamRequest> requestObserver;
 
     @BeforeEach
-    void setUp() {
-        // Setup ConfigProvider
-        configProvider = createConfigProvider();
-        nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
-        nodeConfig2 = new BlockNodeConfig("localhost", 8080, 2);
+    void beforeEach() {
+        final ConfigProvider configProvider = createConfigProvider();
+        final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
+        connectionManager = mock(BlockNodeConnectionManager.class);
+        stateManager = mock(BlockStreamStateManager.class);
+        grpcServiceClient = mock(GrpcServiceClient.class);
+        metrics = mock(BlockStreamMetrics.class);
+        requestObserver = mock(StreamObserver.class);
 
-        // Create a mock of StreamObserver<Object> and cast it to StreamObserver<PublishStreamResponse>
-        genericMockStreamObserver = Mockito.mock(StreamObserver.class);
-        when(mockGrpcServiceClient.bidi(any(), (StreamObserver<Object>) any())).thenReturn(genericMockStreamObserver);
-
-        // Setup BlockStreamMetrics with mocks
-        when(mockNodeInfo.nodeId()).thenReturn(0L);
-        blockStreamMetrics = new BlockStreamMetrics(mockMetrics, mockNodeInfo);
-
-        // Setup BlockStreamStateManager
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        // Setup BlockNodeConnectionManager
-        blockNodeConnectionManager = Mockito.spy(
-                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics));
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-
-        // Set up BlockNodeConnection
-        subject = new BlockNodeConnection(
+        connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
-                blockNodeConnectionManager,
-                blockStreamStateManager,
-                mockGrpcServiceClient,
-                blockStreamMetrics);
+                connectionManager,
+                stateManager,
+                grpcServiceClient,
+                metrics,
+                grpcEndpoint);
 
-        subject2 = new BlockNodeConnection(
-                configProvider,
-                nodeConfig2,
-                blockNodeConnectionManager,
-                blockStreamStateManager,
-                mockGrpcServiceClient,
-                blockStreamMetrics);
-
-        doReturn(subject).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
+        lenient()
+                .doReturn(requestObserver)
+                .when(grpcServiceClient).bidi(grpcEndpoint, connection);
     }
 
     @Test
-    void testUpdateConnectionState() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testCreateRequestObserver() {
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+        connection.createRequestObserver();
 
-        // Given
-        final var expectedState = UNINITIALIZED;
-
-        // When
-        subject.updateConnectionState(expectedState);
-
-        // Then
-        assertThat(subject.getConnectionState()).isEqualTo(expectedState);
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.PENDING);
+        verify(grpcServiceClient).bidi(grpcEndpoint, connection);
     }
 
     @Test
-    void testHandleAcknowledgementLastVerifiedBlockUpdated() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testCreateRequestObserver_alreadyExists() {
+        connection.createRequestObserver();
+        connection.createRequestObserver();
 
-        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
-                .isTrue();
-        assertEquals(subject.getConnectionState(), ACTIVE);
-
-        // Open Block 0
-        blockStreamStateManager.openBlock(0L);
-
-        // Create Test BlockAcknowledgement
-        PublishStreamResponse response = createBlockAckResponse(0L, false);
-
-        subject.onNext(response);
-
-        assertEquals(blockNodeConnectionManager.getLastVerifiedBlock(nodeConfig), 0L);
-
-        // Create Test BlockAcknowledgement
-        response = createBlockAckResponse(123L, false);
-
-        subject.onNext(response);
-
-        assertEquals(blockNodeConnectionManager.getLastVerifiedBlock(nodeConfig), 123L);
+        verify(grpcServiceClient).bidi(grpcEndpoint, connection); // should only be called once
+        verifyNoMoreInteractions(grpcServiceClient);
     }
 
     @Test
-    void testHandleAcknowledgementCurrentBlockStreamingNegativeCase() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testUpdatingConnectionState() {
+        final ConnectionState preUpdateState = connection.getConnectionState();
+        // this should be uninitialized because we haven't called connect yet
+        assertThat(preUpdateState).isEqualTo(ConnectionState.UNINITIALIZED);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
-                .isTrue();
-        assertEquals(subject.getConnectionState(), ACTIVE);
-
-        // Create Test BlockAcknowledgement
-        PublishStreamResponse response = createBlockAckResponse(0L, true);
-
-        subject.onNext(response);
-
-        assertEquals(0L, blockNodeConnectionManager.getLastVerifiedBlock(nodeConfig));
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
+        final ConnectionState postUpdateState = connection.getConnectionState();
+        assertThat(postUpdateState).isEqualTo(ConnectionState.ACTIVE);
     }
 
     @Test
-    void testHandleAcknowledgementJumpWhenAckBetweenStreamingAndProducing() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testHandleStreamError() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // do a quick sanity check on the state
+        final ConnectionState preState = connection.getConnectionState();
+        assertThat(preState).isEqualTo(ConnectionState.ACTIVE);
 
-        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
-                .isTrue();
-        assertEquals(subject.getConnectionState(), ACTIVE);
+        connection.handleStreamFailure();
 
-        // Create Test BlockAcknowledgement
-        PublishStreamResponse response = createBlockAckResponse(5L, true);
+        final ConnectionState postState = connection.getConnectionState();
+        assertThat(postState).isEqualTo(ConnectionState.UNINITIALIZED);
 
-        // Open Block 0
-        blockStreamStateManager.openBlock(0L);
-
-        // Open Block 0
-        blockStreamStateManager.openBlock(10L);
-
-        subject.onNext(response);
-
-        assertEquals(5L, blockNodeConnectionManager.getLastVerifiedBlock(nodeConfig));
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(6L, blockNodeConnectionManager.getStreamingBlockNumber().get());
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
     }
 
     @Test
-    void testHandleAcknowledgementUnknown() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
-
-        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
-                .isTrue();
-        assertEquals(subject.getConnectionState(), ACTIVE);
-
-        // Open Block 0
-        blockStreamStateManager.openBlock(0L);
-
-        Acknowledgement acknowledgement = Acknowledgement.newBuilder().build();
-
-        PublishStreamResponse response = PublishStreamResponse.newBuilder()
+    void testOnNext_acknowledgement_missingBlockAck() {
+        final Acknowledgement acknowledgement = Acknowledgement.newBuilder()
+                .blockAck((BlockAcknowledgement) null) // ensure no ACK exists
+                .build();
+        final PublishStreamResponse response = PublishStreamResponse.newBuilder()
                 .acknowledgement(acknowledgement)
                 .build();
 
-        subject.onNext(response);
+        connection.onNext(response);
 
-        assertEquals(-1L, blockNodeConnectionManager.getLastVerifiedBlock(nodeConfig));
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoInteractions(stateManager);
+        verifyNoInteractions(connectionManager);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsInternalError() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_acknowledgement_notStreaming() {
+        final PublishStreamResponse response = createBlockAckResponse(10L, false);
+        when(connectionManager.currentStreamingBlockNumber())
+                .thenReturn(-1L); // we aren't streaming anything to the block node
+        when(stateManager.getBlockNumber())
+                .thenReturn(10L);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_INTERNAL_ERROR, Long.MAX_VALUE);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
-
-        subject.onNext(response);
-
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getBlockNumber();
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsPersistenceFailure() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_acknowledgement_olderThanCurrentStreamingAndProducing() {
+        final PublishStreamResponse response = createBlockAckResponse(8L, false);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_PERSISTENCE_FAILED, Long.MAX_VALUE);
+        when(connectionManager.currentStreamingBlockNumber())
+                .thenReturn(10L);
+        when(stateManager.getBlockNumber())
+                .thenReturn(10L);
 
-        blockStreamStateManager.openBlock(0L);
+        connection.onNext(response);
 
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getBlockNumber();
 
-        subject.onNext(response);
-
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 8L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsTimeoutRestartsWithoutSwitching() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_acknowledgement_newerThanCurrentProducing() {
+        // I don't think this scenario is possible... we should never stream a block that is newer than the block
+        // currently being produced.
+        final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_TIMEOUT, Long.MAX_VALUE);
+        when(connectionManager.currentStreamingBlockNumber())
+                .thenReturn(11L);
+        when(stateManager.getBlockNumber())
+                .thenReturn(10L);
 
-        blockStreamStateManager.openBlock(0L);
+        connection.onNext(response);
 
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(3000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(ACTIVE, subject.getConnectionState());
-        assertEquals(UNINITIALIZED, subject2.getConnectionState());
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getBlockNumber();
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 11L);
+        verify(connectionManager).jumpToBlockIfNeeded(12L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsOutOfOrderRestartsWithoutSwitching() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_acknowledgement_newerThanCurrentStreaming() {
+        final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_OUT_OF_ORDER, Long.MAX_VALUE);
+        when(connectionManager.currentStreamingBlockNumber())
+                .thenReturn(10L);
+        when(stateManager.getBlockNumber())
+                .thenReturn(12L);
 
-        blockStreamStateManager.openBlock(0L);
+        connection.onNext(response);
 
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(3000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(ACTIVE, subject.getConnectionState());
-        assertEquals(UNINITIALIZED, subject2.getConnectionState());
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getBlockNumber();
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 11L);
+        verify(connectionManager).jumpToBlockIfNeeded(12L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsBadStateProofRestartsWithoutSwitching() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_endOfStream_exceededMaxPermitted() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BAD_STATE_PROOF, Long.MAX_VALUE);
+        // populate the end of stream timestamp queue with some data so the next call exceeds the max allowed
+        // the queue assumes chronological ordering, so make sure the oldest are added first
+        final Queue<Instant> eosTimestamps = (Queue<Instant>) eosTimestampsHandle.get(connection);
+        final Instant now = Instant.now();
+        eosTimestamps.add(now.minusSeconds(5));
+        eosTimestamps.add(now.minusSeconds(4));
+        eosTimestamps.add(now.minusSeconds(3));
+        eosTimestamps.add(now.minusSeconds(2));
+        eosTimestamps.add(now.minusSeconds(1));
 
-        blockStreamStateManager.openBlock(0L);
+        connection.onNext(response);
 
-        subject.onNext(response);
+        assertThat(eosTimestamps).hasSize(6);
 
-        try {
-            Thread.sleep(3000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        verify(metrics).incrementEndOfStreamCount(PublishStreamResponseCode.STREAM_ITEMS_BEHIND);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(eq(connection), any(Duration.class));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
 
-        assertEquals(ACTIVE, subject.getConnectionState());
-        assertEquals(UNINITIALIZED, subject2.getConnectionState());
+    @ParameterizedTest
+    @EnumSource(value = PublishStreamResponseCode.class, names = {"STREAM_ITEMS_INTERNAL_ERROR", "STREAM_ITEMS_PERSISTENCE_FAILED"})
+    void testOnNext_endOfStream_blockNodeInternalError(final PublishStreamResponseCode responseCode) {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementEndOfStreamCount(responseCode);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PublishStreamResponseCode.class, names = {"STREAM_ITEMS_TIMEOUT", "STREAM_ITEMS_OUT_OF_ORDER", "STREAM_ITEMS_BAD_STATE_PROOF"})
+    void testOnNext_endOfStream_clientFailures(final PublishStreamResponseCode responseCode) {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementEndOfStreamCount(responseCode);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).scheduleRetry(connection, Duration.ofSeconds(1), 11L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsSuccess() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_endOfStream_blockNodeGracefulShutdown() {
+        openConnectionAndResetMocks();
+        // STREAM_ITEMS_SUCCESS is sent when the block node is gracefully shutting down
+        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS, 10L);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS, Long.MAX_VALUE);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(3000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        assertEquals(ACTIVE, subject2.getConnectionState());
+        verify(metrics).incrementEndOfStreamCount(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsUnknown() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_endOfStream_blockNodeBehind_blockExists() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
+        when(stateManager.getBlockState(11L))
+                .thenReturn(new BlockState(11L));
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN, Long.MAX_VALUE);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(3000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        assertEquals(ACTIVE, subject2.getConnectionState());
+        verify(metrics).incrementEndOfStreamCount(PublishStreamResponseCode.STREAM_ITEMS_BEHIND);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).scheduleRetry(connection, Duration.ofSeconds(1), 11L);
+        verify(stateManager).getBlockState(11L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsBehindMaxLong() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_endOfStream_blockNodeBehind_blockDoesNotExist() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
+        when(stateManager.getBlockState(11L))
+                .thenReturn(null);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, Long.MAX_VALUE);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-        blockStreamStateManager.openBlock(100L);
-
-        blockNodeConnectionManager.getJumpTargetBlock().set(100L);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(100L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(3000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
+        verify(metrics).incrementEndOfStreamCount(PublishStreamResponseCode.STREAM_ITEMS_BEHIND);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verify(stateManager).getBlockState(11L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsBehind() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_endOfStream_itemsUnknown() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN, 10L);
 
-        PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 49L);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-        blockStreamStateManager.openBlock(50L);
-        blockStreamStateManager.openBlock(100L);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(3000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(50L, blockNodeConnectionManager.getStreamingBlockNumber().get());
+        verify(metrics).incrementEndOfStreamCount(PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
-    void testHandleEndOfStreamClosesStreamItemsBehindNoBlockState() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_skipBlock_sameAsStreaming() {
+        final PublishStreamResponse response = createSkipBlock(25L);
+        when(connectionManager.currentStreamingBlockNumber())
+                .thenReturn(25L);
 
-        PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 49L);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-        blockStreamStateManager.openBlock(100L);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        subject.onNext(response);
-
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
+        verify(metrics).incrementSkipBlockCount();
+        verify(connectionManager).jumpToBlockIfNeeded(26L); // jump to the response block number + 1
+        verify(connectionManager).currentStreamingBlockNumber();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
-    void testHandleEndOfStreamMultipleWithinTimeframe() throws InterruptedException {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_skipBlock_notSameAsStreaming() {
+        final PublishStreamResponse response = createSkipBlock(25L);
+        when(connectionManager.currentStreamingBlockNumber())
+                .thenReturn(26L);
 
-        PublishStreamResponse response =
-                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, Long.MAX_VALUE);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
-
-        // 5 EndOfStream within 30 seconds.
-        subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        Thread.sleep(2000L);
-        assertEquals(ACTIVE, subject.getConnectionState());
-
-        subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        Thread.sleep(2000L);
-        assertEquals(ACTIVE, subject.getConnectionState());
-
-        subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        Thread.sleep(2000L);
-        assertEquals(ACTIVE, subject.getConnectionState());
-
-        subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        Thread.sleep(2000L);
-        assertEquals(ACTIVE, subject.getConnectionState());
-
-        subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        Thread.sleep(2000L);
-        assertEquals(ACTIVE, subject.getConnectionState());
-
-        subject.onNext(response);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        Thread.sleep(7000L);
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        assertEquals(ACTIVE, subject2.getConnectionState());
+        verify(metrics).incrementSkipBlockCount();
+        verify(connectionManager).currentStreamingBlockNumber();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
-    void testHandleSkipBlock() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_resendBlock_blockExists() {
+        final PublishStreamResponse response = createResendBlock(10L);
+        when(stateManager.getBlockState(10L))
+                .thenReturn(new BlockState(10L));
 
-        PublishStreamResponse response = createSkipBlock(0L);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-        blockStreamStateManager.openBlock(1L);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(1L, blockNodeConnectionManager.getStreamingBlockNumber().get());
+        verify(metrics).incrementResendBlockCount();
+        verify(connectionManager).jumpToBlockIfNeeded(10L);
+        verify(stateManager).getBlockState(10L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
     }
 
     @Test
-    void testHandleSkipBlockIgnore() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_resendBlock_blockDoesNotExist() {
+        openConnectionAndResetMocks();
 
-        PublishStreamResponse response = createSkipBlock(5L);
+        final PublishStreamResponse response = createResendBlock(10L);
+        when(stateManager.getBlockState(10L))
+                .thenReturn(null);
 
-        blockStreamStateManager.openBlock(0L);
-        blockStreamStateManager.openBlock(1L);
+        connection.onNext(response);
 
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
+        verify(metrics).incrementResendBlockCount();
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verify(stateManager).getBlockState(10L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
     }
 
     @Test
-    void testHandleResendBlock() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testOnNext_unknown() {
+        final PublishStreamResponse response = new PublishStreamResponse(new OneOf<>(ResponseOneOfType.UNSET, null));
 
-        PublishStreamResponse response = createResendBlock(0L);
+        connection.onNext(response);
 
-        blockStreamStateManager.openBlock(0L);
-        blockStreamStateManager.openBlock(1L);
+        verify(metrics).incrementUnknownResponseCount();
 
-        blockNodeConnectionManager.getJumpTargetBlock().set(1L);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(1L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(1000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-    }
-
-    @Test
-    void testHandleResendBlockNoBlockState() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
-
-        PublishStreamResponse response = createResendBlock(5L);
-
-        blockStreamStateManager.openBlock(0L);
-
-        assertEquals(0L, blockNodeConnectionManager.getStreamingBlockNumber().get());
-
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
-
-        subject.onNext(response);
-
-        try {
-            Thread.sleep(2000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        assertEquals(ACTIVE, subject2.getConnectionState());
-    }
-
-    @Test
-    void testOnError() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
-
-        assertEquals(ACTIVE, subject.getConnectionState());
-
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
-
-        // Simulate an error
-        subject.onError(new RuntimeException("Test error"));
-
-        try {
-            Thread.sleep(2000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Verify that the connection state is set to UNINITIALIZED
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        assertEquals(ACTIVE, subject2.getConnectionState());
-    }
-
-    @Test
-    void testOnCompleted() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
-
-        assertEquals(ACTIVE, subject.getConnectionState());
-
-        doReturn(subject2).when(blockNodeConnectionManager).createBlockNodeConnection(any(), any());
-
-        // Simulate onCompleted
-        subject.onCompleted();
-
-        try {
-            Thread.sleep(2000L);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Verify that the connection state is set to UNINITIALIZED
-        assertEquals(UNINITIALIZED, subject.getConnectionState());
-        assertEquals(ACTIVE, subject2.getConnectionState());
+        verifyNoMoreInteractions(metrics);
+        verifyNoInteractions(requestObserver);
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
     void testSendRequest() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+        openConnectionAndResetMocks();
 
-        assertEquals(ACTIVE, subject.getConnectionState());
+        final BlockHeader blockHeader = BlockHeader.newBuilder()
+                .number(1L)
+                .build();
+        final BlockItem item = BlockItem.newBuilder()
+                .blockHeader(blockHeader)
+                .build();
+        final PublishStreamRequest request = createRequest(item);
 
-        PublishStreamRequest expectedRequest = PublishStreamRequest.newBuilder().build();
-        subject.sendRequest(expectedRequest);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.sendRequest(request);
 
-        // Verify that the request was sent to the correct StreamObserver
-        Mockito.verify(genericMockStreamObserver).onNext(expectedRequest);
+        verify(requestObserver).onNext(request);
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
     @Test
-    void testSendRequestNotActive() {
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+    void testSendRequest_notActive() {
+        final BlockHeader blockHeader = BlockHeader.newBuilder()
+                .number(1L)
+                .build();
+        final BlockItem item = BlockItem.newBuilder()
+                .blockHeader(blockHeader)
+                .build();
+        final PublishStreamRequest request = createRequest(item);
 
-        assertEquals(ACTIVE, subject.getConnectionState());
+        connection.createRequestObserver();
+        connection.updateConnectionState(ConnectionState.PENDING);
+        connection.sendRequest(request);
 
-        PublishStreamRequest expectedRequest = PublishStreamRequest.newBuilder().build();
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
 
-        subject.updateConnectionState(UNINITIALIZED);
-        subject.sendRequest(expectedRequest);
+    @Test
+    void testSendRequest_observerNull() {
+        final BlockHeader blockHeader = BlockHeader.newBuilder()
+                .number(1L)
+                .build();
+        final BlockItem item = BlockItem.newBuilder()
+                .blockHeader(blockHeader)
+                .build();
+        final PublishStreamRequest request = createRequest(item);
 
-        // Verify that the request was sent to the correct StreamObserver
-        Mockito.verifyNoInteractions(genericMockStreamObserver);
+        // don't create the observer
+        connection.updateConnectionState(ConnectionState.PENDING);
+        connection.sendRequest(request);
+
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testClose() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        connection.close();
+
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(requestObserver).onCompleted();
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testClose_failure() {
+        openConnectionAndResetMocks();
+        doThrow(new RuntimeException("oh no!"))
+                .when(requestObserver).onCompleted();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        connection.close();
+
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(requestObserver).onCompleted();
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testOnError() {
+        openConnectionAndResetMocks();
+
+        connection.onError(new RuntimeException("oh bother"));
+
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+
+        verify(metrics).incrementOnErrorCount();
+
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testOnCompleted_streamClosingInProgress() {
+        openConnectionAndResetMocks();
+        connection.close(); // call this so we mark the connection as closing
+        resetMocks();
+
+        connection.onCompleted();
+
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(requestObserver);
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testOnCompleted_streamClosingNotInProgress() {
+        openConnectionAndResetMocks();
+        // don't call close so we do not mark the connection as closing
+        connection.onCompleted();
+
+        verify(connectionManager).jumpToBlockIfNeeded(-1L);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    // Utilities
+
+    private void openConnectionAndResetMocks() {
+        connection.createRequestObserver();
+        // reset the mocks interactions to remove tracked interactions as a result of starting the connection
+        resetMocks();
+    }
+
+    private void resetMocks() {
+        reset(connectionManager, requestObserver, stateManager, metrics);
     }
 }

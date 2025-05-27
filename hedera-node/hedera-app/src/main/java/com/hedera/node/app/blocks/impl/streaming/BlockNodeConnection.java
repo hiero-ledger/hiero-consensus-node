@@ -6,9 +6,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.hapi.block.PublishStreamResponse.Acknowledgement;
+import com.hedera.hapi.block.PublishStreamResponse.BlockAcknowledgement;
 import com.hedera.hapi.block.PublishStreamResponse.EndOfStream;
 import com.hedera.hapi.block.PublishStreamResponse.ResendBlock;
 import com.hedera.hapi.block.PublishStreamResponse.SkipBlock;
+import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -18,9 +20,12 @@ import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Iterator;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,8 +53,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final GrpcServiceClient grpcServiceClient;
     private final BlockNodeConnectionManager blockNodeConnectionManager;
     private final BlockStreamStateManager blockStreamStateManager;
-    private BlockStreamMetrics blockStreamMetrics = null;
-    private final String connectionDescriptor;
+    private final BlockStreamMetrics blockStreamMetrics;
 
     // The EndOfStream rate limit allowed in a time frame
     private final Integer maxEndOfStreamsAllowed;
@@ -57,12 +61,16 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final Duration endOfStreamScheduleDelay;
     private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
 
-    // Atomic state variables
-    private final AtomicBoolean streamCompletionInProgress = new AtomicBoolean(false);
-
-    // Volatile connection state
-    private volatile StreamObserver<PublishStreamRequest> requestObserver;
-    private volatile ConnectionState connectionState;
+    /**
+     * Flag that indicates if this stream is currently shutting down, as initiated by this consensus node.
+     */
+    private final AtomicBoolean streamShutdownInProgress = new AtomicBoolean(false);
+    /**
+     * Stream observer used to send messages to the block node.
+     */
+    private StreamObserver<PublishStreamRequest> blockNodeStreamObserver;
+    private final AtomicReference<ConnectionState> connectionState;
+    private final String grpcEndpoint;
 
     /**
      * Represents the possible states of a Block Node connection:
@@ -84,7 +92,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         /**
          * Connection is active. Block Stream Worker Thread is sending PublishStreamRequest's to the block node through async bidi stream.
          */
-        ACTIVE
+        ACTIVE,
+        /**
+         * The connection is currently trying to connect to the block node.
+         */
+        CONNECTING
     }
 
     /**
@@ -103,7 +115,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockStreamStateManager blockStreamStateManager,
             @NonNull final GrpcServiceClient grpcServiceClient,
-            @NonNull final BlockStreamMetrics blockStreamMetrics) {
+            @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull final String grpcEndpoint) {
         requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
@@ -112,11 +125,11 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
         this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
-        this.connectionDescriptor = generateConnectionDescriptor(nodeConfig);
-        this.connectionState = ConnectionState.UNINITIALIZED;
+        this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
+        this.grpcEndpoint = requireNonNull(grpcEndpoint);
 
-        final var blockNodeConnectionConfig =
-                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+        final var blockNodeConnectionConfig = configProvider.getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class);
 
         this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
@@ -127,7 +140,10 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * Creates a new bidi request observer for this block node connection.
      */
     public void createRequestObserver() {
-        requestObserver = grpcServiceClient.bidi(blockNodeConnectionManager.getGrpcEndPoint(), this);
+        if (blockNodeStreamObserver == null) {
+            blockNodeStreamObserver = grpcServiceClient.bidi(grpcEndpoint, this);
+            updateConnectionState(ConnectionState.PENDING);
+        }
     }
 
     /**
@@ -135,7 +151,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param newState the new state to transition to
      */
     public void updateConnectionState(@NonNull final ConnectionState newState) {
-        connectionState = newState;
+        requireNonNull(newState);
+        final ConnectionState oldState = connectionState.getAndSet(newState);
+        logger.debug("[{}] Connection state transitioned from {} to {}", this, oldState, newState);
     }
 
     /**
@@ -143,7 +161,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     public void handleStreamFailure() {
         close();
-        blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+        blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
     }
 
     /**
@@ -152,74 +170,43 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param acknowledgement the acknowledgement received from the block node
      */
     private void handleAcknowledgement(@NonNull final Acknowledgement acknowledgement) {
-        if (acknowledgement.hasBlockAck()) {
-            final var blockAck = acknowledgement.blockAck();
-            final var acknowledgedBlockNumber = blockAck.blockNumber();
-            final var blockAlreadyExists = blockAck.blockAlreadyExists();
-            synchronized (blockNodeConnectionManager.getStreamingBlockNumber()) {
-                final long currentBlockStreaming =
-                        blockNodeConnectionManager.getStreamingBlockNumber().get();
-                final var currentBlockProducing = blockStreamStateManager.getBlockNumber();
+        if (!acknowledgement.hasBlockAck()) {
+            logger.warn("[{}] Unknown acknowledgement received: {}", this, acknowledgement);
+            return;
+        }
 
-                // Update the last verified block by the current connection
-                blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
+        final BlockAcknowledgement blockAck = acknowledgement.blockAck();
+        final long acknowledgedBlockNumber = blockAck.blockNumber();
+        final boolean blockAlreadyExists = blockAck.blockAlreadyExists();
+        final long currentBlockStreaming = blockNodeConnectionManager.currentStreamingBlockNumber();
+        final long currentBlockProducing = blockStreamStateManager.getBlockNumber();
 
-                // Increment the ACK counter metric
-                blockStreamMetrics.incrementBlockAckReceivedCount();
+        // Update the last verified block by the current connection
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
 
-                if (currentBlockStreaming == -1) {
-                    return;
-                }
+        if (currentBlockStreaming == -1) {
+            logger.warn("[{}] Received acknowledgement for block {}, but we haven't streamed anything to the node", this, acknowledgedBlockNumber);
+            return;
+        }
 
-                if (blockAlreadyExists) {
-                    logger.debug(
-                            "[{}] Block {} already exists on block node {}",
-                            Thread.currentThread().getName(),
-                            acknowledgedBlockNumber,
-                            connectionDescriptor);
-                } else {
-                    logger.debug(
-                            "[{}] Block {} acknowledgement received from block node {}",
-                            Thread.currentThread().getName(),
-                            acknowledgedBlockNumber,
-                            connectionDescriptor);
-                }
+        logger.debug("[{}] Acknowledgement received for block {} (alreadyExists={})", this, acknowledgedBlockNumber, blockAlreadyExists);
 
-                if (currentBlockStreaming < acknowledgedBlockNumber
-                        && currentBlockProducing >= acknowledgedBlockNumber) {
-                    // We can jump to streaming the acknowledged block number
-                    logger.debug(
-                            "[{}] Currently streaming Block {} to Block Node {} and acknowledged Block {} - moving streaming ahead to Block {}",
-                            Thread.currentThread().getName(),
-                            currentBlockStreaming,
-                            connectionDescriptor,
-                            acknowledgedBlockNumber,
-                            acknowledgedBlockNumber + 1L);
-                    jumpToBlock(acknowledgedBlockNumber + 1);
-                } else if (currentBlockStreaming == acknowledgedBlockNumber
-                        && currentBlockProducing == acknowledgedBlockNumber) {
-                    // We are already streaming the acknowledged block number
-                    logger.debug(
-                            "[{}] Currently streaming Block {} to Block Node {} and acknowledged Block {} - moving streaming ahead to Block {}",
-                            Thread.currentThread().getName(),
-                            currentBlockStreaming,
-                            connectionDescriptor,
-                            acknowledgedBlockNumber,
-                            acknowledgedBlockNumber + 1L);
-                    jumpToBlock(acknowledgedBlockNumber + 1);
-                } else if (currentBlockStreaming < acknowledgedBlockNumber) {
-                    logger.debug(
-                            "[{}] Currently producing Block {} to Block Node {} and acknowledged Block {} - moving streaming ahead to Block {}",
-                            Thread.currentThread().getName(),
-                            currentBlockProducing,
-                            connectionDescriptor,
-                            acknowledgedBlockNumber,
-                            acknowledgedBlockNumber + 1L);
-                    jumpToBlock(acknowledgedBlockNumber + 1);
-                }
-            }
-        } else {
-            logger.warn("Unknown acknowledgement received: {}", acknowledgement);
+        if (acknowledgedBlockNumber >= currentBlockProducing || acknowledgedBlockNumber >= currentBlockStreaming) {
+            /*
+            We received an acknowledgement for a block that the consensus node is either currently streaming or
+            producing. This likely indicates this consensus node is behind other consensus nodes (since the
+            block node would have received the block from another consensus node.) Because of this, we can go
+            ahead and jump to the block after the acknowledged one as the next block to send to the block node.
+             */
+            final long blockToJumpTo = acknowledgedBlockNumber + 1;
+            logger.debug("[{}] Received acknowledgement for block {}, however this is later than the current "
+                    + "block being streamed ({}) or the block being currently produced ({}); skipping ahead to block {}",
+                    this,
+                    acknowledgedBlockNumber,
+                    currentBlockStreaming,
+                    currentBlockProducing,
+                    blockToJumpTo);
+            jumpToBlock(blockToJumpTo);
         }
     }
 
@@ -229,31 +216,31 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param endOfStream the EndOfStream response received from the block node
      */
     private void handleEndOfStream(@NonNull final EndOfStream endOfStream) {
-        final var blockNumber = endOfStream.blockNumber();
-        final var responseCode = endOfStream.status();
+        requireNonNull(endOfStream);
+        final long blockNumber = endOfStream.blockNumber();
+        final PublishStreamResponseCode responseCode = endOfStream.status();
 
-        logger.debug(
-                "[{}] Received EndOfStream from block node {} at block {} with PublishStreamResponseCode {}",
-                Thread.currentThread().getName(),
-                connectionDescriptor,
-                blockNumber,
-                responseCode);
+        logger.debug("[{}] Received EndOfStream response (block={}, responseCode={})", this, blockNumber, responseCode);
 
         // Always end the stream when we receive an end of stream message
-        close();
+        try {
+            close();
+        } catch (final RuntimeException e) {
+            logger.warn("[{}] Error occurred while attempting to close connection", this);
+        }
+
+        // Include this new EoS response in our set that tracks the occurrences of EoS responses
+        endOfStreamTimestamps.add(Instant.now());
 
         // Check if we've exceeded the EndOfStream rate limit
         if (hasExceededEndOfStreamLimit()) {
-            logger.warn(
-                    "[{}] Block node {} exceeded EndOfStream rate limit ({} in {} seconds). Delaying reconnection by {} seconds.",
-                    Thread.currentThread().getName(),
-                    connectionDescriptor,
-                    maxEndOfStreamsAllowed,
-                    endOfStreamTimeFrame.toSeconds(),
-                    endOfStreamScheduleDelay.toSeconds());
+            logger.warn("[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
+                    + "permitted={}, timeWindow={}); reconnection scheduled for {}",
+                    this, endOfStreamTimestamps.size(), maxEndOfStreamsAllowed, endOfStreamTimeFrame,
+                    endOfStreamScheduleDelay);
 
             // Schedule delayed retry through connection manager
-            blockNodeConnectionManager.handleConnectionError(this, endOfStreamScheduleDelay);
+            blockNodeConnectionManager.rescheduleAndSelectNewNode(this, endOfStreamScheduleDelay);
             return;
         }
 
@@ -262,21 +249,18 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 // The block node had an end of stream error and cannot continue processing.
                 // We should wait for a short period before attempting to retry
                 // to avoid overwhelming the node if it's having issues
-                logger.warn(
-                        "[{}] Block node {} reported an error at block {}. Will attempt to reestablish the stream later.",
-                        Thread.currentThread().getName(),
-                        connectionDescriptor,
+                logger.warn("[{}] Block node reported an error at block {}. Will attempt to reestablish the stream later.",
+                        this,
                         blockNumber);
-                blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+                blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
             case STREAM_ITEMS_TIMEOUT, STREAM_ITEMS_OUT_OF_ORDER, STREAM_ITEMS_BAD_STATE_PROOF -> {
                 // We should restart the stream at the block immediately
                 // following the block where the node fell behind.
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-                logger.warn(
-                        "[{}] Block node {} reported status indicating immediate restart should be attempted. Will restart stream at block {}.",
-                        Thread.currentThread().getName(),
-                        connectionDescriptor,
+                logger.warn("[{}] Block node reported status indicating immediate restart should be attempted. "
+                                + "Will restart stream at block {}.",
+                        this,
                         restartBlockNumber);
 
                 restartStreamAtBlock(restartBlockNumber);
@@ -284,44 +268,36 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             case STREAM_ITEMS_SUCCESS -> {
                 // The block node orderly ended the stream. In this case, no errors occurred.
                 // We should wait for a longer period before attempting to retry.
-                logger.warn(
-                        "[{}] Block node {} orderly ended the stream at block {}",
-                        Thread.currentThread().getName(),
-                        connectionDescriptor,
+                logger.warn("[{}] Block node orderly ended the stream at block {}",
+                        this,
                         blockNumber);
-                blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+                blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
             case STREAM_ITEMS_BEHIND -> {
                 // The block node is behind us, check if we have the last verified block still available in order to
                 // restart the stream from there
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 if (blockStreamStateManager.getBlockState(restartBlockNumber) != null) {
-                    logger.warn(
-                            "[{}] Block node {} reported it is behind. Will restart stream at block {}.",
-                            Thread.currentThread().getName(),
-                            connectionDescriptor,
+                    logger.warn("[{}] Block node reported it is behind. Will restart stream at block {}.",
+                            this,
                             restartBlockNumber);
 
                     restartStreamAtBlock(restartBlockNumber);
                 } else {
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
-                    logger.warn(
-                            "[{}] Block node {} is behind and block state is not available. Closing connection and retrying.",
-                            Thread.currentThread().getName(),
-                            connectionDescriptor);
+                    logger.warn("[{}] Block node is behind and block state is not available. Closing connection and retrying.",
+                            this);
 
-                    blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+                    blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
                 }
             }
             case STREAM_ITEMS_UNKNOWN -> {
                 // This should never happen, but if it does, we should close the connection
-                logger.error(
-                        "[{}] Block node {} reported an unknown error at block {}. Closing connection.",
-                        Thread.currentThread().getName(),
-                        connectionDescriptor,
+                logger.error("[{}] Block node reported an unknown error at block {}. Closing connection.",
+                        this,
                         blockNumber);
-                blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+                blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
         }
     }
@@ -331,21 +307,18 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param skipBlock the SkipBlock response received from the block node
      */
     private void handleSkipBlock(@NonNull final SkipBlock skipBlock) {
-        final var skipBlockNumber = skipBlock.blockNumber();
-        final long streamingBlockNumber =
-                blockNodeConnectionManager.getStreamingBlockNumber().get();
+        requireNonNull(skipBlock);
+        final long skipBlockNumber = skipBlock.blockNumber();
+        final long streamingBlockNumber = blockNodeConnectionManager.currentStreamingBlockNumber();
 
         // Only jump if the skip is for the block we are currently processing
         if (skipBlockNumber == streamingBlockNumber) {
-            final var nextBlock = skipBlockNumber + 1L;
-            logger.debug("Skipping ahead to Block {} because of SkipBlock from {}", nextBlock, connectionDescriptor);
+            final long nextBlock = skipBlockNumber + 1L;
+            logger.debug("[{}] Received SkipBlock response; skipping to block {}", this, nextBlock);
             jumpToBlock(nextBlock); // Now uses signaling instead of thread interruption
         } else {
-            logger.warn(
-                    "Received SkipBlock for {} but currently processing block {}, ignoring. {}",
-                    skipBlockNumber,
-                    streamingBlockNumber,
-                    connectionDescriptor);
+            logger.debug("[{}] Received SkipBlock response for block {}, but we are not streaming that block so it will be ignored",
+                    this, skipBlockNumber);
         }
     }
 
@@ -357,25 +330,22 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param resendBlock the ResendBlock response received from the block node
      */
     private void handleResendBlock(@NonNull final ResendBlock resendBlock) {
-        final var resendBlockNumber = resendBlock.blockNumber();
-        logger.debug(
-                "[{}] Received ResendBlock from block node {} for block {}",
-                Thread.currentThread().getName(),
-                connectionDescriptor,
-                resendBlockNumber);
+        requireNonNull(resendBlock);
+
+        final long resendBlockNumber = resendBlock.blockNumber();
+        logger.debug("[{}] Received ResendBlock response for block {}", this, resendBlockNumber);
 
         if (blockStreamStateManager.getBlockState(resendBlockNumber) != null) {
             jumpToBlock(resendBlockNumber);
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
-            logger.warn(
-                    "[{}] Block node {} requested a ResendBlock of {} and block state is not available. Closing connection and will retry later.",
-                    Thread.currentThread().getName(),
-                    connectionDescriptor,
+            logger.warn("[{}] Block node requested a ResendBlock for block {} but that block does not exist on this "
+                            + "consensus node. Closing connection and will retry later",
+                    this,
                     resendBlockNumber);
             close();
-            blockNodeConnectionManager.handleConnectionError(this, LONGER_RETRY_DELAY);
+            blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
         }
     }
 
@@ -388,23 +358,22 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @return true if the rate limit has been exceeded, false otherwise
      */
     private boolean hasExceededEndOfStreamLimit() {
-        final var now = Instant.now();
-        final var cutoff = now.minus(endOfStreamTimeFrame);
+        final Instant now = Instant.now();
+        final Instant cutoff = now.minus(endOfStreamTimeFrame);
 
         // Remove expired timestamps
-        while (!endOfStreamTimestamps.isEmpty() && endOfStreamTimestamps.peek().isBefore(cutoff)) {
-            endOfStreamTimestamps.poll();
+        final Iterator<Instant> it = endOfStreamTimestamps.iterator();
+        while (it.hasNext()) {
+            final Instant timestamp = it.next();
+            if (timestamp.isBefore(cutoff)) {
+                it.remove();
+            } else {
+                break;
+            }
         }
-
-        // Add current timestamp
-        endOfStreamTimestamps.offer(now);
 
         // Check if we've exceeded the limit
         return endOfStreamTimestamps.size() > maxEndOfStreamsAllowed;
-    }
-
-    private String generateConnectionDescriptor(final BlockNodeConfig nodeConfig) {
-        return nodeConfig.address() + ":" + nodeConfig.port();
     }
 
     /**
@@ -414,8 +383,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     public void sendRequest(@NonNull final PublishStreamRequest request) {
         requireNonNull(request);
-        if (isActive() && requestObserver != null) {
-            requestObserver.onNext(request);
+        if (isActive() && blockNodeStreamObserver != null) {
+            blockNodeStreamObserver.onNext(request);
         }
     }
 
@@ -424,34 +393,27 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * and releases associated resources.
      */
     public void close() {
+        logger.debug("[{}] Closing connection...", this);
+
         updateConnectionState(ConnectionState.UNINITIALIZED);
-        logger.debug(
-                "[{}] BlockNodeConnection {} ConnectionState: {}",
-                Thread.currentThread().getName(),
-                connectionDescriptor,
-                connectionState);
         closeObserver();
         jumpToBlock(-1L);
 
-        logger.debug(
-                "[{}] Closed connection to block node {}",
-                Thread.currentThread().getName(),
-                connectionDescriptor);
+        logger.debug("[{}] Connection successfully closed", this);
     }
 
     private void closeObserver() {
-        if (requestObserver != null) {
+        if (blockNodeStreamObserver != null) {
+            logger.debug("[{}] Closing request observer for block node", this);
+            streamShutdownInProgress.set(true);
+
             try {
-                logger.debug(
-                        "[{}] Closing request observer for block node - requestObserver.onCompleted() {}",
-                        Thread.currentThread().getName(),
-                        connectionDescriptor);
-                streamCompletionInProgress.set(true);
-                requestObserver.onCompleted();
-            } catch (Exception e) {
-                logger.warn("Error while completing request observer", e);
+                blockNodeStreamObserver.onCompleted();
+                logger.debug("[{}] Request observer successfully closed", this);
+            } catch (final Exception e) {
+                logger.warn("[{}] Error while completing request observer", this, e);
             }
-            requestObserver = null;
+            blockNodeStreamObserver = null;
         }
     }
 
@@ -460,8 +422,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      *
      * @return true if the connection is active, false otherwise
      */
-    public boolean isActive() {
-        return connectionState == ConnectionState.ACTIVE;
+    private boolean isActive() {
+        return connectionState.get() == ConnectionState.ACTIVE;
     }
 
     /**
@@ -479,12 +441,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      *
      * @param blockNumber the block number to restart at
      */
-    public void restartStreamAtBlock(final long blockNumber) {
-        logger.debug("Restarting stream at block {} for node {}", blockNumber, connectionDescriptor);
-
+    private void restartStreamAtBlock(final long blockNumber) {
+        logger.debug("[{}] Scheduling stream restart at block {}}", this, blockNumber);
         blockNodeConnectionManager.scheduleRetry(this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY, blockNumber);
-
-        logger.debug("Stream restarted at block {} for node {}", blockNumber, connectionDescriptor);
     }
 
     /**
@@ -495,14 +454,10 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      *
      * @param blockNumber the block number to jump to
      */
-    public void jumpToBlock(final long blockNumber) {
-        logger.debug(
-                "[{}] Jumping to block {} for node {}",
-                Thread.currentThread().getName(),
-                blockNumber,
-                connectionDescriptor);
+    private void jumpToBlock(final long blockNumber) {
+        logger.debug("[{}] Jumping to block {}", this, blockNumber);
         // Set the target block for the worker loop to pick up
-        blockNodeConnectionManager.getJumpTargetBlock().set(blockNumber);
+        blockNodeConnectionManager.jumpToBlockIfNeeded(blockNumber);
     }
 
     /**
@@ -512,22 +467,24 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param response the response received from block node
      */
     @Override
-    public void onNext(final PublishStreamResponse response) {
+    public void onNext(final @NonNull PublishStreamResponse response) {
+        requireNonNull(response);
+
         if (response.hasAcknowledgement()) {
+            blockStreamMetrics.incrementAcknowledgedBlockCount();
             handleAcknowledgement(response.acknowledgement());
         } else if (response.hasEndStream()) {
-            blockStreamMetrics.incrementEndOfStreamCount(response.endStream().status()); // Remove nodeId
+            blockStreamMetrics.incrementEndOfStreamCount(response.endStream().status());
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
             blockStreamMetrics.incrementSkipBlockCount();
-            logger.debug(
-                    "Received SkipBlock from block node {}  Block #{}",
-                    connectionDescriptor,
-                    response.skipBlock().blockNumber());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
             blockStreamMetrics.incrementResendBlockCount();
             handleResendBlock(response.resendBlock());
+        } else {
+            blockStreamMetrics.incrementUnknownResponseCount();
+            logger.warn("[{}] Unexpected response received: {}", this, response);
         }
     }
 
@@ -539,11 +496,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     @Override
     public void onError(final Throwable error) {
-        logger.error(
-                "[{}] Error on stream from block node {}",
-                Thread.currentThread().getName(),
-                connectionDescriptor,
-                error);
+        logger.warn("[{}] Stream encountered an error", this, error);
         blockStreamMetrics.incrementOnErrorCount();
         handleStreamFailure();
     }
@@ -554,18 +507,12 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     @Override
     public void onCompleted() {
-        if (!streamCompletionInProgress.get()) {
-            logger.debug(
-                    "[{}] Stream completed for block node {}",
-                    Thread.currentThread().getName(),
-                    connectionDescriptor);
-            handleStreamFailure();
+        if (streamShutdownInProgress.get()) {
+            logger.debug("[{}] Stream completed (stream close was in progress)", this);
+            streamShutdownInProgress.set(false);
         } else {
-            logger.debug(
-                    "[{}] Stream completed for block node {} (stream completion in progress)",
-                    Thread.currentThread().getName(),
-                    connectionDescriptor);
-            streamCompletionInProgress.set(false);
+            logger.warn("[{}] Stream completed unexpectedly", this);
+            handleStreamFailure();
         }
     }
 
@@ -575,6 +522,26 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @return the connection state
      */
     public ConnectionState getConnectionState() {
-        return connectionState;
+        return connectionState.get();
+    }
+    
+    @Override
+    public String toString() {
+        return blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/" + connectionState.get();
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final BlockNodeConnection that = (BlockNodeConnection) o;
+        return Objects.equals(blockNodeConfig, that.blockNodeConfig)
+                && Objects.equals(grpcEndpoint, that.grpcEndpoint);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(blockNodeConfig, grpcEndpoint);
     }
 }

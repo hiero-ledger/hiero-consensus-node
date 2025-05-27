@@ -5,24 +5,21 @@ import static com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,7 +51,7 @@ public class BlockStreamStateManager {
      * the next time {@link #openBlock(long)} is invoked. {@link #isBufferSaturated()} can be used to check if the
      * buffer contains unacknowledged old blocks.
      */
-    private final BlockingQueue<BlockState> blockBuffer = new LinkedBlockingQueue<>();
+    private final Queue<BlockState> blockBuffer = new ConcurrentLinkedQueue<>();
     /**
      * Map for quickly looking up blocks by their ID/number. This will get pruned along with the buffer periodically.
      */
@@ -91,9 +88,7 @@ public class BlockStreamStateManager {
 
     private final BlockStreamMetrics blockStreamMetrics;
 
-    private final Map<BlockNodeConfig, BlockNodeConnection> connections = new ConcurrentHashMap<>();
-    private BlockNodeConnection activeConnection;
-    private final BlockingQueue<BlockStreamQueueItem> blockStreamQueue = new LinkedBlockingQueue<>();
+    private final Queue<BlockStreamQueueItem> blockStreamQueue = new ConcurrentLinkedQueue<>();
 
     /**
      * Creates a new BlockStreamStateManager with the given configuration.
@@ -140,14 +135,16 @@ public class BlockStreamStateManager {
      * The type of item is represented by the {@link BlockStreamQueueItemType} enum and may indicate an action needs to be taken.
      */
     public record BlockStreamQueueItem(
-            long blockNumber, @NonNull BlockStreamQueueItemType blockStreamQueueItemType, BlockItem blockItem) {
+            long blockNumber,
+            @NonNull BlockStreamQueueItemType blockStreamQueueItemType,
+            @Nullable BlockItem blockItem) {
 
         /**
          * Creates a new BlockStreamQueueItem with the given block number and block item.
          * @param blockNumber the block number
          * @param blockItem the block item
          */
-        public BlockStreamQueueItem(long blockNumber, BlockItem blockItem) {
+        public BlockStreamQueueItem(final long blockNumber, final BlockItem blockItem) {
             this(blockNumber, BLOCK_ITEM, blockItem);
         }
 
@@ -156,35 +153,8 @@ public class BlockStreamStateManager {
          * @param blockNumber the block number
          * @param blockStreamQueueItemType the block stream queue item type
          */
-        public BlockStreamQueueItem(long blockNumber, BlockStreamQueueItemType blockStreamQueueItemType) {
+        public BlockStreamQueueItem(final long blockNumber, final BlockStreamQueueItemType blockStreamQueueItemType) {
             this(blockNumber, blockStreamQueueItemType, null);
-        }
-
-        /**
-         * Gets the block number.
-         *
-         * @return the block number
-         */
-        public long getBlockNumber() {
-            return blockNumber;
-        }
-
-        /**
-         * Gets the block item.
-         *
-         * @return the block item
-         */
-        public BlockItem getBlockItem() {
-            return blockItem;
-        }
-
-        /**
-         * Gets the block stream queue item type.
-         *
-         * @return the block stream queue item type
-         */
-        public BlockStreamQueueItemType getBlockStreamQueueItemType() {
-            return blockStreamQueueItemType;
         }
     }
 
@@ -584,81 +554,10 @@ public class BlockStreamStateManager {
     }
 
     /**
-     * Gets the current active block node connection.
-     * @return the active block node connection
-     */
-    public BlockNodeConnection getActiveConnection() {
-        return activeConnection;
-    }
-
-    /**
-     * Sets the active block node connection.
-     * @param activeConnection the active block node connection
-     */
-    public void setActiveConnection(BlockNodeConnection activeConnection) {
-        this.activeConnection = activeConnection;
-    }
-
-    /**
-     * Returns the map of block node connections.
-     * @return the map of block node connections
-     */
-    public Map<BlockNodeConfig, BlockNodeConnection> getConnections() {
-        return connections;
-    }
-
-    /**
-     * This method is used to check if there is a higher priority connection that is available to be switched to, and if
-     * so, it will switch to that connection and close the current block node connection.
-     * @param blockNodeConnection the current block node connection
-     * @return true if a higher priority connection was found and switched to, false otherwise
-     */
-    public boolean higherPriorityStarted(BlockNodeConnection blockNodeConnection) {
-        synchronized (connections) {
-            // Find a pending connection with the highest priority greater than the current connection
-            BlockNodeConnection highestPri = null;
-            for (BlockNodeConnection connection : connections.values()) {
-                if (connection.getConnectionState().equals(ConnectionState.PENDING)
-                        && connection.getNodeConfig().priority()
-                                < blockNodeConnection.getNodeConfig().priority()) {
-                    if (highestPri == null
-                            || connection.getNodeConfig().priority()
-                                    < highestPri.getNodeConfig().priority()) {
-                        // If no connection is found or the current one has a higher priority, update the reference
-                        highestPri = connection;
-                    }
-                }
-            }
-
-            if (highestPri != null) {
-                // Found a higher priority pending connection,
-                highestPri.updateConnectionState(ConnectionState.ACTIVE);
-                activeConnection = highestPri;
-                // Log the transition of this higher priority connection to active
-                logger.debug(
-                        "[{}] Transitioning higher priority pending connection: {} Priority: {} to ACTIVE",
-                        Thread.currentThread().getName(),
-                        blockNodeName(highestPri.getNodeConfig()),
-                        highestPri.getNodeConfig().priority());
-
-                // Close the current connection and remove it from the connections map
-                blockNodeConnection.close();
-                connections.remove(blockNodeConnection.getNodeConfig());
-                return true;
-            }
-            return false;
-        }
-    }
-
-    static String blockNodeName(@Nullable final BlockNodeConfig node) {
-        return node != null ? node.address() + ":" + node.port() : "null";
-    }
-
-    /**
      * Gets the block stream queue.
      * @return the block stream queue
      */
-    public BlockingQueue<BlockStreamQueueItem> getBlockStreamQueue() {
+    public Queue<BlockStreamQueueItem> getBlockStreamQueue() {
         return blockStreamQueue;
     }
 

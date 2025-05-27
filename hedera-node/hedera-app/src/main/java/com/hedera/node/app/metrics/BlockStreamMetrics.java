@@ -37,10 +37,10 @@ public class BlockStreamMetrics {
     // Counter for ResendBlock responses
     private Counter resendBlockCounter;
     // Counter for Acknowledgement responses
-    private Counter blockAckReceivedCounter;
+    private Counter acknowledgedBlockCounter;
     // Counter for BlockNodeConnection.onError invocations
     private Counter blockNodeConnectionErrorCounter;
-
+    private Counter unknownRespCounter;
     private LongGauge producingBlockNumberGauge;
     private LongGauge oldestUnacknowledgedBlockTimeGauge;
     private LongGauge latestAcknowledgedBlockNumberGauge;
@@ -85,8 +85,8 @@ public class BlockStreamMetrics {
                 .withDescription("Total number of ResendBlock responses received by node " + localNodeId));
 
         // Register Block Acknowledgement counter
-        final String ackMetricName = "blockAckReceivedCount" + nodeLabel;
-        blockAckReceivedCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, ackMetricName)
+        final String ackMetricName = "acknowledgeBlock" + nodeLabel;
+        acknowledgedBlockCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, ackMetricName)
                 .withDescription("Total number of block acknowledgements received by node " + localNodeId));
 
         // Register blockNodeConnectionError counter
@@ -111,6 +111,10 @@ public class BlockStreamMetrics {
         latestAcknowledgedBlockNumberGauge =
                 metrics.getOrCreate(new LongGauge.Config(APP_CATEGORY, latestAckBlockNumMetricName)
                         .withDescription("Latest block number acknowledged for node " + localNodeId));
+
+        final String unknownRespMetricName = "unknownBlockNodeResponse" + nodeLabel;
+        unknownRespCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, unknownRespMetricName)
+                .withDescription("Total number of unexpected responses received from block nodes"));
 
         /*
         Buffer saturation gauge - higher values mean the buffer is nearing saturation. Values over 100 mean the buffer
@@ -171,12 +175,20 @@ public class BlockStreamMetrics {
     /**
      * Increments the counter for Block Acknowledgement responses received.
      */
-    public void incrementBlockAckReceivedCount() {
-        if (blockAckReceivedCounter != null) {
-            blockAckReceivedCounter.increment();
+    public void incrementAcknowledgedBlockCount() {
+        if (acknowledgedBlockCounter != null) {
+            acknowledgedBlockCounter.increment();
         } else {
             // Should not happen if registration was successful
-            logger.warn("blockAckReceivedCounter not found.");
+            logger.warn("acknowledgedBlockCounter not found.");
+        }
+    }
+
+    public void incrementUnknownResponseCount() {
+        if (unknownRespCounter != null) {
+            unknownRespCounter.increment();
+        } else {
+            logger.warn("unknownRespCounter not found");
         }
     }
 
