@@ -33,6 +33,7 @@ public class BesuNativeLibVerificationTest implements LifecycleTest {
     public Stream<DynamicTest> besuNativeLibVerificationHaltsIfLibNotPresent() {
 
         final var envOverrides = Map.of("contracts.evm.nativeLibVerification.halt.enabled", "true");
+        final var envOverridesAfterReset = Map.of("contracts.evm.nativeLibVerification.halt.enabled", "false");
 
         return hapiTest(blockingOrder(
                 doAdhoc(Blake2bfDigest::disableNative),
@@ -40,11 +41,17 @@ public class BesuNativeLibVerificationTest implements LifecycleTest {
                         spec -> waitForAny(NodeSelector.allNodes(), RESTART_TO_ACTIVE_TIMEOUT, STARTING_UP, ACTIVE)),
                 freezeOnly().startingIn(5).seconds().payingWith(GENESIS).deferStatusResolution(),
                 confirmFreezeAndShutdown(),
-                sleepForSeconds(3),
+                sleepForSeconds(5),
                 restartNetwork(CURRENT_CONFIG_VERSION.get() + 1, envOverrides),
                 doAdhoc(() -> CURRENT_CONFIG_VERSION.set(CURRENT_CONFIG_VERSION.get() + 1)),
                 doingContextual(
                         spec -> waitForAny(NodeSelector.allNodes(), RESTART_TO_ACTIVE_TIMEOUT, STARTING_UP, ACTIVE)),
-                confirmFreezeAndShutdown()));
+                confirmFreezeAndShutdown(),
+                // sleep and restore state without the native lib verification halt enabled
+                sleepForSeconds(5),
+                restartNetwork(CURRENT_CONFIG_VERSION.get() + 2, envOverridesAfterReset),
+                doAdhoc(() -> CURRENT_CONFIG_VERSION.set(CURRENT_CONFIG_VERSION.get() + 2)),
+                doingContextual(
+                        spec -> waitForAny(NodeSelector.allNodes(), RESTART_TO_ACTIVE_TIMEOUT, STARTING_UP, ACTIVE))));
     }
 }
