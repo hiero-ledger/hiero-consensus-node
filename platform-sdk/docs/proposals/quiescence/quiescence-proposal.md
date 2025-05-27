@@ -97,7 +97,7 @@ quiescence, this is not the case. This means that various parts of the system ne
 - The `SignedStateSentinel` uses wall-clock time to determine if a signed state is old. This will need to be modified to
   use the take quiescence into account.
 - The platform status `ACTIVE` currently moves to `CHECKING` based on wall-clock time. We will need to add a
-  `QUIESCING` status.
+  `QUIESCED` status.
 - Various metrics can be misleading if the network is quiescing.
 - NOTE FOR REVIEWERS: I probably haven't thought of all the side effects yet, please add any you can think of.
 
@@ -112,15 +112,21 @@ quiescence, this is not the case. This means that various parts of the system ne
 - We will need functionality to detect non-ancient transactions that need to reach consensus. This should be part of the
   event creation module.
 - The event creator should stop creating events if there are no transactions that need to reach consensus, unless there
-  are pending transactions.
-- The event creator should update the platform status to `QUIESCING` when appropriate.
+  are pending transactions, or there is less than 1 minute before the freeze time according to the wall-clock.
+- The event creator should update the platform status to `QUIESCED` when appropriate.
 - The event creator should create a QB if there are transactions that need to reach consensus, and there are
   restrictions on creating events that advance consensus.
 
 ### Public API
 
 An additional API is needed for the consensus module to determine if a transaction needs to reach consensus or not.
-This should be part of `ApplicationCallbacks`. This method should be added to the `SwirldMain` interface.
+
+- When we receive transactions as part of events through gossip, we need to check if they need to reach consensus. This
+  should be done with a new method in the `SwirldMain` interface with a definition like:
+  `boolean needsToReachConsensus(Bytes transaction)`. This method should become part of `ApplicationCallbacks`.
+- When transactions are being submitted to the platform before being put into an event, we also need this same
+  information. So the method in `Platform` should be changed to:
+  `boolean createTransaction(byte[] transaction, boolean needsToReachConsensus)`.
 
 ### Configuration
 
@@ -153,10 +159,13 @@ The following metrics should be removed since they would need to be modified, bu
 
 New unit tests for the event creator should be written for the following scenarios:
 
-- If no non-ancient transactions need to reach consensus, it should stop creating events.
-- If it is quiescing and there is a pending transaction that does not need to reach consensus (a state/block signature),
+- If no non-ancient transactions need to reach consensus, and there is no upcoming freeze, it should stop creating
+  events.
+- If the wall-clock time is less than 1 minute before the freeze time, it should create events regardless of any
+  transactions that are pending or need to reach consensus.
+- If it is quiesced and there is a pending transaction that does not need to reach consensus (a state/block signature),
   it should create only a single event with that transaction.
-- If it is quiescing and there is a pending transaction that needs to reach consensus, it should create a QB event with
+- If it is quiesced and there is a pending transaction that needs to reach consensus, it should create a QB event with
   that transaction.
 - If a QB is created, it should not create another QB with the same self-parent even if there are pending transactions
   that need to reach consensus.
@@ -165,6 +174,7 @@ New unit tests for the event creator should be written for the following scenari
 
 An Otter test should be created that submits transactions periodically and validates the following:
 
-- event creation is stopped when there are no transactions
+- event creation is stopped when there are no transactions and no freeze is upcoming
 - event creation is started again when a transaction is submitted
-- platform status is updated to `QUIESCING` when event creation is stopped
+- platform status is updated to `QUIESCED` when event creation is stopped
+- a freeze should be set at the end of this test, and the freeze should occur even if no transactions are submitted
