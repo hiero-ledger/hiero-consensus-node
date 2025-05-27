@@ -142,7 +142,7 @@ jobs:
           solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
 
-          nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 8544:8544 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:8084 > /dev/null 2>&1 &
 
