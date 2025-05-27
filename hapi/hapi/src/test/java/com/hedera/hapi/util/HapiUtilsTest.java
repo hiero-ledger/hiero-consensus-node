@@ -2,7 +2,6 @@
 package com.hedera.hapi.util;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import org.assertj.core.api.Assertions;
 import static org.junit.jupiter.params.provider.Arguments.of;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -14,6 +13,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.stream.Stream;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
