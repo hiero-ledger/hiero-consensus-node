@@ -362,12 +362,13 @@ class SequentialTaskSchedulerTests {
         // Release the lock
         handler.completionControl().unblock();
         secondProducer.waitIsFinished();
-        handler.completionControl().await(TOTAL_OPERATIONS);
+        handler.completionControl().await(TOTAL_OPERATIONS + 1);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
-        assertEquals(
+        assertEventuallyEquals(
                 0L,
-                taskScheduler.getUnprocessedTaskCount(),
+                taskScheduler::getUnprocessedTaskCount,
+                Duration.ofSeconds(10),
                 "Wire unprocessed task count did not match expected value. " + taskScheduler.getUnprocessedTaskCount());
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
 
@@ -888,7 +889,11 @@ class SequentialTaskSchedulerTests {
         handlerA.executionControl().await(TOTAL_OPERATIONS + 1);
         handlerB.completionControl().await(TOTAL_OPERATIONS + 1);
         assertTrue(allWorkAdded.get(), "unable to add all work");
-        assertEquals(0L, backpressure.getCount(), "Wire unprocessed task count did not match expected value");
+        assertEventuallyEquals(
+                0L,
+                backpressure::getCount,
+                Duration.ofSeconds(10),
+                "Wire unprocessed task count did not match expected value");
         assertEquals(valueA.get(), wireValueA.get(), "Wire sum did not match expected sum");
         assertEquals(valueB.get(), wireValueB.get(), "Wire sum did not match expected sum");
         model.stop();
@@ -988,11 +993,12 @@ class SequentialTaskSchedulerTests {
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertTrue(flushed.get(), "unable to flush wire");
         handler.completionControl().await(TOTAL_OPERATIONS + 1);
-        assertEquals(
-                0L,
-                taskScheduler.getUnprocessedTaskCount(),
-                "Wire unprocessed task count did not match expected value");
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
+        assertEventuallyEquals(
+                0L,
+                taskScheduler::getUnprocessedTaskCount,
+                Duration.ofSeconds(10),
+                "Wire unprocessed task count did not match expected value");
 
         model.stop();
     }
