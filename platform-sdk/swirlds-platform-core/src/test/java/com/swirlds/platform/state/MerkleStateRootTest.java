@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
@@ -29,7 +28,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.StateChangeListener;
@@ -43,8 +42,6 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -252,11 +249,7 @@ class MerkleStateRootTest extends MerkleTestBase {
 
         @AfterEach
         void tearDown() {
-            assertEventuallyEquals(
-                    0L,
-                    MerkleDbDataSource::getCountOfOpenDatabases,
-                    Duration.of(5, ChronoUnit.SECONDS),
-                    "All databases should be closed");
+            MerkleDbTestUtils.assertAllDatabasesClosed();
         }
     }
 
@@ -815,11 +808,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @AfterEach
         void tearDown() {
             fruitVirtualMap.release();
-            assertEventuallyEquals(
-                    0L,
-                    MerkleDbDataSource::getCountOfOpenDatabases,
-                    Duration.of(5, ChronoUnit.SECONDS),
-                    "All databases should be closed");
+            MerkleDbTestUtils.assertAllDatabasesClosed();
         }
     }
 
@@ -914,14 +903,5 @@ class MerkleStateRootTest extends MerkleTestBase {
             Hash hash2 = stateRoot.getHash();
             assertSame(hash1, hash2);
         }
-    }
-
-    @AfterEach
-    void tearDown() {
-        assertEventuallyEquals(
-                0L,
-                MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(5, ChronoUnit.SECONDS),
-                "All databases should be closed");
     }
 }
