@@ -12,6 +12,7 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import java.time.Duration;
 import org.apache.logging.log4j.Level;
 import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -35,12 +36,16 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofMinutes(1L));
 
         // Validations
+        final Node firstNode = network.getNodes().getFirst();
         final MultipleNodeLogResults logResults =
-                network.getLogResults().ignoring(network.getNodes().getFirst()).ignoring(STARTUP);
+                network.getLogResults().ignoring(firstNode).ignoring(STARTUP);
         assertThat(logResults).noMessageWithLevelHigherThan(Level.INFO);
 
         assertThat(network.getStatusProgression())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.getMetricsResultsFor("platform.bytes_per_trans").ignoring(firstNode))
+                .neverExceeds(444);
 
         assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
     }

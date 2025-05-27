@@ -20,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
@@ -56,9 +58,24 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
     private @NonNull LifecyclePhase lifecyclePhase = LifecyclePhase.NOT_STARTED;
 
     /**
-     * Constructor of {@code DefaultMetricsProvider}
+     * Constructor of {@code DefaultMetricsProvider}.
+     *
+     * @param configuration the configuration object that holds settings and parameters for the metrics provider
      */
     public DefaultMetricsProvider(@NonNull final Configuration configuration) {
+        this(configuration, Collections.emptyList());
+    }
+
+    /**
+     * Constructor of {@code DefaultMetricsProvider}.
+     *
+     * @param configuration           the configuration object that holds settings and parameters for the metrics provider
+     * @param snapshotEventConsumers  a list of {@link Consumer} responsible for handling
+     *                                 snapshot events in the {@link SnapshotService}
+     */
+    public DefaultMetricsProvider(
+            @NonNull final Configuration configuration,
+            @NonNull final List<Consumer<SnapshotEvent>> snapshotEventConsumers) {
         this.configuration = Objects.requireNonNull(configuration, "configuration must not be null");
 
         metricsConfig = configuration.getConfigData(MetricsConfig.class);
@@ -69,6 +86,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
 
         // setup SnapshotService
         snapshotService = new SnapshotService(globalMetrics, executor, metricsConfig.getMetricsSnapshotDuration());
+        snapshotEventConsumers.forEach(snapshotService::subscribe);
 
         // setup Prometheus endpoint
         PrometheusEndpoint endpoint = null;
