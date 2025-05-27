@@ -12,7 +12,6 @@ import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
-import com.hedera.statevalidation.reporting.ReportingFactory;
 import com.hedera.statevalidation.validators.Constants;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.concurrent.ExecutorFactory;
@@ -46,7 +45,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.extension.ExtensionContext;
