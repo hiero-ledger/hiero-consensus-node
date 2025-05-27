@@ -14,9 +14,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.output.BlockHeader;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -39,14 +36,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class BlockStreamStateManagerTest {
+class BlockStreamStateManagerTest extends BlockNodeCommunicationTestBase {
 
     private static final VarHandle execSvcHandle;
     private static final VarHandle blockBufferHandle;
@@ -110,8 +106,8 @@ class BlockStreamStateManagerTest {
                 () -> assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER))
                         .isNotNull(),
                 () -> assertThat(blockStreamStateManager
-                                .getBlockState(TEST_BLOCK_NUMBER)
-                                .blockNumber())
+                        .getBlockState(TEST_BLOCK_NUMBER)
+                        .blockNumber())
                         .isEqualTo(TEST_BLOCK_NUMBER));
     }
 
@@ -167,12 +163,12 @@ class BlockStreamStateManagerTest {
                 () -> assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2))
                         .isNotNull(),
                 () -> assertThat(blockStreamStateManager
-                                .getBlockState(TEST_BLOCK_NUMBER)
-                                .blockNumber())
+                        .getBlockState(TEST_BLOCK_NUMBER)
+                        .blockNumber())
                         .isEqualTo(TEST_BLOCK_NUMBER),
                 () -> assertThat(blockStreamStateManager
-                                .getBlockState(TEST_BLOCK_NUMBER2)
-                                .blockNumber())
+                        .getBlockState(TEST_BLOCK_NUMBER2)
+                        .blockNumber())
                         .isEqualTo(TEST_BLOCK_NUMBER2));
     }
 
@@ -184,189 +180,6 @@ class BlockStreamStateManagerTest {
 
         // then
         assertThat(blockState).isNull();
-    }
-
-    @Test
-    @Disabled
-    void testPublishStreamRequestIsNotCreatedWhenBatchSizeIsNotMet() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 4)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-
-        // then
-        // verify that request is still not created and block items are added to state
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(0);
-    }
-
-    @Test
-    @Disabled
-    void testPublishStreamRequestIsCreatedWhenBatchSizeIsMet() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 2)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-
-        // then
-        // verify that only one request is created and the block state is cleared
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(1);
-    }
-
-    @Test
-    @Disabled
-    void testWithMoreBlockItemsThanBlockItemBatchSize() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 2)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-        final var blockItem3 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem3);
-
-        // then
-        // assert that one request is created and the last block item remained in block state
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(1);
-    }
-
-    @Test
-    @Disabled
-    void testPublishStreamRequestIsCreatedWithRemainingItemsAndBlockProof() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 5)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-        final var blockProof = newBlockHeaderItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockProof);
-        final var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
-        blockState.createRequestFromCurrentItems(5, false);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(1);
-    }
-
-    @Test
-    @Disabled
-    void testPublishStreamRequestIsCreatedWithBlockProofOnly() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 5)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockProof = newBlockProofItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockProof);
-        final var blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
-        blockState.createRequestFromCurrentItems(5, false);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(1);
-    }
-
-    @Test
-    @Disabled
-    void testPublishStreamRequestCreatedWithRemainingBlockItemsOnBlockCLose() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 5)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(1);
     }
 
     @Test
@@ -397,47 +210,6 @@ class BlockStreamStateManagerTest {
         assertThat(blockStreamStateManager.isAcked(TEST_BLOCK_NUMBER)).isTrue();
         assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2)).isNotNull();
         assertThat(blockStreamStateManager.isAcked(TEST_BLOCK_NUMBER2)).isFalse();
-    }
-
-    @Test
-    @Disabled
-    void testPublishStreamRequestsCreatedForMultipleBLocks() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 2)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER2);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER3);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-        final var blockItem3 = newBlockTxItem();
-        final var blockItem4 = newBlockTxItem();
-        final var blockItem5 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER2, blockItem3);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER2, blockItem4);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER3, blockItem5);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(1);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2).requestsSize())
-                .isEqualTo(1);
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER3).requestsSize())
-                .isEqualTo(1);
     }
 
     @Test
@@ -499,7 +271,7 @@ class BlockStreamStateManagerTest {
 
         // when and then
         assertThatThrownBy(() -> blockStreamStateManager.addItem(
-                        TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
+                TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
     }
@@ -527,103 +299,6 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    @Disabled
-    void testSetBlockItemBatchSizeToZero() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 0)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(2);
-    }
-
-    @Test
-    @Disabled
-    void testSetBlockItemBatchSizeToOne() {
-        // given
-        // mock the number of batch items by modifying the default config
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 1)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // make blockStreamStateManager use the mocked config
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(2);
-    }
-
-    @Test
-    @Disabled
-    void testMultiBatch() {
-        final Configuration config = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.blockItemBatchSize", 3)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
-                .getOrCreateConfig();
-        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
-
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        assertThat(blockStreamStateManager.isBufferSaturated()).isFalse();
-
-        // batch size is 3, add 8 items
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockHeaderItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockProofItem());
-
-        final BlockState blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
-
-        // #addItem(...) will attempt to create a new request if there are enough items. With a batch size of 3, we
-        // should expect 2 requests created with 2 more pending items
-        assertThat(blockState.requestsSize()).isEqualTo(2);
-
-        // now force the creation of the final request
-        blockState.createRequestFromCurrentItems(3, false);
-
-        // there should be 3 requests now and no outstanding items
-        assertThat(blockState.requestsSize()).isEqualTo(3);
-    }
-
-    @Test
     void testOpenExistingBlock() {
         blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
@@ -643,7 +318,6 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    @Disabled
     void testBuffer() throws Throwable {
         final Duration blockTtl = Duration.ofSeconds(5);
         final Configuration config = HederaTestConfigBuilder.create()
@@ -663,9 +337,13 @@ class BlockStreamStateManagerTest {
 
         // add some blocks, but don't ack them
         blockStreamStateManager.openBlock(1L);
+        blockStreamStateManager.closeBlock(1L);
         blockStreamStateManager.openBlock(2L);
+        blockStreamStateManager.closeBlock(2L);
         blockStreamStateManager.openBlock(3L);
+        blockStreamStateManager.closeBlock(3L);
         blockStreamStateManager.openBlock(4L);
+        blockStreamStateManager.closeBlock(4L);
 
         // wait for the TTL period, with a little padding
         Thread.sleep(blockTtl.plusMillis(250));
@@ -683,6 +361,7 @@ class BlockStreamStateManagerTest {
 
         // add another block and prune again, this will cause the buffer to be fully saturated
         blockStreamStateManager.openBlock(5L);
+        blockStreamStateManager.closeBlock(5L);
         checkBufferHandle.invoke(blockStreamStateManager);
         // the buffer is now marked as saturated because multiple blocks have not been acked yet and they are expired
         assertThat(blockStreamStateManager.isBufferSaturated()).isTrue();
@@ -698,6 +377,7 @@ class BlockStreamStateManagerTest {
 
         // "overflow" the buffer
         blockStreamStateManager.openBlock(6L);
+        blockStreamStateManager.closeBlock(6L);
         checkBufferHandle.invoke(blockStreamStateManager);
         assertThat(blockStreamStateManager.isBufferSaturated()).isTrue();
         verify(blockStreamMetrics).updateBlockBufferSaturation(120.0); // the buffer is 120% saturated
@@ -738,6 +418,7 @@ class BlockStreamStateManagerTest {
 
         // now add another block without acking and ensure the buffer is partially saturated
         blockStreamStateManager.openBlock(7L);
+        blockStreamStateManager.closeBlock(7L);
         checkBufferHandle.invoke(blockStreamStateManager);
         assertThat(blockStreamStateManager.isBufferSaturated()).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(20.0); // the buffer is 20% saturated
@@ -749,7 +430,6 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    @Disabled
     void testFutureBlockAcked() throws Throwable {
         /*
          * There is a scenario where a block node (BN) may have a later block than what the active consensus node (CN)
@@ -793,6 +473,12 @@ class BlockStreamStateManagerTest {
         blockStreamStateManager.openBlock(6L);
 
         // close the blocks
+        blockStreamStateManager.closeBlock(1L);
+        blockStreamStateManager.closeBlock(2L);
+        blockStreamStateManager.closeBlock(3L);
+        blockStreamStateManager.closeBlock(4L);
+        blockStreamStateManager.closeBlock(5L);
+        blockStreamStateManager.closeBlock(6L);
 
         // wait for the TTL period, with a little padding
         Thread.sleep(blockTtl.plusMillis(250));
@@ -808,7 +494,6 @@ class BlockStreamStateManagerTest {
     }
 
     @Test
-    @Disabled
     void testBufferBackpressure() throws Throwable {
         // ensure block TTL is greater than prune interval for this test to work as expected
         final Duration blockTtl = Duration.ofSeconds(2);
@@ -847,8 +532,11 @@ class BlockStreamStateManagerTest {
 
         // create some blocks such that the buffer will be saturated
         blockStreamStateManager.openBlock(1L);
+        blockStreamStateManager.closeBlock(1L);
         blockStreamStateManager.openBlock(2L);
+        blockStreamStateManager.closeBlock(2L);
         blockStreamStateManager.openBlock(3L);
+        blockStreamStateManager.closeBlock(3L);
 
         // Auto-pruning is enabled and since the prune internal is less than the block TTL, by waiting for the block TTL
         // period, plus some extra time, the pruning should detect that the buffer is saturated and enable backpressure
@@ -953,23 +641,5 @@ class BlockStreamStateManagerTest {
 
         // Verify that blockNodeConnectionManager.notifyConnectionsOfNewRequest was not called
         // verify(blockNodeConnectionManager, never()).notifyConnectionsOfNewRequest();
-    }
-
-    private static BlockItem newBlockHeaderItem() {
-        return BlockItem.newBuilder()
-                .blockHeader(BlockHeader.newBuilder().build())
-                .build();
-    }
-
-    private static BlockItem newBlockTxItem() {
-        return BlockItem.newBuilder()
-                .transactionOutput(TransactionOutput.newBuilder().build())
-                .build();
-    }
-
-    private static BlockItem newBlockProofItem() {
-        return BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().build())
-                .build();
     }
 }
