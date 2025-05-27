@@ -308,24 +308,4 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             assertThat(readValueFromMerkleMap(E_KEY)).isEqualTo(ELDERBERRY);
         }
     }
-
-    @AfterEach
-    void tearDown() {
-        //        if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
-        //            fruitVirtualMap.release();
-        //        }
-        //        assertEventuallyEquals(
-        //                0L,
-        //                MerkleDbDataSource::getCountOfOpenDatabases,
-        //                Duration.of(5, ChronoUnit.SECONDS),
-        //                "All databases should be closed");
-
-        // TODO: figure it out
-        try {
-            // FUTURE WORK: need a better way to make sure that DB files are deleted
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }
