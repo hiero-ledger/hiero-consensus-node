@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,17 +76,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         requestObserver = mock(StreamObserver.class);
 
         connection = new BlockNodeConnection(
-                configProvider,
-                nodeConfig,
-                connectionManager,
-                stateManager,
-                grpcServiceClient,
-                metrics,
-                grpcEndpoint);
+                configProvider, nodeConfig, connectionManager, stateManager, grpcServiceClient, metrics, grpcEndpoint);
 
-        lenient()
-                .doReturn(requestObserver)
-                .when(grpcServiceClient).bidi(grpcEndpoint, connection);
+        lenient().doReturn(requestObserver).when(grpcServiceClient).bidi(grpcEndpoint, connection);
     }
 
     @Test
@@ -159,8 +152,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(10L, false);
         when(connectionManager.currentStreamingBlockNumber())
                 .thenReturn(-1L); // we aren't streaming anything to the block node
-        when(stateManager.getBlockNumber())
-                .thenReturn(10L);
+        when(stateManager.getBlockNumber()).thenReturn(10L);
 
         connection.onNext(response);
 
@@ -177,10 +169,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_acknowledgement_olderThanCurrentStreamingAndProducing() {
         final PublishStreamResponse response = createBlockAckResponse(8L, false);
 
-        when(connectionManager.currentStreamingBlockNumber())
-                .thenReturn(10L);
-        when(stateManager.getBlockNumber())
-                .thenReturn(10L);
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
+        when(stateManager.getBlockNumber()).thenReturn(10L);
 
         connection.onNext(response);
 
@@ -200,10 +190,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // currently being produced.
         final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
-        when(connectionManager.currentStreamingBlockNumber())
-                .thenReturn(11L);
-        when(stateManager.getBlockNumber())
-                .thenReturn(10L);
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(11L);
+        when(stateManager.getBlockNumber()).thenReturn(10L);
 
         connection.onNext(response);
 
@@ -221,10 +209,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_acknowledgement_newerThanCurrentStreaming() {
         final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
-        when(connectionManager.currentStreamingBlockNumber())
-                .thenReturn(10L);
-        when(stateManager.getBlockNumber())
-                .thenReturn(12L);
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
+        when(stateManager.getBlockNumber()).thenReturn(12L);
 
         connection.onNext(response);
 
@@ -241,7 +227,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_exceededMaxPermitted() {
         openConnectionAndResetMocks();
-        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
+        final PublishStreamResponse response =
+                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
 
         // populate the end of stream timestamp queue with some data so the next call exceeds the max allowed
         // the queue assumes chronological ordering, so make sure the oldest are added first
@@ -268,7 +255,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PublishStreamResponseCode.class, names = {"STREAM_ITEMS_INTERNAL_ERROR", "STREAM_ITEMS_PERSISTENCE_FAILED"})
+    @EnumSource(
+            value = PublishStreamResponseCode.class,
+            names = {"STREAM_ITEMS_INTERNAL_ERROR", "STREAM_ITEMS_PERSISTENCE_FAILED"})
     void testOnNext_endOfStream_blockNodeInternalError(final PublishStreamResponseCode responseCode) {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
@@ -286,7 +275,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @ParameterizedTest
-    @EnumSource(value = PublishStreamResponseCode.class, names = {"STREAM_ITEMS_TIMEOUT", "STREAM_ITEMS_OUT_OF_ORDER", "STREAM_ITEMS_BAD_STATE_PROOF"})
+    @EnumSource(
+            value = PublishStreamResponseCode.class,
+            names = {"STREAM_ITEMS_TIMEOUT", "STREAM_ITEMS_OUT_OF_ORDER", "STREAM_ITEMS_BAD_STATE_PROOF"})
     void testOnNext_endOfStream_clientFailures(final PublishStreamResponseCode responseCode) {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
@@ -307,7 +298,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_endOfStream_blockNodeGracefulShutdown() {
         openConnectionAndResetMocks();
         // STREAM_ITEMS_SUCCESS is sent when the block node is gracefully shutting down
-        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS, 10L);
+        final PublishStreamResponse response =
+                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_SUCCESS, 10L);
 
         connection.onNext(response);
 
@@ -324,9 +316,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_blockNodeBehind_blockExists() {
         openConnectionAndResetMocks();
-        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
-        when(stateManager.getBlockState(11L))
-                .thenReturn(new BlockState(11L));
+        final PublishStreamResponse response =
+                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
+        when(stateManager.getBlockState(11L)).thenReturn(new BlockState(11L));
 
         connection.onNext(response);
 
@@ -344,9 +336,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_blockNodeBehind_blockDoesNotExist() {
         openConnectionAndResetMocks();
-        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
-        when(stateManager.getBlockState(11L))
-                .thenReturn(null);
+        final PublishStreamResponse response =
+                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_BEHIND, 10L);
+        when(stateManager.getBlockState(11L)).thenReturn(null);
 
         connection.onNext(response);
 
@@ -364,7 +356,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_itemsUnknown() {
         openConnectionAndResetMocks();
-        final PublishStreamResponse response = createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN, 10L);
+        final PublishStreamResponse response =
+                createEndOfStreamResponse(PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN, 10L);
 
         connection.onNext(response);
 
@@ -381,8 +374,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_skipBlock_sameAsStreaming() {
         final PublishStreamResponse response = createSkipBlock(25L);
-        when(connectionManager.currentStreamingBlockNumber())
-                .thenReturn(25L);
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(25L);
 
         connection.onNext(response);
 
@@ -398,8 +390,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_skipBlock_notSameAsStreaming() {
         final PublishStreamResponse response = createSkipBlock(25L);
-        when(connectionManager.currentStreamingBlockNumber())
-                .thenReturn(26L);
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(26L);
 
         connection.onNext(response);
 
@@ -414,8 +405,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_resendBlock_blockExists() {
         final PublishStreamResponse response = createResendBlock(10L);
-        when(stateManager.getBlockState(10L))
-                .thenReturn(new BlockState(10L));
+        when(stateManager.getBlockState(10L)).thenReturn(new BlockState(10L));
 
         connection.onNext(response);
 
@@ -433,8 +423,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
 
         final PublishStreamResponse response = createResendBlock(10L);
-        when(stateManager.getBlockState(10L))
-                .thenReturn(null);
+        when(stateManager.getBlockState(10L)).thenReturn(null);
 
         connection.onNext(response);
 
@@ -467,12 +456,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testSendRequest() {
         openConnectionAndResetMocks();
 
-        final BlockHeader blockHeader = BlockHeader.newBuilder()
-                .number(1L)
-                .build();
-        final BlockItem item = BlockItem.newBuilder()
-                .blockHeader(blockHeader)
-                .build();
+        final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
         final PublishStreamRequest request = createRequest(item);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -487,12 +472,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSendRequest_notActive() {
-        final BlockHeader blockHeader = BlockHeader.newBuilder()
-                .number(1L)
-                .build();
-        final BlockItem item = BlockItem.newBuilder()
-                .blockHeader(blockHeader)
-                .build();
+        final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
         final PublishStreamRequest request = createRequest(item);
 
         connection.createRequestObserver();
@@ -507,12 +488,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSendRequest_observerNull() {
-        final BlockHeader blockHeader = BlockHeader.newBuilder()
-                .number(1L)
-                .build();
-        final BlockItem item = BlockItem.newBuilder()
-                .blockHeader(blockHeader)
-                .build();
+        final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
         final PublishStreamRequest request = createRequest(item);
 
         // don't create the observer
@@ -545,8 +522,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testClose_failure() {
         openConnectionAndResetMocks();
-        doThrow(new RuntimeException("oh no!"))
-                .when(requestObserver).onCompleted();
+        doThrow(new RuntimeException("oh no!")).when(requestObserver).onCompleted();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.close();

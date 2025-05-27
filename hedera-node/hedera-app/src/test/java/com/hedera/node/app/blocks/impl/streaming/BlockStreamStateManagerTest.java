@@ -39,7 +39,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -107,8 +106,8 @@ class BlockStreamStateManagerTest extends BlockNodeCommunicationTestBase {
                 () -> assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER))
                         .isNotNull(),
                 () -> assertThat(blockStreamStateManager
-                        .getBlockState(TEST_BLOCK_NUMBER)
-                        .blockNumber())
+                                .getBlockState(TEST_BLOCK_NUMBER)
+                                .blockNumber())
                         .isEqualTo(TEST_BLOCK_NUMBER));
     }
 
@@ -164,12 +163,12 @@ class BlockStreamStateManagerTest extends BlockNodeCommunicationTestBase {
                 () -> assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER2))
                         .isNotNull(),
                 () -> assertThat(blockStreamStateManager
-                        .getBlockState(TEST_BLOCK_NUMBER)
-                        .blockNumber())
+                                .getBlockState(TEST_BLOCK_NUMBER)
+                                .blockNumber())
                         .isEqualTo(TEST_BLOCK_NUMBER),
                 () -> assertThat(blockStreamStateManager
-                        .getBlockState(TEST_BLOCK_NUMBER2)
-                        .blockNumber())
+                                .getBlockState(TEST_BLOCK_NUMBER2)
+                                .blockNumber())
                         .isEqualTo(TEST_BLOCK_NUMBER2));
     }
 
@@ -272,7 +271,7 @@ class BlockStreamStateManagerTest extends BlockNodeCommunicationTestBase {
 
         // when and then
         assertThatThrownBy(() -> blockStreamStateManager.addItem(
-                TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
+                        TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
     }
@@ -298,67 +297,6 @@ class BlockStreamStateManagerTest extends BlockNodeCommunicationTestBase {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
     }
-
-    /*@Test
-    void testSetBlockItemBatchSizeToZero() throws InterruptedException {
-        // given
-        configProvider = createConfigProvider(0L);
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        // Setup BlockNodeConnectionManager
-        blockNodeConnectionManager = Mockito.spy(
-                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics));
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
-
-        blockStreamStateManager.setBlockNodeConnectionManager(
-                BlockStreamStateManagerTest.this.blockNodeConnectionManager);
-
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-
-        // Block Stream Worker Thread should advance a bit
-        Thread.sleep(100);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(2);
-    }
-
-    @Test
-    void testSetBlockItemBatchSizeToOne() throws InterruptedException {
-        // given
-        configProvider = createConfigProvider(1L);
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-
-        // Setup BlockNodeConnectionManager
-        blockNodeConnectionManager = Mockito.spy(
-                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics));
-        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
-
-        blockStreamStateManager.setBlockNodeConnectionManager(
-                BlockStreamStateManagerTest.this.blockNodeConnectionManager);
-
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-
-        final var blockItem1 = newBlockHeaderItem();
-        final var blockItem2 = newBlockTxItem();
-
-        // when
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
-
-        // Block Stream Worker Thread should advance a bit
-        Thread.sleep(100);
-
-        // then
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
-                .isEqualTo(2);
-    }*/
 
     @Test
     void testOpenExistingBlock() {
@@ -674,34 +612,5 @@ class BlockStreamStateManagerTest extends BlockNodeCommunicationTestBase {
 
         // Verify that blockNodeConnectionManager.openBlock was not called
         verify(blockNodeConnectionManager, never()).openBlock(TEST_BLOCK_NUMBER);
-    }
-
-    @Test
-    void createRequestFromCurrentItemsShouldNotNotifyConnectionsWhenStreamingToBlockNodesDisabled() {
-        // Configure streamToBlockNodes to return false
-        final var mockConfig = HederaTestConfigBuilder.create()
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
-                .withValue("blockStream.blockItemBatchSize", 3)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
-
-        // Create a new instance
-        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
-        blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-
-        // Open a block and add items
-        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockHeaderItem());
-        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, newBlockTxItem());
-
-        // Get the block state
-        final BlockState blockState = blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER);
-
-        // Call createRequestFromCurrentItems
-        // blockStreamStateManager.createRequestFromCurrentItems(blockState, true);
-
-        // Verify that blockNodeConnectionManager.notifyConnectionsOfNewRequest was not called
-        // verify(blockNodeConnectionManager, never()).notifyConnectionsOfNewRequest();
     }
 }

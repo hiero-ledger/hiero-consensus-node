@@ -27,6 +27,15 @@ class GrpcBlockItemWriterTest {
     }
 
     @Test
+    void testOpenBlock() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+
+        grpcBlockItemWriter.openBlock(0);
+
+        verify(blockStreamStateManager).openBlock(0);
+    }
+
+    @Test
     void testOpenBlockNegativeBlockNumber() {
         GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
 
@@ -35,7 +44,17 @@ class GrpcBlockItemWriterTest {
     }
 
     @Test
-    void testWriteItem() {
+    void testWriteItemUnsupported() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+
+        assertThatThrownBy(
+                        () -> grpcBlockItemWriter.writeItem(new byte[] {1, 2, 3, 4, 5}),
+                        "writeItem is not supported in this implementation")
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void testWritePbjItem() {
         GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
 
         // Create BlockProof as easiest way to build object from BlockStreams
@@ -47,5 +66,25 @@ class GrpcBlockItemWriterTest {
         grpcBlockItemWriter.writePbjItem(proof);
 
         verify(blockStreamStateManager).addItem(0L, proof);
+    }
+
+    @Test
+    void testWritePreBlockProofItems() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+
+        grpcBlockItemWriter.openBlock(0);
+        grpcBlockItemWriter.writePreBlockProofItems();
+
+        verify(blockStreamStateManager).streamPreBlockProofItems(0);
+    }
+
+    @Test
+    void testCompleteBlock() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+
+        grpcBlockItemWriter.openBlock(0);
+        grpcBlockItemWriter.closeCompleteBlock();
+
+        verify(blockStreamStateManager).closeBlock(0);
     }
 }

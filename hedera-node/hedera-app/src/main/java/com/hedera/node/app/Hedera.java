@@ -1380,16 +1380,16 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * This should be called before platform.start() to ensure we don't miss any blocks.
      */
     public void initializeBlockNodeConnections() {
-        final BlockStreamConfig blockStreamConfig = configProvider.getConfiguration()
-                .getConfigData(BlockStreamConfig.class);
+        final BlockStreamConfig blockStreamConfig =
+                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
 
         if (!blockStreamConfig.streamToBlockNodes()) {
             logger.info("Block stream to Block Nodes is disabled, skipping block node connection initialization");
             return;
         }
 
-        final BlockNodeConnectionConfig blockNodeConnectionConfig = configProvider.getConfiguration()
-                        .getConfigData(BlockNodeConnectionConfig.class);
+        final BlockNodeConnectionConfig blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
 
         try {
             daggerApp.blockNodeConnectionManager().start();

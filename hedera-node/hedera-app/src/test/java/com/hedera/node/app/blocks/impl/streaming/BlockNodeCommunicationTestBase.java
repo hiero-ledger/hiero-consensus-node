@@ -32,13 +32,15 @@ public abstract class BlockNodeCommunicationTestBase {
 
     @NonNull
     protected static PublishStreamResponse createSkipBlock(final long blockNumber) {
-        final SkipBlock skipBlock = SkipBlock.newBuilder().blockNumber(blockNumber).build();
+        final SkipBlock skipBlock =
+                SkipBlock.newBuilder().blockNumber(blockNumber).build();
         return PublishStreamResponse.newBuilder().skipBlock(skipBlock).build();
     }
 
     @NonNull
     protected static PublishStreamResponse createResendBlock(final long blockNumber) {
-        final ResendBlock resendBlock = ResendBlock.newBuilder().blockNumber(blockNumber).build();
+        final ResendBlock resendBlock =
+                ResendBlock.newBuilder().blockNumber(blockNumber).build();
         return PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
     }
 
@@ -69,12 +71,8 @@ public abstract class BlockNodeCommunicationTestBase {
 
     @NonNull
     protected static PublishStreamRequest createRequest(final BlockItem... items) {
-        final BlockItemSet itemSet = BlockItemSet.newBuilder()
-                .blockItems(items)
-                .build();
-        return PublishStreamRequest.newBuilder()
-                .blockItems(itemSet)
-                .build();
+        final BlockItemSet itemSet = BlockItemSet.newBuilder().blockItems(items).build();
+        return PublishStreamRequest.newBuilder().blockItems(itemSet).build();
     }
 
     protected ConfigProvider createConfigProvider() {

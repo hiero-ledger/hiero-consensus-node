@@ -143,10 +143,12 @@ public class BlockState {
         }
 
         // Create BlockItemSet by adding all items at once
-        final BlockItemSet itemSet = BlockItemSet.newBuilder().blockItems(blockItems).build();
+        final BlockItemSet itemSet =
+                BlockItemSet.newBuilder().blockItems(blockItems).build();
 
         // Create the request and add it to the list
-        final PublishStreamRequest request = PublishStreamRequest.newBuilder().blockItems(itemSet).build();
+        final PublishStreamRequest request =
+                PublishStreamRequest.newBuilder().blockItems(itemSet).build();
 
         logger.debug("Added request to block {} - request count now: {}", blockNumber, requests.size());
         requests.add(request);
@@ -158,12 +160,11 @@ public class BlockState {
 
     @Override
     public String toString() {
-        return "BlockState{" +
-                "blockNumber=" + blockNumber +
-                ", items=" + items +
-                ", requests=" + requests +
-                ", requestsCreated=" + requestsCreated +
-                ", closedTimestamp=" + closedTimestamp +
-                '}';
+        return "BlockState{" + "blockNumber="
+                + blockNumber + ", items="
+                + items + ", requests="
+                + requests + ", requestsCreated="
+                + requestsCreated + ", closedTimestamp="
+                + closedTimestamp + '}';
     }
 }
