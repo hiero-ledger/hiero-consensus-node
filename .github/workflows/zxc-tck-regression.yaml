@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       ref:
-        description: "The branch, tag or SHA to checkout:"
+        description: "The branch, tag, or SHA to checkout:"
         required: false
         type: string
       custom-job-name:
