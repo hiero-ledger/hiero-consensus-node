@@ -124,7 +124,7 @@ class DataFileReaderCloseTest {
                 IntStream.of(0, 1).parallel().forEach(t -> {
                     try {
                         if (t == 1) {
-                            writer.finishWriting();
+                            writer.close();
                         } else {
                             final BufferedData itemBytes = reader.readDataItem(index.get(0));
                             Assertions.assertEquals(fi, itemBytes.readLong());

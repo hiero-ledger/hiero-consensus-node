@@ -54,6 +54,13 @@ public class SendCommand implements Callable<Integer> {
             description = "for an HTS token denomination, the number of decimals")
     Integer decimals;
 
+    @CommandLine.Option(
+            names = {"--inside-batch"},
+            paramLabel = "<AtomicBatch?>",
+            defaultValue = "false",
+            description = "whether to send the transfer inside a batch")
+    Boolean insideBatch;
+
     @Override
     public Integer call() throws Exception {
         var config = ConfigUtils.configFrom(accountsCommand.getYahcli());
@@ -79,7 +86,8 @@ public class SendCommand implements Callable<Integer> {
                 amount,
                 effectiveMemo,
                 denomination,
-                accountsCommand.getYahcli().isScheduled());
+                accountsCommand.getYahcli().isScheduled(),
+                insideBatch);
         delegate.runSuiteSync();
 
         final var firstSpec = delegate.getFinalSpecs().getFirst();

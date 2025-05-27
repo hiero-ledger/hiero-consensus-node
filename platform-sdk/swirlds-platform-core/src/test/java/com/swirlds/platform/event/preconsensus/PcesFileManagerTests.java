@@ -4,8 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertIteratorEquality;
 import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,7 +21,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.node.NodeId;
@@ -31,8 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Tests for {@link PcesFileManager}
@@ -60,12 +56,8 @@ class PcesFileManagerTests {
         random = getRandomPrintSeed();
     }
 
-    protected static Stream<Arguments> ancientModes() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Generate Descriptors With Manager Test")
     void generateDescriptorsWithManagerTest(@NonNull final AncientMode ancientMode) throws IOException {
         final PlatformContext platformContext =
@@ -83,7 +75,7 @@ class PcesFileManagerTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Incremental Pruning By Ancient Boundary Test")
     void incrementalPruningByAncientBoundaryTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
@@ -174,7 +166,7 @@ class PcesFileManagerTests {
     }
 
     @ParameterizedTest
-    @MethodSource("ancientModes")
+    @EnumSource(AncientMode.class)
     @DisplayName("Incremental Pruning By Timestamp Test")
     void incrementalPruningByTimestampTest(@NonNull final AncientMode ancientMode) throws IOException {
         final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)

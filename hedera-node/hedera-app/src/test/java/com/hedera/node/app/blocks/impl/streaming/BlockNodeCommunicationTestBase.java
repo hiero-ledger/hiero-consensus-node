@@ -81,7 +81,7 @@ public abstract class BlockNodeCommunicationTestBase {
         return createConfigProvider(BATCH_SIZE);
     }
 
-    protected ConfigProvider createConfigProvider(final long batchSize) {
+    protected ConfigProvider createConfigProvider(final int batchSize) {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
                 .getPath();

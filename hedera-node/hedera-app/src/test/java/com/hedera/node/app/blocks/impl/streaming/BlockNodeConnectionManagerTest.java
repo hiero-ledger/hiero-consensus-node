@@ -124,7 +124,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @BeforeEach
     void beforeEach() {
-        final ConfigProvider configProvider = createConfigProvider();
+        final ConfigProvider configProvider = createConfigProvider(BATCH_SIZE);
         stateManager = mock(BlockStreamStateManager.class);
         metrics = mock(BlockStreamMetrics.class);
         executorService = mock(ScheduledExecutorService.class);
@@ -1473,4 +1473,62 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private void resetMocks() {
         reset(stateManager, metrics, executorService);
     }
+
+    /*@Test
+    void testBatchSizeIsRespectedWhenCreatingPublishStreamRequests() throws InterruptedException {
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+
+        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
+                .isTrue();
+        assertEquals(subject.getConnectionState(), ACTIVE);
+
+        blockStreamStateManager.openBlock(0L);
+
+        final var blockItem = newBlockTxItem();
+        for (int i = 0; i < BATCH_SIZE - 1; i++) {
+            blockStreamStateManager.addItem(0L, blockItem);
+        }
+
+        // Block Stream Worker Thread should advance a bit
+        Thread.sleep(100);
+
+        assertThat(blockStreamStateManager.getBlockState(0L).requestsSize()).isEqualTo(0);
+
+        // Add a BlockItem in the next batch
+        blockStreamStateManager.addItem(0L, blockItem);
+
+        // Block Stream Worker Thread should advance a bit
+        Thread.sleep(100);
+
+        assertThat(blockStreamStateManager.getBlockState(0L).requestsSize()).isEqualTo(1);
+    }
+
+    @Test
+    void testPublishStreamRequestsCreatedForMultipleBlocks() throws InterruptedException {
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+
+        assertThat(blockStreamStateManager.getConnections().containsValue(subject))
+                .isTrue();
+        assertEquals(subject.getConnectionState(), ACTIVE);
+
+        blockStreamStateManager.openBlock(0L);
+        blockStreamStateManager.openBlock(1L);
+        blockStreamStateManager.openBlock(2L);
+        final var blockItem = newBlockTxItem();
+
+        // when
+        for (int i = 0; i < BATCH_SIZE; i++) {
+            blockStreamStateManager.addItem(0L, blockItem);
+            blockStreamStateManager.addItem(1L, blockItem);
+            blockStreamStateManager.addItem(2L, blockItem);
+        }
+
+        // Block Stream Worker Thread should advance a bit
+        Thread.sleep(100);
+
+        // then
+        assertThat(blockStreamStateManager.getBlockState(0L).requestsSize()).isEqualTo(1);
+        assertThat(blockStreamStateManager.getBlockState(1L).requestsSize()).isEqualTo(1);
+        assertThat(blockStreamStateManager.getBlockState(2L).requestsSize()).isEqualTo(1);
+    }*/
 }

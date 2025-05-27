@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.jrs;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
@@ -40,7 +38,7 @@ public class NodeOpsForUpgrade extends HapiSuite {
                         nodeDelete("3").payingWith(GENESIS).signedBy(GENESIS),
                         nodeUpdate("2")
                                 .description("UpdatedNode0")
-                                .accountId(SHARD + "." + REALM + "." + "100")
+                                .accountId("100")
                                 .payingWith(GENESIS)
                                 .signedBy(GENESIS))
                 .then(overridingTwo("nodes.enableDAB", "true", "nodes.updateAccountIdAllowed", "false"));

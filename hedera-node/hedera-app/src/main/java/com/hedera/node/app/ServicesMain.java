@@ -225,7 +225,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *  {@link ConsensusStateEventHandler}---and the implementation of that
      *  injected by {@link Hedera#newStateRoot()} delegates these calls back to the Hedera
      *  instance itself.
-     *  <p>
+     * <p>
      *  Thus, the Hedera instance centralizes nearly all the setup and runtime logic for the
      *  application. It implements this logic by instantiating a {@link javax.inject.Singleton}
      *  component whose object graph roots include the Ingest, PreHandle, Handle, and Query

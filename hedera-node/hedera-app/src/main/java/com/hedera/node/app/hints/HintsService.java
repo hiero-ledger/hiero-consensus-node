@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.HintsController;
+import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
@@ -15,6 +16,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 
 /**
@@ -74,6 +76,12 @@ public interface HintsService extends Service, BlockHashSigner {
      * @param roster the roster
      */
     void initCurrentRoster(@NonNull Roster roster);
+
+    /**
+     * Sets the callback for when a hinTS construction is finished. Only one callback is active at a time.
+     * @param cb the callback to invoke with the current writable hints store
+     */
+    void onFinishedConstruction(@Nullable OnHintsFinished cb);
 
     /**
      * Initializes hinTS signing from the next construction in the given {@link WritableHintsStore}.

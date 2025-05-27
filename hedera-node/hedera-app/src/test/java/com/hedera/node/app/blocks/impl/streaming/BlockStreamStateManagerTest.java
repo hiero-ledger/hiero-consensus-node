@@ -39,6 +39,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -297,6 +298,67 @@ class BlockStreamStateManagerTest extends BlockNodeCommunicationTestBase {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
     }
+
+    /*@Test
+    void testSetBlockItemBatchSizeToZero() throws InterruptedException {
+        // given
+        configProvider = createConfigProvider(0L);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+
+        // Setup BlockNodeConnectionManager
+        blockNodeConnectionManager = Mockito.spy(
+                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics));
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+
+        blockStreamStateManager.setBlockNodeConnectionManager(
+                BlockStreamStateManagerTest.this.blockNodeConnectionManager);
+
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
+
+        // when
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
+
+        // Block Stream Worker Thread should advance a bit
+        Thread.sleep(100);
+
+        // then
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(2);
+    }
+
+    @Test
+    void testSetBlockItemBatchSizeToOne() throws InterruptedException {
+        // given
+        configProvider = createConfigProvider(1L);
+        blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
+
+        // Setup BlockNodeConnectionManager
+        blockNodeConnectionManager = Mockito.spy(
+                new BlockNodeConnectionManager(configProvider, blockStreamStateManager, blockStreamMetrics));
+        blockNodeConnectionManager.waitForConnection(Duration.ofSeconds(5));
+
+        blockStreamStateManager.setBlockNodeConnectionManager(
+                BlockStreamStateManagerTest.this.blockNodeConnectionManager);
+
+        blockStreamStateManager.openBlock(TEST_BLOCK_NUMBER);
+
+        final var blockItem1 = newBlockHeaderItem();
+        final var blockItem2 = newBlockTxItem();
+
+        // when
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem1);
+        blockStreamStateManager.addItem(TEST_BLOCK_NUMBER, blockItem2);
+
+        // Block Stream Worker Thread should advance a bit
+        Thread.sleep(100);
+
+        // then
+        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER).requestsSize())
+                .isEqualTo(2);
+    }*/
 
     @Test
     void testOpenExistingBlock() {

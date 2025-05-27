@@ -27,6 +27,7 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long maxOpsDuration,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int gasThrottleBurstSeconds,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
                 long maxKvPairsAggregate,
@@ -41,6 +42,8 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean sidecarValidationEnabled,
         @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "true") @NetworkProperty
                 boolean throttleThrottleByGas,
+        @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "false") @NetworkProperty
+                boolean throttleThrottleByOpsDuration,
         @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty long scheduleThrottleMaxGasLimit,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean redirectTokenCalls,

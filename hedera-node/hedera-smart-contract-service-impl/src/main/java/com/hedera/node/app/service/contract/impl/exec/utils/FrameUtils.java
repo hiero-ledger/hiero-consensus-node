@@ -35,7 +35,7 @@ public class FrameUtils {
     public static final String PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE = "propagatedCallFailure";
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
-    public static final String HEDERA_GAS_COUNTER = "hederaGasCounter";
+    public static final String HEDERA_OPS_DURATION = "hederaOpsDuration";
 
     public enum EntityType {
         TOKEN,
@@ -379,24 +379,26 @@ public class FrameUtils {
     }
 
     /**
-     * Increments the Hedera gas usage in the top level frame by the given amount.
+     * Increments the Hedera ops duration in the top level frame by the given amount.
      *
      * @param frame the current frame
-     * @param gas the amount of gas to increment by
+     * @param opsDuration the amount ops duration to increment by
      */
-    public static void incrementHederaGasUsage(@NonNull final MessageFrame frame, final long gas) {
-        final HederaGasCounter gasCounter = initialFrameOf(frame).getContextVariable(HEDERA_GAS_COUNTER);
-        gasCounter.incrementGasConsumed(gas);
+    public static void incrementOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
+        final HederaOpsDurationCounter opsDurationCounter =
+                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
+        opsDurationCounter.incrementOpsDuration(opsDuration);
     }
 
     /**
-     * Increments the Hedera gas usage in the top level frame by the given amount.
+     * Returns the Hedera ops duration usage in the top level frame.
      *
      * @param frame the current frame
-     * @return the total Hedera gas consumed until now
+     * @return the total Hedera ops duration
      */
-    public static long getHederaGasUsed(@NonNull final MessageFrame frame) {
-        final HederaGasCounter gasCounter = initialFrameOf(frame).getContextVariable(HEDERA_GAS_COUNTER);
-        return gasCounter.getGasConsumed();
+    public static long getHederaOpsDuration(@NonNull final MessageFrame frame) {
+        final HederaOpsDurationCounter opsDurationCounter =
+                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
+        return opsDurationCounter.getOpsDurationCounter();
     }
 }

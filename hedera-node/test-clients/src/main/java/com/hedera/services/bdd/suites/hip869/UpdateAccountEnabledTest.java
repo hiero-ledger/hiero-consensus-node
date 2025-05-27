@@ -4,24 +4,22 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -87,9 +85,9 @@ public class UpdateAccountEnabledTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 // Submit to a different node so ingest check is skipped
                 nodeUpdate("node100")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .payingWith("payer")
-                        .accountId(asEntityString(1000))
+                        .accountId("1000")
                         .fee(ONE_HBAR)
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("failedUpdate"),
@@ -98,7 +96,7 @@ public class UpdateAccountEnabledTest {
                 validateChargedUsdWithin("failedUpdate", 0.001, 3.0),
                 nodeUpdate("node100")
                         .adminKey("testKey")
-                        .accountId(asEntityString(1000))
+                        .accountId("1000")
                         .fee(ONE_HBAR)
                         .via("updateNode"),
                 getTxnRecord("updateNode").logged(),
@@ -107,10 +105,10 @@ public class UpdateAccountEnabledTest {
 
                 // Submit with several signatures and the price should increase
                 nodeUpdate("node100")
-                        .setNode(asEntityString(5))
+                        .setNode(5)
                         .payingWith("payer")
                         .signedBy("payer", "payer", "randomAccount", "testKey")
-                        .accountId(asEntityString(1000))
+                        .accountId("1000")
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
                 validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
@@ -123,16 +121,12 @@ public class UpdateAccountEnabledTest {
                 nodeCreate("testNode")
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").adminKey("adminKey").accountId(asEntityString(1000)),
-                viewNode(
-                        "testNode",
-                        node -> assertEquals(
-                                AccountID.newBuilder()
-                                        .shardNum(shard)
-                                        .realmNum(realm)
-                                        .accountNum(1000)
-                                        .build(),
-                                node.accountId(),
-                                "Node accountId should be updated")));
+                nodeUpdate("testNode").adminKey("adminKey").accountId("1000"),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        viewNode(
+                                "testNode",
+                                node -> assertEquals(
+                                        1000, node.accountId().accountNum(), "Node accountId should be updated")))));
     }
 }
