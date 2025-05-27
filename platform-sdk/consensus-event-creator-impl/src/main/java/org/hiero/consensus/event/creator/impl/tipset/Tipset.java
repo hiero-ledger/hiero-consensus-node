@@ -4,6 +4,7 @@ package org.hiero.consensus.event.creator.impl.tipset;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -54,22 +55,25 @@ public class Tipset {
      * <p>
      * The generation for each node ID will be equal to the maximum generation found for that node ID from all source
      * tipsets.
+     * In the case of empty list, a new Tipset instance with the current roster will be returned.
      *
-     * @param tipsets the tipsets to merge, must be non-empty, tipsets must be constructed from the same address book or
+     * @param tipsets the tipsets to merge, tipsets must be constructed from the same roster or
      *                else this method has undefined behavior
      * @return a new tipset
      */
     public @NonNull Tipset merge(@NonNull final List<Tipset> tipsets) {
         if (tipsets.isEmpty()) {
-            return this;
+            return new Tipset(roster);
         }
 
+        final List<Tipset> allTipsets = new ArrayList<>(tipsets);
+        allTipsets.add(this);
         final int length = tipsets.get(0).tips.length;
         final Tipset newTipset = buildEmptyTipset(tipsets.get(0));
 
         for (int index = 0; index < length; index++) {
             long max = NonDeterministicGeneration.GENERATION_UNDEFINED;
-            for (final Tipset tipSet : tipsets) {
+            for (final Tipset tipSet : allTipsets) {
                 max = Math.max(max, tipSet.tips[index]);
             }
             newTipset.tips[index] = max;
