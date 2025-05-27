@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.spi;
+package com.hedera.hapi.util;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static org.assertj.core.api.Assertions.assertThat;
+import org.assertj.core.api.Assertions;
 import static org.junit.jupiter.params.provider.Arguments.of;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -10,9 +10,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.test.fixtures.TestBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.stream.Stream;
@@ -23,7 +21,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-final class HapiUtilsTest extends TestBase {
+final class HapiUtilsTest {
 
     @ParameterizedTest
     @CsvSource(
@@ -36,7 +34,7 @@ final class HapiUtilsTest extends TestBase {
     void isBefore(@NonNull final Instant i1, @NonNull final Instant i2) {
         final var t1 = asTimestamp(i1);
         final var t2 = asTimestamp(i2);
-        assertThat(HapiUtils.isBefore(t1, t2)).isTrue();
+        Assertions.assertThat(HapiUtils.isBefore(t1, t2)).isTrue();
     }
 
     @ParameterizedTest
@@ -50,7 +48,7 @@ final class HapiUtilsTest extends TestBase {
     void isAfter(@NonNull final Instant i1, @NonNull final Instant i2) {
         final var t1 = asTimestamp(i1);
         final var t2 = asTimestamp(i2);
-        assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
+        Assertions.assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
     }
 
     @ParameterizedTest
@@ -65,7 +63,7 @@ final class HapiUtilsTest extends TestBase {
     void isEqual(@NonNull final Instant i1, @NonNull final Instant i2) {
         final var t1 = asTimestamp(i1);
         final var t2 = asTimestamp(i2);
-        assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
+        Assertions.assertThat(HapiUtils.isBefore(t1, t2)).isFalse();
     }
 
     @Test
@@ -76,7 +74,7 @@ final class HapiUtilsTest extends TestBase {
         // When we convert it into a timestamp
         final var timestamp = asTimestamp(instant);
         // Then we find the timestamp matches the original instant
-        assertThat(timestamp)
+        Assertions.assertThat(timestamp)
                 .isEqualTo(Timestamp.newBuilder().seconds(1000).nanos(123456789).build());
     }
 
@@ -88,7 +86,7 @@ final class HapiUtilsTest extends TestBase {
         // When we count up the number of primitive keys
         final var count = HapiUtils.countOfCryptographicKeys(key);
         // Then we find the answer is expected
-        assertThat(count).isEqualTo(expectedCount);
+        Assertions.assertThat(count).isEqualTo(expectedCount);
     }
 
     public static Stream<Arguments> cryptoKeys() {
