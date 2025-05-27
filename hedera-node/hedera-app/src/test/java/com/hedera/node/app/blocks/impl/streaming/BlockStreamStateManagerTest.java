@@ -30,7 +30,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 import java.time.Duration;
-import java.util.concurrent.BlockingQueue;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
@@ -56,7 +56,7 @@ class BlockStreamStateManagerTest {
         try {
             final Lookup lookup = MethodHandles.lookup();
             blockBufferHandle = MethodHandles.privateLookupIn(BlockStreamStateManager.class, lookup)
-                    .findVarHandle(BlockStreamStateManager.class, "blockBuffer", BlockingQueue.class);
+                    .findVarHandle(BlockStreamStateManager.class, "blockBuffer", Queue.class);
             execSvcHandle = MethodHandles.privateLookupIn(BlockStreamStateManager.class, lookup)
                     .findVarHandle(BlockStreamStateManager.class, "execSvc", ScheduledExecutorService.class);
             final Method checkBufferMethod = BlockStreamStateManager.class.getDeclaredMethod("checkBuffer");
@@ -657,7 +657,7 @@ class BlockStreamStateManagerTest {
 
         blockStreamStateManager = new BlockStreamStateManager(configProvider, blockStreamMetrics);
         blockStreamStateManager.setBlockNodeConnectionManager(blockNodeConnectionManager);
-        final BlockingQueue<?> buffer = (BlockingQueue<?>) blockBufferHandle.get(blockStreamStateManager);
+        final Queue<?> buffer = (Queue<?>) blockBufferHandle.get(blockStreamStateManager);
 
         // IdealMaxBufferSize = BlockTtl (5s) / BlockPeriod (1s) = 5
 
@@ -801,7 +801,7 @@ class BlockStreamStateManagerTest {
         // Add another block to trigger the prune, then verify the state... there should only be blocks 6 and 7 buffered
         blockStreamStateManager.openBlock(7L);
 
-        final BlockingQueue<?> buffer = (BlockingQueue<?>) blockBufferHandle.get(blockStreamStateManager);
+        final Queue<?> buffer = (Queue<?>) blockBufferHandle.get(blockStreamStateManager);
         assertThat(buffer).hasSize(2);
         assertThat(blockStreamStateManager.getBlockState(6L)).isNotNull();
         assertThat(blockStreamStateManager.getBlockState(7L)).isNotNull();

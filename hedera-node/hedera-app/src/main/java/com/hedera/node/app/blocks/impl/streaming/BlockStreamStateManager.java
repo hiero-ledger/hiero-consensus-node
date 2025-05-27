@@ -557,7 +557,7 @@ public class BlockStreamStateManager {
      * Gets the block stream queue.
      * @return the block stream queue
      */
-    public Queue<BlockStreamQueueItem> getBlockStreamQueue() {
+    public Queue<BlockStreamQueueItem> getBlockStreamItemQueue() {
         return blockStreamQueue;
     }
 

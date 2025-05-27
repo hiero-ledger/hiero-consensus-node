@@ -463,7 +463,7 @@ public class BlockNodeConnectionManager {
 
                 shouldSleep = processStreamingToBlockNode();
 
-                if (shouldSleep && !blockStreamStateManager.getBlockStreamQueue().isEmpty()) {
+                if (shouldSleep && !blockStreamStateManager.getBlockStreamItemQueue().isEmpty()) {
                     shouldSleep = false; // Don't sleep if there are items in the queue
                 }
 
@@ -519,28 +519,23 @@ public class BlockNodeConnectionManager {
             }
         }
 
-        if (requestIndex >= blockState.requestsSize() && blockState.requestsCompleted()) {
-            if (higherPriorityStarted(connection)) {
-                logger.debug("[{}] A higher priority block node has been selected", connection);
-                streamingBlockNumber.set(blockStreamStateManager.getLowestUnackedBlockNumber());
-                requestIndex = 0;
-                return false;
-            } else {
-                final long nextBlockNumber = streamingBlockNumber.incrementAndGet();
-                requestIndex = 0;
-                logger.trace("[{}] Moving to next block number: {}", connection, nextBlockNumber);
-            }
+        if (requestIndex == blockState.requestsSize() && blockState.requestsCompleted()) {
+            final long nextBlockNumber = streamingBlockNumber.incrementAndGet();
+            requestIndex = 0;
+            logger.trace("[{}] Moving to next block number: {}", connection, nextBlockNumber);
+            // we've moved to another block, don't sleep and instead immediately check if there is anything to send
+            return false;
         }
 
-        if (requestIndex <= blockState.requestsSize() && !blockState.requestsCompleted()) {
+        if (requestIndex < blockState.requestsSize()) {
             return false; // Don't sleep if there are more requests to process
         }
 
-        return blockStreamStateManager.getBlockStreamQueue().isEmpty();
+        return blockStreamStateManager.getBlockStreamItemQueue().isEmpty();
     }
 
     private void processBlockStreamQueue() {
-        final Queue<BlockStreamQueueItem> itemQueue = blockStreamStateManager.getBlockStreamQueue();
+        final Queue<BlockStreamQueueItem> itemQueue = blockStreamStateManager.getBlockStreamItemQueue();
         final int batchSize = blockItemBatchSize();
 
         for (int i = 0; i < batchSize && !itemQueue.isEmpty(); ++i) {
@@ -611,50 +606,6 @@ public class BlockNodeConnectionManager {
     public void jumpToBlockIfNeeded(final long blockNumberToJumpTo) {
         logger.debug("Jumping to block {}", blockNumberToJumpTo);
         jumpTargetBlock.set(blockNumberToJumpTo);
-    }
-
-    /**
-     * This method is used to check if there is a higher priority connection that is available to be switched to, and if
-     * so, it will switch to that connection and close the current block node connection.
-     * @param blockNodeConnection the current block node connection
-     * @return true if a higher priority connection was found and switched to, false otherwise
-     */
-    private boolean higherPriorityStarted(@NonNull final BlockNodeConnection blockNodeConnection) {
-        requireNonNull(blockNodeConnection);
-
-        synchronized (connections) {
-            // Find a pending connection with the highest priority greater than the current connection
-            BlockNodeConnection highestPri = null;
-            for (final BlockNodeConnection connection : connections.values()) {
-                if (connection.getConnectionState().equals(ConnectionState.PENDING)
-                        && connection.getNodeConfig().priority()
-                        < blockNodeConnection.getNodeConfig().priority()) {
-                    if (highestPri == null
-                            || connection.getNodeConfig().priority()
-                            < highestPri.getNodeConfig().priority()) {
-                        // If no connection is found or the current one has a higher priority, update the reference
-                        highestPri = connection;
-                    }
-                }
-            }
-
-            if (highestPri != null) {
-                // Found a higher priority pending connection,
-                highestPri.updateConnectionState(ConnectionState.ACTIVE);
-                final BlockNodeConnection oldConn = activeConnectionRef.getAndSet(highestPri);
-                // Log the transition of this higher priority connection to active
-                logger.debug("Upgrading new connection with higher priority (priority={}) to active: (old={}, new={})",
-                        highestPri.getNodeConfig().priority(),
-                        oldConn,
-                        highestPri);
-
-                // Close the current connection and remove it from the connections map
-                blockNodeConnection.close();
-                connections.remove(blockNodeConnection.getNodeConfig());
-                return true;
-            }
-            return false;
-        }
     }
 
     /**
