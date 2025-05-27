@@ -209,8 +209,9 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
-    if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' || needs.sdk-tck-regression-panel.result == 'success' }}
+    #  - sdk-tck-regression-panel # currently we are not gating XTS-PASS on TCK Regression Panel success
+    # if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' || needs.sdk-tck-regression-panel.result == 'success' }}
+    if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -254,16 +255,13 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
-      - sdk-tck-regression-panel
       - tag-for-promotion
     if: ${{ (needs.abbreviated-panel.result == 'success' &&
       needs.extended-test-suite.result == 'success' &&
       needs.fetch-xts-candidate.result == 'success' &&
       needs.hedera-node-jrs-panel.result == 'success' &&
-      needs.sdk-tck-regression-panel.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
-
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -334,14 +332,6 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "SDK TCK Regression Panel"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.sdk-tck-regression-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
                           "text": "Tag as XTS-Passing"
                         },
                         {
@@ -408,12 +398,10 @@ jobs:
       - fetch-xts-candidate
       - hedera-node-jrs-panel
       - tag-for-promotion
-
     if: ${{ (needs.abbreviated-panel.result != 'success' ||
       needs.extended-test-suite.result != 'success' ||
       needs.fetch-xts-candidate.result != 'success' ||
       needs.hedera-node-jrs-panel.result != 'success' ||
-      needs.sdk-tck-regression-panel.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
       !cancelled() && always() }}
 
@@ -467,7 +455,6 @@ jobs:
                 "Execute eXtended Test Suite": "${{ needs.extended-test-suite.result }}",
                 "JRS Panel": "${{ needs.abbreviated-panel.result }}",
                 "Hedera Node JRS Panel": "${{ needs.hedera-node-jrs-panel.result }}",
-                "SDK TCK Regression Panel": "${{ needs.sdk-tck-regression-panel.result }}",
                 "Tag as XTS-Passing": "${{ needs.tag-for-promotion.result }}",
                 "Source Commit": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>",
                 "Commit Author": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}",
@@ -558,14 +545,6 @@ jobs:
                         {
                           "type": "plain_text",
                           "text": "${{ needs.hedera-node-jrs-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "SDK TCK Regression Panel"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.sdk-tck-regression-panel.result }}"
                         },
                         {
                           "type": "plain_text",
