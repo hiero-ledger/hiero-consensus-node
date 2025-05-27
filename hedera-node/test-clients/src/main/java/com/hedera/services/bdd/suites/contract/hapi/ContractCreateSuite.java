@@ -101,7 +101,6 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -593,8 +592,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
-                        new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
                 /* But now we update the beneficiary to have a delegateContractId */
@@ -603,8 +602,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        new BigInteger(HapiPropertySource.asSolidityAddress(justSendContractId.get())),
-                        new BigInteger(HapiPropertySource.asSolidityAddress(beneficiaryAccountId.get())),
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
