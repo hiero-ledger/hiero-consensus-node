@@ -56,8 +56,7 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
         // looking by ContractID first, because in 'normal' behavior it should be more frequent
         var account = store.getContractById(contractId);
         if (account == null) {
-            final var accountId =
-                    entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(contractId));
+            final var accountId = entityIdFactory.newAccountId(ConversionUtils.contractIDToNum(contractId));
             account = store.getAccountById(accountId);
         }
         return account;
@@ -70,8 +69,7 @@ public abstract class AbstractContractPaidQueryHandler<T> extends PaidQueryHandl
 
     protected @Nullable Schedule scheduleFrom(
             @NonNull final QueryContext context, @NonNull final ContractID contractId) {
-        final var scheduleId =
-                entityIdFactory.newScheduleId(ConversionUtils.contractIDToNum(contractId));
+        final var scheduleId = entityIdFactory.newScheduleId(ConversionUtils.contractIDToNum(contractId));
         return context.createStore(ReadableScheduleStore.class).get(scheduleId);
     }
 }

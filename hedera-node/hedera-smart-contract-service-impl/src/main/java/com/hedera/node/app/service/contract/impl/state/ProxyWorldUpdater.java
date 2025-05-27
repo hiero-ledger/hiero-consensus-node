@@ -345,16 +345,11 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             enhancement
                     .operations()
                     .createContract(
-                            number,
-                            requireNonNull(pendingCreation.body()),
-                            pendingCreation.aliasIfApplicable());
+                            number, requireNonNull(pendingCreation.body()), pendingCreation.aliasIfApplicable());
         } else {
             enhancement
                     .operations()
-                    .createContract(
-                            number,
-                            pendingCreation.parentNumber(),
-                            pendingCreation.aliasIfApplicable());
+                    .createContract(number, pendingCreation.parentNumber(), pendingCreation.aliasIfApplicable());
         }
         return evmFrameState.getMutableAccount(pendingCreation.address());
     }

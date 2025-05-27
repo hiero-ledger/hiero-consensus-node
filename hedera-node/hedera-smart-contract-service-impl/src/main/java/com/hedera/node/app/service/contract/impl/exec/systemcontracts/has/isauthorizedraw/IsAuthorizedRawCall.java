@@ -94,9 +94,10 @@ public class IsAuthorizedRawCall extends AbstractCall {
                 switch (signatureType) {
                     case EC -> customGasCalculator.getEcrecPrecompiledContractGasCost();
                     case ED -> customGasCalculator.getEdSignatureVerificationSystemContractGasCost();
-                    case INVALID -> Math.min(
-                            customGasCalculator.getEcrecPrecompiledContractGasCost(),
-                            customGasCalculator.getEdSignatureVerificationSystemContractGasCost());
+                    case INVALID ->
+                        Math.min(
+                                customGasCalculator.getEcrecPrecompiledContractGasCost(),
+                                customGasCalculator.getEdSignatureVerificationSystemContractGasCost());
                 };
 
         // Prepare the short-circuit error status returns

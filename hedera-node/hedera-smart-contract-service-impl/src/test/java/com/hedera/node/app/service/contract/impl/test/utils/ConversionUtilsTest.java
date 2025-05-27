@@ -293,14 +293,12 @@ class ConversionUtilsTest {
 
     @Test
     void isLongZeroAddressTest() {
-        assertThat(isLongZeroAddress(LONG_ZERO_ADDRESS_BYTES.toByteArray()))
-                .isTrue();
+        assertThat(isLongZeroAddress(LONG_ZERO_ADDRESS_BYTES.toByteArray())).isTrue();
     }
 
     @Test
     void isLongZeroAddressWrongTest() {
-        assertThat(isLongZeroAddress(NON_LONG_ZERO_ADDRESS_BYTES.toByteArray()))
-                .isFalse();
+        assertThat(isLongZeroAddress(NON_LONG_ZERO_ADDRESS_BYTES.toByteArray())).isFalse();
     }
 
     @Test

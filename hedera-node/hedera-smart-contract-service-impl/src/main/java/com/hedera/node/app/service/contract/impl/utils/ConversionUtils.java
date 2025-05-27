@@ -113,11 +113,8 @@ public class ConversionUtils {
      * @return the implied token id
      */
     public static TokenID asTokenId(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        final var explicit = explicitFromHeadlong(address);
         return TokenID.newBuilder()
-                .shardNum(shardOfLongZero(explicit))
-                .realmNum(realmOfLongZero(explicit))
-                .tokenNum(numberOfLongZero(explicit))
+                .tokenNum(numberOfLongZero(explicitFromHeadlong(address)))
                 .build();
     }
 
@@ -432,11 +429,7 @@ public class ConversionUtils {
      */
     @SuppressWarnings("java:S2201")
     public static long numberOfLongZero(@NonNull final Address address) {
-        final var longVal = numberOfLongZero(address.toArray());
-        if (longVal < 0) {
-            throw new ArithmeticException("Long zero address is negative");
-        }
-        return longVal;
+        return numberOfLongZero(address.toArray());
     }
 
     /**
@@ -455,8 +448,7 @@ public class ConversionUtils {
      * @param address the EVM address (as a headlong {@link com.esaulpaugh.headlong.abi.Address})
      * @return whether it is long-zero
      */
-    public static boolean isLongZero(
-            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+    public static boolean isLongZero(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
         return isLongZeroAddress(explicitFromHeadlong(address));
     }
 
@@ -529,21 +521,6 @@ public class ConversionUtils {
     public static ContractID asEvmContractId(
             @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
         return entityIdFactory.newContractIdWithEvmAddress(tuweniToPbjBytes(address));
-    }
-
-    /**
-     * Converts a long-zero address to a PBJ {@link AccountID} with id number instead of alias.
-     *
-     * @param entityIdFactory the entity id factory
-     * @param address the EVM address
-     * @return the PBJ {@link AccountID}
-     */
-    public static AccountID asNumberedAccountId(
-            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
-        if (!isLongZero(address)) {
-            throw new IllegalArgumentException("Cannot extract id number from address " + address);
-        }
-        return entityIdFactory.newAccountId(numberOfLongZero(address));
     }
 
     /**
@@ -730,21 +707,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Given a value and a destination byte array, copies the value to the destination array, left-padded.
-     *
-     * @param value the value
-     * @param dest the destination byte array
-     * @return the destination byte array
-     */
-    public static byte[] copyToLeftPaddedByteArray(long value, final byte[] dest) {
-        for (int i = 7, j = dest.length - 1; i >= 0; i--, j--) {
-            dest[j] = (byte) (value & 0xffL);
-            value >>= 8;
-        }
-        return dest;
-    }
-
-    /**
      * Given a headlong address, returns its explicit 20-byte array.
      *
      * @param address the headlong address
@@ -776,42 +738,6 @@ public class ConversionUtils {
         return number;
     }
 
-    /**
-     * Given an explicit 20-byte addresss, returns its realm value.
-     *
-     * @param explicit the explicit 20-byte address
-     * @return its realm value
-     */
-    public static long realmOfLongZero(@NonNull final byte[] explicit) {
-        final var realm = longFrom(
-                explicit[4],
-                explicit[5],
-                explicit[6],
-                explicit[7],
-                explicit[8],
-                explicit[9],
-                explicit[10],
-                explicit[11]);
-        if (realm < 0) {
-            throw new IllegalArgumentException("Realm is negative");
-        }
-        return realm;
-    }
-
-    /**
-     * Given an explicit 20-byte addresss, returns its shard value.
-     *
-     * @param explicit the explicit 20-byte address
-     * @return its shard value
-     */
-    public static int shardOfLongZero(@NonNull final byte[] explicit) {
-        final var shard = longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
-        if (shard < 0) {
-            throw new IllegalArgumentException("Shard is negative");
-        }
-        return shard;
-    }
-
     // too many arguments
     @SuppressWarnings("java:S107")
     private static long longFrom(
@@ -831,10 +757,6 @@ public class ConversionUtils {
                 | (b6 & 0xFFL) << 16
                 | (b7 & 0xFFL) << 8
                 | (b8 & 0xFFL);
-    }
-
-    private static int longFrom(final byte b1, final byte b2, final byte b3, final byte b4) {
-        return (b1 & 0xFF) << 24 | (b2 & 0xFF) << 16 | (b3 & 0xFF) << 8 | (b4 & 0xFF);
     }
 
     private static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {

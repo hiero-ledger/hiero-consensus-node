@@ -38,8 +38,7 @@ public class Version038AddressChecks extends Version030AddressChecks {
         if (address.numberOfLeadingZeroBytes() >= 18 && address.getInt(16) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS) {
             return true;
         }
-        return isLongZero(address)
-                && numberOfLongZero(address.toArray()) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS;
+        return isLongZero(address) && numberOfLongZero(address.toArray()) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS;
     }
 
     @Override
