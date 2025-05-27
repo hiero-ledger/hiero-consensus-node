@@ -21,11 +21,6 @@ import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.schedulers.helpers.ConsumerWithCompleteMarks;
-import com.swirlds.component.framework.schedulers.helpers.FunctionWithCompleteMarks;
-import com.swirlds.component.framework.schedulers.helpers.Gate;
-import com.swirlds.component.framework.schedulers.helpers.RunnableWithCompletion;
-import com.swirlds.component.framework.schedulers.helpers.ThrowingRunnableWrapper;
 import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler;
 import com.swirlds.component.framework.wires.SolderType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -46,6 +41,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
+import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
+import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
+import org.hiero.base.concurrent.test.fixtures.Gate;
+import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
+import org.hiero.base.concurrent.test.fixtures.ThrowingRunnableWrapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -92,7 +92,7 @@ class SequentialTaskSchedulerTests {
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unBlocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
         });
 
@@ -112,7 +112,7 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, i);
         }
 
-        handler.waitExecutions(TOTAL_OPERATIONS);
+        handler.completionControl().await(TOTAL_OPERATIONS);
         assertEquals(
                 value, wireValue.get(), "Wire sum did not match expected sum: " + value + " vs " + wireValue.get());
         model.stop();
@@ -138,7 +138,7 @@ class SequentialTaskSchedulerTests {
         final long expectedValue =
                 IntStream.range(0, ops).mapToLong(i -> (long) i).sum();
         // This will result in a deterministic value
-        final ConsumerWithCompleteMarks<Long> handler = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Long> handler = ConsumerWithCompletionControl.unBlocked(x -> {
             nonProcessedInput.remove(x.intValue());
             // This will result in a deterministic value
             wireValue.addAndGet(x);
@@ -157,7 +157,7 @@ class SequentialTaskSchedulerTests {
 
         expectedArguments.stream().parallel().forEach(i -> channel.put(i.longValue()));
 
-        handler.waitExecutions(ops);
+        handler.completionControl().await(ops);
         assertEquals(expectedValue, wireValue.get(), "Wire sum did not match expected sum");
         assertTrue(nonProcessedInput.isEmpty(), "We should have process all arguments");
         model.stop();
@@ -174,7 +174,7 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger wireValue = new AtomicInteger();
         final Gate gate = Gate.closedGate();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unBlocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
             if (x == 50) {
                 gate.nock();
@@ -194,7 +194,7 @@ class SequentialTaskSchedulerTests {
 
         // The wire will stop processing at 50, but this should not block the calling thread.
         final AtomicInteger value = new AtomicInteger();
-        final RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             for (int i = 0; i < TOTAL_OPERATIONS; i++) {
                 channel.put(i);
                 value.set(hash32(value.get(), i));
@@ -205,7 +205,7 @@ class SequentialTaskSchedulerTests {
         // Release the gate and allow the wire to finish
         gate.open();
 
-        handler.waitExecutions(TOTAL_OPERATIONS);
+        handler.completionControl().await(TOTAL_OPERATIONS);
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
 
         model.stop();
@@ -223,7 +223,7 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger wireValue = new AtomicInteger();
         final Gate gate50 = Gate.closedGate();
         final Gate gate98 = Gate.closedGate();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.blocked(x -> {
             if (x == 50) {
                 gate50.nock();
             } else if (x == 98) {
@@ -257,8 +257,8 @@ class SequentialTaskSchedulerTests {
                 "Wire unprocessed task count did not match expected value, count = "
                         + taskScheduler.getUnprocessedTaskCount());
 
-        handler.unblock();
-        handler.waitExecutions(50);
+        handler.completionControl().unblock();
+        handler.completionControl().await(50);
 
         assertEquals(
                 50L,
@@ -266,14 +266,14 @@ class SequentialTaskSchedulerTests {
                 "Wire unprocessed task count did not match expected value");
 
         gate50.open();
-        handler.waitExecutions(48);
+        handler.completionControl().await(48);
         assertEquals(
                 2L,
                 taskScheduler.getUnprocessedTaskCount(),
                 "Wire unprocessed task count did not match expected value");
 
         gate98.open();
-        handler.waitExecutions(2);
+        handler.completionControl().await(2);
 
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
         assertEquals(
@@ -297,7 +297,7 @@ class SequentialTaskSchedulerTests {
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
         final int capacity = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.blocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
         });
 
@@ -317,7 +317,7 @@ class SequentialTaskSchedulerTests {
         // The task scheduler will get blocked processing task 0,
         // It will have the capacity for 10 more, for a total of 11 tasks in flight
         // So the following thread will not block and after its execution, the task scheduler should be full
-        final RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             for (int i1 = 0; i1 < capacity; i1++) {
                 channel.put(i1);
                 value.set(hash32(value.get(), i1));
@@ -331,7 +331,7 @@ class SequentialTaskSchedulerTests {
         // Try to enqueue work on another thread.
         // Because of backpressure, this thread should block when adding to a full task scheduler.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        final RunnableWithCompletion secondProducer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
             for (int i = capacity; i < TOTAL_OPERATIONS; i++) {
                 channel.put(i);
                 value.set(hash32(value.get(), i));
@@ -349,7 +349,7 @@ class SequentialTaskSchedulerTests {
         assertTrue(currentUnprocessedTaskCount == capacity || currentUnprocessedTaskCount == capacity + 1);
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-        final RunnableWithCompletion thirdProducer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
             assertFalse(channel.offer(1234));
             assertFalse(channel.offer(4321));
             assertFalse(channel.offer(-1));
@@ -360,9 +360,9 @@ class SequentialTaskSchedulerTests {
         thirdProducer.waitIsFinished();
 
         // Release the lock
-        handler.unblock();
+        handler.completionControl().unblock();
         secondProducer.waitIsFinished();
-        handler.waitExecutions(TOTAL_OPERATIONS);
+        handler.completionControl().await(TOTAL_OPERATIONS);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEquals(
@@ -390,7 +390,7 @@ class SequentialTaskSchedulerTests {
 
         final int capacity = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.blocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
         });
 
@@ -408,7 +408,7 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger value = new AtomicInteger();
 
         // We will be stuck handling 0, and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        final RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             for (int i1 = 0; i1 < capacity; i1++) {
                 channel.put(i1);
                 value.set(hash32(value.get(), i1));
@@ -421,7 +421,7 @@ class SequentialTaskSchedulerTests {
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the handler.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        final RunnableWithCompletion restOfProducers = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl restOfProducers = RunnableCompletionControl.unblocked(() -> {
             for (int i = capacity; i < TOTAL_OPERATIONS; i++) {
                 channel.put(i);
                 value.set(hash32(value.get(), i));
@@ -445,8 +445,8 @@ class SequentialTaskSchedulerTests {
         assertTrue((capacity + 1) >= taskScheduler.getUnprocessedTaskCount());
 
         // Release the gate, all work should now be added
-        handler.unblock();
-        handler.waitExecutions(TOTAL_OPERATIONS);
+        handler.completionControl().unblock();
+        handler.completionControl().await(TOTAL_OPERATIONS);
         assertTrue(allWorkAdded.get(), "unable to add all work");
         // Interrupting the thread should have no effect.
         producerThread.interrupt();
@@ -473,7 +473,7 @@ class SequentialTaskSchedulerTests {
 
         final int totalWork = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unBlocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
         });
 
@@ -494,7 +494,7 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, i);
         }
 
-        handler.waitExecutions(totalWork);
+        handler.completionControl().await(totalWork);
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
         model.stop();
     }
@@ -551,7 +551,7 @@ class SequentialTaskSchedulerTests {
 
         // negative values are values that have been passed around the loop
         // Don't pass them on again or else we will get an infinite loop
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
             if (x3 > 0) {
                 countA.set(hash32(x3, countA.get()));
                 return x3;
@@ -563,17 +563,17 @@ class SequentialTaskSchedulerTests {
             }
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
             countB.set(hash32(x2, countB.get()));
             return x2;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerC = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
             countC.set(hash32(x1, countC.get()));
             return x1;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerD = FunctionWithCompleteMarks.unBlocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerD = FunctionWithExecutionControl.unBlocked(x -> {
             countD.set(hash32(x, countD.get()));
             if (x % 7 == 0) {
                 return -x;
@@ -620,16 +620,15 @@ class SequentialTaskSchedulerTests {
             }
         }
 
-        handlerA.waitExecutions(999);
+        handlerA.executionControl().await(999);
+        handlerB.executionControl().await(999);
+        handlerC.executionControl().await(999);
+        handlerD.executionControl().await(999);
+        handlerA.executionControl().await(timesSecondA);
         assertEquals(expectedCountA, countA.get(), "Wire A sum did not match expected value");
-
-        handlerB.waitExecutions(999);
         assertEquals(expectedCountB, countB.get(), "Wire B sum did not match expected value");
-        handlerC.waitExecutions(999);
         assertEquals(expectedCountC, countC.get(), "Wire C sum did not match expected value");
-        handlerD.waitExecutions(999);
         assertEquals(expectedCountD, countD.get(), "Wire D sum did not match expected value");
-        handlerA.waitExecutions(timesSecondA);
         assertEquals(expectedNegativeCountA, negativeCountA.get(), "Wire A negative sum did not match expected value");
         model.stop();
     }
@@ -645,12 +644,12 @@ class SequentialTaskSchedulerTests {
 
         final int totalWork = TOTAL_OPERATIONS;
         final AtomicInteger wireValue = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> integerHandler =
-                ConsumerWithCompleteMarks.unBlocked(x2 -> wireValue.set(hash32(wireValue.get(), x2)));
-        final ConsumerWithCompleteMarks<Boolean> booleanHandler =
-                ConsumerWithCompleteMarks.unBlocked(x1 -> wireValue.set((x1 ? -1 : 1) * wireValue.get()));
-        final ConsumerWithCompleteMarks<String> stringHandler =
-                ConsumerWithCompleteMarks.unBlocked(x -> wireValue.set(hash32(wireValue.get(), x.hashCode())));
+        final ConsumerWithCompletionControl<Integer> integerHandler =
+                ConsumerWithCompletionControl.unBlocked(x2 -> wireValue.set(hash32(wireValue.get(), x2)));
+        final ConsumerWithCompletionControl<Boolean> booleanHandler =
+                ConsumerWithCompletionControl.unBlocked(x1 -> wireValue.set((x1 ? -1 : 1) * wireValue.get()));
+        final ConsumerWithCompletionControl<String> stringHandler =
+                ConsumerWithCompletionControl.unBlocked(x -> wireValue.set(hash32(wireValue.get(), x.hashCode())));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -683,9 +682,9 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, string.hashCode());
         }
 
-        integerHandler.waitExecutions(totalWork);
-        booleanHandler.waitExecutions(totalWork);
-        stringHandler.waitExecutions(totalWork);
+        integerHandler.completionControl().await(totalWork);
+        booleanHandler.completionControl().await(totalWork);
+        stringHandler.completionControl().await(totalWork);
         assertEquals(value, wireValue.get(), "Wire value did not match expected value");
 
         model.stop();
@@ -707,11 +706,11 @@ class SequentialTaskSchedulerTests {
         List<Integer> unprocessedArguments =
                 new ArrayList<>(IntStream.range(0, TOTAL_OPERATIONS).boxed().toList());
 
-        final ConsumerWithCompleteMarks<Integer> handler1 =
-                ConsumerWithCompleteMarks.blocked(unprocessedArguments::remove);
+        final ConsumerWithCompletionControl<Integer> handler1 =
+                ConsumerWithCompletionControl.blocked(unprocessedArguments::remove);
 
-        final ConsumerWithCompleteMarks<Integer> handler2 =
-                ConsumerWithCompleteMarks.unBlocked(unprocessedArguments::remove);
+        final ConsumerWithCompletionControl<Integer> handler2 =
+                ConsumerWithCompletionControl.unBlocked(unprocessedArguments::remove);
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -729,7 +728,7 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        final RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             for (int i1 = 0; i1 < capacity; i1++) {
                 channel1.put(i1);
             }
@@ -742,7 +741,7 @@ class SequentialTaskSchedulerTests {
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the signal.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        final RunnableWithCompletion secondProducer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
             for (int i = capacity; i < TOTAL_OPERATIONS; i++) {
                 channel2.put(i);
             }
@@ -761,7 +760,7 @@ class SequentialTaskSchedulerTests {
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
 
         unprocessedArguments.add(TOTAL_OPERATIONS);
-        RunnableWithCompletion thirdProducer = RunnableWithCompletion.unblocked(() -> {
+        RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
             assertFalse(channel1.offer(1234));
             assertFalse(channel1.offer(4321));
             assertFalse(channel1.offer(-1));
@@ -771,10 +770,10 @@ class SequentialTaskSchedulerTests {
         thirdProducer.waitIsFinished();
 
         // Release the gate, all work should now be added
-        handler1.unblock();
+        handler1.completionControl().unblock();
         secondProducer.waitIsFinished();
-        handler1.waitExecutions(capacity + 1);
-        handler2.waitExecutions(TOTAL_OPERATIONS - capacity);
+        handler1.completionControl().await(capacity + 1);
+        handler2.completionControl().await(TOTAL_OPERATIONS - capacity);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEquals(
@@ -817,12 +816,12 @@ class SequentialTaskSchedulerTests {
         final BindableInputWire<Integer, Void> channelB = taskSchedulerB.buildInputWire("channelB");
         taskSchedulerA.getOutputWire().solderTo(channelB);
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
             wireValueA.set(hash32(wireValueA.get(), -x1));
             return x1;
         });
 
-        final ConsumerWithCompleteMarks<Integer> handlerB = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerB = ConsumerWithCompletionControl.blocked(x -> {
             wireValueB.set(hash32(wireValueB.get(), x));
         });
 
@@ -839,7 +838,7 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             for (int i1 = 0; i1 < capacity; i1++) {
                 channelA.put(i1);
                 valueA.set(hash32(valueA.get(), -i1));
@@ -854,7 +853,7 @@ class SequentialTaskSchedulerTests {
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the gate.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        final RunnableWithCompletion secondProducer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
             for (int i = capacity; i < TOTAL_OPERATIONS; i++) {
                 channelA.put(i);
                 valueA.set(hash32(valueA.get(), -i));
@@ -871,7 +870,7 @@ class SequentialTaskSchedulerTests {
         assertEquals(capacity, backpressure.getCount());
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-        final RunnableWithCompletion thirdProducer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
             assertFalse(channelA.offer(1234));
             assertFalse(channelA.offer(4321));
             assertFalse(channelA.offer(-1));
@@ -884,10 +883,10 @@ class SequentialTaskSchedulerTests {
         thirdProducer.waitIsFinished();
 
         // Release the gate, all work should now be added
-        handlerB.unblock();
+        handlerB.completionControl().unblock();
         secondProducer.waitIsFinished();
-        handlerA.waitExecutions(TOTAL_OPERATIONS);
-        handlerB.waitExecutions(TOTAL_OPERATIONS);
+        handlerA.executionControl().await(TOTAL_OPERATIONS + 1);
+        handlerB.completionControl().await(TOTAL_OPERATIONS + 1);
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEquals(0L, backpressure.getCount(), "Wire unprocessed task count did not match expected value");
         assertEquals(valueA.get(), wireValueA.get(), "Wire sum did not match expected sum");
@@ -909,7 +908,7 @@ class SequentialTaskSchedulerTests {
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
         final int capacity = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.blocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
         });
 
@@ -928,12 +927,12 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         // Flushing a wire with nothing in it should return quickly.
-        final RunnableWithCompletion fastFlusher = RunnableWithCompletion.unblocked(taskScheduler::flush);
+        final RunnableCompletionControl fastFlusher = RunnableCompletionControl.unblocked(taskScheduler::flush);
         fastFlusher.start();
         fastFlusher.waitIsFinished();
 
         // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        final RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             for (int i1 = 0; i1 < capacity; i1++) {
                 channel.put(i1);
                 value.set(hash32(value.get(), i1));
@@ -946,7 +945,7 @@ class SequentialTaskSchedulerTests {
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the signal.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        final RunnableWithCompletion secondProducer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
             for (int i = capacity; i < TOTAL_OPERATIONS; i++) {
                 channel.put(i);
                 value.set(hash32(value.get(), i));
@@ -958,7 +957,7 @@ class SequentialTaskSchedulerTests {
 
         // On another thread, flush the wire. This should also get stuck.
         final AtomicBoolean flushed = new AtomicBoolean(false);
-        final RunnableWithCompletion flusher = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl flusher = RunnableCompletionControl.unblocked(() -> {
             taskScheduler.flush();
             flushed.set(true);
         });
@@ -972,7 +971,7 @@ class SequentialTaskSchedulerTests {
         assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-        final RunnableWithCompletion thirdProducer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
             assertFalse(channel.offer(1234));
             assertFalse(channel.offer(4321));
             assertFalse(channel.offer(-1));
@@ -982,13 +981,13 @@ class SequentialTaskSchedulerTests {
         thirdProducer.start();
         thirdProducer.waitIsFinished();
         // Release the gate, all work should now be added
-        handler.unblock();
+        handler.completionControl().unblock();
         secondProducer.waitIsFinished();
         flusher.waitIsFinished();
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertTrue(flushed.get(), "unable to flush wire");
-        handler.waitExecutions(TOTAL_OPERATIONS);
+        handler.completionControl().await(TOTAL_OPERATIONS + 1);
         assertEquals(
                 0L,
                 taskScheduler.getUnprocessedTaskCount(),
@@ -1024,7 +1023,7 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger wireValue = new AtomicInteger();
         final AtomicInteger lastX = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handler = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unBlocked(x -> {
             lastX.set(x);
             if (x == 50) {
                 throw new IllegalStateException("intentional");
@@ -1059,7 +1058,7 @@ class SequentialTaskSchedulerTests {
             }
         }
 
-        handler.waitExecutions(TOTAL_OPERATIONS);
+        handler.completionControl().await(TOTAL_OPERATIONS);
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
         // Exception will not be processed right after the task that threw the exception.
         // so we check a) that it was at least after that task,
@@ -1108,7 +1107,7 @@ class SequentialTaskSchedulerTests {
 
         channelA.bindConsumer(channelB::put);
         channelB.bindConsumer(channelC::put);
-        final ConsumerWithCompleteMarks<Object> objectConsumer = ConsumerWithCompleteMarks.blocked(o -> {});
+        final ConsumerWithCompletionControl<Object> objectConsumer = ConsumerWithCompletionControl.blocked(o -> {});
         channelC.bindConsumer(objectConsumer);
 
         model.start();
@@ -1121,9 +1120,9 @@ class SequentialTaskSchedulerTests {
         channelA.put(Object.class);
         channelB.put(Object.class);
 
-        RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             // release the signal, that should allow all tasks to complete
-            objectConsumer.unblock();
+            objectConsumer.completionControl().unblock();
             // if tasks are completing, none of the wires should block
             channelA.put(Object.class);
             channelB.put(Object.class);
@@ -1172,7 +1171,7 @@ class SequentialTaskSchedulerTests {
 
         channelA.bindConsumer(channelB::put);
         channelB.bindConsumer(channelC::put);
-        final ConsumerWithCompleteMarks<Object> handlerC = ConsumerWithCompleteMarks.blocked(o -> {});
+        final ConsumerWithCompletionControl<Object> handlerC = ConsumerWithCompletionControl.blocked(o -> {});
         channelC.bindConsumer(handlerC);
 
         model.start();
@@ -1185,9 +1184,9 @@ class SequentialTaskSchedulerTests {
         channelA.put(Object.class);
         channelB.put(Object.class);
 
-        final RunnableWithCompletion runnable = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl runnable = RunnableCompletionControl.unblocked(() -> {
             // release the signal, that should allow all tasks to complete
-            handlerC.unblock();
+            handlerC.completionControl().unblock();
             // if tasks are completing, none of the wires should block
             channelA.put(Object.class);
             channelB.put(Object.class);
@@ -1195,7 +1194,7 @@ class SequentialTaskSchedulerTests {
         });
         runnable.start();
         runnable.waitIsFinished();
-        handlerC.waitExecutions(1);
+        handlerC.completionControl().await(1);
         pool.shutdown();
         model.stop();
     }
@@ -1232,22 +1231,22 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerC = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
 
-        final ConsumerWithCompleteMarks<Integer> handlerD = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerD = ConsumerWithCompletionControl.unBlocked(x -> {
             countD.set(hash32(countD.get(), x));
         });
 
@@ -1265,10 +1264,10 @@ class SequentialTaskSchedulerTests {
             expectedCount = hash32(expectedCount, i);
         }
 
-        handlerA.waitExecutions(TOTAL_OPERATIONS);
-        handlerB.waitExecutions(TOTAL_OPERATIONS);
-        handlerC.waitExecutions(TOTAL_OPERATIONS);
-        handlerD.waitExecutions(TOTAL_OPERATIONS);
+        handlerA.executionControl().await(TOTAL_OPERATIONS);
+        handlerB.executionControl().await(TOTAL_OPERATIONS);
+        handlerC.executionControl().await(TOTAL_OPERATIONS);
+        handlerD.completionControl().await(TOTAL_OPERATIONS);
 
         assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
@@ -1313,22 +1312,22 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger lambdaSum = new AtomicInteger();
         taskSchedulerB.getOutputWire().solderTo("lambda", "lambda input", lambdaSum::getAndAdd);
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerC = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
 
-        final ConsumerWithCompleteMarks<Integer> handlerD = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerD = ConsumerWithCompletionControl.unBlocked(x -> {
             countD.set(hash32(countD.get(), x));
         });
 
@@ -1348,10 +1347,10 @@ class SequentialTaskSchedulerTests {
             sum += i;
         }
 
-        handlerA.waitExecutions(TOTAL_OPERATIONS);
-        handlerB.waitExecutions(TOTAL_OPERATIONS);
-        handlerC.waitExecutions(TOTAL_OPERATIONS);
-        handlerD.waitExecutions(TOTAL_OPERATIONS);
+        handlerA.executionControl().await(TOTAL_OPERATIONS);
+        handlerB.executionControl().await(TOTAL_OPERATIONS);
+        handlerC.executionControl().await(TOTAL_OPERATIONS);
+        handlerD.completionControl().await(TOTAL_OPERATIONS);
         assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
@@ -1404,44 +1403,46 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger countA = new AtomicInteger();
         final AtomicBoolean invertA = new AtomicBoolean();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x4 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x4 -> {
             final int possiblyInvertedValue1 = x4 * (invertA.get() ? -1 : 1);
             countA.set(hash32(countA.get(), possiblyInvertedValue1));
             return possiblyInvertedValue1;
         });
 
-        final FunctionWithCompleteMarks<Boolean, Integer> handlerInvertA = FunctionWithCompleteMarks.unBlocked(x3 -> {
-            invertA.set(x3);
-            return null;
-        });
+        final FunctionWithExecutionControl<Boolean, Integer> handlerInvertA =
+                FunctionWithExecutionControl.unBlocked(x3 -> {
+                    invertA.set(x3);
+                    return null;
+                });
 
         final AtomicInteger countX = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerX = FunctionWithCompleteMarks.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerX = FunctionWithExecutionControl.unBlocked(x2 -> {
             countX.set(hash32(countX.get(), x2));
             return x2;
         });
 
         final AtomicInteger countY = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerY = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerY = FunctionWithExecutionControl.unBlocked(x1 -> {
             countY.set(hash32(countY.get(), x1));
             return x1;
         });
 
         final AtomicInteger countZ = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerZ = FunctionWithCompleteMarks.unBlocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerZ = FunctionWithExecutionControl.unBlocked(x -> {
             countZ.set(hash32(countZ.get(), x));
             return x;
         });
 
         final AtomicInteger sumB = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handlerB = ConsumerWithCompleteMarks.unBlocked(sumB::getAndAdd);
+        final ConsumerWithCompletionControl<Integer> handlerB =
+                ConsumerWithCompletionControl.unBlocked(sumB::getAndAdd);
 
         addNewValueToA.bind(handlerA);
         setInversionBitInA.bind(handlerInvertA);
         inputX.bind(handlerX);
-        inputB.bindConsumer(handlerB);
         inputY.bind(handlerY);
         inputZ.bind(handlerZ);
+        inputB.bindConsumer(handlerB);
 
         model.start();
 
@@ -1462,19 +1463,19 @@ class SequentialTaskSchedulerTests {
             expectedSum = expectedSum + 3 * possiblyInvertedValue;
         }
 
-        handlerA.waitExecutions(TOTAL_OPERATIONS);
-        handlerB.waitExecutions(TOTAL_OPERATIONS);
-        handlerInvertA.waitExecutions(15);
-        handlerX.waitExecutions(TOTAL_OPERATIONS);
-        handlerY.waitExecutions(TOTAL_OPERATIONS);
-        handlerZ.waitExecutions(TOTAL_OPERATIONS);
+        handlerA.executionControl().await(TOTAL_OPERATIONS);
+        handlerInvertA.executionControl().await(15);
+        handlerX.executionControl().await(TOTAL_OPERATIONS);
+        handlerY.executionControl().await(TOTAL_OPERATIONS);
+        handlerZ.executionControl().await(TOTAL_OPERATIONS);
+        handlerB.completionControl().await(TOTAL_OPERATIONS * 3);
 
-        assertEquals(
-                expectedSum, sumB.get(), "Wire sum did not match expected sum, " + expectedSum + " vs " + sumB.get());
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countX.get());
         assertEquals(expectedCount, countY.get());
         assertEquals(expectedCount, countZ.get());
+        assertEquals(
+                expectedSum, sumB.get(), "Wire sum did not match expected sum, " + expectedSum + " vs " + sumB.get());
         assertEquals(expectedInversionBit, invertA.get(), "Wire inversion bit did not match expected value");
 
         model.stop();
@@ -1519,19 +1520,19 @@ class SequentialTaskSchedulerTests {
         taskSchedulerB.getOutputWire().solderTo(inC, SolderType.INJECT); // ignores capacity
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x2 -> {
             countA.set(hash32(countA.get(), x2));
             return x2;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x1 -> {
             countB.set(hash32(countB.get(), x1));
             return x1;
         });
 
         final AtomicInteger sumC = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handlerC = ConsumerWithCompleteMarks.blocked(sumC::getAndAdd);
+        final ConsumerWithCompletionControl<Integer> handlerC = ConsumerWithCompletionControl.blocked(sumC::getAndAdd);
         inA.bind(handlerA);
         inB.bind(handlerB);
         inC.bindConsumer(handlerC);
@@ -1548,8 +1549,9 @@ class SequentialTaskSchedulerTests {
             expectedSum += 2 * i;
         }
 
-        handlerA.waitExecutions(partialWork);
-        handlerB.waitExecutions(partialWork);
+        handlerA.executionControl().await(partialWork);
+        handlerB.executionControl().await(partialWork);
+
         // Eventually, C should have 10 things that have not yet been fully processed.
         assertEquals(
                 10L,
@@ -1565,8 +1567,8 @@ class SequentialTaskSchedulerTests {
         expectedCount = hash32(expectedCount, partialWork);
         expectedSum += 2 * partialWork;
 
-        handlerA.waitExecutions(1);
-        handlerB.waitExecutions(1);
+        handlerA.executionControl().await(1);
+        handlerB.executionControl().await(1);
         assertEquals(expectedCount, countA.get(), "A should have processed task");
         assertEquals(expectedCount, countB.get(), "B should have processed task");
 
@@ -1585,7 +1587,7 @@ class SequentialTaskSchedulerTests {
         final int expectedCountAfterHandling6 = hash32(expectedCount, 6);
         expectedSum += 2 * 6;
 
-        handlerB.waitExecutions(1);
+        handlerB.executionControl().await(1);
         assertEquals(expectedCountAfterHandling6, countB.get(), "B should have processed task");
 
         // Even if we wait, A should not have been able to process the task.
@@ -1594,10 +1596,10 @@ class SequentialTaskSchedulerTests {
         assertEquals(12, taskSchedulerC.getUnprocessedTaskCount());
 
         // Releasing the signal should allow data to flow through C.
-        handlerC.unblock();
-        handlerA.waitExecutions(1);
-        handlerC.waitExecutions(partialWork + 2);
-        assertEquals(expectedSum, sumC.get(), "C should have processed all tasks");
+        handlerC.completionControl().unblock();
+        handlerA.executionControl().await(1);
+        handlerC.completionControl().await(10 + 2 + 2);
+        assertEquals(expectedSum, sumC.get());
         assertEquals(expectedCountAfterHandling6, countA.get());
 
         model.stop();
@@ -1635,7 +1637,7 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             if (x3 % 3 == 0) {
                 return null;
@@ -1643,7 +1645,7 @@ class SequentialTaskSchedulerTests {
             return x3;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             if (x2 % 5 == 0) {
                 return null;
@@ -1651,7 +1653,7 @@ class SequentialTaskSchedulerTests {
             return x2;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerC = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             if (x1 % 7 == 0) {
                 return null;
@@ -1659,8 +1661,8 @@ class SequentialTaskSchedulerTests {
             return x1;
         });
 
-        final ConsumerWithCompleteMarks<Integer> handlerD =
-                ConsumerWithCompleteMarks.unBlocked(x -> countD.set(hash32(countD.get(), x)));
+        final ConsumerWithCompletionControl<Integer> handlerD =
+                ConsumerWithCompletionControl.unBlocked(x -> countD.set(hash32(countD.get(), x)));
         inputA.bind(handlerA);
         inputB.bind(handlerB);
         inputC.bind(handlerC);
@@ -1699,10 +1701,10 @@ class SequentialTaskSchedulerTests {
             expectedCountD = hash32(expectedCountD, i);
         }
 
-        handlerA.waitExecutions(timesA);
-        handlerB.waitExecutions(timesB);
-        handlerC.waitExecutions(timesC);
-        handlerD.waitExecutions(timesD);
+        handlerA.executionControl().await(timesA);
+        handlerB.executionControl().await(timesA - timesB);
+        handlerC.executionControl().await(timesA - timesB - timesC);
+        handlerD.completionControl().await(timesA - timesB - timesC - timesD);
         assertEquals(expectedCountA, countA.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCountB, countB.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCountC, countC.get(), "Wire sum did not match expected sum");
@@ -1756,22 +1758,22 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x3 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
             countA.set(hash32(countA.get(), x3));
             return x3;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.unBlocked(x2 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
             countB.set(hash32(countB.get(), x2));
             return x2;
         });
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerC = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
             countC.set(hash32(countC.get(), x1));
             return x1;
         });
 
-        final ConsumerWithCompleteMarks<Integer> handlerD = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerD = ConsumerWithCompletionControl.unBlocked(x -> {
             countD.set(hash32(countD.get(), x));
         });
 
@@ -1789,10 +1791,10 @@ class SequentialTaskSchedulerTests {
             expectedCount = hash32(expectedCount, i);
         }
 
-        handlerA.waitExecutions(TOTAL_OPERATIONS);
-        handlerB.waitExecutions(TOTAL_OPERATIONS);
-        handlerC.waitExecutions(TOTAL_OPERATIONS);
-        handlerD.waitExecutions(TOTAL_OPERATIONS);
+        handlerA.executionControl().await(TOTAL_OPERATIONS);
+        handlerB.executionControl().await(TOTAL_OPERATIONS);
+        handlerC.executionControl().await(TOTAL_OPERATIONS);
+        handlerD.completionControl().await(TOTAL_OPERATIONS);
 
         assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
@@ -1824,7 +1826,7 @@ class SequentialTaskSchedulerTests {
         aOutBoolean.solderTo(bInBoolean);
         aOutString.solderTo(bInString);
 
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
             if (x1 % 2 == 0) {
                 aOutBoolean.forward(x1 % 3 == 0);
             }
@@ -1837,13 +1839,13 @@ class SequentialTaskSchedulerTests {
         });
 
         final AtomicInteger count = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Boolean> handlerBBool = ConsumerWithCompleteMarks.unBlocked(x2 -> {
+        final ConsumerWithCompletionControl<Boolean> handlerBBool = ConsumerWithCompletionControl.unBlocked(x2 -> {
             count.set(hash32(count.get(), x2 ? 1 : 0));
         });
-        final ConsumerWithCompleteMarks<String> handlerBString = ConsumerWithCompleteMarks.unBlocked(x1 -> {
+        final ConsumerWithCompletionControl<String> handlerBString = ConsumerWithCompletionControl.unBlocked(x1 -> {
             count.set(hash32(count.get(), x1.hashCode()));
         });
-        final ConsumerWithCompleteMarks<Integer> handlerBInt = ConsumerWithCompleteMarks.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerBInt = ConsumerWithCompletionControl.unBlocked(x -> {
             count.set(hash32(count.get(), x));
         });
 
@@ -1870,10 +1872,10 @@ class SequentialTaskSchedulerTests {
             expectedCount = hash32(expectedCount, i);
         }
 
-        handlerA.waitExecutions(TOTAL_OPERATIONS);
-        handlerBInt.waitExecutions(TOTAL_OPERATIONS);
-        handlerBString.waitExecutions(stringTimes);
-        handlerBBool.waitExecutions(booleanTimes);
+        handlerA.executionControl().await(TOTAL_OPERATIONS);
+        handlerBInt.completionControl().await(TOTAL_OPERATIONS);
+        handlerBString.completionControl().await(stringTimes);
+        handlerBBool.completionControl().await(booleanTimes);
         assertEquals(expectedCount, count.get(), "Wire count did not match expected");
 
         model.stop();
@@ -1917,19 +1919,19 @@ class SequentialTaskSchedulerTests {
         taskSchedulerB.getOutputWire().solderTo(cIn);
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.blocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.blocked(x -> {
             countA.set(hash32(countA.get(), x));
             return x;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.blocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.blocked(x -> {
             countB.set(hash32(countB.get(), x));
             return x;
         });
 
         final AtomicInteger countC = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handlerC = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerC = ConsumerWithCompletionControl.blocked(x -> {
             countC.set(hash32(countC.get(), x));
         });
 
@@ -1947,7 +1949,7 @@ class SequentialTaskSchedulerTests {
         }
 
         final AtomicBoolean moreWorkInserted = new AtomicBoolean(false);
-        final RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             aIn.put(10);
             moreWorkInserted.set(true);
         });
@@ -1968,26 +1970,26 @@ class SequentialTaskSchedulerTests {
 
         // Unblock A. Work will flow forward and get blocked at B. No matter how much time passes, no new work should
         // be added.
-        handlerA.unblock();
-        handlerA.waitExecutions(10);
+        handlerA.executionControl().unblock();
+        handlerA.executionControl().await(10);
         sleep(50);
         assertFalse(moreWorkInserted.get());
         assertEquals(10, counter.getCount());
 
         // Unblock B. Work will flow forward and get blocked at C. No matter how much time passes, no new work should
         // be added.
-        handlerB.unblock();
-        handlerB.waitExecutions(10);
+        handlerB.executionControl().unblock();
+        handlerB.executionControl().await(10);
         sleep(50);
         assertFalse(moreWorkInserted.get());
 
         // Unblock C. For pending work
-        handlerC.unblock();
+        handlerC.completionControl().unblock();
 
         // Give the fmw some time to finish post handling work.
         sleep(10);
         producer.waitIsFinished();
-        handlerC.waitExecutions(10);
+        handlerC.completionControl().await(10);
         assertEquals(0L, counter.getCount(), "Counter should be empty");
         assertEquals(expectedCount, countA.get(), "A should have processed task");
         assertEquals(expectedCount, countB.get(), "B should have processed task");
@@ -2039,19 +2041,19 @@ class SequentialTaskSchedulerTests {
         taskSchedulerB.getOutputWire().solderTo(cIn);
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.blocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.blocked(x -> {
             countA.set(hash32(countA.get(), x));
             return x;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerB = FunctionWithCompleteMarks.blocked(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.blocked(x -> {
             countB.set(hash32(countB.get(), x));
             return x;
         });
 
         final AtomicInteger countC = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handlerC = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerC = ConsumerWithCompletionControl.blocked(x -> {
             countC.set(hash32(countC.get(), x));
         });
 
@@ -2066,7 +2068,7 @@ class SequentialTaskSchedulerTests {
 
         // This thread wants to add 11 tasks to the pipeline.
         final AtomicBoolean allWorkInserted = new AtomicBoolean(false);
-        final RunnableWithCompletion producer = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             for (int i = 0; i < 11; i++) {
                 aIn.put(i);
             }
@@ -2085,27 +2087,27 @@ class SequentialTaskSchedulerTests {
         assertTrue(5 >= counter.getCount());
 
         // Unblock A. Work will flow forward and get blocked at B. A can fit 5 items, B can fit another 5.
-        handlerA.unblock();
+        handlerA.executionControl().unblock();
         sleep(50);
         assertFalse(allWorkInserted.get());
         assertEquals(10, counter.getCount()); // This one failed
 
         // Unblock B. Work will flow forward and get blocked at C. We shouldn't be able to add additional items
         // since that would violate the global capacity.
-        handlerB.unblock();
+        handlerB.executionControl().unblock();
         sleep(50);
         assertFalse(allWorkInserted.get());
         assertEquals(10, counter.getCount());
 
         // Unblock C. Entire pipeline is now unblocked and new things will be added.
-        handlerC.unblock();
+        handlerC.completionControl().unblock();
 
         sleep(50);
         producer.waitIsFinished();
         assertTrue(allWorkInserted.get(), "All work should have been inserted");
-        handlerA.waitExecutions(11);
-        handlerB.waitExecutions(11);
-        handlerC.waitExecutions(11);
+        handlerA.executionControl().await(11);
+        handlerB.executionControl().await(11);
+        handlerC.completionControl().await(11);
         assertEquals(0L, counter.getCount(), "Counter should be empty");
         assertEquals(expectedCount, countA.get(), "A should have processed task");
         assertEquals(expectedCount, countB.get(), "B should have processed task");
@@ -2144,13 +2146,13 @@ class SequentialTaskSchedulerTests {
         schedulerA.getOutputWire().solderTo(inputB, SolderType.OFFER);
 
         final AtomicInteger countA = new AtomicInteger();
-        final FunctionWithCompleteMarks<Integer, Integer> handlerA = FunctionWithCompleteMarks.unBlocked(x1 -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
             countA.set(hash32(countA.get(), x1));
             return x1;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final ConsumerWithCompleteMarks<Integer> handlerB = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handlerB = ConsumerWithCompletionControl.blocked(x -> {
             countB.set(hash32(countB.get(), x));
         });
 
@@ -2174,7 +2176,7 @@ class SequentialTaskSchedulerTests {
             expectedCountA = hash32(expectedCountA, i);
         }
 
-        handlerA.waitExecutions(10);
+        handlerA.executionControl().await(10);
         sleep(500);
         // Wait until A has handled all of its tasks.
         assertEquals(0L, schedulerA.getUnprocessedTaskCount(), "A should have processed tasks");
@@ -2184,8 +2186,8 @@ class SequentialTaskSchedulerTests {
         assertEquals(0, countB.get());
 
         // Release the signal and allow B to process tasks.
-        handlerB.unblock();
-        handlerB.waitExecutions(10);
+        handlerB.completionControl().unblock();
+        handlerB.completionControl().await(10);
         assertEquals(0L, schedulerB.getUnprocessedTaskCount(), "B should have processed all awaiting tasks");
         assertEquals(expectedCountB, countB.get());
 
@@ -2196,8 +2198,8 @@ class SequentialTaskSchedulerTests {
             expectedCountB = hash32(expectedCountB, i);
         }
 
-        handlerA.waitExecutions(10);
-        handlerB.waitExecutions(10);
+        handlerA.executionControl().await(10);
+        handlerB.completionControl().await(10);
         assertEquals(0L, schedulerA.getUnprocessedTaskCount(), "A should have processed all awaiting tasks");
         assertEquals(0L, schedulerB.getUnprocessedTaskCount(), "B should have processed all awaiting tasks");
 
@@ -2223,7 +2225,7 @@ class SequentialTaskSchedulerTests {
         // Total unprocessed tasks
         final AtomicInteger unprocessedTasks = new AtomicInteger(totalTasks);
 
-        final ConsumerWithCompleteMarks<Integer> taskHandler = ConsumerWithCompleteMarks.blocked(x -> {
+        final ConsumerWithCompletionControl<Integer> taskHandler = ConsumerWithCompletionControl.blocked(x -> {
             unprocessedTasks.decrementAndGet();
         });
 
@@ -2239,7 +2241,7 @@ class SequentialTaskSchedulerTests {
         model.start();
         // This runnable (for reuse purposes) adds tasks to the scheduler
         // we test all 3 methods to push tasks to the scheduler
-        final RunnableWithCompletion add30Tasks = RunnableWithCompletion.unblocked(() -> {
+        final RunnableCompletionControl add30Tasks = RunnableCompletionControl.unblocked(() -> {
             for (int i = 0; i < 30; i++) {
                 // we test all 3 methods to push tasks to the scheduler
                 if (i < 10) {
@@ -2252,12 +2254,12 @@ class SequentialTaskSchedulerTests {
             }
         });
 
-        taskHandler.unblock();
+        taskHandler.completionControl().unblock();
         // add tasks
         add30Tasks.run();
         // allow them to run
         add30Tasks.waitIsFinished();
-        taskHandler.waitExecutions(totalTasks);
+        taskHandler.completionControl().await(totalTasks);
         // check there are no unprocessed tasks according to the framework
         assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
         // check there are no unprocessed tasks according to the test counter
@@ -2283,7 +2285,7 @@ class SequentialTaskSchedulerTests {
         assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
 
         // Remove all permissions to start tasks.
-        taskHandler.block();
+        taskHandler.completionControl().block();
 
         // Enable the scheduler to start processing tasks again.
         taskScheduler.stopSquelching();
@@ -2291,8 +2293,8 @@ class SequentialTaskSchedulerTests {
         add30Tasks.run();
         add30Tasks.waitIsFinished();
         assertEquals(taskScheduler.getUnprocessedTaskCount(), unprocessedTasks.get());
-        taskHandler.unblock();
-        taskHandler.waitExecutions(totalTasks);
+        taskHandler.completionControl().unblock();
+        taskHandler.completionControl().await(totalTasks);
         assertEquals(0, taskScheduler.getUnprocessedTaskCount());
         assertEquals(0, unprocessedTasks.get());
 

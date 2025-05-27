@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.component.framework.schedulers.helpers;
+package org.hiero.base.concurrent.test.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * A Runnable task that automatically marks its completion and allows to wait for that completion to be marked.
  */
-public final class RunnableWithCompletion extends AbstractWithCompleteMarks implements Runnable {
+public final class RunnableCompletionControl implements Runnable {
     private final Runnable handler;
+    private final ExecutionControl executionControl;
 
-    RunnableWithCompletion(@NonNull Runnable handler) {
-        super(Gate.openGate());
+    RunnableCompletionControl(@NonNull Runnable handler) {
+        this.executionControl = new ExecutionControl(Gate.closedGate());
         this.handler = handler;
     }
 
@@ -33,7 +34,7 @@ public final class RunnableWithCompletion extends AbstractWithCompleteMarks impl
         try {
             handler.run();
         } finally {
-            mark();
+            executionControl.mark();
         }
     }
 
@@ -41,16 +42,16 @@ public final class RunnableWithCompletion extends AbstractWithCompleteMarks impl
      * Waits until the runnable task is marked as executed.
      */
     public void waitIsFinished() {
-        waitExecutions(1);
+        executionControl.await(1);
     }
 
     /**
      * Creates a new runnable task that will automatically mark its completion.
      *
      * @param runnable the runnable to wrap
-     * @return the new {@link RunnableWithCompletion}
+     * @return the new {@link RunnableCompletionControl}
      */
-    public static RunnableWithCompletion unblocked(@NonNull final Runnable runnable) {
-        return new RunnableWithCompletion(runnable);
+    public static RunnableCompletionControl unblocked(@NonNull final Runnable runnable) {
+        return new RunnableCompletionControl(runnable);
     }
 }

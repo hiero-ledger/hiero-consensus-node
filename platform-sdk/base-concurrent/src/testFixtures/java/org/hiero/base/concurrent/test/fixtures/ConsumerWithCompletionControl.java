@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.component.framework.schedulers.helpers;
+package org.hiero.base.concurrent.test.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
@@ -10,12 +10,20 @@ import java.util.function.Consumer;
  *
  * @param <H> the type of the handler
  */
-public final class ConsumerWithCompleteMarks<H> extends AbstractWithCompleteMarks implements Consumer<H> {
+public final class ConsumerWithCompletionControl<H> implements Consumer<H> {
     private final Consumer<H> handler;
+    private final ExecutionControl executionControl;
 
-    ConsumerWithCompleteMarks(@NonNull final Consumer<H> handler, @NonNull final Gate gate) {
-        super(gate);
+    ConsumerWithCompletionControl(@NonNull final Consumer<H> handler, @NonNull final Gate gate) {
+        this.executionControl = new ExecutionControl(gate);
         this.handler = handler;
+    }
+
+    /**
+     * @return the completion control
+     */
+    public ExecutionControl completionControl() {
+        return executionControl;
     }
 
     /**
@@ -23,11 +31,11 @@ public final class ConsumerWithCompleteMarks<H> extends AbstractWithCompleteMark
      */
     @Override
     public void accept(final H h) {
-        gate.nock();
+        executionControl.gate.nock();
         try {
             handler.accept(h);
         } finally {
-            mark();
+            executionControl.mark();
         }
     }
 
@@ -37,10 +45,10 @@ public final class ConsumerWithCompleteMarks<H> extends AbstractWithCompleteMark
      *
      * @param handler the handler to wrap
      * @param <H>     the type of the handler
-     * @return the new {@link ConsumerWithCompleteMarks}
+     * @return the new {@link ConsumerWithCompletionControl}
      */
-    public static <H> ConsumerWithCompleteMarks<H> blocked(@NonNull final Consumer<H> handler) {
-        return new ConsumerWithCompleteMarks<>(handler, Gate.closedGate());
+    public static <H> ConsumerWithCompletionControl<H> blocked(@NonNull final Consumer<H> handler) {
+        return new ConsumerWithCompletionControl<>(handler, Gate.closedGate());
     }
 
     /**
@@ -49,9 +57,9 @@ public final class ConsumerWithCompleteMarks<H> extends AbstractWithCompleteMark
      *
      * @param handler the handler to wrap
      * @param <H>     the type of the handler
-     * @return the new {@link ConsumerWithCompleteMarks}
+     * @return the new {@link ConsumerWithCompletionControl}
      */
-    public static <H> ConsumerWithCompleteMarks<H> unBlocked(@NonNull final Consumer<H> handler) {
-        return new ConsumerWithCompleteMarks<>(handler, Gate.openGate());
+    public static <H> ConsumerWithCompletionControl<H> unBlocked(@NonNull final Consumer<H> handler) {
+        return new ConsumerWithCompletionControl<>(handler, Gate.openGate());
     }
 }

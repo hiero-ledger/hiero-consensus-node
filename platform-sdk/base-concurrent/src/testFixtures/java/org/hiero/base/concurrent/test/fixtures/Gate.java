@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.component.framework.schedulers.helpers;
+package org.hiero.base.concurrent.test.fixtures;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -7,7 +7,7 @@ public class Gate {
     private volatile CountDownLatch latch;
 
     /**
-     * Creates a gate that will allways be open and never blocked in nock
+     * Creates a gate that will always be open and never blocked in nock
      * @return a new Gate
      */
     public static Gate openGate() {
@@ -52,5 +52,10 @@ public class Gate {
             return;
         }
         latch = new CountDownLatch(1);
+    }
+
+    @Override
+    public String toString() {
+        return "Gate{" + "open=" + (latch.getCount() > 0) + '}';
     }
 }

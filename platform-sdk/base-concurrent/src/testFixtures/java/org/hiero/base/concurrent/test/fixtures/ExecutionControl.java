@@ -1,31 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.component.framework.schedulers.helpers;
+package org.hiero.base.concurrent.test.fixtures;
 
-import static com.swirlds.component.framework.schedulers.helpers.ThrowingRunnableWrapper.runWrappingChecked;
+import static org.hiero.base.concurrent.test.fixtures.ThrowingRunnableWrapper.runWrappingChecked;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Semaphore;
 
 /**
- * Allows a thread to "mark" the completion of a task and for another thread to "wait" for a specified number of these
+ * Allows a thread to "mark" the execution of a task and for another thread to "wait" for a specified number of these
  * marks. Includes a Gate allowing the initial execution of tasks to be blocked until the gate is released.
  */
-public abstract class AbstractWithCompleteMarks {
+public class ExecutionControl {
     protected final Semaphore semaphore;
     protected final Gate gate;
 
-    protected AbstractWithCompleteMarks(@NonNull final Gate gate) {
+    protected ExecutionControl(@NonNull final Gate gate) {
         this.semaphore = new Semaphore(0);
         this.gate = gate;
     }
 
-    protected void mark() {
+    /**
+     * Counts one executions
+     */
+    public void mark() {
         semaphore.release();
     }
 
-    public void waitExecutions(int numberOfExecutions) {
+    /**
+     * Awaits for the number of executions to be collected
+     * @param numberOfExecutions expected number of executions
+     */
+    public void await(int numberOfExecutions) {
         runWrappingChecked(() -> semaphore.acquire(numberOfExecutions));
-        runWrappingChecked(() -> Thread.sleep(10));
     }
 
     /**
@@ -40,5 +46,10 @@ public abstract class AbstractWithCompleteMarks {
      */
     public void block() {
         gate.close();
+    }
+
+    @Override
+    public String toString() {
+        return "ExecutionControl{" + "Semaphore=" + semaphore + ", gate=" + gate + '}';
     }
 }

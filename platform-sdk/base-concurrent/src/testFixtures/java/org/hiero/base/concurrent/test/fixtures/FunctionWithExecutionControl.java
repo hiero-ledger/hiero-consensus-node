@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.component.framework.schedulers.helpers;
+package org.hiero.base.concurrent.test.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
@@ -11,13 +11,21 @@ import java.util.function.Function;
  * @param <V> the type of the parameter
  * @param <R> the type of the return value
  */
-public class FunctionWithCompleteMarks<V, R> extends AbstractWithCompleteMarks implements Function<V, R> {
+public class FunctionWithExecutionControl<V, R> implements Function<V, R> {
 
     private final Function<V, R> function;
+    private final ExecutionControl executionControl;
 
-    FunctionWithCompleteMarks(@NonNull final Function<V, R> function, @NonNull final Gate gate) {
-        super(gate);
+    FunctionWithExecutionControl(@NonNull final Function<V, R> function, @NonNull final Gate gate) {
+        this.executionControl = new ExecutionControl(gate);
         this.function = function;
+    }
+
+    /**
+     * @return the completion control
+     */
+    public ExecutionControl executionControl() {
+        return executionControl;
     }
 
     /**
@@ -25,12 +33,11 @@ public class FunctionWithCompleteMarks<V, R> extends AbstractWithCompleteMarks i
      */
     @Override
     public R apply(final V v) {
-        gate.nock();
+        executionControl.gate.nock();
         try {
             return function.apply(v);
         } finally {
-
-            mark();
+            executionControl.mark();
         }
     }
 
@@ -41,10 +48,10 @@ public class FunctionWithCompleteMarks<V, R> extends AbstractWithCompleteMarks i
      * @param handler the handler to wrap
      * @param <V>     the type of the parameter
      * @param <R>     the type of the return value
-     * @return the new {@link FunctionWithCompleteMarks}
+     * @return the new {@link FunctionWithExecutionControl}
      */
-    public static <V, R> FunctionWithCompleteMarks<V, R> blocked(@NonNull final Function<V, R> handler) {
-        return new FunctionWithCompleteMarks<>(handler, Gate.closedGate());
+    public static <V, R> FunctionWithExecutionControl<V, R> blocked(@NonNull final Function<V, R> handler) {
+        return new FunctionWithExecutionControl<>(handler, Gate.closedGate());
     }
 
     /**
@@ -54,9 +61,9 @@ public class FunctionWithCompleteMarks<V, R> extends AbstractWithCompleteMarks i
      * @param handler the handler to wrap
      * @param <V>     the type of the parameter
      * @param <R>     the type of the return value
-     * @return the new {@link ConsumerWithCompleteMarks}
+     * @return the new {@link ConsumerWithCompletionControl}
      */
-    public static <V, R> FunctionWithCompleteMarks<V, R> unBlocked(@NonNull final Function<V, R> handler) {
-        return new FunctionWithCompleteMarks<>(handler, Gate.openGate());
+    public static <V, R> FunctionWithExecutionControl<V, R> unBlocked(@NonNull final Function<V, R> handler) {
+        return new FunctionWithExecutionControl<>(handler, Gate.openGate());
     }
 }
