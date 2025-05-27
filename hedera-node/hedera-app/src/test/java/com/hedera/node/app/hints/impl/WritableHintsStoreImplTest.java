@@ -298,7 +298,7 @@ class WritableHintsStoreImplTest {
         final var construction = constructionNow(NEXT_HINT_CONSTRUCTION_KEY);
         assertEquals(keys, construction.hintsSchemeOrThrow().preprocessedKeysOrThrow());
         assertEquals(
-                List.of(new NodePartyId(1L, 2, 1L), new NodePartyId(3L, 6, 2L)),
+                List.of(new NodePartyId(1L, 2, 100L), new NodePartyId(3L, 6, 300L)),
                 construction.hintsSchemeOrThrow().nodePartyIds());
         assertNull(subject.getActiveVerificationKey());
 
