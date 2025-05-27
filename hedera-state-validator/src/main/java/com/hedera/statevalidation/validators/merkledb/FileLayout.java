@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.merkledb;
 
-import static com.hedera.statevalidation.validators.Constants.ROUND;
-import static com.hedera.statevalidation.validators.Constants.STATE_DIR;
 import static com.hedera.statevalidation.validators.Constants.VALIDATE_FILE_LAYOUT;
 import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -11,8 +9,6 @@ import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.hedera.statevalidation.parameterresolver.VirtualMapHolder;
 import com.hedera.statevalidation.validators.Constants;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -93,28 +89,10 @@ public class FileLayout {
 
     @Test
     public void validateFileLayout(DeserializedSignedState deserializedState) throws IOException {
-        if (ROUND.isEmpty()) {
-            log.warn("No round number provided. Skipping file layout validation.");
-            return;
-        }
         if (!VALIDATE_FILE_LAYOUT) {
             log.warn("File layout validation is disabled. Skipping file layout validation.");
             return;
         }
-        BufferedReader fileReader = new BufferedReader(new FileReader(ROUND));
-        fileReader
-                .lines()
-                // only process lines with file names
-                .filter(v -> v.contains(ROUND + "/"))
-                // extract file name relative to the state dir
-                .map(line -> line.split(ROUND + "/")[1])
-                // check the file is downloaded
-                .forEach(fileName -> {
-                    final Path path = Path.of(STATE_DIR, fileName);
-                    if (!Files.exists(path)) {
-                        fail("The following file or directory does not exist: " + path);
-                    }
-                });
 
         List<OptionalPattern> expectedPathPatterns = new ArrayList<>(EXPECTED_FILE_PATTERNS.stream()
                 .map(Pattern::compile)

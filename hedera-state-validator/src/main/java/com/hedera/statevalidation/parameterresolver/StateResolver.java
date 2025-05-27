@@ -12,6 +12,7 @@ import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.version.ServicesSoftwareVersion;
+import com.hedera.statevalidation.reporting.ReportingFactory;
 import com.hedera.statevalidation.validators.Constants;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.concurrent.ExecutorFactory;
@@ -40,13 +41,14 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
@@ -54,7 +56,9 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 
 public class StateResolver implements ParameterResolver {
 
-    private static final Pattern VERSION_PATTERN = Pattern.compile("^((\\d+)\\.(\\d+)\\.(\\d+))\\s*(\\d+)*$");
+    private static final Logger log = LogManager.getLogger(StateResolver.class);
+
+    private static final Pattern VERSION_PATTERN = Pattern.compile("^VERSION=(\\d+)\\.(\\d+)\\.(\\d+)(?:\\n.*)*$");
 
     static DeserializedSignedState deserializedSignedState;
 
@@ -97,28 +101,32 @@ public class StateResolver implements ParameterResolver {
     }
 
     public static State getState() {
-        return (State) deserializedSignedState.reservedSignedState().get().getState();
+        return deserializedSignedState.reservedSignedState().get().getState();
     }
 
     public static SemanticVersion readVersion() {
-        final String versionStr;
+        final Path versionFile = Path.of(Constants.STATE_DIR, "VERSION");
+
+        String versionFileContent;
         try {
-            InputStream resourceAsStream = StateResolver.class.getResourceAsStream("/version.txt");
-            versionStr = new BufferedReader(new InputStreamReader(resourceAsStream)).readLine();
+            versionFileContent = Files.readString(versionFile);
         } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        Matcher matcher = VERSION_PATTERN.matcher(versionStr);
-        if (matcher.find()) {
-            return new SemanticVersion(
-                    Integer.parseInt(matcher.group(2)),
-                    Integer.parseInt(matcher.group(3)),
-                    Integer.parseInt(matcher.group(4)),
-                    null,
-                    matcher.group(5));
+            throw new IllegalStateException("Cannot read version file content", e);
         }
 
-        throw new IllegalArgumentException("Invalid version string: " + versionStr);
+        Matcher matcher = VERSION_PATTERN.matcher(versionFileContent);
+        if (matcher.find()) {
+            SemanticVersion semanticVersion = new SemanticVersion(
+                    Integer.parseInt(matcher.group(1)),
+                    Integer.parseInt(matcher.group(2)),
+                    Integer.parseInt(matcher.group(3)),
+                    null,
+                    null);
+            log.info("State version found: {}", semanticVersion);
+            return semanticVersion;
+        }
+
+        throw new IllegalArgumentException("Invalid version file content: " + versionFileContent);
     }
 
     private static PlatformContext createPlatformContext() {
