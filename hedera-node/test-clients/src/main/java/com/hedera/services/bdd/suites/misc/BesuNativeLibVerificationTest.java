@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.misc;
 
-import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
+import static com.hedera.services.bdd.junit.TestTags.ISS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.FakeNmt.restartNetwork;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
@@ -11,7 +11,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.*;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.confirmFreezeAndShutdown;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 
@@ -20,11 +20,12 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.hyperledger.besu.crypto.Blake2bfMessageDigest.Blake2bfDigest;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Tag(LONG_RUNNING)
+@Tag(ISS)
 // Order to be last as it will restart the network and halt if the lib is not present
 @Order(Integer.MAX_VALUE)
 public class BesuNativeLibVerificationTest implements LifecycleTest {
@@ -35,6 +36,7 @@ public class BesuNativeLibVerificationTest implements LifecycleTest {
         final var envOverrides = Map.of("contracts.evm.nativeLibVerification.halt.enabled", "true");
 
         return hapiTest(blockingOrder(
+                doAdhoc(Blake2bfDigest::disableNative),
                 doingContextual(
                         spec -> waitForAny(NodeSelector.allNodes(), RESTART_TO_ACTIVE_TIMEOUT, STARTING_UP, ACTIVE)),
                 freezeOnly().startingIn(5).seconds().payingWith(GENESIS).deferStatusResolution(),
