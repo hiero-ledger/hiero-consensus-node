@@ -763,7 +763,7 @@ public class ConversionUtils {
      * @return its long value
      */
     public static long numberOfLongZero(@NonNull final byte[] explicit) {
-        final var number = longFrom(
+        return longFrom(
                 explicit[12],
                 explicit[13],
                 explicit[14],
@@ -772,10 +772,6 @@ public class ConversionUtils {
                 explicit[17],
                 explicit[18],
                 explicit[19]);
-        if (number < 0) {
-            throw new IllegalArgumentException("Number is negative");
-        }
-        return number;
     }
 
     // too many arguments
