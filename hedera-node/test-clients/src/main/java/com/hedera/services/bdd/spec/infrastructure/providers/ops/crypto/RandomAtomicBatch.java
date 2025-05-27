@@ -50,22 +50,22 @@ public class RandomAtomicBatch implements OpProvider {
         }
 
         var atomicBatch = TxnVerbs.atomicBatch(opsToIncludeArray)
-            .payingWith(UNIQUE_PAYER_ACCOUNT)
-            .hasPrecheckFrom(flattenResponseCodes(
-                STANDARD_PERMISSIBLE_PRECHECKS,
-                RandomAccount.permissiblePrechecks,
-                RandomAccountDeletion.permissiblePrechecks,
-                RandomAccountDeletionWithReceiver.permissiblePrechecks,
-                RandomTransferFromSigner.permissiblePrechecks,
-                RandomTransferToSigner.permissiblePrechecks))
-            .hasKnownStatusFrom(flattenResponseCodes(
-                STANDARD_PERMISSIBLE_OUTCOMES,
-                permissibleOutcomes,
-                RandomAccount.permissibleOutcomes,
-                RandomAccountDeletion.permissibleOutcomes,
-                RandomAccountDeletionWithReceiver.permissibleOutcomes,
-                RandomAccountUpdate.permissibleOutcomes,
-                RandomTransfer.permissibleOutcomes));
+                .payingWith(UNIQUE_PAYER_ACCOUNT)
+                .hasPrecheckFrom(flattenResponseCodes(
+                        STANDARD_PERMISSIBLE_PRECHECKS,
+                        RandomAccount.permissiblePrechecks,
+                        RandomAccountDeletion.permissiblePrechecks,
+                        RandomAccountDeletionWithReceiver.permissiblePrechecks,
+                        RandomTransferFromSigner.permissiblePrechecks,
+                        RandomTransferToSigner.permissiblePrechecks))
+                .hasKnownStatusFrom(flattenResponseCodes(
+                        STANDARD_PERMISSIBLE_OUTCOMES,
+                        permissibleOutcomes,
+                        RandomAccount.permissibleOutcomes,
+                        RandomAccountDeletion.permissibleOutcomes,
+                        RandomAccountDeletionWithReceiver.permissibleOutcomes,
+                        RandomAccountUpdate.permissibleOutcomes,
+                        RandomTransfer.permissibleOutcomes));
 
         return Optional.of(atomicBatch);
     }
