@@ -197,10 +197,9 @@ class OrphanBufferTests {
         eventsExitedIntakePipeline = new AtomicLong(0);
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Test standard orphan buffer operation")
-    void standardOperation(final boolean useBirthRoundForAncient) {
+    void standardOperation() {
 
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
         doAnswer(invocation -> {
@@ -211,18 +210,10 @@ class OrphanBufferTests {
                 .eventExitedIntakePipeline(any());
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create()
-                        .withConfiguration(new TestConfigBuilder()
-                                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncient)
-                                .getOrCreateConfig())
                         .build(),
                 intakeEventCounter);
 
-        long minimumGenerationNonAncient = 0;
         long latestConsensusRound = ConsensusConstants.ROUND_FIRST;
-
-        // increase minimum generation non-ancient at the approximate rate that event generations are increasing
-        // this means that roughly half of the events will be ancient before they are received from intake
-        final float averageGenerationAdvancement = (float) maxGeneration / TEST_EVENT_COUNT;
 
         // events that have been emitted from the orphan buffer
         final Collection<Hash> emittedEventHashes = new HashSet<>();
@@ -233,19 +224,10 @@ class OrphanBufferTests {
             final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(intakeEvent));
             assertValidNgen(unorphanedEvents);
 
-            // add some randomness to step size, so minimumGenerationNonAncient doesn't always just increase by 1
-            final int stepRandomness = Math.round(random.nextFloat() * MAX_GENERATION_STEP);
-            if (random.nextFloat() < averageGenerationAdvancement / stepRandomness) {
-                minimumGenerationNonAncient += stepRandomness;
-            }
             // simulate advancing consensus rounds periodically
             latestConsensusRound += maybeAdvanceRound.apply(random);
-            final AncientMode ancientMode =
-                    useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-            final long ancientThreshold =
-                    useBirthRoundForAncient ? Math.max(1, latestConsensusRound - 26 + 1) : minimumGenerationNonAncient;
+            final long ancientThreshold = Math.max(1, latestConsensusRound - 26 + 1);
             final EventWindow eventWindow = EventWindowBuilder.builder()
-                    .setAncientMode(ancientMode)
                     .setLatestConsensusRound(latestConsensusRound)
                     .setAncientThreshold(ancientThreshold)
                     .build();
@@ -275,16 +257,12 @@ class OrphanBufferTests {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Test that events sorted by nGen result in a valid topological ordering")
-    void topologicalOrderByNGen(final boolean useBirthRoundForAncient) {
+    void topologicalOrderByNGen() {
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create()
-                        .withConfiguration(new TestConfigBuilder()
-                                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncient)
-                                .getOrCreateConfig())
                         .build(),
                 intakeEventCounter);
 
@@ -363,17 +341,13 @@ class OrphanBufferTests {
     }
 
     @DisplayName("Verify the assignment of nGen for genesis events")
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void testNGenValueForGenesisEvent(final boolean useBirthRoundForAncient) {
+    @Test
+    void testNGenValueForGenesisEvent() {
         final PlatformEvent genesisEvent =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
 
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create()
-                        .withConfiguration(new TestConfigBuilder()
-                                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncient)
-                                .getOrCreateConfig())
                         .build(),
                 mock(IntakeEventCounter.class));
 
@@ -387,23 +361,13 @@ class OrphanBufferTests {
     }
 
     @DisplayName("Verify the assignment of nGen for events with ancient parents")
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void testNGenValueWithAncientParents(final boolean useBirthRoundForAncient) {
-
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-
-        final long minimumGenerationNonAncient = 100;
+    @Test
+    void testNGenValueWithAncientParents() {
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
-        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
-                ? minimumBirthRoundNonAncient
-                : minimumGenerationNonAncient;
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 .setLatestConsensusRound(latestConsensusRound)
-                .setAncientThreshold(ancientThreshold)
+                .setAncientThreshold(minimumBirthRoundNonAncient)
                 .build();
 
         // Create two ancient events to serve as parents
@@ -419,15 +383,10 @@ class OrphanBufferTests {
                 .setSelfParent(selfParent)
                 .setOtherParent(otherParent)
                 .setBirthRound(minimumBirthRoundNonAncient)
-                .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
-                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
                 .build();
 
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create()
-                        .withConfiguration(new TestConfigBuilder()
-                                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncient)
-                                .getOrCreateConfig())
                         .build(),
                 mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
@@ -447,24 +406,15 @@ class OrphanBufferTests {
     }
 
     @DisplayName("Verify the assignment of nGen for events one ancient and one non-ancient parent")
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void testNGenValueWithAncientAndNonAncientParents(final boolean useBirthRoundForAncient) {
-
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-
+    @Test
+    void testNGenValueWithAncientAndNonAncientParents() {
         // Pick some values to use. These are arbitrary.
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
-        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
-                ? minimumBirthRoundNonAncient
-                : minimumGenerationNonAncient;
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 .setLatestConsensusRound(latestConsensusRound)
-                .setAncientThreshold(ancientThreshold)
+                .setAncientThreshold(minimumBirthRoundNonAncient)
                 .build();
 
         // Genesis event, ancient
@@ -498,9 +448,6 @@ class OrphanBufferTests {
 
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create()
-                        .withConfiguration(new TestConfigBuilder()
-                                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncient)
-                                .getOrCreateConfig())
                         .build(),
                 mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
@@ -543,24 +490,15 @@ class OrphanBufferTests {
     }
 
     @DisplayName("Verify the assignment of nGen for events non-ancient parents with different nGen values")
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void testNGenValueWithNonAncientParents(final boolean useBirthRoundForAncient) {
-
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-
+    @Test
+    void testNGenValueWithNonAncientParents() {
         // Pick some values to use. These are arbitrary.
         final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
-        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
-                ? minimumBirthRoundNonAncient
-                : minimumGenerationNonAncient;
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 .setLatestConsensusRound(latestConsensusRound)
-                .setAncientThreshold(ancientThreshold)
+                .setAncientThreshold(minimumBirthRoundNonAncient)
                 .build();
 
         // Genesis events, ancient
@@ -593,9 +531,6 @@ class OrphanBufferTests {
 
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create()
-                        .withConfiguration(new TestConfigBuilder()
-                                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncient)
-                                .getOrCreateConfig())
                         .build(),
                 mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);

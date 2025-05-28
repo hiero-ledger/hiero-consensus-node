@@ -24,7 +24,7 @@ public class EventWindowBuilder {
      * @return a new instance of {@link EventWindowBuilder}
      */
     public static @NonNull EventWindowBuilder builder() {
-        return new EventWindowBuilder();
+        return birthRoundMode();
     }
 
     /**
@@ -39,7 +39,7 @@ public class EventWindowBuilder {
      * Creates a new instance with the ancient mode set to generation threshold.
      * @return a new instance of {@link EventWindowBuilder} with generation mode
      */
-    public static @NonNull EventWindowBuilder generationMode() {
+    public static @NonNull EventWindowBuilder generationMode() {//TODO remove
         return new EventWindowBuilder().setAncientMode(AncientMode.GENERATION_THRESHOLD);
     }
 

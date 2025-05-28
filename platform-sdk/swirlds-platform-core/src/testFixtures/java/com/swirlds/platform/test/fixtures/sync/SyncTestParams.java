@@ -42,6 +42,14 @@ public class SyncTestParams {
         this(numNetworkNodes, numCommonEvents, numCallerEvents, numListenerEvents, null, ancientMode);
     }
 
+    public SyncTestParams(
+            final int numNetworkNodes,
+            final int numCommonEvents,
+            final int numCallerEvents,
+            final int numListenerEvents) {
+        this(numNetworkNodes, numCommonEvents, numCallerEvents, numListenerEvents, null, AncientMode.BIRTH_ROUND_THRESHOLD);
+    }
+
     /**
      * The number of nodes in the network.
      */

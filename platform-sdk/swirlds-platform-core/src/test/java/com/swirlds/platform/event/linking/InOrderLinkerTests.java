@@ -24,6 +24,7 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -54,14 +55,9 @@ class InOrderLinkerTests {
         time = new FakeTime();
     }
 
-    private void inOrderLinkerSetup(@NonNull final AncientMode ancientMode) {
+    private void inOrderLinkerSetup() {
         inOrderLinker = new ConsensusLinker(
                 TestPlatformContextBuilder.create()
-                        .withConfiguration(new TestConfigBuilder()
-                                .withValue(
-                                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                                        (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD))
-                                .getOrCreateConfig())
                         .withTime(time)
                         .build(),
                 selfId);
@@ -90,23 +86,17 @@ class InOrderLinkerTests {
     /**
      * Choose an event window that will cause all given events to be considered ancient.
      *
-     * @param ancientMode   the ancient mode to use
      * @param ancientEvents the events that will be considered ancient
      * @return the event window that will cause the given events to be considered ancient
      */
-    private static EventWindow chooseEventWindow(
-            @NonNull final AncientMode ancientMode, final PlatformEvent... ancientEvents) {
+    private static EventWindow chooseEventWindow(final PlatformEvent... ancientEvents) {
 
         long ancientValue = 0;
         for (final PlatformEvent ancientEvent : ancientEvents) {
-            ancientValue = switch (ancientMode) {
-                case BIRTH_ROUND_THRESHOLD -> Math.max(ancientValue, ancientEvent.getBirthRound());
-                case GENERATION_THRESHOLD -> Math.max(ancientValue, ancientEvent.getGeneration());
-            };
+            ancientValue = Math.max(ancientValue, ancientEvent.getBirthRound());
         }
 
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 /* one more than the ancient value, so that the events are ancient */
                 .setAncientThreshold(ancientValue + 1)
                 .build();
@@ -118,13 +108,10 @@ class InOrderLinkerTests {
         return eventWindow;
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Test standard operation of the in order linker")
-    void standardOperation(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void standardOperation() {
+        inOrderLinkerSetup();
 
         // In the following test events are created with increasing generation and birth round numbers.
         // The linking should fail to occur based on the advancing event window.
@@ -146,7 +133,7 @@ class InOrderLinkerTests {
         time.tick(Duration.ofSeconds(1));
 
         // cause genesisOtherParent to become ancient
-        EventWindow eventWindow = chooseEventWindow(ancientMode, genesisOtherParent);
+        EventWindow eventWindow = chooseEventWindow(genesisOtherParent);
         assertFalse(eventWindow.isAncient(child1));
         inOrderLinker.setEventWindow(eventWindow);
 
@@ -166,7 +153,7 @@ class InOrderLinkerTests {
         time.tick(Duration.ofSeconds(1));
 
         // cause child1 to become ancient
-        eventWindow = chooseEventWindow(ancientMode, child1);
+        eventWindow = chooseEventWindow(child1);
         assertFalse(eventWindow.isAncient(child2));
         inOrderLinker.setEventWindow(eventWindow);
 
@@ -185,7 +172,7 @@ class InOrderLinkerTests {
 
         time.tick(Duration.ofSeconds(1));
         // make both parents ancient.
-        eventWindow = chooseEventWindow(ancientMode, child2, child3);
+        eventWindow = chooseEventWindow(child2, child3);
         inOrderLinker.setEventWindow(eventWindow);
 
         final PlatformEvent child4 = new TestingEventBuilder(random)
@@ -202,13 +189,10 @@ class InOrderLinkerTests {
         assertNull(linkedEvent4.getOtherParent(), "Other parent is ancient, and should be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Missing self parent should not be linked")
-    void missingSelfParent(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void missingSelfParent() {
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -222,13 +206,10 @@ class InOrderLinkerTests {
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent is not missing, and should not be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Missing other parent should not be linked")
-    void missingOtherParent(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void missingOtherParent() {
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -242,16 +223,12 @@ class InOrderLinkerTests {
         assertNull(linkedEvent.getOtherParent(), "Other parent is missing, and should be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Ancient events should not be linked")
-    void ancientEvent(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void ancientEvent() {
+        inOrderLinkerSetup();
 
         inOrderLinker.setEventWindow(EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 .setAncientThreshold(3)
                 .build());
 
@@ -278,13 +255,10 @@ class InOrderLinkerTests {
         assertNull(inOrderLinker.linkEvent(child2));
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Self parent with mismatched generation should not be linked")
-    void selfParentGenerationMismatch(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void selfParentGenerationMismatch() {
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -299,13 +273,10 @@ class InOrderLinkerTests {
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Self parent with mismatched birth round should not be linked")
-    void selfParentBirthRoundMismatch(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void selfParentBirthRoundMismatch() {
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -320,13 +291,10 @@ class InOrderLinkerTests {
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Other parent with mismatched generation should not be linked")
-    void otherParentGenerationMismatch(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void otherParentGenerationMismatch() {
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -342,13 +310,10 @@ class InOrderLinkerTests {
         assertNull(linkedEvent.getOtherParent(), "Other parent has mismatched generation, and should be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Other parent with mismatched birth round should not be linked")
-    void otherParentBirthRoundMismatch(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void otherParentBirthRoundMismatch() {
+        inOrderLinkerSetup();
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
                 .setSelfParent(genesisSelfParent)
@@ -363,13 +328,10 @@ class InOrderLinkerTests {
         assertNull(linkedEvent.getOtherParent(), "Other parent has mismatched birth round, and should be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Self parent with mismatched time created should not be linked")
-    void selfParentTimeCreatedMismatch(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void selfParentTimeCreatedMismatch() {
+        inOrderLinkerSetup();
 
         final PlatformEvent lateParent = new TestingEventBuilder(random)
                 .setCreatorId(selfId)
@@ -393,13 +355,10 @@ class InOrderLinkerTests {
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Other parent with mismatched time created SHOULD be linked")
-    void otherParentTimeCreatedMismatch(final boolean useBirthRoundForAncient) {
-        final AncientMode ancientMode =
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        inOrderLinkerSetup(ancientMode);
+    void otherParentTimeCreatedMismatch() {
+        inOrderLinkerSetup();
         final PlatformEvent lateParent = new TestingEventBuilder(random)
                 .setCreatorId(otherId)
                 .setSelfParent(genesisOtherParent)

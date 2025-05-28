@@ -4,8 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import static com.swirlds.common.test.fixtures.io.FileManipulation.corruptFile;
 import static com.swirlds.common.test.fixtures.io.FileManipulation.truncateFile;
 import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
-import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -16,7 +14,6 @@ import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +25,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
@@ -37,11 +33,10 @@ import org.hiero.junit.extensions.UseParameterSources;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
 @DisplayName("PCES Read Write Tests")
 class PcesReadWriteTests {
@@ -63,21 +58,17 @@ class PcesReadWriteTests {
         FileUtils.deleteDirectory(testDirectory);
     }
 
+    @SuppressWarnings("unused") // This method is used as a parameter source in tests
     protected static Iterable<Boolean> booleanArguments() {
         return List.of(Boolean.TRUE, Boolean.FALSE);
     }
 
     /**
-     * @param ancientMode  {@link AncientMode#values()}
      * @param pcesFileWriterType PCesFileWriterType.values()
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values"),
         @ParamSource(
                 param = "pcesFileWriterType",
                 fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
@@ -85,7 +76,6 @@ class PcesReadWriteTests {
     })
     @DisplayName("Write Then Read Test")
     void writeThenReadTest(
-            @NonNull @ParamName("ancientMode") final AncientMode ancientMode,
             @ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -93,7 +83,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                BIRTH_ROUND_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -107,13 +97,12 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, event.getBirthRound());
         }
 
         upperBound += random.nextInt(0, 10);
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 0,
@@ -138,16 +127,11 @@ class PcesReadWriteTests {
     }
 
     /**
-     * @param ancientMode  {@link AncientMode#values()}
      * @param pcesFileWriterType PCesFileWriterType.values()
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values"),
         @ParamSource(
                 param = "pcesFileWriterType",
                 fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
@@ -155,7 +139,6 @@ class PcesReadWriteTests {
     })
     @DisplayName("Read Files After Minimum Test")
     void readFilesAfterMinimumTest(
-            @NonNull @ParamName("ancientMode") final AncientMode ancientMode,
             @ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -163,7 +146,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                BIRTH_ROUND_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -177,7 +160,7 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, event.getBirthRound());
         }
 
         final long middle = upperBound / 2;
@@ -185,7 +168,6 @@ class PcesReadWriteTests {
         upperBound += random.nextInt(0, 10);
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 0,
@@ -205,7 +187,7 @@ class PcesReadWriteTests {
         iterator.forEachRemaining(deserializedEvents::add);
 
         // We don't want any events with an ancient indicator less than the middle
-        events.removeIf(event -> ancientMode.selectIndicator(event) < middle);
+        events.removeIf(event -> event.getBirthRound() < middle);
 
         assertEquals(events.size(), deserializedEvents.size());
         for (int i = 0; i < events.size(); i++) {
@@ -213,17 +195,12 @@ class PcesReadWriteTests {
         }
     }
 
-    /**
-     * @param ancientMode  {@link AncientMode#values()}
-     */
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @Test
     @DisplayName("Read Empty File Test")
-    void readEmptyFileTest(@NonNull final AncientMode ancientMode) throws IOException {
+    void readEmptyFileTest() throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 random.nextLong(0, 1000),
@@ -239,17 +216,12 @@ class PcesReadWriteTests {
     }
 
     /**
-     * @param ancientMode  {@link AncientMode#values()}
      * @param truncateOnBoundary {@link PcesReadWriteTests#booleanArguments()}
      * @param pcesFileWriterType PCesFileWriterType.values()
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
@@ -258,7 +230,6 @@ class PcesReadWriteTests {
     })
     @DisplayName("Truncated Event Test")
     void truncatedEventTest(
-            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
             final @ParamName("truncateOnBoundary") boolean truncateOnBoundary,
             final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
@@ -267,7 +238,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                BIRTH_ROUND_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -281,13 +252,12 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, event.getBirthRound());
         }
 
         upperBound += random.nextInt(0, 10);
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 0,
@@ -328,16 +298,11 @@ class PcesReadWriteTests {
     }
 
     /**
-     * @param ancientMode  {@link AncientMode#values()}
      * @param pcesFileWriterType PCesFileWriterType.values()
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
@@ -346,7 +311,6 @@ class PcesReadWriteTests {
     })
     @DisplayName("Corrupted Events Test")
     void corruptedEventsTest(
-            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
             final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -354,7 +318,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                BIRTH_ROUND_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -368,13 +332,12 @@ class PcesReadWriteTests {
 
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
+            upperBound = Math.max(upperBound, event.getBirthRound());
         }
 
         upperBound += random.nextInt(0, 10);
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 0,
@@ -410,16 +373,11 @@ class PcesReadWriteTests {
     }
 
     /**
-     * @param ancientMode  {@link AncientMode#values()}
      * @param pcesFileWriterType PCesFileWriterType.values()
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
@@ -428,7 +386,6 @@ class PcesReadWriteTests {
     })
     @DisplayName("Write Invalid Event Test")
     void writeInvalidEventTest(
-            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
             final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
@@ -436,7 +393,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                BIRTH_ROUND_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -451,8 +408,8 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
-            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
+            lowerBound = Math.min(lowerBound, event.getBirthRound());
+            upperBound = Math.max(upperBound, event.getBirthRound());
         }
 
         // Intentionally choose minimum and maximum boundaries that do not permit all generated events
@@ -460,7 +417,6 @@ class PcesReadWriteTests {
         final long restrictedUpperBound = upperBound - (lowerBound + upperBound) / 4;
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 restrictedLowerBound,
@@ -471,8 +427,8 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> validEvents = new ArrayList<>();
         for (final PlatformEvent event : events) {
-            if (ancientMode.selectIndicator(event) >= restrictedLowerBound
-                    && ancientMode.selectIndicator(event) <= restrictedUpperBound) {
+            if (event.getBirthRound() >= restrictedLowerBound
+                    && event.getBirthRound() <= restrictedUpperBound) {
                 mutableFile.writeEvent(event);
                 validEvents.add(event);
             } else {
@@ -491,16 +447,11 @@ class PcesReadWriteTests {
     }
 
     /**
-     * @param ancientMode  {@link AncientMode#values()}
      * @param pcesFileWriterType PCesFileWriterType.values()
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
@@ -509,7 +460,6 @@ class PcesReadWriteTests {
     })
     @DisplayName("Span Compression Test")
     void spanCompressionTest(
-            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
             final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed(0);
@@ -517,7 +467,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                BIRTH_ROUND_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -532,14 +482,13 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
-            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
+            lowerBound = Math.min(lowerBound, event.getBirthRound());
+            upperBound = Math.max(upperBound, event.getBirthRound());
         }
 
         upperBound += random.nextInt(1, 10);
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 lowerBound,
@@ -575,16 +524,11 @@ class PcesReadWriteTests {
     }
 
     /**
-     * @param ancientMode  {@link AncientMode#values()}
      * @param pcesFileWriterType PCesFileWriterType.values()
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values"),
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
@@ -593,7 +537,6 @@ class PcesReadWriteTests {
     })
     @DisplayName("Partial Span Compression Test")
     void partialSpanCompressionTest(
-            final @NonNull @ParamName("ancientMode") AncientMode ancientMode,
             final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
 
@@ -602,7 +545,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                ancientMode == GENERATION_THRESHOLD ? DEFAULT_PLATFORM_CONTEXT : BIRTH_ROUND_PLATFORM_CONTEXT,
+                BIRTH_ROUND_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -617,15 +560,14 @@ class PcesReadWriteTests {
         long lowerBound = Long.MAX_VALUE;
         long upperBound = Long.MIN_VALUE;
         for (final PlatformEvent event : events) {
-            lowerBound = Math.min(lowerBound, ancientMode.selectIndicator(event));
-            upperBound = Math.max(upperBound, ancientMode.selectIndicator(event));
+            lowerBound = Math.min(lowerBound, event.getBirthRound());
+            upperBound = Math.max(upperBound, event.getBirthRound());
         }
 
         final long maximumFileBoundary = upperBound + random.nextInt(10, 20);
         final long uncompressedSpan = 5;
 
         final PcesFile file = PcesFile.of(
-                ancientMode,
                 RandomUtils.randomInstant(random),
                 random.nextInt(0, 100),
                 lowerBound,
@@ -662,11 +604,10 @@ class PcesReadWriteTests {
         }
     }
 
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @Test
     @DisplayName("Empty File Test")
-    void emptyFileTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final PcesFile file = PcesFile.of(ancientMode, Instant.now(), 0, 0, 100, 0, testDirectory);
+    void emptyFileTest() throws IOException {
+        final PcesFile file = PcesFile.of(Instant.now(), 0, 0, 100, 0, testDirectory);
 
         final Path path = file.getPath();
 

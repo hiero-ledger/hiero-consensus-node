@@ -62,6 +62,11 @@ public class SyncValidator {
     }
 
     public static void assertOnlyRequiredEventsTransferred(
+            final SyncNode caller, final SyncNode listener) {
+        assertOnlyRequiredEventsTransferred(caller, listener, AncientMode.BIRTH_ROUND_THRESHOLD);
+    }
+
+    public static void assertOnlyRequiredEventsTransferred(
             final SyncNode caller, final SyncNode listener, @NonNull final AncientMode ancientMode) {
         if (enableLogging) {
             System.out.println("*** Asserting that only required events were transferred ***");

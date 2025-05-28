@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.hashgraph;
 
+import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -67,6 +68,10 @@ public record EventWindow(
                         "the minimum round non-expired cannot be lower than the first round of consensus.");
             }
         }
+    }
+
+    public static EventWindow getGenesisEventWindow() {
+        return getGenesisEventWindow(BIRTH_ROUND_THRESHOLD);
     }
 
     /**

@@ -218,6 +218,17 @@ public final class PcesFile implements Comparable<PcesFile> {
         return new PcesFile(fileType, timestamp, sequenceNumber, minimumBound, maximumBound, origin, path);
     }
 
+    @NonNull
+    public static PcesFile of(
+            @NonNull final Instant timestamp,
+            final long sequenceNumber,
+            final long minimumBound,
+            final long maximumBound,
+            final long origin,
+            @NonNull final Path rootDirectory) {
+        return of(BIRTH_ROUND_THRESHOLD, timestamp, sequenceNumber, minimumBound, maximumBound, origin, rootDirectory);
+    }
+
     /**
      * Create a new event file descriptor by parsing a file path.
      *

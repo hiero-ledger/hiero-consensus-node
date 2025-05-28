@@ -269,15 +269,14 @@ public final class PcesTestFilesGenerator {
         /**
          * Creates a new Builder instance.
          *
-         * @param ancientMode   The ancient mode to use.
          * @param rng           The random number generator.
          * @param fileDirectory The directory to store the generated files.
          * @return A new Builder instance.
          */
         @NonNull
         public static Builder create(
-                final @NonNull AncientMode ancientMode, final @NonNull Random rng, final @NonNull Path fileDirectory) {
-            return new Builder(ancientMode, rng, fileDirectory);
+                final @NonNull Random rng, final @NonNull Path fileDirectory) {
+            return new Builder(AncientMode.BIRTH_ROUND_THRESHOLD, rng, fileDirectory);
         }
 
         /**

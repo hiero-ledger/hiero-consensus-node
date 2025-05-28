@@ -26,6 +26,9 @@ public class SyncTestUtils {
         System.out.printf("\n--- %s's tipSet ---%n", nodeName);
         node.getShadowGraph().getTips().forEach(tip -> System.out.println(tip.getEvent()));
     }
+    public static long getMaxIndicator(final List<ShadowEvent> tips) {
+        return getMaxIndicator(tips, AncientMode.BIRTH_ROUND_THRESHOLD);
+    }
 
     public static long getMaxIndicator(final List<ShadowEvent> tips, @NonNull final AncientMode ancientMode) {
         long maxIndicator = ancientMode.getGenesisIndicator();
@@ -33,6 +36,10 @@ public class SyncTestUtils {
             maxIndicator = Math.max(ancientMode.selectIndicator(tip.getEvent()), maxIndicator);
         }
         return maxIndicator;
+    }
+
+    public static long getMinIndicator(@NonNull final Set<ShadowEvent> events) {
+        return getMinIndicator(events, AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 
     public static long getMinIndicator(@NonNull final Set<ShadowEvent> events, @NonNull final AncientMode ancientMode) {

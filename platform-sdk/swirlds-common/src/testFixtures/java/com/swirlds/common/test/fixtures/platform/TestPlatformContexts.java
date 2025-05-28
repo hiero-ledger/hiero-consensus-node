@@ -26,6 +26,10 @@ import org.hiero.consensus.model.event.AncientMode;
  */
 public class TestPlatformContexts {
 
+    public static PlatformContext context(@NonNull final Time time, final Path dataDir) {
+        return context(BIRTH_ROUND_THRESHOLD, time, dataDir);
+    }
+
     /**
      * Creates a context with no recycle bin and no metrics.
      * @param ancientMode The strategy used to determine if an event is ancient
@@ -48,6 +52,14 @@ public class TestPlatformContexts {
                 .withConfiguration(configuration)
                 .withTime(time)
                 .build();
+    }
+
+    public static PlatformContext context(
+            final boolean permitGaps,
+            @Nullable final Path recycleBinPath,
+            @NonNull final Path dataDir,
+            @Nullable final Path fsDirectory) {
+        return context(permitGaps, BIRTH_ROUND_THRESHOLD, recycleBinPath, dataDir, fsDirectory);
     }
 
     /**
@@ -125,5 +137,17 @@ public class TestPlatformContexts {
     public static PlatformContext context(
             @NonNull final AncientMode ancientMode, final Path dataDir, final Path fsDirectory) {
         return context(false, ancientMode, dataDir, fsDirectory);
+    }
+
+    public static PlatformContext context(final Path dataDir, final Path fsDirectory) {
+        return context(false, BIRTH_ROUND_THRESHOLD, dataDir, fsDirectory);
+    }
+
+    @NonNull
+    public static PlatformContext context(
+            final boolean permitGaps,
+            final Path dataDir,
+            final Path fsDirectory) {
+        return context(permitGaps, BIRTH_ROUND_THRESHOLD, null, dataDir, fsDirectory);
     }
 }
