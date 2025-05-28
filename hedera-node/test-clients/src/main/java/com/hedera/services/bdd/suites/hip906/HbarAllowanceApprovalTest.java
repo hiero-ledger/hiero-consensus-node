@@ -153,8 +153,8 @@ public class HbarAllowanceApprovalTest {
                                                 isLiteralResult(new Object[] {22L, BigInteger.valueOf(1_000_000L)})))));
     }
 
-    public CustomSpecAssert hbarAllowanceCall(
-            Supplier<Address> owner, Supplier<Address> spender, String txName, ResponseCodeEnum status) {
+    private CustomSpecAssert hbarAllowanceCall(
+            final Supplier<Address> owner, final Supplier<Address> spender, final String txName, final ResponseCodeEnum status) {
         return withOpContext((spec, opLog) -> allRunFor(
                 spec,
                 // call hbarAllowance from Contract
@@ -189,7 +189,7 @@ public class HbarAllowanceApprovalTest {
                                 successGasUsed.set(e.getContractCallResult().getGasUsed())),
                 // revert call
                 hbarAllowanceCall(
-                        () -> mirrorAddrWith(0, 0, 999999), spenderNum::get, revertTx, CONTRACT_REVERT_EXECUTED),
+                        () -> mirrorAddrWith(0, 0, 999_999), spenderNum::get, revertTx, CONTRACT_REVERT_EXECUTED),
                 getTxnRecord(revertTx)
                         .hasPriority(recordWith()
                                 .status(CONTRACT_REVERT_EXECUTED)

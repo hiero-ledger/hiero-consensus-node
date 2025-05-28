@@ -87,15 +87,15 @@ class HbarAllowanceCallTest extends CallTestBase {
         subject = new HbarAllowanceCall(attempt, B_NEW_ACCOUNT_ID, UNAUTHORIZED_SPENDER_ID);
 
         final var successResult = subject.execute(frame);
-        assertEquals(ResponseCodeEnum.SUCCESS, successResult.responseCode());
-        assertTrue(successResult.fullResult().gasRequirement() > 0);
+        assertEquals(SUCCESS, successResult.responseCode(), "responseCode should be SUCCESS");
+        assertTrue(successResult.fullResult().gasRequirement() > 0, "gasRequirement should be > 0");
 
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(null);
         final var revertResult = subject.execute(frame);
-        assertEquals(ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID, revertResult.responseCode());
-        assertTrue(revertResult.fullResult().gasRequirement() > 0);
+        assertEquals(INVALID_ALLOWANCE_OWNER_ID, revertResult.responseCode(), "responseCode should be INVALID_ALLOWANCE_OWNER_ID");
+        assertTrue(revertResult.fullResult().gasRequirement() > 0, "gasRequirement should be > 0");
         assertEquals(
                 successResult.fullResult().gasRequirement(),
-                revertResult.fullResult().gasRequirement());
+                revertResult.fullResult().gasRequirement(), "gasRequirement of 'successResult' and 'revertResult' should be the same");
     }
 }
