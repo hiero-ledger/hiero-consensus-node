@@ -36,11 +36,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -62,15 +60,10 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final TransactionSupplier transactionSupplier,
-            @NonNull final AncientMode ancientMode) {
+            @NonNull final TransactionSupplier transactionSupplier) {
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withTime(time)
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(
-                                "event.useBirthRoundAncientThreshold", AncientMode.BIRTH_ROUND_THRESHOLD == ancientMode)
-                        .getOrCreateConfig())
                 .build();
 
         final HashSigner signer = mock(HashSigner.class);
@@ -91,14 +84,10 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final TransactionSupplier transactionSupplier,
-            @NonNull final AncientMode ancientMode) {
+            @NonNull final TransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
@@ -109,12 +98,12 @@ public class TipsetEventCreatorTestUtils {
 
             final NodeId selfId = NodeId.of(address.nodeId());
             final EventCreator eventCreator =
-                    buildEventCreator(random, time, roster, selfId, transactionSupplier, ancientMode);
+                    buildEventCreator(random, time, roster, selfId, transactionSupplier);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
-            eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+            eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
+            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
