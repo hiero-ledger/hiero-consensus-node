@@ -162,3 +162,4 @@ message EthereumOutput {
         proto.ContractFunctionResult ethereum_create_result = 4;
     }
 }
+

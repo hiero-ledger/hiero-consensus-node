@@ -27,6 +27,7 @@ import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.EthereumOutput;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
@@ -96,7 +97,8 @@ public class BaseTranslator {
     private long prevHighestKnownEntityNum = 0L;
 
     private Instant userTimestamp;
-    private final List<TransactionSidecarRecord> sidecarRecords = new ArrayList<>();
+    private final List<ContractSlotUsage> slotUsages = new ArrayList<>();
+    private final List<TransactionSidecarRecord> explicitSidecarRecords = new ArrayList<>();
     private final Map<TokenID, Integer> numMints = new HashMap<>();
     private final Map<TokenID, List<Long>> highestPutSerialNos = new HashMap<>();
     private final Map<EntityType, List<Long>> nextCreatedNums = new EnumMap<>(EntityType.class);
@@ -165,7 +167,7 @@ public class BaseTranslator {
         numMints.clear();
         highestPutSerialNos.clear();
         nextCreatedNums.clear();
-        sidecarRecords.clear();
+        explicitSidecarRecords.clear();
         purgedScheduleIds.clear();
         scanUnit(unit);
         nextCreatedNums.values().forEach(list -> {
@@ -364,8 +366,21 @@ public class BaseTranslator {
         return new SingleTransactionRecord(
                 parts.transactionParts().wrapper(),
                 recordBuilder.receipt(receiptBuilder.build()).build(),
-                sidecarRecords,
+                explicitSidecarRecords,
                 new SingleTransactionRecord.TransactionOutputs(null));
+    }
+
+    private List<TransactionSidecarRecord> recoveredSidecars() {
+        final List<TransactionSidecarRecord> sidecars = new ArrayList<>();
+        if (!slotUsages.isEmpty()) {
+            final var expectedSidecar = explicitSidecarRecords.stream()
+                    .filter(TransactionSidecarRecord::hasStateChanges)
+                    .findFirst();
+            if (expectedSidecar.isEmpty()) {
+                throw new IllegalStateException("Got slot usages " + slotUsages + " with no state changes sidecar");
+            }
+        }
+        return sidecars;
     }
 
     /**
@@ -483,18 +498,21 @@ public class BaseTranslator {
                         }
                     }
                 }
-                case CONTRACT_CALL -> parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
-                        .map(TransactionOutput::contractCall)
-                        .map(CallContractOutput::sidecars)
-                        .ifPresent(sidecarRecords::addAll);
-                case CONTRACT_CREATE -> parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
-                        .map(TransactionOutput::contractCreate)
-                        .map(CreateContractOutput::sidecars)
-                        .ifPresent(sidecarRecords::addAll);
-                case ETHEREUM_TRANSACTION -> parts.outputIfPresent(TransactionOutput.TransactionOneOfType.ETHEREUM_CALL)
-                        .map(TransactionOutput::ethereumCall)
-                        .map(EthereumOutput::sidecars)
-                        .ifPresent(sidecarRecords::addAll);
+                case CONTRACT_CALL ->
+                    parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
+                            .map(TransactionOutput::contractCall)
+                            .map(CallContractOutput::sidecars)
+                            .ifPresent(explicitSidecarRecords::addAll);
+                case CONTRACT_CREATE ->
+                    parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
+                            .map(TransactionOutput::contractCreate)
+                            .map(CreateContractOutput::sidecars)
+                            .ifPresent(explicitSidecarRecords::addAll);
+                case ETHEREUM_TRANSACTION ->
+                    parts.outputIfPresent(TransactionOutput.TransactionOneOfType.ETHEREUM_CALL)
+                            .map(TransactionOutput::ethereumCall)
+                            .map(EthereumOutput::sidecars)
+                            .ifPresent(explicitSidecarRecords::addAll);
             }
         });
     }

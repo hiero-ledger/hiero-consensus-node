@@ -43,6 +43,7 @@ class ContractOperationStreamBuilderTest {
                 ContractID.DEFAULT,
                 ContractActions.DEFAULT,
                 stateChanges,
+                null,
                 opsDuration);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
@@ -60,6 +61,7 @@ class ContractOperationStreamBuilderTest {
                 ContractID.DEFAULT,
                 null,
                 ContractStateChanges.DEFAULT,
+                null,
                 opsDuration);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 

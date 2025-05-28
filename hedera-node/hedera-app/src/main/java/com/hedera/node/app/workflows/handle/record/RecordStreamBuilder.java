@@ -8,6 +8,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -1065,6 +1066,12 @@ public class RecordStreamBuilder
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
         return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull List<ContractSlotUsage> slotUsages) {
+        throw new UnsupportedOperationException("Record stream cannot externalize slot usages");
     }
 
     @Override

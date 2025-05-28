@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.records;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.streams.ContractActions;
@@ -11,6 +12,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -63,6 +65,9 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         if (outcome.hasStateChanges()) {
             addContractStateChanges(requireNonNull(outcome.stateChanges()), false);
         }
+        if (outcome.hasSlotUsages()) {
+            addContractSlotUsages(outcome.slotUsagesOrThrow());
+        }
         opsDuration(outcome.hederaOpsDuration());
         return this;
     }
@@ -97,6 +102,14 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
     @NonNull
     ContractOperationStreamBuilder addContractStateChanges(
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration);
+
+    /**
+     * Updates this stream builder to include contract slot usages.
+     * @param slotUsages the contract slot usages
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addContractSlotUsages(@NonNull List<ContractSlotUsage> slotUsages);
 
     /**
      * Sets the hedera gas used.

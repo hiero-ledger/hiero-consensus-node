@@ -22,6 +22,9 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EVMTraceData;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -307,6 +310,13 @@ public class BlockStreamBuilder
      */
     private final List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges =
             new LinkedList<>();
+
+    /**
+     * If set, the contract slot usages resulting from the transaction.
+     */
+    @Nullable
+    private List<ContractSlotUsage> slotUsages;
+
     /**
      * The contract actions resulting from the transaction.
      */
@@ -521,6 +531,15 @@ public class BlockStreamBuilder
                             .consensusTimestamp(asTimestamp(consensusNow))
                             .stateChanges(stateChanges)
                             .build())
+                    .build());
+        }
+        if (slotUsages != null) {
+            final var builder = EVMTraceData.newBuilder();
+            if (slotUsages != null) {
+                builder.contractSlotUsages(slotUsages);
+            }
+            blockItems.add(BlockItem.newBuilder()
+                    .traceData(TraceData.newBuilder().evmTraceData(builder))
                     .build());
         }
         return new Output(blockItems, translationContext());
@@ -974,6 +993,14 @@ public class BlockStreamBuilder
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        requireNonNull(slotUsages);
+        this.slotUsages = slotUsages;
         return this;
     }
 

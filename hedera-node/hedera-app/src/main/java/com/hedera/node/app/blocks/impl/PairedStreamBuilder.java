@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -398,6 +399,13 @@ public class PairedStreamBuilder
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration) {
         recordStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
         blockStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        blockStreamBuilder.addContractSlotUsages(slotUsages);
         return this;
     }
 

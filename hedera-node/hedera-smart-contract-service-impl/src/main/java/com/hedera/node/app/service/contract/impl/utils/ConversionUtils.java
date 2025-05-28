@@ -17,6 +17,8 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -313,6 +315,36 @@ public class ConversionUtils {
             allStateChanges.add(new ContractStateChange(storageAccess.contractID(), changes));
         }
         return new ContractStateChanges(allStateChanges);
+    }
+
+    /**
+     * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
+     *
+     * @param storageAccesses the {@link StorageAccesses}
+     * @return the list of slot usages
+     */
+    public static List<ContractSlotUsage> asPbjSlotUsages(@NonNull final List<StorageAccesses> storageAccesses) {
+        final List<ContractSlotUsage> slotUsages = new ArrayList<>();
+        for (final var storageAccess : storageAccesses) {
+            final List<SlotRead> reads = new ArrayList<>();
+            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writtenKeys = new ArrayList<>();
+            for (final var access : storageAccess.accesses()) {
+                if (!access.isReadOnly()) {
+                    writtenKeys.add(access.trimmedKeyBytes());
+                    reads.add(SlotRead.newBuilder()
+                            .index(writtenKeys.size())
+                            .readValue(access.trimmedValueBytes())
+                            .build());
+                } else {
+                    reads.add(SlotRead.newBuilder()
+                            .key(access.trimmedKeyBytes())
+                            .readValue(access.trimmedValueBytes())
+                            .build());
+                }
+            }
+            slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), writtenKeys, reads));
+        }
+        return slotUsages;
     }
 
     /**
