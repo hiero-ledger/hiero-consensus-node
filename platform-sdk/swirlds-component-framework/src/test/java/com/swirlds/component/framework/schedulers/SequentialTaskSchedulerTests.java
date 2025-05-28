@@ -249,33 +249,22 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, i);
         }
 
-        assertEventuallyEquals(
-                100L,
-                taskScheduler::getUnprocessedTaskCount,
-                "Wire unprocessed task count did not match expected value, count = "
-                        + taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, 100L);
 
         handler.completionControl().unblock();
         handler.completionControl().await(50);
 
-        assertEquals(
-                50L,
-                taskScheduler.getUnprocessedTaskCount(),
-                "Wire unprocessed task count did not match expected value");
+        assertUnprocessedTasksValueIs(taskScheduler, 50L);
 
         gate50.open();
         handler.completionControl().await(48);
-        assertEquals(
-                2L,
-                taskScheduler.getUnprocessedTaskCount(),
-                "Wire unprocessed task count did not match expected value");
+        assertUnprocessedTasksValueIs(taskScheduler, 2L);
 
         gate98.open();
         handler.completionControl().await(2);
 
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                0L, taskScheduler::getUnprocessedTaskCount, "Wire unprocessed task count did not match expected value");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
         model.stop();
     }
@@ -357,12 +346,9 @@ class SequentialTaskSchedulerTests {
         handler.completionControl().await(DEFAULT_OPERATIONS + 1);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
-        assertEventuallyEquals(
-                0L,
-                taskScheduler::getUnprocessedTaskCount,
-                "Wire unprocessed task count did not match expected value. " + taskScheduler.getUnprocessedTaskCount());
-        assertEventuallyEquals(State.TERMINATED, secondProducerThread::getState, "Producer thread was not terminated");
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertEventuallyEquals(State.TERMINATED, secondProducerThread::getState, "Producer thread was not terminated");
 
         model.stop();
     }
@@ -408,7 +394,7 @@ class SequentialTaskSchedulerTests {
         });
         producer.start();
         producer.waitIsFinished();
-        assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the handler.
@@ -437,11 +423,8 @@ class SequentialTaskSchedulerTests {
         restOfProducers.waitIsFinished();
         handler.completionControl().await(DEFAULT_OPERATIONS);
         assertTrue(allWorkAdded.get(), "unable to add all work");
-        assertEquals(
-                0L,
-                taskScheduler.getUnprocessedTaskCount(),
-                "Wire unprocessed task count did not match expected value");
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
         assertEventuallyEquals(State.TERMINATED, producerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
@@ -719,7 +702,7 @@ class SequentialTaskSchedulerTests {
 
         producer.start();
         producer.waitIsFinished();
-        assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the signal.
@@ -730,21 +713,21 @@ class SequentialTaskSchedulerTests {
             }
             allWorkAdded.set(true);
         });
-        // Adding work to an unblocked wire should be very fast. If we slept for a while, we'd expect that an unblocked
-        // wire would have processed all the work added to it.
         final Thread secondProducerThread = secondProducer.start();
+
+        // An unblocked wire would have processed all the work added to it really fast.
+        // as soon as the thread is blocked the fmw should reflect the unprocessed task count
         assertEventuallyEquals(State.TIMED_WAITING, secondProducerThread::getState, "Producer thread was not blocked");
-        assertFalse(allWorkAdded.get());
         assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
+        assertFalse(allWorkAdded.get());
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-
-        unprocessedArguments.add(DEFAULT_OPERATIONS);
+        unprocessedArguments.add(100);
         RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
             assertFalse(channel1.offer(1234));
             assertFalse(channel1.offer(4321));
             assertFalse(channel1.offer(-1));
-            channel1.inject(DEFAULT_OPERATIONS);
+            channel1.inject(100);
         });
         thirdProducer.start();
         thirdProducer.waitIsFinished();
@@ -756,11 +739,8 @@ class SequentialTaskSchedulerTests {
         handler2.completionControl().await(DEFAULT_OPERATIONS - capacity);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
-        assertEquals(
-                0L,
-                taskScheduler.getUnprocessedTaskCount(),
-                "Wire unprocessed task count did not match expected value");
         assertTrue(unprocessedArguments.isEmpty(), "Wire did not process all work:" + unprocessedArguments);
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
         assertEventuallyEquals(State.TERMINATED, secondProducerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
@@ -918,7 +898,7 @@ class SequentialTaskSchedulerTests {
         });
         producer.start();
         producer.waitIsFinished();
-        assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
         // unable to add anything until we release the signal.
@@ -942,11 +922,11 @@ class SequentialTaskSchedulerTests {
         flusher.start();
 
         // Adding work to an unblocked wire should be very fast. If we slept for a while, we'd expect that an unblocked
-        // wire would have processed all the work added to it.
+        // wire would have processed all the work.
         sleep(50);
         assertFalse(allWorkAdded.get());
         assertFalse(flushed.get());
-        assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
         final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
@@ -967,8 +947,7 @@ class SequentialTaskSchedulerTests {
         assertTrue(flushed.get(), "unable to flush wire");
         handler.completionControl().await(DEFAULT_OPERATIONS + 1);
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                0L, taskScheduler::getUnprocessedTaskCount, "Wire unprocessed task count did not match expected value");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
         model.stop();
     }
@@ -1528,11 +1507,7 @@ class SequentialTaskSchedulerTests {
         handlerB.executionControl().await(partialWork);
 
         // Eventually, C should have 10 things that have not yet been fully processed.
-        assertEventuallyEquals(
-                10L,
-                taskSchedulerC::getUnprocessedTaskCount,
-                "C should have 10 unprocessed tasks, currently has " + taskSchedulerC.getUnprocessedTaskCount());
-
+        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2);
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
 
@@ -1550,8 +1525,7 @@ class SequentialTaskSchedulerTests {
         // If we wait some time, the task from B should have increased C's count to 11, but the task from A
         // should have been unable to increase C's count. We need to do greater equals than since a failed
         // insertion may briefly push the count up to 12 (although it should always fall immediately after).
-        assertEventuallyEquals(
-                11L, taskSchedulerC::getUnprocessedTaskCount, "should have no more than 11 unprocessed tasks");
+        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2 + 1);
         // Push some more data into A and B. A will be unable to process it because it's still
         // stuck pushing the previous value.
         inA.put(6);
@@ -1565,12 +1539,12 @@ class SequentialTaskSchedulerTests {
         // Even if we wait, (A) should not have been able to process the task.
         sleep(50);
         assertEquals(expectedCount, countA.get());
-        assertEquals(12, taskSchedulerC.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2 + 2);
 
         // Releasing the signal should allow data to flow through C.
         handlerC.completionControl().unblock();
         handlerA.executionControl().await(1);
-        handlerC.completionControl().await(10 + 2 + 2);
+        handlerC.completionControl().await(partialWork * 2 + 2 + 2);
         assertEquals(expectedSum, sumC.get());
         assertEquals(expectedCountAfterHandling6, countA.get());
 
@@ -2065,7 +2039,7 @@ class SequentialTaskSchedulerTests {
         handlerA.executionControl().await(11);
         handlerB.executionControl().await(11);
         handlerC.completionControl().await(11);
-        assertEquals(0L, counter.getCount(), "Counter should be empty");
+        assertEventuallyEquals(0L, counter::getCount, "Counter should be empty");
         assertEquals(expectedCount, countA.get(), "A should have processed task");
         assertEquals(expectedCount, countB.get(), "B should have processed task");
         assertEquals(expectedCount, countC.get(), "C should have processed task");
@@ -2131,16 +2105,16 @@ class SequentialTaskSchedulerTests {
 
         handlerA.executionControl().await(10);
         // Wait until A has handled all of its tasks.
-        assertEventuallyEquals(0L, schedulerA::getUnprocessedTaskCount, "A should have processed tasks");
+        assertUnprocessedTasksValueIs(schedulerA, 0L);
         assertEquals(expectedCountA, countA.get());
         // B should not have processed any tasks.
-        assertEquals(10, schedulerB.getUnprocessedTaskCount(), "A should have processed tasks");
+        assertUnprocessedTasksValueIs(schedulerB, 10L);
         assertEquals(0, countB.get());
 
         // Release the signal and allow B to process tasks.
         handlerB.completionControl().unblock();
         handlerB.completionControl().await(10);
-        assertEventuallyEquals(0L, schedulerB::getUnprocessedTaskCount, "B should have processed all awaiting tasks");
+        assertUnprocessedTasksValueIs(schedulerB, 0L);
         assertEquals(expectedCountB, countB.get());
 
         // Now, add some more data to A. That data should flow to B as well.
@@ -2152,8 +2126,8 @@ class SequentialTaskSchedulerTests {
 
         handlerA.executionControl().await(10);
         handlerB.completionControl().await(10);
-        assertEquals(0L, schedulerA.getUnprocessedTaskCount(), "A should have processed all awaiting tasks");
-        assertEquals(0L, schedulerB.getUnprocessedTaskCount(), "B should have processed all awaiting tasks");
+        assertUnprocessedTasksValueIs(schedulerA, 0L);
+        assertUnprocessedTasksValueIs(schedulerB, 0L);
 
         assertEquals(expectedCountA, countA.get());
         assertEquals(expectedCountB, countB.get());
@@ -2229,7 +2203,7 @@ class SequentialTaskSchedulerTests {
 
         // flush causes the unprocessedTaskCount to return to 0.
         taskScheduler.flush();
-        assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
         // Remove all permissions to start tasks.
         taskHandler.completionControl().block();
@@ -2239,11 +2213,11 @@ class SequentialTaskSchedulerTests {
         unprocessedTasks.set(totalTasks);
         producer.run();
         producer.waitIsFinished();
-        assertEquals(taskScheduler.getUnprocessedTaskCount(), unprocessedTasks.get());
+        assertUnprocessedTasksValueIs(taskScheduler, unprocessedTasks.get());
         taskHandler.completionControl().unblock();
         taskHandler.completionControl().await(totalTasks);
-        assertEquals(0, taskScheduler.getUnprocessedTaskCount());
         assertEquals(0, unprocessedTasks.get());
+        assertUnprocessedTasksValueIs(taskScheduler, 0);
 
         model.stop();
     }
@@ -2312,6 +2286,21 @@ class SequentialTaskSchedulerTests {
 
     private static void sleep(long millis) {
         new ThrowingRunnableWrapper(() -> Thread.sleep(millis), t -> fail("Unexpected interruption", t)).run();
+    }
+
+    /**
+     * The operation: TaskScheduler::getUnprocessedTaskCount manifests its results some time after the handler is correctly executed.
+     * So even waiting for the handler to finish is not enough to be able to check that the values are the expected ones.
+     * One possibility is to wait on each test, but this approach is somehow better.
+     *
+     * @see AssertionUtils#assertEventuallyEquals(Object, Supplier, Duration, String)
+     */
+    private static void assertUnprocessedTasksValueIs(
+            final @NonNull TaskScheduler<?> taskScheduler, final long expected) {
+        assertEventuallyEquals(
+                expected,
+                taskScheduler::getUnprocessedTaskCount,
+                "Wire unprocessed task count did not match expected value:" + taskScheduler.getName());
     }
 
     /**
