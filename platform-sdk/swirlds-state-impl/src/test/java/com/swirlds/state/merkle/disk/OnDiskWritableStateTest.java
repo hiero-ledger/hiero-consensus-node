@@ -67,10 +67,12 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         }
 
         @AfterEach
-        void tearDown() {
+        void tearDown() throws IOException {
             if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
                 fruitVirtualMap.release();
             }
+
+            fruitVirtualMap.getDataSource().close();
         }
     }
 
@@ -130,10 +132,12 @@ class OnDiskWritableStateTest extends MerkleTestBase {
         }
 
         @AfterEach
-        void tearDown() {
+        void tearDown() throws IOException {
             if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
                 fruitVirtualMap.release();
             }
+
+            fruitVirtualMap.getDataSource().close();
         }
     }
 
