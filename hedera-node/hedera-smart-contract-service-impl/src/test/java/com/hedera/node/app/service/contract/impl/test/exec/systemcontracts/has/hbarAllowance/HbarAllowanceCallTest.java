@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.hbarAllowance;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
@@ -56,7 +54,7 @@ class HbarAllowanceCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ALLOWANCE_OWNER_ID), result.getOutput());
+        assertEquals(revertOutputFor(ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID), result.getOutput());
     }
 
     @Test
@@ -71,7 +69,9 @@ class HbarAllowanceCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY
                         .getOutputs()
-                        .encode(Tuple.of((long) SUCCESS.getNumber(), BigInteger.valueOf(0L)))
+                        .encode(Tuple.of(
+                                (long) com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS.getNumber(),
+                                BigInteger.valueOf(0L)))
                         .array()),
                 result.getOutput());
     }
@@ -93,7 +93,7 @@ class HbarAllowanceCallTest extends CallTestBase {
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(null);
         final var revertResult = subject.execute(frame);
         assertEquals(
-                INVALID_ALLOWANCE_OWNER_ID,
+                ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID,
                 revertResult.responseCode(),
                 "responseCode should be INVALID_ALLOWANCE_OWNER_ID");
         assertTrue(revertResult.fullResult().gasRequirement() > 0, "gasRequirement should be > 0");
