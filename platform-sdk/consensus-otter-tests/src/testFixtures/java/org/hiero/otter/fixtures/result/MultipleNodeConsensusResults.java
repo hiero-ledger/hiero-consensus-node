@@ -26,6 +26,8 @@ public interface MultipleNodeConsensusResults extends OtterResult {
     /**
      * Subscribes to {@link ConsensusRound}s created by the nodes.
      *
+     * <p>The subscriber will be notified every time one (or more) rounds reach consensus.
+     *
      * @param subscriber the subscriber that will receive the rounds
      */
     void subscribe(@NonNull ConsensusRoundSubscriber subscriber);

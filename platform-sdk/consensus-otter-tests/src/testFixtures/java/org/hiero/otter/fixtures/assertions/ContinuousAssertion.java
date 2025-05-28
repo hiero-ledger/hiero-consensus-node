@@ -23,7 +23,7 @@ public interface ContinuousAssertion {
     void resume();
 
     /**
-     * Stops the continuous assertion. All resources are released. Once stopped, the assertions cannot be restarted again.
+     * Destroys the continuous assertion. All resources are released. Once destroyed, the assertions cannot be restarted again.
      *
      * <p>This method is idempotent, meaning that it is safe to call multiple times.
      */

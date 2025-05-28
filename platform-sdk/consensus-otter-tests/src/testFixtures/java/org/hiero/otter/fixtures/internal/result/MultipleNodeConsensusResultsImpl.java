@@ -81,9 +81,9 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
     /**
      * {@inheritDoc}
      *
-     * <p>The change is done on a best effort basis. A slower node may collect rounds after a reset that were
-     * discarded on faster nodes. Ideally, this method is only called while all nodes are in the state
-     * {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE}.
+     * <p>The change is done on a best effort basis. A slower node may collect rounds after a clear that were
+     * discarded on faster nodes. Ideally, this method is only called while all nodes have progressed the same,
+     * e.g. while in the state {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE}.
      */
     @Override
     public void clear() {
