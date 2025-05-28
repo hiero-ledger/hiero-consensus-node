@@ -1,0 +1,38 @@
+/**
+ * # Trace Data
+ * A trace data item includes information that can be considered
+ * trace or debugging in nature, but with material value to at
+ * least some stream consumers. This includes EVM execution call
+ * traces; storage access and updates; and logs.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream.trace;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.trace.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream.trace">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "block/stream/trace/smart_contract_service.proto";
+
+/**
+ * A Trace Data.
+ *
+ * Trace data SHALL provide non-essential information needed to give an
+ * enriched view of a transaction's handling to stream consumers.<br/>
+ *
+ * There are no REQUIRED fields of this message.
+ */
+message TraceData {
+  oneof data {
+    EVMTraceData evm_trace_data = 1;
+  }
+}
