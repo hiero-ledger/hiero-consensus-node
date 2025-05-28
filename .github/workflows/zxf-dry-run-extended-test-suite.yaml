@@ -9,22 +9,22 @@ on:
       branch_name:
         required: true
         description: "The branch name, for JRS Panel output"
-      run-extended-test-suite:
+      enable-run-extended-test-suite:
         required: true
         type: boolean
         default: true
         description: "Run Extended Test Suite"
-      run-abbreviated-panel:
+      enable-run-abbreviated-panel:
         required: true
         type: boolean
         default: true
         description: "Run Abbreviated JRS Panel"
-      run-hedera-node-jrs-panel:
+      enable-run-hedera-node-jrs-panel:
         required: true
         type: boolean
         default: true
         description: "Run Hedera Node JRS Panel"
-      run-sdk-tck-regression-panel:
+      enable-run-sdk-tck-regression-panel:
         required: true
         type: boolean
         default: true
