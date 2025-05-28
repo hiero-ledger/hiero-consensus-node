@@ -17,6 +17,8 @@ defaults:
     shell: bash
 
 permissions:
+  id-token: write
+  checks: write
   contents: read
 
 env:
