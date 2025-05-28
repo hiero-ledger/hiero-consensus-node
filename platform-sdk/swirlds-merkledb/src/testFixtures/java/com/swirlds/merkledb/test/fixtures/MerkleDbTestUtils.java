@@ -25,6 +25,7 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -347,14 +348,21 @@ public class MerkleDbTestUtils {
 
     /**
      * Asserts that all databases are closed within a certain time frame.
-     *
-     * Add time as a parameter?
      */
     public static void assertAllDatabasesClosed() {
+        assertSomeDatabasesStillOpen(0L);
+    }
+
+    /**
+     * Asserts that the number of open databases matches the expected count within a specified time frame.
+     *
+     * @param expectedOpenCount The expected number of open databases to validate.
+     */
+    public static void assertSomeDatabasesStillOpen(@NonNull final Long expectedOpenCount) {
         assertEventuallyEquals(
-                0L,
+                expectedOpenCount,
                 MerkleDbDataSource::getCountOfOpenDatabases,
                 Duration.of(5, ChronoUnit.SECONDS),
-                "All databases should be closed");
+                "Expected " + expectedOpenCount + " open databases.");
     }
 }
