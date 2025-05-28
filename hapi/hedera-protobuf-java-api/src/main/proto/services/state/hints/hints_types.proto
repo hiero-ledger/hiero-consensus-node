@@ -98,7 +98,7 @@ message PreprocessingVote {
 }
 
 /**
- * A node's hinTS party id.
+ * A node's weighted hinTS party id.
  */
 message NodePartyId {
   /**
@@ -109,6 +109,10 @@ message NodePartyId {
    * The party id.
    */
   uint32 party_id = 2;
+  /**
+   * The party's weight in the construction.
+   */
+  uint64 party_weight = 3;
 }
 
 /**
