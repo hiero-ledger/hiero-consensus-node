@@ -180,13 +180,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return finalizedTxn(spec, opBodyDef(spec));
     }
 
-    /**
-     * This is used only for atomic batch transactions, where the inner transaction is not set
-     */
-    public void setTxnSubmittedFrom(HapiSpec spec) throws Throwable {
-        txnSubmitted = signedTxnFor(spec);
-    }
-
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         configureTlsFor(spec);
