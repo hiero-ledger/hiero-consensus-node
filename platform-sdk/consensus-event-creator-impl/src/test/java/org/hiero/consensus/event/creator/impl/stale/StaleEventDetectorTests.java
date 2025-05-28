@@ -91,7 +91,6 @@ class StaleEventDetectorTests {
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
@@ -106,7 +105,6 @@ class StaleEventDetectorTests {
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
@@ -166,7 +164,6 @@ class StaleEventDetectorTests {
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
@@ -242,7 +239,6 @@ class StaleEventDetectorTests {
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
