@@ -702,7 +702,7 @@ public class SyncTests {
     @MethodSource({"tenNodeGraphParams", "tenNodeBigGraphParams", "tipExpiresBreakingSeed"})
     void tipExpiresAfterPhase1(final SyncTestParams params) throws Exception {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
-        final AtomicLong maximumIndicator = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
+        final AtomicLong maximumIndicator = new AtomicLong(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
 
         final int creatorIndexToExpire = 0;
         final NodeId creatorIdToExpire = NodeId.of(
