@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
+import static java.util.Comparator.comparingInt;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import org.assertj.core.api.AbstractAssert;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -27,9 +31,6 @@ public class MultipleNodeConsensusResultsAssert
      */
     public MultipleNodeConsensusResultsAssert(@Nullable final MultipleNodeConsensusResults actual) {
         super(actual, MultipleNodeConsensusResultsAssert.class);
-        if (actual.results().isEmpty()) {
-            throw new IllegalArgumentException("Trying to assert empty results. This is unlikely to be intended.");
-        }
     }
 
     /**
@@ -87,18 +88,26 @@ public class MultipleNodeConsensusResultsAssert
     public MultipleNodeConsensusResultsAssert hasEqualRoundsIgnoringLast(@NonNull final Percentage expectedDifference) {
         isNotNull();
 
+        // create list of current rounds
+        final List<RoundListResult> currentRoundResults = actual.results().stream()
+                .map(nodeResult -> new RoundListResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
+                .toList();
+
         // find longest and shortest list
-        final SingleNodeConsensusResult longestResult = actual.results().stream()
-                .max(Comparator.comparing(r -> r.consensusRounds().size()))
-                .orElseThrow();
-        final int shortestSize = actual.results().stream()
-                .map(SingleNodeConsensusResult::consensusRounds)
-                .mapToInt(List::size)
-                .min()
-                .orElse(0);
+        final Optional<RoundListResult> optionalLongestResult =
+                currentRoundResults.stream().max(comparingInt(RoundListResult::size));
+        if (optionalLongestResult.isEmpty()) {
+            // no consensus rounds collected
+            return this;
+        }
+        final RoundListResult longestResult = optionalLongestResult.get();
+        final int longestSize = longestResult.size();
+        final int shortestSize = currentRoundResults.stream()
+                .min(comparingInt(RoundListResult::size))
+                .orElseThrow()
+                .size();
 
         // Check if difference is within bounds
-        final int longestSize = longestResult.consensusRounds().size();
         final double actualDifference = 100.0 * (longestSize - shortestSize) / longestSize;
         if (actualDifference > expectedDifference.value) {
             failWithMessage(
@@ -107,23 +116,28 @@ public class MultipleNodeConsensusResultsAssert
         }
 
         // Check that all nodes produced the same consensus rounds as are in the longest list
-        for (final SingleNodeConsensusResult currentNodeResult : actual.results()) {
+        for (final RoundListResult currentNodeResult : currentRoundResults) {
             if (currentNodeResult.nodeId().equals(longestResult.nodeId())) {
                 continue;
             }
-            final int size = currentNodeResult.consensusRounds().size();
-            final List<ConsensusRound> expectedSublist =
-                    longestResult.consensusRounds().subList(0, size);
-            OtterAssertions.assertThat(currentNodeResult)
+            final int size = currentNodeResult.size();
+            final List<ConsensusRound> expectedSublist = longestResult.rounds().subList(0, size);
+            Assertions.assertThat(currentNodeResult.rounds())
                     .withFailMessage(
                             "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
                             currentNodeResult.nodeId(),
                             longestResult.nodeId(),
-                            currentNodeResult.consensusRounds(),
+                            currentNodeResult.rounds(),
                             expectedSublist)
-                    .hasRounds(expectedSublist);
+                    .containsExactlyElementsOf(expectedSublist);
         }
 
         return this;
+    }
+
+    private record RoundListResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
+        private int size() {
+            return rounds.size();
+        }
     }
 }

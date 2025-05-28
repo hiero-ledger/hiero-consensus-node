@@ -57,7 +57,7 @@ class BirthRoundMigrationTest {
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
         // check that all nodes froze at the same round
-        assertThat(network.getConsensusResult()).hasLastRoundNum(freezeRound);
+        assertThat(network.getConsensusResults()).hasLastRoundNum(freezeRound);
 
         // update the configuration
         for (final Node node : network.getNodes()) {
@@ -75,7 +75,7 @@ class BirthRoundMigrationTest {
 
         // Assert the results
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
-        assertThat(network.getConsensusResult())
+        assertThat(network.getConsensusResults())
                 .hasAdvancedSince(freezeRound)
                 .hasEqualRoundsIgnoringLast(withPercentage(5));
 
