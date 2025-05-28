@@ -15,11 +15,8 @@ on:
 defaults:
   run:
     shell: bash
-    working-directory: platform-sdk
 
 permissions:
-  id-token: write
-  checks: write
   contents: read
 
 env:
@@ -34,7 +31,6 @@ jobs:
   tck-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
@@ -91,7 +87,6 @@ jobs:
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
         run: ${GRADLE_EXEC} assemble
-        working-directory: ${{ github.workspace }}
 
       # Set up the npm dependencies and cache on the tck-client
       - name: Set up the tck-client
@@ -146,8 +141,6 @@ jobs:
           nohup kubectl port-forward svc/mirror-monitor -n ${{ env.SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:8084 > /dev/null 2>&1 &
-
-        working-directory: ${{ github.workspace }}
 
       # Start the TCK client
       - name: Start tck-client
