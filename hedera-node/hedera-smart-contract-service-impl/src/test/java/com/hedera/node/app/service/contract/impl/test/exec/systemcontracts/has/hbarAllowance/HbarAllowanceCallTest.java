@@ -14,6 +14,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
@@ -86,7 +87,7 @@ class HbarAllowanceCallTest extends CallTestBase {
         subject = new HbarAllowanceCall(attempt, B_NEW_ACCOUNT_ID, UNAUTHORIZED_SPENDER_ID);
 
         final var successResult = subject.execute(frame);
-        assertEquals(SUCCESS, successResult.responseCode(), "responseCode should be SUCCESS");
+        assertEquals(ResponseCodeEnum.SUCCESS, successResult.responseCode(), "responseCode should be SUCCESS");
         assertTrue(successResult.fullResult().gasRequirement() > 0, "gasRequirement should be > 0");
 
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(null);
