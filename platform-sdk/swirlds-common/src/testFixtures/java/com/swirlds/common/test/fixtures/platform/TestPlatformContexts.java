@@ -26,24 +26,17 @@ import org.hiero.consensus.model.event.AncientMode;
  */
 public class TestPlatformContexts {
 
-    public static PlatformContext context(@NonNull final Time time, final Path dataDir) {
-        return context(BIRTH_ROUND_THRESHOLD, time, dataDir);
-    }
-
     /**
      * Creates a context with no recycle bin and no metrics.
-     * @param ancientMode The strategy used to determine if an event is ancient
      * @param time The time
      * @param dataDir The directory where data is placed
      * @return a platformContext
      */
     @NonNull
-    public static PlatformContext context(
-            @NonNull final AncientMode ancientMode, @NonNull final Time time, final Path dataDir) {
+    public static PlatformContext context(@NonNull final Time time, final Path dataDir) {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(PcesConfig_.DATABASE_DIRECTORY, dataDir)
                 .withValue(PcesConfig_.PREFERRED_FILE_SIZE_MEGABYTES, 5)
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, ancientMode == BIRTH_ROUND_THRESHOLD)
                 .withValue(PcesConfig_.PERMIT_GAPS, false)
                 .withValue(PcesConfig_.COMPACT_LAST_FILE_ON_STARTUP, false)
                 .getOrCreateConfig();

@@ -790,7 +790,7 @@ class TipsetEventCreatorTests {
         final EventCreator eventCreator =
                 buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         // Create some genesis events
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
@@ -862,7 +862,6 @@ class TipsetEventCreatorTests {
         final EventCreator eventCreator =
                 buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
         eventCreator.setEventWindow(EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 .setAncientThreshold(100)
                 .build());
 
@@ -925,7 +924,6 @@ class TipsetEventCreatorTests {
                 if (eventIndex > 0) {
                     // Set non-ancientEventWindow after creating genesis event from each node.
                     eventCreator.setEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(ancientMode)
                             .setLatestConsensusRound(pendingConsensusRound - 1)
                             .setNewEventBirthRound(pendingConsensusRound)
                             .setAncientThresholdOrGenesis(eventIndex - 26)
@@ -948,11 +946,7 @@ class TipsetEventCreatorTests {
                     assertEquals(ROUND_FIRST, birthRound);
                 } else {
                     final long birthRound = event.getEventCore().birthRound();
-                    if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
                         assertEquals(pendingConsensusRound, birthRound);
-                    } else {
-                        assertEquals(ROUND_FIRST, birthRound);
-                    }
                 }
             }
         }
@@ -982,7 +976,7 @@ class TipsetEventCreatorTests {
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList);
 
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         final List<PlatformEvent> pcesEvents = new ArrayList<>();
         PlatformEvent eventWithHighestNGen = null;
@@ -1032,7 +1026,7 @@ class TipsetEventCreatorTests {
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList);
 
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
