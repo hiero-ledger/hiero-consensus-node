@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.AbstractHashable;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
@@ -90,7 +91,7 @@ public class EventMetadata extends AbstractHashable {
         this.allParents = selfParent == null
                 ? this.otherParents
                 : Stream.concat(Stream.of(selfParent), otherParents.stream()).toList();
-        this.generation = calculateGeneration(allParents);
+        this.generation = 0;
         this.timeCreated = Objects.requireNonNull(timeCreated, "The timeCreated must not be null");
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
                 .map(TransactionWrapper::new)
@@ -117,12 +118,16 @@ public class EventMetadata extends AbstractHashable {
             this.selfParent = null;
             this.otherParents = allParents;
         }
-        this.generation = calculateGeneration(allParents);
         this.timeCreated = HapiUtils.asInstant(
                 Objects.requireNonNull(gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null"));
         this.transactions =
                 gossipEvent.transactions().stream().map(TransactionWrapper::new).toList();
         birthRound = gossipEvent.eventCore().birthRound();
+        if (birthRound > ConsensusConstants.ROUND_FIRST) {
+            this.generation = 0;
+        } else {
+            this.generation = calculateGeneration(allParents);
+        }
     }
 
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
