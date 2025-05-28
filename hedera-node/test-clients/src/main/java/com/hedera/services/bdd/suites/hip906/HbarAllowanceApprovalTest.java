@@ -170,7 +170,7 @@ public class HbarAllowanceApprovalTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> hrc632AllowanceFromContractRevertNoOwner() {
+    /* default */ final Stream<DynamicTest> hrc632AllowanceFromContractRevertNoOwner() {
         final var successTx = HBAR_ALLOWANCE_TXN + "_success";
         final var revertTx = HBAR_ALLOWANCE_TXN + "_revert";
         final AtomicReference<Address> accountNum = new AtomicReference<>();
