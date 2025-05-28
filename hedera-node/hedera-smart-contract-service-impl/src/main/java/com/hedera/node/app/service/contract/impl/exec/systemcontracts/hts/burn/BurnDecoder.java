@@ -75,8 +75,7 @@ public class BurnDecoder {
         if (isLongZero(tokenAddress)) {
             final var explicit = explicitFromHeadlong(tokenAddress);
 
-            maybeToken = attempt.linkedToken(
-                    asEvmAddress(attempt.nativeOperations().entityIdFactory(), numberOfLongZero(explicit)));
+            maybeToken = attempt.linkedToken(asEvmAddress(numberOfLongZero(explicit)));
             tokenNum = numberOfLongZero(explicit);
         }
 

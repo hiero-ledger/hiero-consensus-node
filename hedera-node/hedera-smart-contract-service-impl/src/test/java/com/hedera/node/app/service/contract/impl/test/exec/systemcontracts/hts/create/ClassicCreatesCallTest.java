@@ -17,7 +17,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -343,7 +342,7 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
     @Test
     void requiresNonGasCostToBeProvidedAsValue() {
-        commonGivens(200_000L, 99_999L, true, false);
+        commonGivens(200_000L, 99_999L, true);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(systemContractOperations.externalizePreemptedDispatch(any(), eq(INSUFFICIENT_TX_FEE), eq(TOKEN_CREATE)))
                 .willReturn(recordBuilder);
@@ -400,10 +399,10 @@ public class ClassicCreatesCallTest extends CallTestBase {
     }
 
     private void commonGivens() {
-        commonGivens(0L, 0L, false, true);
+        commonGivens(0L, 0L, false);
     }
 
-    private void commonGivens(long baseCost, long value, boolean shouldBePreempted, boolean shouldHaveRealmAndShard) {
+    private void commonGivens(long baseCost, long value, boolean shouldBePreempted) {
         given(frame.getValue()).willReturn(Wei.of(value));
         given(gasCalculator.feeCalculatorPriceInTinyBars(any(), any())).willReturn(baseCost);
         stack.push(frame);
@@ -420,10 +419,6 @@ public class ClassicCreatesCallTest extends CallTestBase {
                     .willReturn(recordBuilder);
         }
         given(frame.getBlockValues()).willReturn(blockValues);
-        if (shouldHaveRealmAndShard) {
-            given(frame.getWorldUpdater()).willReturn(updater);
-            given(updater.entityIdFactory()).willReturn(entityIdFactory);
-        }
         given(blockValues.getTimestamp()).willReturn(Timestamp.DEFAULT.seconds());
         subject = new ClassicCreatesCall(
                 gasCalculator, mockEnhancement(), PRETEND_CREATE_TOKEN, verificationStrategy, A_NEW_ACCOUNT_ID);
