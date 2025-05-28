@@ -91,8 +91,7 @@ public class TokenUpdateSpecs {
     private static final String PAYER = "payer";
     private static final String TREASURY_UPDATE_TXN = "treasuryUpdateTxn";
     private static final String INVALID_TREASURY = "invalidTreasury";
-
-    private static String TOKEN_TREASURY = "treasury";
+    private static final String TOKEN_TREASURY = "treasury";
 
     @HapiTest
     final Stream<DynamicTest> canUpdateExpiryOnlyOpWithoutAdminKey() {
@@ -345,7 +344,6 @@ public class TokenUpdateSpecs {
 
     @HapiTest
     final Stream<DynamicTest> validAutoRenewWorks() {
-        final var firstPeriod = THREE_MONTHS_IN_SECONDS;
         final var secondPeriod = THREE_MONTHS_IN_SECONDS + 1234;
         return defaultHapiSpec("validAutoRenewWorks")
                 .given(
@@ -356,7 +354,7 @@ public class TokenUpdateSpecs {
                         tokenCreate("tbu")
                                 .adminKey("adminKey")
                                 .autoRenewAccount("autoRenew")
-                                .autoRenewPeriod(firstPeriod),
+                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS),
                         tokenUpdate("tbu")
                                 .signedBy(GENESIS, "adminKey")
                                 .autoRenewAccount("newAutoRenew")
@@ -1061,5 +1059,19 @@ public class TokenUpdateSpecs {
                         .adminKey("adminKey")
                         .supplyKey("supplyKey"),
                 tokenUpdate("token").expiry(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenUpdateWithAutoRenewAccountAndNoPeriod() {
+        return hapiTest(
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token").autoRenewAccount("autoRenewAccount").hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 }

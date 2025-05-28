@@ -57,7 +57,7 @@ public class TokenMetadataSpecs {
     private static final String METADATA_KEY = "metadataKey";
     private static final String FREEZE_KEY = "freezeKey";
     private static final String KYC_KEY = "kycKey";
-    private static String TOKEN_TREASURY = "treasury";
+    private static final String TOKEN_TREASURY = "treasury";
 
     @HapiTest
     final Stream<DynamicTest> rejectsMetadataTooLong() {
