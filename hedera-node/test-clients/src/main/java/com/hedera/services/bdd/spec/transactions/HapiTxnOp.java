@@ -884,6 +884,17 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         updateStateOf(spec);
     }
 
+    /**
+     * Since we are not submitting inner transactions, we need to set them as submitted
+     * inorder to be able to update properly the state of the spec registry.
+     */
+    public void setInnerTxnAsSubmitted(HapiSpec spec, Transaction txn) throws Throwable {
+        txnSubmitted = txn;
+        if (shouldRegisterTxn) {
+            registerTxnSubmitted(spec);
+        }
+    }
+
     public T batchKey(String key) {
         batchKey = Optional.of(spec -> spec.registry().getKey(key));
         return self();
