@@ -14,7 +14,6 @@ import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CanonicalDispatchPrices;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
@@ -92,10 +91,14 @@ class HbarAllowanceCallTest extends CallTestBase {
 
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(null);
         final var revertResult = subject.execute(frame);
-        assertEquals(INVALID_ALLOWANCE_OWNER_ID, revertResult.responseCode(), "responseCode should be INVALID_ALLOWANCE_OWNER_ID");
+        assertEquals(
+                INVALID_ALLOWANCE_OWNER_ID,
+                revertResult.responseCode(),
+                "responseCode should be INVALID_ALLOWANCE_OWNER_ID");
         assertTrue(revertResult.fullResult().gasRequirement() > 0, "gasRequirement should be > 0");
         assertEquals(
                 successResult.fullResult().gasRequirement(),
-                revertResult.fullResult().gasRequirement(), "gasRequirement of 'successResult' and 'revertResult' should be the same");
+                revertResult.fullResult().gasRequirement(),
+                "gasRequirement of 'successResult' and 'revertResult' should be the same");
     }
 }

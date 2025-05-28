@@ -154,7 +154,10 @@ public class HbarAllowanceApprovalTest {
     }
 
     private CustomSpecAssert hbarAllowanceCall(
-            final Supplier<Address> owner, final Supplier<Address> spender, final String txName, final ResponseCodeEnum status) {
+            final Supplier<Address> owner,
+            final Supplier<Address> spender,
+            final String txName,
+            final ResponseCodeEnum status) {
         return withOpContext((spec, opLog) -> allRunFor(
                 spec,
                 // call hbarAllowance from Contract
@@ -167,7 +170,7 @@ public class HbarAllowanceApprovalTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> hrc632AllowanceFromContractRevertNoOwner() {
+    public final Stream<DynamicTest> hrc632AllowanceFromContractRevertNoOwner() {
         final var successTx = HBAR_ALLOWANCE_TXN + "_success";
         final var revertTx = HBAR_ALLOWANCE_TXN + "_revert";
         final AtomicReference<Address> accountNum = new AtomicReference<>();
