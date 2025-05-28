@@ -64,6 +64,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
+    private final TurtleLogging logging;
     private final Path rootOutputDirectory;
     private final List<TurtleNode> nodes = new ArrayList<>();
 
@@ -83,9 +84,11 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
+            @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory) {
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
+        this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
     }
 
@@ -126,7 +129,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     private TurtleNode createTurtleNode(
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, outputDir);
+        return new TurtleNode(
+                randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, logging, outputDir);
     }
 
     /**
