@@ -64,7 +64,6 @@ public class SyncNode {
     private boolean saveGeneratedEvents;
     private boolean shouldAcceptSync = true;
     private boolean reconnected = false;
-    private final AncientMode ancientMode;
 
     private long expirationThreshold;
 
@@ -81,29 +80,25 @@ public class SyncNode {
     public SyncNode(
             final int numNodes,
             final long nodeId,
-            final EventEmitter eventEmitter,
-            @NonNull final AncientMode ancientMode) {
+            final EventEmitter eventEmitter) {
 
         this(
                 numNodes,
                 nodeId,
                 eventEmitter,
-                new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"),
-                ancientMode);
+                new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"));
     }
 
     public SyncNode(
             final int numNodes,
             final long nodeId,
             final EventEmitter eventEmitter,
-            final ParallelExecutor executor,
-            @NonNull final AncientMode ancientMode) {
+            final ParallelExecutor executor) {
 
         if (executor.isMutable()) {
             executor.start();
         }
 
-        this.ancientMode = Objects.requireNonNull(ancientMode);
         this.numNodes = numNodes;
         this.nodeId = NodeId.of(nodeId);
         this.eventEmitter = eventEmitter;
@@ -120,9 +115,6 @@ public class SyncNode {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(SyncConfig_.FILTER_LIKELY_DUPLICATES, false)
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
 
         platformContext = TestPlatformContextBuilder.create()
@@ -130,7 +122,7 @@ public class SyncNode {
                 .build();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
         this.executor = executor;
     }
 
@@ -232,9 +224,6 @@ public class SyncNode {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(SyncConfig_.FILTER_LIKELY_DUPLICATES, false)
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
@@ -270,7 +259,6 @@ public class SyncNode {
         final long ancientThreshold = Math.max(shadowGraph.getEventWindow().ancientThreshold(), expirationThreshold);
 
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 .setAncientThreshold(ancientThreshold)
                 .setExpiredThreshold(expirationThreshold)
                 .build();

@@ -81,7 +81,6 @@ class ShadowgraphByBirthRoundTests {
 
     private void initShadowGraph(final Random random, final int numEvents, final int numNodes) {
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
                 .getOrCreateConfig();
 
         platformContext = TestPlatformContextBuilder.create()

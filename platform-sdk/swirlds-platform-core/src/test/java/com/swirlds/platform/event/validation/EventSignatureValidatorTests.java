@@ -212,14 +212,10 @@ class EventSignatureValidatorTests {
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Ancient events are discarded")
-    void ancientEvent(final boolean useBirthRoundForAncientThreshold) {
+    void ancientEvent() {
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncientThreshold)
-                        .getOrCreateConfig())
                 .build();
         final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
 

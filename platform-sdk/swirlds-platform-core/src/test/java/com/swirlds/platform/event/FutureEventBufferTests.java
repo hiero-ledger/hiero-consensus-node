@@ -35,7 +35,6 @@ import org.junit.jupiter.api.Test;
 class FutureEventBufferTests {
     public static final Metrics METRICS = new NoOpMetrics();
     public static final Configuration CONFIGURATION = new TestConfigBuilder()
-            .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, "true")
             .getOrCreateConfig();
 
     /**

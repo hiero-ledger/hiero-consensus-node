@@ -34,6 +34,10 @@ public class PcesFileTracker {
 
     private final AncientMode fileType;
 
+    public PcesFileTracker() {
+        this(AncientMode.BIRTH_ROUND_THRESHOLD);
+    }
+
     /**
      * Constructor.
      *

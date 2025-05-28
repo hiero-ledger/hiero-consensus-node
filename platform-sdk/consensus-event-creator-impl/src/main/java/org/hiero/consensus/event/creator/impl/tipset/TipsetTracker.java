@@ -51,6 +51,13 @@ public class TipsetTracker {
 
     private final RateLimitedLogger ancientEventLogger;
 
+    public TipsetTracker(
+            @NonNull final Time time,
+            @NonNull final NodeId selfId,
+            @NonNull final Roster roster) {
+        this(time, selfId, roster, AncientMode.BIRTH_ROUND_THRESHOLD);
+    }
+
     /**
      * Create a new tipset tracker.
      *

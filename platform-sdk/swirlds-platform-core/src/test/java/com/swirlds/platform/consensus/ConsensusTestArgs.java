@@ -27,12 +27,6 @@ public class ConsensusTestArgs {
     /** The default platform context to use for tests. */
     public static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
             TestPlatformContextBuilder.create().build();
-    /** The platform context to use for tests that use the birth round as ancient threshold. */
-    public static final PlatformContext BIRTH_ROUND_PLATFORM_CONTEXT = TestPlatformContextBuilder.create()
-            .withConfiguration(new TestConfigBuilder()
-                    .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                    .getOrCreateConfig())
-            .build();
 
     static Stream<ConsensusTestParams> orderInvarianceTests() {
         return Stream.of(

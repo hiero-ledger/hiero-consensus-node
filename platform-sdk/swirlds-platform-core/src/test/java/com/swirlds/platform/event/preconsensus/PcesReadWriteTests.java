@@ -3,7 +3,7 @@ package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.io.FileManipulation.corruptFile;
 import static com.swirlds.common.test.fixtures.io.FileManipulation.truncateFile;
-import static com.swirlds.platform.consensus.ConsensusTestArgs.BIRTH_ROUND_PLATFORM_CONTEXT;
+import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -83,7 +83,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                BIRTH_ROUND_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -146,7 +146,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                BIRTH_ROUND_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -238,7 +238,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                BIRTH_ROUND_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -318,7 +318,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                BIRTH_ROUND_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -393,7 +393,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                BIRTH_ROUND_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -467,7 +467,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                BIRTH_ROUND_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),
@@ -545,7 +545,7 @@ class PcesReadWriteTests {
         final int numEvents = 100;
 
         final StandardGraphGenerator generator = new StandardGraphGenerator(
-                BIRTH_ROUND_PLATFORM_CONTEXT,
+                DEFAULT_PLATFORM_CONTEXT,
                 random.nextLong(),
                 new StandardEventSource(),
                 new StandardEventSource(),

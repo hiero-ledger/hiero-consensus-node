@@ -50,12 +50,7 @@ class ConsensusTests extends PlatformTest {
         return List.of(
                 createPlatformContext(
                         null,
-                        configBuilder ->
-                                configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)),
-                createPlatformContext(
-                        null,
-                        configBuilder ->
-                                configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)));
+                        null));
     }
 
     @ParameterizedTest

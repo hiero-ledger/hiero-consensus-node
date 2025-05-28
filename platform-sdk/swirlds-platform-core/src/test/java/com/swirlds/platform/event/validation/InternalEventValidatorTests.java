@@ -64,12 +64,7 @@ class InternalEventValidatorTests {
 
         final Time time = new FakeTime();
 
-        // Adding the configuration to use the birth round as the ancient threshold for testing.
-        // The conditions where it is false is covered by the case where it is set to true.
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                        .getOrCreateConfig())
                 .withTime(time)
                 .build();
 

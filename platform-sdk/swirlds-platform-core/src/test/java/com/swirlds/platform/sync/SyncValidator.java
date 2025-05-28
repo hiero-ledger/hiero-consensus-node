@@ -52,13 +52,13 @@ public class SyncValidator {
     }
 
     public static void assertRequiredEventsTransferred(
-            final SyncNode caller, final SyncNode listener, @NonNull final AncientMode ancientMode) {
+            final SyncNode caller, final SyncNode listener) {
         if (enableLogging) {
             printTipSet("Caller's Tip Set", caller);
             printTipSet("Listener's Tip Set", listener);
             System.out.println("*** Asserting that required events were transferred ***");
         }
-        compareEventLists(caller, listener, false, ancientMode);
+        compareEventLists(caller, listener, false, AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 
     public static void assertOnlyRequiredEventsTransferred(
