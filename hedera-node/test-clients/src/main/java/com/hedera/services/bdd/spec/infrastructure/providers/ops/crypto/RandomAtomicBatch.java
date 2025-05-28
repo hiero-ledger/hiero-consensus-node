@@ -23,6 +23,7 @@ public class RandomAtomicBatch implements OpProvider {
         this.ops = ops;
     }
 
+    // Gather all initializers from the inner operations
     @Override
     public List<SpecOperation> suggestedInitializers() {
         var innerTransactionsInitializers = new ArrayList<SpecOperation>();
@@ -36,6 +37,7 @@ public class RandomAtomicBatch implements OpProvider {
     public Optional<HapiSpecOperation> get() {
         var opsToInclude = new ArrayList<HapiTxnOp>();
 
+        // Iterate through the provided operations and collect those that are instances of HapiTxnOp
         for (var o : ops) {
             var op = o.get();
             if (op.isPresent() && op.get() instanceof HapiTxnOp<?>) {
@@ -43,6 +45,7 @@ public class RandomAtomicBatch implements OpProvider {
             }
         }
 
+        // Iterate through the provided operations and add batchKeys to each
         var opsToIncludeArray = new HapiTxnOp<?>[opsToInclude.size()];
         for (int i = 0; i < opsToInclude.size(); i++) {
             opsToInclude.get(i).batchKey(UNIQUE_PAYER_ACCOUNT);
@@ -71,10 +74,6 @@ public class RandomAtomicBatch implements OpProvider {
     }
 
     private static ResponseCodeEnum[] flattenResponseCodes(ResponseCodeEnum[]... listOfResponseCodeEnums) {
-        var flattened = new ArrayList<ResponseCodeEnum>();
-        for (var responseCodeEnum : listOfResponseCodeEnums) {
-            flattened.addAll(Arrays.asList(responseCodeEnum));
-        }
-        return flattened.toArray(new ResponseCodeEnum[0]);
+        return Arrays.stream(listOfResponseCodeEnums).flatMap(Arrays::stream).toArray(ResponseCodeEnum[]::new);
     }
 }
