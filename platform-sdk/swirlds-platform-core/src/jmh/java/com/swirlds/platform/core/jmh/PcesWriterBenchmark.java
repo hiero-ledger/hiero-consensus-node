@@ -62,23 +62,21 @@ public class PcesWriterBenchmark {
         FileUtils.deleteDirectory(directory);
     }
 
-    //Linux benchmark
-    //Benchmark                              (pcesFileWriterType)   Mode  Cnt       Score        Error  Units
-    //PcesWriterBenchmark.writeEvent                OUTPUT_STREAM  thrpt    3  402513.131 ± 266641.090  ops/s
-    //PcesWriterBenchmark.writeEvent                 FILE_CHANNEL  thrpt    3  465751.805 ± 633311.931  ops/s
-    //PcesWriterBenchmark.writeEvent            FILE_CHANNEL_SYNC  thrpt    3    1200.434 ±   2370.299  ops/s
-    //PcesWriterBenchmark.writeEventAndSync         OUTPUT_STREAM  thrpt    3    1126.327 ±   2161.654  ops/s
-    //PcesWriterBenchmark.writeEventAndSync          FILE_CHANNEL  thrpt    3     984.342 ±    352.266  ops/s
-    //PcesWriterBenchmark.writeEventAndSync     FILE_CHANNEL_SYNC  thrpt    3     881.496 ±   2015.275  ops/s
+    // Linux Benchmark                              (pcesFileWriterType)   Mode  Cnt       Score        Error  Units
+    // PcesWriterBenchmark.writeEvent                OUTPUT_STREAM  thrpt    3  402513.131 ± 266641.090  ops/s
+    // PcesWriterBenchmark.writeEvent                 FILE_CHANNEL  thrpt    3  465751.805 ± 633311.931  ops/s
+    // PcesWriterBenchmark.writeEvent            FILE_CHANNEL_SYNC  thrpt    3    1200.434 ±   2370.299  ops/s
+    // PcesWriterBenchmark.writeEventAndSync         OUTPUT_STREAM  thrpt    3    1126.327 ±   2161.654  ops/s
+    // PcesWriterBenchmark.writeEventAndSync          FILE_CHANNEL  thrpt    3     984.342 ±    352.266  ops/s
+    // PcesWriterBenchmark.writeEventAndSync     FILE_CHANNEL_SYNC  thrpt    3     881.496 ±   2015.275  ops/s
 
-    //Mac
-    //Benchmark                              (pcesFileWriterType)   Mode  Cnt        Score        Error  Units
-    //PcesWriterBenchmark.writeEvent                OUTPUT_STREAM  thrpt    3  1303269.327 ± 504357.504  ops/s
-    //PcesWriterBenchmark.writeEvent                 FILE_CHANNEL  thrpt    3   504392.068 ± 256097.035  ops/s
-    //PcesWriterBenchmark.writeEvent            FILE_CHANNEL_SYNC  thrpt    3    21016.552 ±  38940.830  ops/s
-    //PcesWriterBenchmark.writeEventAndSync         OUTPUT_STREAM  thrpt    3    39814.333 ± 138823.994  ops/s
-    //PcesWriterBenchmark.writeEventAndSync          FILE_CHANNEL  thrpt    3      187.900 ±    129.852  ops/s
-    //PcesWriterBenchmark.writeEventAndSync     FILE_CHANNEL_SYNC  thrpt    3      177.976 ±    241.287  ops/s
+    // Mac Benchmark                              (pcesFileWriterType)   Mode  Cnt        Score        Error  Units
+    // PcesWriterBenchmark.writeEvent                OUTPUT_STREAM  thrpt    3  1303269.327 ± 504357.504  ops/s
+    // PcesWriterBenchmark.writeEvent                 FILE_CHANNEL  thrpt    3   504392.068 ± 256097.035  ops/s
+    // PcesWriterBenchmark.writeEvent            FILE_CHANNEL_SYNC  thrpt    3    21016.552 ±  38940.830  ops/s
+    // PcesWriterBenchmark.writeEventAndSync         OUTPUT_STREAM  thrpt    3    39814.333 ± 138823.994  ops/s
+    // PcesWriterBenchmark.writeEventAndSync          FILE_CHANNEL  thrpt    3      187.900 ±    129.852  ops/s
+    // PcesWriterBenchmark.writeEventAndSync     FILE_CHANNEL_SYNC  thrpt    3      177.976 ±    241.287  ops/s
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
