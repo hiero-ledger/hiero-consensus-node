@@ -13,7 +13,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -32,7 +31,6 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.NodeFilter;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
@@ -64,6 +62,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
+    private final TurtleLogging logging;
     private final Path rootOutputDirectory;
     private final List<TurtleNode> nodes = new ArrayList<>();
 
@@ -83,9 +82,11 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
+            @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory) {
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
+        this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
     }
 
@@ -126,7 +127,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     private TurtleNode createTurtleNode(
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, outputDir);
+        return new TurtleNode(
+                randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, logging, outputDir);
     }
 
     /**
@@ -172,7 +174,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException {
+    public void prepareUpgrade(@NonNull final Duration timeout) throws InterruptedException {
         if (state != State.RUNNING) {
             throw new IllegalStateException("Cannot prepare upgrade when the network is not running.");
         }
@@ -198,7 +200,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void resume(@NonNull Duration timeout) {
+    public void resume(@NonNull final Duration timeout) {
         log.info("Resuming network...");
         for (final TurtleNode node : nodes) {
             node.revive(timeout);
@@ -215,10 +217,9 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     @NonNull
-    public MultipleNodeConsensusResults getConsensusResult(@Nullable NodeFilter... filters) {
-        final NodeFilter combined = NodeFilter.andAll(filters);
+    public MultipleNodeConsensusResults getConsensusResults() {
         final List<SingleNodeConsensusResult> results =
-                nodes.stream().filter(combined).map(Node::getConsensusResult).toList();
+                nodes.stream().map(Node::getConsensusResult).toList();
         return new MultipleNodeConsensusResultsImpl(results);
     }
 
@@ -278,6 +279,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
+     *
+     * @throws InterruptedException if the thread is interrupted while the network is being destroyed
      */
     public void destroy() throws InterruptedException {
         log.info("Destroying network...");

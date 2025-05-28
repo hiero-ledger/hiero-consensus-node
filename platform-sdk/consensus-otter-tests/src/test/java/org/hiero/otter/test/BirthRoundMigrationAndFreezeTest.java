@@ -93,7 +93,7 @@ public class BirthRoundMigrationAndFreezeTest {
         // Validations
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
 
-        assertThat(network.getConsensusResult())
+        assertThat(network.getConsensusResults())
                 .hasAdvancedSince(freezeRound)
                 .hasEqualRoundsIgnoringLast(withPercentage(5));
 

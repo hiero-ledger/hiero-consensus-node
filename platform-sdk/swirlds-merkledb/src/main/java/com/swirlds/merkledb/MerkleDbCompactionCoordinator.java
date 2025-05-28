@@ -156,8 +156,8 @@ class MerkleDbCompactionCoordinator {
         if (!compactionEnabled) {
             return;
         }
-        if (compactorsByName.containsKey(key)) {
-            logger.debug(MERKLE_DB.getMarker(), "Compaction for {} is already in progress", key);
+        if (isCompactionRunning(key)) {
+            logger.info(MERKLE_DB.getMarker(), "Compaction for {} is already in progress", key);
             return;
         }
         compactorsByName.put(key, compactor);
