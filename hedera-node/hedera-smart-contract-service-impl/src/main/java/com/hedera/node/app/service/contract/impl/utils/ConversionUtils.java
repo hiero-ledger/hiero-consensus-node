@@ -114,7 +114,11 @@ public class ConversionUtils {
      */
     public static TokenID asTokenId(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
         final var explicit = explicitFromHeadlong(address);
-        return TokenID.newBuilder().tokenNum(numberOfLongZero(explicit)).build();
+        return TokenID.newBuilder()
+                .shardNum(shardOfLongZero(explicit))
+                .realmNum(realmOfLongZero(explicit))
+                .tokenNum(numberOfLongZero(explicit))
+                .build();
     }
 
     /**
@@ -772,6 +776,34 @@ public class ConversionUtils {
                 explicit[17],
                 explicit[18],
                 explicit[19]);
+    }
+
+    /**
+     * Given an explicit 20-byte addresss, returns its realm value.
+     *
+     * @param explicit the explicit 20-byte address
+     * @return its realm value
+     */
+    public static long realmOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(
+                explicit[4],
+                explicit[5],
+                explicit[6],
+                explicit[7],
+                explicit[8],
+                explicit[9],
+                explicit[10],
+                explicit[11]);
+    }
+
+    /**
+     * Given an explicit 20-byte addresss, returns its shard value.
+     *
+     * @param explicit the explicit 20-byte address
+     * @return its shard value
+     */
+    public static int shardOfLongZero(@NonNull final byte[] explicit) {
+        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
     }
 
     // too many arguments

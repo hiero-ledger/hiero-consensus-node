@@ -329,12 +329,12 @@ class ConversionUtilsTest {
 
     @Test
     void asTokenId() {
-        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000000000000000000000000000000000007");
+        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000500000000000000060000000000000007");
 
         var tokenId = ConversionUtils.asTokenId(address);
 
-        assertEquals(0, tokenId.shardNum());
-        assertEquals(0, tokenId.realmNum());
+        assertEquals(5, tokenId.shardNum());
+        assertEquals(6, tokenId.realmNum());
         assertEquals(7, tokenId.tokenNum());
     }
 
