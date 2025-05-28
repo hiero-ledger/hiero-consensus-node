@@ -24,14 +24,17 @@ import java.util.Set;
  * Initial mod-service schema for the token service.
  */
 public class V0490TokenSchema extends Schema {
-    // These need to be big so databases are created at right scale. If they are too small then the on disk hash map
-    // buckets will be too full which results in very poor performance. Have chosen 10 billion as should give us
-    // plenty of runway.
-    private static final long MAX_STAKING_INFOS = 1_000_000L;
-    private static final long MAX_TOKENS = 1_000_000_000L;
-    private static final long MAX_ACCOUNTS = 1_000_000_000L;
-    private static final long MAX_TOKEN_RELS = 1_000_000_000L;
-    private static final long MAX_MINTABLE_NFTS = 1_000_000_000L;
+
+    // Initial virtual map capacity values. Previously these values had to be large enough to avoid
+    // key hash collisions at the database level, which would result in low performance. With the
+    // new feature of dynamic hash map resizing in the database, these capacity hints can be kept
+    // low. These are just hints for initial virtual map sizes. Over time the maps will be able to
+    // contain more elements, if needed
+    private static final long MAX_STAKING_INFOS = 1_000L;
+    private static final long MAX_TOKENS = 1_000_000L;
+    private static final long MAX_ACCOUNTS = 1_000_000L;
+    private static final long MAX_TOKEN_RELS = 1_000_000L;
+    private static final long MAX_MINTABLE_NFTS = 1_000_000L;
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 
