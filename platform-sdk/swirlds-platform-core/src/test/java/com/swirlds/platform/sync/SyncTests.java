@@ -4,7 +4,6 @@ package com.swirlds.platform.sync;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,7 +38,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -233,8 +231,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -253,8 +250,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -266,19 +262,16 @@ public class SyncTests {
     void forkingGraph(final SyncTestParams params) throws Exception {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newForkingShuffledGenerator()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newForkingShuffledGenerator()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newForkingShuffledGenerator()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newForkingShuffledGenerator()));
 
         executor.execute();
 
         // Some extra events could be transferred in the case of a split fork graph. This is explicitly tested in
         // splitForkGraph()
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -294,12 +287,10 @@ public class SyncTests {
         final int callerOtherParent = 1;
         final int listenerOtherParent = 2;
 
-        executor.setCallerSupplier((factory) ->
-                new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardEmitter()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardEmitter()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             caller.generateAndAdd(params.getNumCommonEvents());
@@ -329,8 +320,7 @@ public class SyncTests {
         // In split fork graphs, some extra events will be sent because each node has a different tip for the same
         // creator, causing each to think the other does not have any ancestors of that creator's event when they in
         // fact do.
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -350,12 +340,10 @@ public class SyncTests {
                 .boxed()
                 .collect(Collectors.toList());
 
-        executor.setCallerSupplier((factory) ->
-                new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardEmitter()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardEmitter()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             caller.generateAndAdd(params.getNumCommonEvents());
@@ -374,8 +362,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -393,8 +380,8 @@ public class SyncTests {
         listenerExecutor.start();
 
         // Setup parallel executors
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor));
+        executor.setCallerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor));
         executor.setListenerSupplier((factory) -> new SyncNode(
                 params.getNumNetworkNodes(),
                 params.getNumNetworkNodes() - 1,
@@ -424,8 +411,8 @@ public class SyncTests {
                     throw new SocketException();
                 });
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor));
+        executor.setCallerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor));
 
         runExceptionDuringSyncPhase(phaseToThrowIn, taskNum, executor);
     }
@@ -447,11 +434,8 @@ public class SyncTests {
                     throw new SocketException();
                 });
 
-        executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                0,
-                factory.newShuffledEmitter(),
-                listenerExecutor));
+        executor.setListenerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), listenerExecutor));
 
         runExceptionDuringSyncPhase(phaseToThrowIn, taskNum, executor);
     }
@@ -517,8 +501,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
     }
 
     /**
@@ -582,12 +565,10 @@ public class SyncTests {
 
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
-        executor.setCallerSupplier((factory) ->
-                new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardEmitter()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardEmitter()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             caller.setSaveGeneratedEvents(true);
@@ -626,9 +607,8 @@ public class SyncTests {
                     SyncTestUtils.getMaxIndicator(listener.getShadowGraph().getTips());
             // make the min non-ancient indicator slightly below the max indicator
             long listenerNonAncientThreshold = listenerMaxIndicator - (listenerMaxIndicator / 10);
-            long listenerMinIndicator = SyncTestUtils.getMinIndicator(
-                    listener.getShadowGraph()
-                            .findAncestors(listener.getShadowGraph().getTips(), (e) -> true));
+            long listenerMinIndicator = SyncTestUtils.getMinIndicator(listener.getShadowGraph()
+                    .findAncestors(listener.getShadowGraph().getTips(), (e) -> true));
 
             // Expire everything below the listener's min non-ancient indicator on the caller
             caller.expireBelow(listenerNonAncientThreshold);
@@ -727,9 +707,8 @@ public class SyncTests {
             caller.setSaveGeneratedEvents(true);
             listener.setSaveGeneratedEvents(true);
 
-            maximumIndicator.set(
-                            ConsensusConstants.ROUND_FIRST
-                                    + caller.getEmitter().getGraphGenerator().getMaxBirthRound(creatorIdToExpire));
+            maximumIndicator.set(ConsensusConstants.ROUND_FIRST
+                    + caller.getEmitter().getGraphGenerator().getMaxBirthRound(creatorIdToExpire));
         });
 
         // before the sync, expire the tip on the listener
@@ -760,8 +739,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -798,8 +776,7 @@ public class SyncTests {
 
         // since we get a new set of tips before phase 3, it is possible to transfer some duplicate events that were
         // added after the initial tips were exchanged
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -836,8 +813,7 @@ public class SyncTests {
 
         // since we get a new set of tips before phase 3, it is possible to transfer some duplicate events that were
         // added after the initial tips were exchanged
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -880,8 +856,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -927,12 +902,10 @@ public class SyncTests {
 
         executor.setFactoryConfig(factoryConfig);
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newStandardFromSourceFactory()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardFromSourceFactory()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardFromSourceFactory()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardFromSourceFactory()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             for (final SyncNode node : List.of(caller, listener)) {
@@ -943,8 +916,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
     }
 
     @ParameterizedTest
@@ -959,11 +931,8 @@ public class SyncTests {
                 () -> executor.getCaller().getConnection().disconnect(),
                 false);
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                0,
-                factory.newShuffledFromSourceFactory(),
-                parallelExecutor));
+        executor.setCallerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledFromSourceFactory(), parallelExecutor));
 
         try {
             executor.execute();
@@ -996,9 +965,8 @@ public class SyncTests {
         executor.setEventWindowDefinitions((caller, listener) -> {
             final long callerMaximumIndicator =
                     SyncTestUtils.getMaxIndicator(caller.getShadowGraph().getTips());
-            final long callerAncientIndicator = SyncTestUtils.getMinIndicator(
-                    caller.getShadowGraph()
-                            .findAncestors(caller.getShadowGraph().getTips(), (e) -> true));
+            final long callerAncientIndicator = SyncTestUtils.getMinIndicator(caller.getShadowGraph()
+                    .findAncestors(caller.getShadowGraph().getTips(), (e) -> true));
 
             listener.getShadowGraph()
                     .updateEventWindow(EventWindowBuilder.builder()

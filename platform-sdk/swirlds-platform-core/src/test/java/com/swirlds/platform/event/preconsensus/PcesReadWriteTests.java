@@ -75,8 +75,7 @@ class PcesReadWriteTests {
                 method = "values")
     })
     @DisplayName("Write Then Read Test")
-    void writeThenReadTest(
-            @ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
+    void writeThenReadTest(@ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -102,13 +101,8 @@ class PcesReadWriteTests {
 
         upperBound += random.nextInt(0, 10);
 
-        final PcesFile file = PcesFile.of(
-                RandomUtils.randomInstant(random),
-                random.nextInt(0, 100),
-                0,
-                upperBound,
-                0,
-                testDirectory);
+        final PcesFile file =
+                PcesFile.of(RandomUtils.randomInstant(random), random.nextInt(0, 100), 0, upperBound, 0, testDirectory);
 
         final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
@@ -138,8 +132,7 @@ class PcesReadWriteTests {
                 method = "values")
     })
     @DisplayName("Read Files After Minimum Test")
-    void readFilesAfterMinimumTest(
-            @ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
+    void readFilesAfterMinimumTest(@ParamName("pcesFileWriterType") final PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -168,12 +161,7 @@ class PcesReadWriteTests {
         upperBound += random.nextInt(0, 10);
 
         final PcesFile file = PcesFile.of(
-                RandomUtils.randomInstant(random),
-                random.nextInt(0, 100),
-                0,
-                upperBound,
-                upperBound,
-                testDirectory);
+                RandomUtils.randomInstant(random), random.nextInt(0, 100), 0, upperBound, upperBound, testDirectory);
 
         final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
@@ -258,12 +246,7 @@ class PcesReadWriteTests {
         upperBound += random.nextInt(0, 10);
 
         final PcesFile file = PcesFile.of(
-                RandomUtils.randomInstant(random),
-                random.nextInt(0, 100),
-                0,
-                upperBound,
-                upperBound,
-                testDirectory);
+                RandomUtils.randomInstant(random), random.nextInt(0, 100), 0, upperBound, upperBound, testDirectory);
 
         final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
 
@@ -310,8 +293,7 @@ class PcesReadWriteTests {
                 method = "values")
     })
     @DisplayName("Corrupted Events Test")
-    void corruptedEventsTest(
-            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+    void corruptedEventsTest(final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -337,13 +319,8 @@ class PcesReadWriteTests {
 
         upperBound += random.nextInt(0, 10);
 
-        final PcesFile file = PcesFile.of(
-                RandomUtils.randomInstant(random),
-                random.nextInt(0, 100),
-                0,
-                upperBound,
-                0,
-                testDirectory);
+        final PcesFile file =
+                PcesFile.of(RandomUtils.randomInstant(random), random.nextInt(0, 100), 0, upperBound, 0, testDirectory);
 
         final Map<Integer /* event index */, Integer /* last byte position */> byteBoundaries = new HashMap<>();
 
@@ -385,8 +362,7 @@ class PcesReadWriteTests {
                 method = "values")
     })
     @DisplayName("Write Invalid Event Test")
-    void writeInvalidEventTest(
-            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+    void writeInvalidEventTest(final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -427,8 +403,7 @@ class PcesReadWriteTests {
 
         final List<PlatformEvent> validEvents = new ArrayList<>();
         for (final PlatformEvent event : events) {
-            if (event.getBirthRound() >= restrictedLowerBound
-                    && event.getBirthRound() <= restrictedUpperBound) {
+            if (event.getBirthRound() >= restrictedLowerBound && event.getBirthRound() <= restrictedUpperBound) {
                 mutableFile.writeEvent(event);
                 validEvents.add(event);
             } else {
@@ -459,8 +434,7 @@ class PcesReadWriteTests {
                 method = "values")
     })
     @DisplayName("Span Compression Test")
-    void spanCompressionTest(
-            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+    void spanCompressionTest(final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
         final Random random = RandomUtils.getRandomPrintSeed(0);
 
@@ -489,12 +463,7 @@ class PcesReadWriteTests {
         upperBound += random.nextInt(1, 10);
 
         final PcesFile file = PcesFile.of(
-                RandomUtils.randomInstant(random),
-                random.nextInt(0, 100),
-                lowerBound,
-                upperBound,
-                0,
-                testDirectory);
+                RandomUtils.randomInstant(random), random.nextInt(0, 100), lowerBound, upperBound, 0, testDirectory);
 
         final PcesMutableFile mutableFile = file.getMutableFile(pcesFileWriterType);
         for (final PlatformEvent event : events) {
@@ -536,8 +505,7 @@ class PcesReadWriteTests {
                 method = "values")
     })
     @DisplayName("Partial Span Compression Test")
-    void partialSpanCompressionTest(
-            final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
+    void partialSpanCompressionTest(final @ParamName("pcesFileWriterType") PcesFileWriterType pcesFileWriterType)
             throws IOException {
 
         final Random random = RandomUtils.getRandomPrintSeed(0);

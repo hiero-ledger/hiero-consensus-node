@@ -62,9 +62,8 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final NodeId nodeId,
             @NonNull final TransactionSupplier transactionSupplier) {
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
@@ -87,8 +86,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final TransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
-        final Configuration configuration = new TestConfigBuilder()
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .withTime(time)
@@ -97,8 +95,7 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntry address : roster.rosterEntries()) {
 
             final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator =
-                    buildEventCreator(random, time, roster, selfId, transactionSupplier);
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());

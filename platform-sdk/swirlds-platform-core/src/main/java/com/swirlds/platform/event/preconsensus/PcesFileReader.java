@@ -37,7 +37,8 @@ public class PcesFileReader {
             final long startingRound,
             final boolean permitGaps)
             throws IOException {
-        return readFilesFromDisk(platformContext, databaseDirectory, startingRound, permitGaps, AncientMode.BIRTH_ROUND_THRESHOLD);
+        return readFilesFromDisk(
+                platformContext, databaseDirectory, startingRound, permitGaps, AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 
     /**

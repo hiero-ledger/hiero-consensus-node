@@ -11,10 +11,8 @@ import static com.swirlds.common.test.fixtures.WeightGenerators.SINGLE_NODE_STRO
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import java.util.stream.Stream;
-import org.hiero.consensus.config.EventConfig_;
 
 public class ConsensusTestArgs {
 

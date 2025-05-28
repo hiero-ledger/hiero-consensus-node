@@ -137,10 +137,7 @@ public class TestPlatformContexts {
     }
 
     @NonNull
-    public static PlatformContext context(
-            final boolean permitGaps,
-            final Path dataDir,
-            final Path fsDirectory) {
+    public static PlatformContext context(final boolean permitGaps, final Path dataDir, final Path fsDirectory) {
         return context(permitGaps, BIRTH_ROUND_THRESHOLD, null, dataDir, fsDirectory);
     }
 }

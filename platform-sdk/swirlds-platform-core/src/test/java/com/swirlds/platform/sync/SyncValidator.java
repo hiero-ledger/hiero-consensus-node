@@ -51,8 +51,7 @@ public class SyncValidator {
         assertNoEventsReceived("listener", listener);
     }
 
-    public static void assertRequiredEventsTransferred(
-            final SyncNode caller, final SyncNode listener) {
+    public static void assertRequiredEventsTransferred(final SyncNode caller, final SyncNode listener) {
         if (enableLogging) {
             printTipSet("Caller's Tip Set", caller);
             printTipSet("Listener's Tip Set", listener);
@@ -61,8 +60,7 @@ public class SyncValidator {
         compareEventLists(caller, listener, false, AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 
-    public static void assertOnlyRequiredEventsTransferred(
-            final SyncNode caller, final SyncNode listener) {
+    public static void assertOnlyRequiredEventsTransferred(final SyncNode caller, final SyncNode listener) {
         assertOnlyRequiredEventsTransferred(caller, listener, AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 

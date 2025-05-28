@@ -65,33 +65,21 @@ class PcesFileTests {
     @Test
     @DisplayName("Invalid Parameters Test")
     void invalidParametersTest() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of( Instant.now(), -1, 1, 2, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), -1, 1, 2, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of( Instant.now(), 1, -1, 2, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, -1, 2, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of( Instant.now(), 1, -2, -1, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, -2, -1, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of( Instant.now(), 1, 1, -1, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, 1, -1, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of( Instant.now(), 1, 2, 1, 0, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, 2, 1, 0, Path.of("foo")));
 
-        assertThrows(NullPointerException.class, () -> PcesFile.of( null, 1, 1, 2, 0, Path.of("foo")));
+        assertThrows(NullPointerException.class, () -> PcesFile.of(null, 1, 1, 2, 0, Path.of("foo")));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> PcesFile.of( Instant.now(), 1, 1, 2, -1, Path.of("foo")));
+        assertThrows(IllegalArgumentException.class, () -> PcesFile.of(Instant.now(), 1, 1, 2, -1, Path.of("foo")));
 
-        assertThrows(NullPointerException.class, () -> PcesFile.of( Instant.now(), 1, 1, 2, 0, null));
+        assertThrows(NullPointerException.class, () -> PcesFile.of(Instant.now(), 1, 1, 2, 0, null));
     }
 
     @Test
@@ -113,8 +101,8 @@ class PcesFileTests {
                             + lowerBound + EVENT_FILE_SEPARATOR + MAXIMUM_BIRTH_ROUND_PREFIX
                             + upperBound + EVENT_FILE_SEPARATOR + ORIGIN_PREFIX + origin + ".pces";
 
-            final PcesFile file = PcesFile.of(
-                     timestamp, sequenceNumber, lowerBound, upperBound, origin, Path.of("foo/bar"));
+            final PcesFile file =
+                    PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, Path.of("foo/bar"));
 
             assertEquals(expectedName, file.getFileName());
             assertEquals(expectedName, file.toString());
@@ -145,14 +133,7 @@ class PcesFileTests {
 
             assertEquals(
                     expectedPath,
-                    PcesFile.of(
-
-                                    timestamp,
-                                    sequenceNumber,
-                                    lowerBound,
-                                    upperBound,
-                                    origin,
-                                    Path.of("foo/bar"))
+                    PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, Path.of("foo/bar"))
                             .getPath()
                             .getParent());
         }
@@ -173,8 +154,7 @@ class PcesFileTests {
 
             final Path directory = Path.of("foo/bar/baz");
 
-            final PcesFile expected =
-                    PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
+            final PcesFile expected = PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
 
             final PcesFile parsed = PcesFile.of(expected.getPath());
 
@@ -240,7 +220,7 @@ class PcesFileTests {
         for (int index = 0; index < times.size(); index++) {
             final Instant timestamp = times.get(index);
             // We don't care about ancient indicators for this test
-            final PcesFile file = PcesFile.of( timestamp, index, 0, 0, 0, testDirectory);
+            final PcesFile file = PcesFile.of(timestamp, index, 0, 0, 0, testDirectory);
 
             writeRandomBytes(random, file.getPath(), 100);
             files.add(file);
@@ -320,7 +300,7 @@ class PcesFileTests {
         for (int index = 0; index < times.size(); index++) {
             final Instant timestamp = times.get(index);
             // We don't care about ancient indicators for this test
-            final PcesFile file = PcesFile.of( timestamp, index, 0, 0, 0, streamDirectory);
+            final PcesFile file = PcesFile.of(timestamp, index, 0, 0, 0, streamDirectory);
 
             writeRandomBytes(random, file.getPath(), 100);
             files.add(file);
@@ -379,21 +359,9 @@ class PcesFileTests {
             final long upperBoundB = random.nextLong(lowerBoundB, lowerBoundB + 100);
 
             final PcesFile a = PcesFile.of(
-
-                    randomInstant(random),
-                    sequenceA,
-                    lowerBoundA,
-                    upperBoundA,
-                    random.nextLong(1000),
-                    directory);
+                    randomInstant(random), sequenceA, lowerBoundA, upperBoundA, random.nextLong(1000), directory);
             final PcesFile b = PcesFile.of(
-
-                    randomInstant(random),
-                    sequenceB,
-                    lowerBoundB,
-                    upperBoundB,
-                    random.nextLong(1000),
-                    directory);
+                    randomInstant(random), sequenceB, lowerBoundB, upperBoundB, random.nextLong(1000), directory);
 
             assertEquals(Long.compare(sequenceA, sequenceB), a.compareTo(b));
         }
@@ -412,8 +380,7 @@ class PcesFileTests {
             final long upperBound = random.nextLong(lowerBound + 1, lowerBound + 1000);
             final Instant timestamp = RandomUtils.randomInstant(random);
 
-            final PcesFile file =
-                    PcesFile.of( timestamp, sequenceNumber, lowerBound, upperBound, 0, directory);
+            final PcesFile file = PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, 0, directory);
 
             // An event with a sequence number that is too small
             assertFalse(file.canContain(lowerBound - random.nextLong(1, 100)));
@@ -445,8 +412,7 @@ class PcesFileTests {
         final long origin = random.nextLong(1000);
         final Instant timestamp = randomInstant(random);
 
-        final PcesFile file =
-                PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
+        final PcesFile file = PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, origin, directory);
 
         assertThrows(IllegalArgumentException.class, () -> file.buildFileWithCompressedSpan(lowerBound - 1));
         assertThrows(IllegalArgumentException.class, () -> file.buildFileWithCompressedSpan(upperBound + 1));

@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -80,8 +79,7 @@ class ShadowgraphByBirthRoundTests {
     }
 
     private void initShadowGraph(final Random random, final int numEvents, final int numNodes) {
-        final Configuration configuration = new TestConfigBuilder()
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)

@@ -5,15 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
-import org.hiero.consensus.model.event.AncientMode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Tests for {@link PcesUtilities}
@@ -30,7 +26,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Standard operation")
     void standardOperation() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,
@@ -52,7 +48,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Decreasing sequence number")
     void decreasingSequenceNumber() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() - 1,
@@ -76,7 +72,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Decreasing sequence number with gaps permitted")
     void decreasingSequenceNumberWithGapsPermitted() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() - 1,
@@ -98,7 +94,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Non-increasing sequence number")
     void nonIncreasingSequenceNumber() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 time.now(),
                 previousFileDescriptor.getSequenceNumber(),
@@ -122,7 +118,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Decreasing Lower Bound")
     void decreasingMinimumLowerBound() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,
@@ -146,7 +142,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Decreasing Upper Bound")
     void decreasingUpperBound() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,
@@ -170,7 +166,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Decreasing timestamp")
     void decreasingTimestamp() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 previousFileDescriptor.getTimestamp().minusSeconds(10),
                 previousFileDescriptor.getSequenceNumber() + 1,
@@ -194,7 +190,7 @@ class PcesUtilitiesTests {
     @Test
     @DisplayName("Decreasing origin")
     void decreasingOrigin() {
-        final PcesFile previousFileDescriptor = PcesFile.of( time.now(), 2, 10, 20, 5, Path.of("root"));
+        final PcesFile previousFileDescriptor = PcesFile.of(time.now(), 2, 10, 20, 5, Path.of("root"));
         final PcesFile currentFileDescriptor = PcesFile.of(
                 time.now(),
                 previousFileDescriptor.getSequenceNumber() + 1,

@@ -8,7 +8,6 @@ import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.config.EventConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -47,10 +46,7 @@ class ConsensusTests extends PlatformTest {
      * @return a list of platform contexts
      */
     private List<PlatformContext> contexts() {
-        return List.of(
-                createPlatformContext(
-                        null,
-                        null));
+        return List.of(createPlatformContext(null, null));
     }
 
     @ParameterizedTest

@@ -10,13 +10,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Random;
-import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -25,8 +21,6 @@ import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Tests the {@link InOrderLinker} class.
@@ -57,10 +51,7 @@ class InOrderLinkerTests {
 
     private void inOrderLinkerSetup() {
         inOrderLinker = new ConsensusLinker(
-                TestPlatformContextBuilder.create()
-                        .withTime(time)
-                        .build(),
-                selfId);
+                TestPlatformContextBuilder.create().withTime(time).build(), selfId);
 
         time.tick(Duration.ofSeconds(1));
         genesisSelfParent = new TestingEventBuilder(random)
@@ -228,9 +219,8 @@ class InOrderLinkerTests {
     void ancientEvent() {
         inOrderLinkerSetup();
 
-        inOrderLinker.setEventWindow(EventWindowBuilder.builder()
-                .setAncientThreshold(3)
-                .build());
+        inOrderLinker.setEventWindow(
+                EventWindowBuilder.builder().setAncientThreshold(3).build());
 
         final PlatformEvent child1 = new TestingEventBuilder(random)
                 .setCreatorId(selfId)

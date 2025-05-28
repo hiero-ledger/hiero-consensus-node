@@ -274,8 +274,7 @@ public final class PcesTestFilesGenerator {
          * @return A new Builder instance.
          */
         @NonNull
-        public static Builder create(
-                final @NonNull Random rng, final @NonNull Path fileDirectory) {
+        public static Builder create(final @NonNull Random rng, final @NonNull Path fileDirectory) {
             return new Builder(AncientMode.BIRTH_ROUND_THRESHOLD, rng, fileDirectory);
         }
 

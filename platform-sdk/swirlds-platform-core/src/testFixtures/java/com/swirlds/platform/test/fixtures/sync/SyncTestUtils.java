@@ -26,6 +26,7 @@ public class SyncTestUtils {
         System.out.printf("\n--- %s's tipSet ---%n", nodeName);
         node.getShadowGraph().getTips().forEach(tip -> System.out.println(tip.getEvent()));
     }
+
     public static long getMaxIndicator(final List<ShadowEvent> tips) {
         long maxIndicator = ConsensusConstants.ROUND_FIRST;
         for (final ShadowEvent tip : tips) {

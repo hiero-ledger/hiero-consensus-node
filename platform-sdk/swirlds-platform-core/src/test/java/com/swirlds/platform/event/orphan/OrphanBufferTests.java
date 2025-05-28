@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.Mnemonics;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -28,8 +27,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -41,8 +38,6 @@ import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Tests for {@link OrphanBuffer}
@@ -208,10 +203,8 @@ class OrphanBufferTests {
                 })
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                TestPlatformContextBuilder.create()
-                        .build(),
-                intakeEventCounter);
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), intakeEventCounter);
 
         long latestConsensusRound = ConsensusConstants.ROUND_FIRST;
 
@@ -261,10 +254,8 @@ class OrphanBufferTests {
     @DisplayName("Test that events sorted by nGen result in a valid topological ordering")
     void topologicalOrderByNGen() {
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                TestPlatformContextBuilder.create()
-                        .build(),
-                intakeEventCounter);
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), intakeEventCounter);
 
         final List<PlatformEvent> emittedEvents = new ArrayList<>();
         for (final PlatformEvent intakeEvent : intakeEvents) {
@@ -346,10 +337,8 @@ class OrphanBufferTests {
         final PlatformEvent genesisEvent =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
 
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                TestPlatformContextBuilder.create()
-                        .build(),
-                mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
 
         final List<PlatformEvent> unorphanedEvents = orphanBuffer.handleEvent(genesisEvent);
         assertThat(unorphanedEvents.size())
@@ -385,10 +374,8 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                TestPlatformContextBuilder.create()
-                        .build(),
-                mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -446,10 +433,8 @@ class OrphanBufferTests {
                 .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
                 .build();
 
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                TestPlatformContextBuilder.create()
-                        .build(),
-                mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -529,10 +514,8 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
-                TestPlatformContextBuilder.create()
-                        .build(),
-                mock(IntakeEventCounter.class));
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(node0AncientEvent));

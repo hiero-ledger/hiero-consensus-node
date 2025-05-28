@@ -69,8 +69,7 @@ class TipsetEventCreatorTests {
                 method = "booleanValues")
     })
     @DisplayName("Round Robin Test")
-    public void roundRobinTest(
-            @ParamName("advancingClock") final boolean advancingClock) {
+    public void roundRobinTest(@ParamName("advancingClock") final boolean advancingClock) {
 
         final Random random = getRandomPrintSeed();
 
@@ -83,8 +82,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -140,8 +138,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("Random Order Test")
     void randomOrderTest(
-            @ParamName("advancingClock") final boolean advancingClock,
-            @ParamName("random") final Random random) {
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -152,8 +149,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -218,8 +214,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("Clear Test")
     void clearTest(
-            @ParamName("advancingClock") final boolean advancingClock,
-            @ParamName("random") final Random random) {
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -230,8 +225,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         for (int i = 0; i < 5; i++) {
             final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
@@ -308,8 +302,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("Create Many Events In A Row Test")
     void createManyEventsInARowTest(
-            @ParamName("advancingClock") final boolean advancingClock,
-            @ParamName("random") final Random random) {
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -320,8 +313,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -384,8 +376,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("Zero Weight Node Test")
     void zeroWeightNodeTest(
-            @ParamName("advancingClock") final boolean advancingClock,
-            @ParamName("random") final Random random) {
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
         Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
@@ -409,8 +400,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> allEvents = new HashMap<>();
 
@@ -494,8 +484,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("Zero Weight Slow Node Test")
     void zeroWeightSlowNodeTest(
-            @ParamName("advancingClock") final boolean advancingClock,
-            @ParamName("random") final Random random) {
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
         Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
@@ -519,8 +508,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> allEvents = new HashMap<>();
         final List<PlatformEvent> slowNodeEvents = new ArrayList<>();
@@ -623,8 +611,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("Size One Network Test")
     void sizeOneNetworkTest(
-            @ParamName("advancingClock") final boolean advancingClock,
-            @ParamName("random") final Random random) {
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 1;
 
@@ -635,8 +622,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -680,7 +666,7 @@ class TipsetEventCreatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Frozen Event Creation Bug")
-    void frozenEventCreationBug( @ParamName("random") final Random random) {
+    void frozenEventCreationBug(@ParamName("random") final Random random) {
 
         final int networkSize = 4;
 
@@ -698,8 +684,7 @@ class TipsetEventCreatorTests {
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
         // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
 
         // Create some genesis events
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
@@ -787,8 +772,7 @@ class TipsetEventCreatorTests {
         final NodeId nodeE = NodeId.of(nodeD.id() + 1);
 
         // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
@@ -846,7 +830,7 @@ class TipsetEventCreatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("No Stale Events At Creation Time Test")
-    void noStaleEventsAtCreationTimeTest( @ParamName("random") final Random random) {
+    void noStaleEventsAtCreationTimeTest(@ParamName("random") final Random random) {
         final int networkSize = 4;
 
         final Roster roster = RandomRosterBuilder.create(random)
@@ -859,11 +843,9 @@ class TipsetEventCreatorTests {
 
         final NodeId nodeA = NodeId.of(roster.rosterEntries().getFirst().nodeId()); // self
 
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
-        eventCreator.setEventWindow(EventWindowBuilder.builder()
-                .setAncientThreshold(100)
-                .build());
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        eventCreator.setEventWindow(
+                EventWindowBuilder.builder().setAncientThreshold(100).build());
 
         // Since there are no other parents available, the next event created would have a generation of 0
         // (if event creation were permitted). Since the current minimum generation non ancient is 100,
@@ -892,8 +874,7 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("Check setting of birthRound on new events.")
     void checkSettingEventBirthRound(
-            @ParamName("advancingClock") final boolean advancingClock,
-            @ParamName("random") final Random random) {
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -904,8 +885,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -946,7 +926,7 @@ class TipsetEventCreatorTests {
                     assertEquals(ROUND_FIRST, birthRound);
                 } else {
                     final long birthRound = event.getEventCore().birthRound();
-                        assertEquals(pendingConsensusRound, birthRound);
+                    assertEquals(pendingConsensusRound, birthRound);
                 }
             }
         }
@@ -966,7 +946,7 @@ class TipsetEventCreatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Self event with highest nGen is used as latest self event on startup")
-    void lastSelfEventUpdatedDuringPCESReplay( @ParamName("random") final Random random) {
+    void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final int numEvents = 100;
         final Roster roster =
@@ -1016,7 +996,7 @@ class TipsetEventCreatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Last Self Event just created is not overwritten")
-    void lastSelfEventNotOverwritten( @ParamName("random") final Random random) {
+    void lastSelfEventNotOverwritten(@ParamName("random") final Random random) {
 
         final int networkSize = 1;
         final Roster roster =
@@ -1065,7 +1045,8 @@ class TipsetEventCreatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTime_testCurrentTimeAfterParentCreationTimeParentHasNoTransactions( @ParamName("random") final Random random) {
+    void eventCreationTime_testCurrentTimeAfterParentCreationTimeParentHasNoTransactions(
+            @ParamName("random") final Random random) {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
@@ -1142,7 +1123,7 @@ class TipsetEventCreatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTestCurrenTimeIsBeforeParentLatestTransaction( @ParamName("random") final Random random) {
+    void eventCreationTimeTestCurrenTimeIsBeforeParentLatestTransaction(@ParamName("random") final Random random) {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
@@ -1183,7 +1164,7 @@ class TipsetEventCreatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTest( @ParamName("random") final Random random) {
+    void eventCreationTimeTest(@ParamName("random") final Random random) {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;

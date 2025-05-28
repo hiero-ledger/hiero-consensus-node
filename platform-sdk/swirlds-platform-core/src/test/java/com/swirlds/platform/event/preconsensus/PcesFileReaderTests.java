@@ -72,10 +72,7 @@ class PcesFileReaderTests {
                 .generate();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false);
+                TestPlatformContexts.context(dataDir, fileSystemDirectory), fileDirectory, 0, false);
 
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
@@ -98,11 +95,9 @@ class PcesFileReaderTests {
                 .generate();
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
-        final PlatformContext platformContext =
-                TestPlatformContexts.context(true, dataDir, fileSystemDirectory);
+        final PlatformContext platformContext = TestPlatformContexts.context(true, dataDir, fileSystemDirectory);
 
-        final PcesFileTracker fileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, true);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, true);
         // Gaps are allowed. We should see all files except for the one that was skipped.
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
     }
@@ -115,8 +110,7 @@ class PcesFileReaderTests {
                 .build()
                 .generate();
 
-        final PlatformContext platformContext =
-                TestPlatformContexts.context(false, dataDir, fileSystemDirectory);
+        final PlatformContext platformContext = TestPlatformContexts.context(false, dataDir, fileSystemDirectory);
 
         // Gaps are not allowed.
         assertThrows(
@@ -133,10 +127,7 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context(dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false);
+                TestPlatformContexts.context(dataDir, fileSystemDirectory), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
         // with an ancient indicator greater than or equal to the target threshold. Choose an ancient indicator
@@ -187,10 +178,7 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context( dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false);
+                TestPlatformContexts.context(dataDir, fileSystemDirectory), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
         // with an ancient indicator greater than or equal to the target. Choose an ancient indicator that falls
@@ -234,10 +222,7 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                TestPlatformContexts.context( dataDir, fileSystemDirectory),
-                fileDirectory,
-                0,
-                false);
+                TestPlatformContexts.context(dataDir, fileSystemDirectory), fileDirectory, 0, false);
 
         // Request an ancient indicator higher than all files in the data store
         final long targetAncientIdentifier = expectedFiles.getLast().getUpperBound() + 1;
@@ -252,10 +237,7 @@ class PcesFileReaderTests {
         assertThrows(
                 NoSuchFileException.class,
                 () -> PcesFileReader.readFilesFromDisk(
-                        TestPlatformContexts.context(dataDir, fileSystemDirectory),
-                        fileDirectory,
-                        0,
-                        false));
+                        TestPlatformContexts.context(dataDir, fileSystemDirectory), fileDirectory, 0, false));
     }
 
     /**
@@ -455,7 +437,7 @@ class PcesFileReaderTests {
     @DisplayName("Start After Discontinuity In Middle Test")
     void startAfterDiscontinuityInMiddleTest() throws IOException {
 
-        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create( random, fileDirectory)
+        final var pcesFilesGenerator = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .discontinue()
                 .withOriginRange(ORIGIN_RANGE)
                 .build()

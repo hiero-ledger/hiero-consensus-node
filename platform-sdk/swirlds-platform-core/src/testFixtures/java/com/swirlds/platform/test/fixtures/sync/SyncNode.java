@@ -25,17 +25,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -77,23 +74,13 @@ public class SyncNode {
 
     private final PlatformContext platformContext;
 
-    public SyncNode(
-            final int numNodes,
-            final long nodeId,
-            final EventEmitter eventEmitter) {
+    public SyncNode(final int numNodes, final long nodeId, final EventEmitter eventEmitter) {
 
-        this(
-                numNodes,
-                nodeId,
-                eventEmitter,
-                new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"));
+        this(numNodes, nodeId, eventEmitter, new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"));
     }
 
     public SyncNode(
-            final int numNodes,
-            final long nodeId,
-            final EventEmitter eventEmitter,
-            final ParallelExecutor executor) {
+            final int numNodes, final long nodeId, final EventEmitter eventEmitter, final ParallelExecutor executor) {
 
         if (executor.isMutable()) {
             executor.start();

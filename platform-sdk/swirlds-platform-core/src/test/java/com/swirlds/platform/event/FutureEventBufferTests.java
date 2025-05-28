@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -34,8 +33,7 @@ import org.junit.jupiter.api.Test;
 
 class FutureEventBufferTests {
     public static final Metrics METRICS = new NoOpMetrics();
-    public static final Configuration CONFIGURATION = new TestConfigBuilder()
-            .getOrCreateConfig();
+    public static final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
 
     /**
      * This test verifies the following:

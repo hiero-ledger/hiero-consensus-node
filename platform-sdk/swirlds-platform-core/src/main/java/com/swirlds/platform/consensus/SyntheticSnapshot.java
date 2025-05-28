@@ -65,6 +65,7 @@ public final class SyntheticSnapshot {
                         CommonUtils.toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)))
                 .build();
     }
+
     public static @NonNull ConsensusSnapshot getGenesisSnapshot() {
         return getGenesisSnapshot(AncientMode.BIRTH_ROUND_THRESHOLD);
     }

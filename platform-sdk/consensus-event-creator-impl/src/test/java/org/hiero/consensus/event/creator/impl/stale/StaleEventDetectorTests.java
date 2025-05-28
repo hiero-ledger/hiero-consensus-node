@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -90,8 +89,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final PlatformEvent event = new TestingEventBuilder(randotron).build();
@@ -104,8 +102,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final long ancientThreshold = randotron.nextPositiveLong() + 100;
@@ -163,8 +160,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final Set<PlatformEvent> detectedStaleEvents = new HashSet<>();
@@ -238,8 +234,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final long ancientThreshold1 = randotron.nextPositiveInt() + 100;

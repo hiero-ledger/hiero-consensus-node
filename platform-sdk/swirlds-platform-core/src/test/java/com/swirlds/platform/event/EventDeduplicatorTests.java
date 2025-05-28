@@ -13,7 +13,6 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -26,9 +25,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
@@ -37,8 +33,6 @@ import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Tests the {@link EventDeduplicator} class
@@ -68,8 +62,7 @@ class EventDeduplicatorTests {
      * @param birthRound the birth round of the event
      * @return the mocked platform event
      */
-    private PlatformEvent createPlatformEvent(
-            @NonNull final NodeId creatorId, final long birthRound) {
+    private PlatformEvent createPlatformEvent(@NonNull final NodeId creatorId, final long birthRound) {
 
         final PlatformEvent selfParent = new TestingEventBuilder(random)
                 .setCreatorId(creatorId)
@@ -90,9 +83,9 @@ class EventDeduplicatorTests {
             final long minimumRoundNonAncient,
             @NonNull final Set<ByteBuffer> emittedEvents) {
         if (event != null) {
-                assertFalse(
-                        event.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient,
-                        "Ancient events shouldn't be emitted");
+            assertFalse(
+                    event.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient,
+                    "Ancient events shouldn't be emitted");
             assertTrue(emittedEvents.add(ByteBuffer.wrap(serializePlatformEvent(event))), "Event was emitted twice");
         }
     }
@@ -119,8 +112,7 @@ class EventDeduplicatorTests {
                 .eventExitedIntakePipeline(any());
 
         final EventDeduplicator deduplicator = new StandardEventDeduplicator(
-                TestPlatformContextBuilder.create().build(),
-                intakeEventCounter);
+                TestPlatformContextBuilder.create().build(), intakeEventCounter);
 
         int duplicateEventCount = 0;
         int ancientEventCount = 0;
@@ -132,16 +124,13 @@ class EventDeduplicatorTests {
                 final long eventBirthRound =
                         Math.max(ConsensusConstants.ROUND_FIRST, minimumRoundNonAncient + random.nextLong(-1, 4));
 
-                    if (eventBirthRound < minimumRoundNonAncient) {
-                        ancientEventCount++;
-                    }
+                if (eventBirthRound < minimumRoundNonAncient) {
+                    ancientEventCount++;
+                }
 
                 final PlatformEvent newEvent = createPlatformEvent(creatorId, eventBirthRound);
 
-                validateEmittedEvent(
-                        deduplicator.handleEvent(newEvent),
-                        minimumRoundNonAncient,
-                        emittedEvents);
+                validateEmittedEvent(deduplicator.handleEvent(newEvent), minimumRoundNonAncient, emittedEvents);
 
                 submittedEvents.add(newEvent);
             } else if (random.nextBoolean()) {
@@ -166,17 +155,14 @@ class EventDeduplicatorTests {
                     ancientEventCount++;
                 }
 
-                validateEmittedEvent(
-                        deduplicator.handleEvent(duplicateEvent),
-                        minimumRoundNonAncient,
-                        emittedEvents);
+                validateEmittedEvent(deduplicator.handleEvent(duplicateEvent), minimumRoundNonAncient, emittedEvents);
             }
 
             if (random.nextBoolean()) {
                 minimumRoundNonAncient++;
-                    deduplicator.setEventWindow(EventWindowBuilder.birthRoundMode()
-                            .setAncientThreshold(minimumRoundNonAncient)
-                            .build());
+                deduplicator.setEventWindow(EventWindowBuilder.birthRoundMode()
+                        .setAncientThreshold(minimumRoundNonAncient)
+                        .build());
             }
         }
 

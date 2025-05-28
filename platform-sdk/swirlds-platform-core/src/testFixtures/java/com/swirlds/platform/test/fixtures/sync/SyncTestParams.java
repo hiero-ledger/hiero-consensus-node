@@ -2,9 +2,6 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * Data holder for parameters needed for every sync unit test.
@@ -18,11 +15,7 @@ public class SyncTestParams {
     private final Long customSeed;
 
     public SyncTestParams(
-            int numNetworkNodes,
-            int numCommonEvents,
-            int numCallerEvents,
-            int numListenerEvents,
-            Long customSeed) {
+            int numNetworkNodes, int numCommonEvents, int numCallerEvents, int numListenerEvents, Long customSeed) {
         this.numNetworkNodes = numNetworkNodes;
         this.numCommonEvents = numCommonEvents;
         this.numCallerEvents = numCallerEvents;
@@ -35,7 +28,7 @@ public class SyncTestParams {
             final int numCommonEvents,
             final int numCallerEvents,
             final int numListenerEvents) {
-        this(numNetworkNodes, numCommonEvents, numCallerEvents, numListenerEvents,  null);
+        this(numNetworkNodes, numCommonEvents, numCallerEvents, numListenerEvents, null);
     }
 
     /**
