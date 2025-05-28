@@ -378,23 +378,6 @@ public class SystemTransactions {
         if (autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
             dispatch.stack().commitFullStack();
         }
-        // (FUTURE) Remove this 0.61 and 0.62 -specific code initiating all system node accounts to decline rewards
-        final var nodeStore = dispatch.handleContext().storeFactory().readableStore(ReadableNodeStore.class);
-        for (int i = 0; i < nodeStore.sizeOfState(); i++) {
-            final var node = nodeStore.get(i);
-            final var nodeInfo = networkInfo.nodeInfo(i);
-            if (nodeInfo != null && node != null && !node.deleted()) {
-                log.info(
-                        "Updating node{} with system node account {} to decline rewards",
-                        nodeInfo.nodeId(),
-                        nodeInfo.accountId());
-                systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
-                        .nodeId(nodeInfo.nodeId())
-                        .declineReward(true)
-                        .build()));
-            }
-        }
-        dispatch.stack().commitFullStack();
     }
 
     /**

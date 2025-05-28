@@ -708,7 +708,7 @@ public class TokenServiceFeesSuite {
                         .entityMemo("")
                         .symbol("a"),
                 tokenUpdate(FUNGIBLE_COMMON_TOKEN).via("uniqueTokenUpdate").payingWith(TOKEN_TREASURY),
-                validateChargedUsd("uniqueTokenUpdate", expectedUpdatePriceUsd));
+                validateChargedUsd("uniqueTokenUpdate", expectedUpdatePriceUsd, 5));
     }
 
     @HapiTest

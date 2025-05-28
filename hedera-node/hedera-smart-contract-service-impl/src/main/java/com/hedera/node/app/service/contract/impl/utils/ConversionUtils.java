@@ -487,7 +487,7 @@ public class ConversionUtils {
      * @return the long zero address
      */
     public static Address asLongZeroAddress(@NonNull final EntityIdFactory entityIdFactory, final long number) {
-        return Address.wrap(Bytes.wrap(asEvmAddress(entityIdFactory, number)));
+        return Address.wrap(Bytes.wrap(asEvmAddress(number)));
     }
 
     /**
@@ -677,14 +677,27 @@ public class ConversionUtils {
 
     /**
      * Given a long entity number, returns its 20-byte EVM address.
-     * The shard is downcast to an int so it must not exceed the range of an int.
      *
-     * @param entityIdFactory the entity id factory
      * @param num the entity number
      * @return its 20-byte EVM address
      */
-    public static byte[] asEvmAddress(@NonNull final EntityIdFactory entityIdFactory, final long num) {
-        return unhex(entityIdFactory.hexLongZero(num));
+    public static byte[] asEvmAddress(final long num) {
+        return copyToLeftPaddedByteArray(num, new byte[20]);
+    }
+
+    /**
+     * Given a value and a destination byte array, copies the value to the destination array, left-padded.
+     *
+     * @param value the value
+     * @param dest the destination byte array
+     * @return the destination byte array
+     */
+    public static byte[] copyToLeftPaddedByteArray(long value, final byte[] dest) {
+        for (int i = 7, j = dest.length - 1; i >= 0; i--, j--) {
+            dest[j] = (byte) (value & 0xffL);
+            value >>= 8;
+        }
+        return dest;
     }
 
     /**
@@ -723,7 +736,7 @@ public class ConversionUtils {
      * @return its long value
      */
     public static long numberOfLongZero(@NonNull final byte[] explicit) {
-        final var number = longFrom(
+        return longFrom(
                 explicit[12],
                 explicit[13],
                 explicit[14],
@@ -732,10 +745,6 @@ public class ConversionUtils {
                 explicit[17],
                 explicit[18],
                 explicit[19]);
-        if (number < 0) {
-            throw new IllegalArgumentException("Number is negative");
-        }
-        return number;
     }
 
     // too many arguments
