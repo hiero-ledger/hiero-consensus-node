@@ -43,7 +43,7 @@ public class HbarAllowanceCall extends AbstractCall {
         requireNonNull(frame);
         if (owner == null || nativeOperations().getAccount(owner) == null) {
             return reversionWith(
-                    INVALID_ALLOWANCE_OWNER_ID, gasCalculator.canonicalGasRequirement(DispatchType.APPROVE));
+                    INVALID_ALLOWANCE_OWNER_ID, gasCalculator.canonicalGasRequirement(DispatchType.TOKEN_INFO));
         }
         final var gasRequirement = gasCalculator.viewGasRequirement();
 

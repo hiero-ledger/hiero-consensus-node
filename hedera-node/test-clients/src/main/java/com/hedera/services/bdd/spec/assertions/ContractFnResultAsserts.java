@@ -29,7 +29,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.DoubleSupplier;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
@@ -223,7 +225,7 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
     }
 
     public ContractFnResultAsserts contract(String contract) {
-        registerIdLookupAssert(contract, r -> r.getContractID(), ContractID.class, "Bad contract!");
+        registerIdLookupAssert(contract, ContractFunctionResult::getContractID, ContractID.class, "Bad contract!");
         return this;
     }
 
@@ -274,11 +276,16 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
     }
 
     public ContractFnResultAsserts approxGasUsed(final long expected, final double allowedPercentDeviation) {
+        approxGasUsed(() -> expected, () -> allowedPercentDeviation);
+        return this;
+    }
+
+    public ContractFnResultAsserts approxGasUsed(LongSupplier expected, DoubleSupplier allowedPercentDeviation) {
         registerProvider((spec, o) -> {
             ContractFunctionResult result = (ContractFunctionResult) o;
             final var actual = result.getGasUsed();
-            final var epsilon = allowedPercentDeviation * actual / 100.0;
-            assertEquals(expected, result.getGasUsed(), epsilon, "Wrong amount of gas used");
+            final var epsilon = allowedPercentDeviation.getAsDouble() * actual / 100.0;
+            assertEquals(expected.getAsLong(), actual, epsilon, "Wrong amount of gas used");
         });
         return this;
     }
