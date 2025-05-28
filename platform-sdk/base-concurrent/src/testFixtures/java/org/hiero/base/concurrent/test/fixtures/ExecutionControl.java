@@ -4,7 +4,9 @@ package org.hiero.base.concurrent.test.fixtures;
 import static org.hiero.base.concurrent.test.fixtures.ThrowingRunnableWrapper.runWrappingChecked;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Allows a thread to "mark" the execution of a task and for another thread to "wait" for a specified number of these
@@ -29,9 +31,14 @@ public class ExecutionControl {
     /**
      * Awaits for the number of executions to be collected
      * @param numberOfExecutions expected number of executions
+     * @param duration the max time to wait for the mark to complete
      */
-    public void await(int numberOfExecutions) {
-        runWrappingChecked(() -> semaphore.acquire(numberOfExecutions));
+    public void await(int numberOfExecutions, final Duration duration) {
+        runWrappingChecked(() -> {
+            if (!semaphore.tryAcquire(numberOfExecutions, duration.toMillis(), TimeUnit.MILLISECONDS)) {
+                throw new RuntimeException("Timed out waiting for an execution to finish");
+            }
+        });
     }
 
     /**

@@ -2,6 +2,7 @@
 package org.hiero.base.concurrent.test.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 
 /**
  * A Runnable task that automatically marks its completion and allows to wait for that completion to be marked.
@@ -40,9 +41,10 @@ public final class RunnableCompletionControl implements Runnable {
 
     /**
      * Waits until the runnable task is marked as executed.
+     * @param duration the max duration to await for
      */
-    public void waitIsFinished() {
-        executionControl.await(1);
+    public void waitIsFinished(final @NonNull Duration duration) {
+        executionControl.await(1, duration);
     }
 
     /**
