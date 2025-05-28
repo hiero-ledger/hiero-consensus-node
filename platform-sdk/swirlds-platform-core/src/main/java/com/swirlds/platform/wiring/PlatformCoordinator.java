@@ -25,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import org.hiero.consensus.event.creator.ConsensusEventCreator;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
@@ -74,7 +75,6 @@ public class PlatformCoordinator {
      * @param orphanBufferWiring                     the orphan buffer wiring
      * @param gossipWiring                           gossip wiring
      * @param consensusEngineWiring                  the consensus engine wiring
-     * @param eventCreationManagerWiring             the event creation manager wiring
      * @param applicationTransactionPrehandlerWiring the application transaction prehandler wiring
      * @param stateSignatureCollectorWiring          the system transaction prehandler wiring
      * @param transactionHandlerWiring               the transaction handler wiring
@@ -94,7 +94,7 @@ public class PlatformCoordinator {
             @NonNull final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
             @NonNull final GossipWiring gossipWiring,
             @NonNull final ComponentWiring<ConsensusEngine, List<ConsensusRound>> consensusEngineWiring,
-            @NonNull final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
+//            @NonNull final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
             @NonNull
                     final ComponentWiring<
                                     TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
@@ -104,14 +104,15 @@ public class PlatformCoordinator {
                             stateSignatureCollectorWiring,
             @NonNull final ComponentWiring<TransactionHandler, TransactionHandlerResult> transactionHandlerWiring,
             @NonNull final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
-            @NonNull
-                    final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
-                            staleEventDetectorWiring,
-            @NonNull final ComponentWiring<TransactionPool, Void> transactionPoolWiring,
+//            @NonNull
+//                    final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
+//                            staleEventDetectorWiring,
+//            @NonNull final ComponentWiring<TransactionPool, Void> transactionPoolWiring,
             @NonNull final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
             @NonNull final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
             @NonNull final ComponentWiring<BranchReporter, Void> branchReporterWiring,
-            @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring) {
+            @Nullable final ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
+            @NonNull final ConsensusEventCreator consensusEventCreator) {
 
         this.flushTheEventHasher = Objects.requireNonNull(flushTheEventHasher);
         this.internalEventValidatorWiring = Objects.requireNonNull(internalEventValidatorWiring);

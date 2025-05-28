@@ -118,7 +118,7 @@ public class TipsetEventCreatorTestUtils {
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    platformContext, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+                    configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
             final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
 
             eventCreators.put(

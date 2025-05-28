@@ -5,8 +5,10 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -86,25 +88,29 @@ public class TransactionPoolNexus implements TransactionSupplier {
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration for the platform
+     * @param time          the time source for rate limiting
+     * @param metrics       the metrics for the platform
      */
-    public TransactionPoolNexus(@NonNull final PlatformContext platformContext) {
-        Objects.requireNonNull(platformContext);
+    public TransactionPoolNexus(
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
+            @NonNull final Metrics metrics) {
 
-        illegalTransactionLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(10));
+        illegalTransactionLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(10));
 
         final TransactionConfig transactionConfig =
-                platformContext.getConfiguration().getConfigData(TransactionConfig.class);
+                configuration.getConfigData(TransactionConfig.class);
         maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
         throttleTransactionQueueSize = transactionConfig.throttleTransactionQueueSize();
 
         transactionPoolMetrics = new TransactionPoolMetrics(
-                platformContext, this::getBufferedTransactionCount, this::getPriorityBufferedTransactionCount);
+                metrics, this::getBufferedTransactionCount, this::getPriorityBufferedTransactionCount);
 
         maximumTransactionSize = transactionConfig.transactionMaxBytes();
 
         final EventCreationConfig eventCreationConfig =
-                platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
+                configuration.getConfigData(EventCreationConfig.class);
         maximumPermissibleUnhealthyDuration = eventCreationConfig.maximumPermissibleUnhealthyDuration();
     }
 

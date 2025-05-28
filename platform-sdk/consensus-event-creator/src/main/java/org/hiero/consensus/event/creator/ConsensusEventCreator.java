@@ -2,10 +2,10 @@
 package org.hiero.consensus.event.creator;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -94,12 +94,12 @@ public interface ConsensusEventCreator {
     /**
      * Initializes the component.
      *
-     * @param platformContext the platform context to be used during initialization
+     * @param configuration the {@link Configuration} to be used during initialization
      * @param model the wiring model to be used during initialization
      * @return this {@link ConsensusEventCreator} instance
      */
     @NonNull
-    ConsensusEventCreator initialize(@NonNull PlatformContext platformContext, @NonNull WiringModel model);
+    ConsensusEventCreator initialize(@NonNull Configuration configuration, @NonNull WiringModel model);
 
     /**
      * Destroys the component.
@@ -135,6 +135,7 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the event window
      */
+    @NonNull
     InputWire<EventWindow> getEventWindowInputWire();
 
     /**
@@ -146,7 +147,20 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the initial event window
      */
+    @NonNull
     InputWire<EventWindow> getInitialEventWindowInputWire();
+
+    /**
+     * {@link InputWire} for transaction received by the {@code TransactionPool} component.
+     *
+     * <p>The {@code TransactionPool} should be moved outside of the {@code ConsensusEventCreator},
+     * which will make this method obsolete. Instead, the {@link TransactionRequestListener}-functionality
+     * will be used.
+     *
+     * @return the {@link InputWire} for the transaction input
+     */
+    @NonNull
+    InputWire<Bytes> getTransactionInputWire();
 
     /**
      * Starts squelching the internal event creation manager.
@@ -194,13 +208,19 @@ public interface ConsensusEventCreator {
      * Get an {@link InputWire} to clear the internal state of the internal event creation manager.
      *
      * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     *
+     * @return an {@link InputWire} to clear the internal state of the event creation manager
      */
+    @NonNull
     InputWire<Void> getClearEventCreationMangerInputWire();
 
     /**
      * Get an {@link InputWire} to clear the internal state of the internal stale event detector.
      *
      * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     *
+     * @return an {@link InputWire} to clear the internal state of the stale event detector
      */
+    @NonNull
     InputWire<Void> getClearStaleEventDetectorInputWire();
 }

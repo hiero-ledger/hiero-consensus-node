@@ -14,7 +14,7 @@ import java.time.Duration;
  * @param eventSignatureValidator              configuration for the event signature validator scheduler
  * @param orphanBuffer                         configuration for the orphan buffer scheduler
  * @param consensusEngine                      configuration for the consensus engine scheduler
- * @param eventCreationManager                 configuration for the event creation manager scheduler
+// * @param eventCreationManager                 configuration for the event creation manager scheduler
  * @param stateSigner                          configuration for the state signer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param applicationTransactionPrehandler     configuration for the application transaction prehandler scheduler
@@ -35,9 +35,9 @@ import java.time.Duration;
  * @param signedStateSentinelHeartbeatPeriod   the frequency that heartbeats should be sent to the signed state
  *                                             sentinel
  * @param statusStateMachine                   configuration for the status state machine scheduler
- * @param staleEventDetector                   configuration for the stale event detector scheduler
+// * @param staleEventDetector                   configuration for the stale event detector scheduler
  * @param transactionResubmitter               configuration for the transaction resubmitter scheduler
- * @param transactionPool                      configuration for the transaction pool scheduler
+// * @param transactionPool                      configuration for the transaction pool scheduler
  * @param gossip                               configuration for the gossip scheduler
  * @param eventHasher                          configuration for the event hasher scheduler
  * @param branchDetector                       configuration for the branch detector scheduler
@@ -57,8 +57,8 @@ public record PlatformSchedulersConfig(
                         defaultValue =
                                 "SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
                 TaskSchedulerConfiguration consensusEngine,
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration eventCreationManager,
+//        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
+//                TaskSchedulerConfiguration eventCreationManager,
         @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration stateSnapshotManager,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")
@@ -100,11 +100,11 @@ public record PlatformSchedulersConfig(
                 TaskSchedulerConfiguration roundDurabilityBuffer,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration statusStateMachine,
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration staleEventDetector,
+//        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
+//                TaskSchedulerConfiguration staleEventDetector,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration transactionResubmitter,
-        @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
+//        @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration gossip,
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
