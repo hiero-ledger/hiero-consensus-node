@@ -9,22 +9,22 @@ on:
       branch_name:
         required: true
         description: "The branch name, for JRS Panel output"
-      enable-run-extended-test-suite:
+      enable-extended-test-suite:
         required: true
         type: boolean
         default: true
         description: "Run Extended Test Suite"
-      enable-run-abbreviated-panel:
+      enable-abbreviated-panel:
         required: true
         type: boolean
         default: true
         description: "Run Abbreviated JRS Panel"
-      enable-run-hedera-node-jrs-panel:
+      enable-hedera-node-jrs-panel:
         required: true
         type: boolean
         default: true
         description: "Run Hedera Node JRS Panel"
-      enable-run-sdk-tck-regression-panel:
+      enable-sdk-tck-regression-panel:
         required: true
         type: boolean
         default: true
@@ -45,7 +45,7 @@ defaults:
 jobs:
   extended-test-suite:
     name: Execute eXtended Test Suite
-    if: ${{ inputs.run-extended-test-suite == true }}
+    if: ${{ inputs.enable-extended-test-suite == true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
       custom-job-label: "Dry-Run: Execute eXtended Test Suite"
@@ -62,7 +62,7 @@ jobs:
 
   abbreviated-panel:
     name: JRS Panel
-    if: ${{ inputs.run-abbreviated-panel == true }}
+    if: ${{ inputs.enable-abbreviated-panel == true }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
       custom-job-name: "Dry-Run: Platform SDK"
@@ -87,7 +87,7 @@ jobs:
 
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
-    if: ${{ inputs.run-hedera-node-jrs-panel == true }}
+    if: ${{ inputs.enable-hedera-node-jrs-panel == true }}
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     with:
       custom-job-name: "Dry-Run: Abbrev Update Test"
@@ -110,7 +110,7 @@ jobs:
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel
-    if: ${{ inputs.run-sdk-tck-regression-panel == true }}
+    if: ${{ inputs.enable-sdk-tck-regression-panel == true }}
     uses: ./.github/workflows/zxc-tck-regression.yaml
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
