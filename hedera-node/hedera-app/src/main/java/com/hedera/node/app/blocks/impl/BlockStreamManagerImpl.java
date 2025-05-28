@@ -88,7 +88,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
-    private static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
+    public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
