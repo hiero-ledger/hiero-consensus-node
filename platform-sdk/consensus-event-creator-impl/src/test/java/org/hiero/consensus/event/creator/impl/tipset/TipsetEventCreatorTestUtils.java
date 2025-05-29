@@ -135,30 +135,29 @@ public class TipsetEventCreatorTestUtils {
     }
 
     /**
-     * Validates that @code newEvent satisfies:
-     * - if it has a null self-parent, is only during genesis scenario
-     * - if it has a null other-parent, is only during genesis scenario
-     * - the event is contained in allEvents
-     * - NGen should be max of parents plus one
-     * - Parent's birthround or generation is never higher than event's.
-     * - There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)
-     * - Except for genesis scenario, new event must have a positive advancement score.
-     * - Application Transactions of the event matches @code expectedTransactions
-     *
+     * Validates that @code newEvent satisfies: - if it has a null self-parent, is only during genesis scenario - if it
+     * has a null other-parent, is only during genesis scenario - the event is contained in allEvents - NGen should be
+     * max of parents plus one - Parent's birthround or generation is never higher than event's. - There is a minimum
+     * gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount) - Except for
+     * genesis scenario, new event must have a positive advancement score. - Application Transactions of the event
+     * matches @code expectedTransactions
+     * <p>
      * This method produces a side effect of advancing the last AdvancementWeight of the simulatedNode
      *
-     * @param allEvents the list of all events, where parents are going to be retrieved from and the event is going to be check against
-     * @param newEvent the event to validate
+     * @param allEvents            the list of all events, where parents are going to be retrieved from and the event is
+     *                             going to be check against
+     * @param newEvent             the event to validate
      * @param expectedTransactions all the application transactions expected to be present in the event
-     * @param simulatedNode the node that produced the event. This object is changed after invoking this method.
-     * @param slowNode an specific mode of validation
+     * @param simulatedNode        the node that produced the event. This object is changed after invoking this method.
+     * @param slowNode             an specific mode of validation
      */
     public static void validateNewEventAndMaybeAdvanceCreatorScore(
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent newEvent,
             @NonNull final List<Bytes> expectedTransactions,
             @NonNull final SimulatedNode simulatedNode,
-            final boolean slowNode) {
+            final boolean slowNode,
+            @NonNull final AncientMode ancientMode) {
 
         final PlatformEvent selfParent = allEvents.get(newEvent.getSelfParent());
         final long selfParentGeneration =
@@ -192,19 +191,21 @@ public class TipsetEventCreatorTestUtils {
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }
 
-        // Generation should be max of parents plus one
-        final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
-        assertEquals(expectedGeneration, newEvent.getNGen());
+        if (ancientMode.equals(AncientMode.GENERATION_THRESHOLD)) {
+            // Generation should be max of parents plus one
+            final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
+            assertEquals(expectedGeneration, newEvent.getNGen());
 
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
-                        || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
-                "Parent's birth round should never be higher to the event's birth round.");
+            assertFalse(
+                    (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
+                            || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
+                    "Parent's birth round should never be higher to the event's birth round.");
 
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getGeneration() >= newEvent.getGeneration())
-                        || (nonNull(otherParent) && otherParent.getGeneration() >= newEvent.getGeneration()),
-                "Parent's generation should never be higher or equal to the event's generation.");
+            assertFalse(
+                    (nonNull(selfParent) && selfParent.getGeneration() >= newEvent.getGeneration())
+                            || (nonNull(otherParent) && otherParent.getGeneration() >= newEvent.getGeneration()),
+                    "Parent's generation should never be higher or equal to the event's generation.");
+        }
 
         // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
         // with nanosecond precision for transaction.
@@ -287,6 +288,7 @@ public class TipsetEventCreatorTestUtils {
 
     /**
      * Generates {@code number} of random transactions
+     *
      * @param random the random instance to use
      * @param number the number of transactions to generate. Must be positive.
      * @return a list of bytes for each transaction

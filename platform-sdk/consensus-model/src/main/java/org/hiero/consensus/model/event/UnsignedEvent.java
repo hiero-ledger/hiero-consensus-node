@@ -57,9 +57,11 @@ public class UnsignedEvent implements Hashable {
             @NonNull final List<EventDescriptorWrapper> otherParents,
             final long birthRound,
             @NonNull final Instant timeCreated,
-            @NonNull final List<Bytes> transactions) {
+            @NonNull final List<Bytes> transactions,
+            @NonNull final AncientMode ancientMode) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
-        this.metadata = new EventMetadata(creatorId, selfParent, otherParents, timeCreated, transactions, birthRound);
+        this.metadata = new EventMetadata(
+                creatorId, selfParent, otherParents, timeCreated, transactions, birthRound, ancientMode);
         this.parents = this.metadata.getAllParents().stream()
                 .map(EventDescriptorWrapper::eventDescriptor)
                 .toList();

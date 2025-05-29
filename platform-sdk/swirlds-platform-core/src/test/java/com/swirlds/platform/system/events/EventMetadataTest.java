@@ -11,6 +11,7 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventMetadata;
 import org.hiero.consensus.model.node.NodeId;
@@ -25,8 +26,14 @@ class EventMetadataTest {
                 new EventDescriptor(randomHash(random).getBytes(), 0, 1, 100));
         final EventDescriptorWrapper otherParent = new EventDescriptorWrapper(
                 new EventDescriptor(randomHash(random).getBytes(), 1, 1, 100));
-        final EventMetadata metadata =
-                new EventMetadata(NodeId.of(0), selfParent, List.of(otherParent), Instant.now(), List.of(), 1);
+        final EventMetadata metadata = new EventMetadata(
+                NodeId.of(0),
+                selfParent,
+                List.of(otherParent),
+                Instant.now(),
+                List.of(),
+                1,
+                AncientMode.GENERATION_THRESHOLD);
 
         // validate that everything works as expected before the birth round override
         verifyEvent(metadata, 0, 101, 1);
@@ -37,7 +44,7 @@ class EventMetadataTest {
 
         // override the birth round
         final long newBirthRound = 100L;
-        metadata.setBirthRoundOverride(newBirthRound, 100);
+        metadata.setBirthRoundAndGenerationOverride(newBirthRound, 100);
 
         // validate that the birth round has been overridden with all other properties unchanged
         verifyEvent(metadata, 0, 101, newBirthRound);
@@ -54,14 +61,20 @@ class EventMetadataTest {
                 new EventDescriptor(randomHash(random).getBytes(), 0, 1, 100));
         final EventDescriptorWrapper otherParent = new EventDescriptorWrapper(
                 new EventDescriptor(randomHash(random).getBytes(), 1, 1, 100));
-        final EventMetadata metadata =
-                new EventMetadata(NodeId.of(0), selfParent, List.of(otherParent), Instant.now(), List.of(), 1);
+        final EventMetadata metadata = new EventMetadata(
+                NodeId.of(0),
+                selfParent,
+                List.of(otherParent),
+                Instant.now(),
+                List.of(),
+                1,
+                AncientMode.GENERATION_THRESHOLD);
 
         final long newBirthRound = 150;
-        metadata.setBirthRoundOverride(newBirthRound, 100);
+        metadata.setBirthRoundAndGenerationOverride(newBirthRound, 100);
 
         // trying to override it again should fail
-        assertThrows(IllegalStateException.class, () -> metadata.setBirthRoundOverride(200, 100));
+        assertThrows(IllegalStateException.class, () -> metadata.setBirthRoundAndGenerationOverride(200, 100));
 
         // validate that the birth round has been overridden with the first call only
         verifyEvent(metadata, 0, 101, newBirthRound);
@@ -78,11 +91,17 @@ class EventMetadataTest {
                 new EventDescriptor(randomHash(random).getBytes(), 0, 1, 100));
         final EventDescriptorWrapper otherParent = new EventDescriptorWrapper(
                 new EventDescriptor(randomHash(random).getBytes(), 1, 1, 90));
-        final EventMetadata metadata =
-                new EventMetadata(NodeId.of(0), selfParent, List.of(otherParent), Instant.now(), List.of(), 1);
+        final EventMetadata metadata = new EventMetadata(
+                NodeId.of(0),
+                selfParent,
+                List.of(otherParent),
+                Instant.now(),
+                List.of(),
+                1,
+                AncientMode.GENERATION_THRESHOLD);
 
         final long newBirthRound = 50;
-        metadata.setBirthRoundOverride(newBirthRound, 100);
+        metadata.setBirthRoundAndGenerationOverride(newBirthRound, 100);
 
         // the self parent is not ancient so its birth round should be updated, but the other parent should not
         verifyEvent(metadata, 0, 101, newBirthRound);

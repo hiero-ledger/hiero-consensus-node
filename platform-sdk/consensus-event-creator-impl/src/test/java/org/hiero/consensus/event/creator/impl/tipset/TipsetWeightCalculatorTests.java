@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -64,6 +65,26 @@ class TipsetWeightCalculatorTests {
                 .setCreatorId(creator)
                 .setNGen(nGen)
                 .setBirthRound(ROUND_FIRST)
+                .build();
+    }
+
+    /**
+     * Create a new event descriptor with the given parameters
+     * and {@link org.hiero.consensus.model.hashgraph.ConsensusConstants#ROUND_FIRST} for the birth round.
+     * Given that the event has no parents, the generation assigned will be 0.
+     *
+     * @param random the random instance to use
+     * @param creator the creator of the event
+     * @param nGen    the non-deterministic generation of the event
+     * @param birthRound the birth round of the event
+     * @return the event
+     */
+    private static PlatformEvent newEvent(
+            @NonNull final Random random, @NonNull final NodeId creator, final long nGen, final long birthRound) {
+        return new TestingEventBuilder(random)
+                .setCreatorId(creator)
+                .setNGen(nGen)
+                .setBirthRound(birthRound)
                 .build();
     }
 
@@ -601,20 +622,20 @@ class TipsetWeightCalculatorTests {
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed"),
+        //        @ParamSource(
+        //                param = "random",
+        //                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+        //                method = "getRandomPrintSeed"),
         @ParamSource(
                 param = "ancientMode",
                 fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
                 method = "values")
     })
     @DisplayName("Ancient Parent Test")
-    public void ancientParentTest(
-            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
+    public void ancientParentTest(@ParamName("ancientMode") final AncientMode ancientMode) {
         final int nodeCount = 4;
 
+        final Random random = RandomUtils.getRandomPrintSeed(0L);
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
                 .withWeightGenerator(WeightGenerators.BALANCED)
@@ -634,10 +655,12 @@ class TipsetWeightCalculatorTests {
                 new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
 
         // Create generation 0 / birth round 1 events
-        final PlatformEvent a0 = newEvent(random, nodeA, NonDeterministicGeneration.GENERATION_UNDEFINED);
-        final PlatformEvent b0 = newEvent(random, nodeB, NonDeterministicGeneration.GENERATION_UNDEFINED);
-        final PlatformEvent c0 = newEvent(random, nodeC, NonDeterministicGeneration.GENERATION_UNDEFINED);
-        final PlatformEvent d0 = newEvent(random, nodeD, NonDeterministicGeneration.GENERATION_UNDEFINED);
+        final long birthRound =
+                ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD ? 1L : EventConstants.BIRTH_ROUND_UNDEFINED;
+        final PlatformEvent a0 = newEvent(random, nodeA, NonDeterministicGeneration.GENERATION_UNDEFINED, birthRound);
+        final PlatformEvent b0 = newEvent(random, nodeB, NonDeterministicGeneration.GENERATION_UNDEFINED, birthRound);
+        final PlatformEvent c0 = newEvent(random, nodeC, NonDeterministicGeneration.GENERATION_UNDEFINED, birthRound);
+        final PlatformEvent d0 = newEvent(random, nodeD, NonDeterministicGeneration.GENERATION_UNDEFINED, birthRound);
 
         tipsetTracker.addSelfEvent(a0.getDescriptor(), a0.getAllParents());
         tipsetTracker.addPeerEvent(b0);

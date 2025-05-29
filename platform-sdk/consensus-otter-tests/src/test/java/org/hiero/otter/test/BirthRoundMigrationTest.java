@@ -38,6 +38,7 @@ class BirthRoundMigrationTest {
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
             node.getConfiguration().set(SOFTWARE_VERSION, OLD_VERSION);
+            node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false);
         }
         network.start(ONE_MINUTE);
         env.generator().start();

@@ -2,7 +2,6 @@
 package com.swirlds.platform.system.events;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
@@ -102,17 +101,18 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
                         "Event migrated to use birth rounds prev={} new={} (non-ancient)",
                         event.getBirthRound(),
                         lastRoundBeforeBirthRoundMode);
-                event.overrideBirthRound(lastRoundBeforeBirthRoundMode, lowestJudgeGenerationBeforeBirthRoundMode);
+                event.overrideBirthRoundAndGeneration(
+                        lastRoundBeforeBirthRoundMode, lowestJudgeGenerationBeforeBirthRoundMode);
                 shimBarelyNonAncientEvents.cycle();
             } else {
                 // All other pre-migration events are given a birth round that will
                 // cause them to be immediately ancient.
-                logger.debug(
-                        STARTUP.getMarker(),
-                        "Event migrated to use birth rounds prev={} new={} (ancient)",
-                        event.getBirthRound(),
-                        ROUND_FIRST);
-                event.overrideBirthRound(ROUND_FIRST, lowestJudgeGenerationBeforeBirthRoundMode);
+                //                logger.debug(
+                //                        STARTUP.getMarker(),
+                //                        "Event migrated to use birth rounds prev={} new={} (ancient)",
+                //                        event.getBirthRound(),
+                //                        ROUND_FIRST);
+                //                event.overrideBirthRound(ROUND_FIRST, lowestJudgeGenerationBeforeBirthRoundMode);
                 shimAncientEvents.cycle();
             }
         }

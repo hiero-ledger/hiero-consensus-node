@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
@@ -554,6 +555,7 @@ public class TestingEventBuilder {
                         parent, otherParentGenerationOverride, otherParentBirthRoundOverride))
                 .toList();
 
+        boolean birthRoundSet = birthRound != null;
         if (this.birthRound == null) {
 
             final long maxParentBirthRound = Stream.concat(
@@ -587,7 +589,8 @@ public class TestingEventBuilder {
                 otherParentDescriptors,
                 birthRound,
                 timeCreated,
-                transactionBytes);
+                transactionBytes,
+                birthRoundSet ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
 
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);

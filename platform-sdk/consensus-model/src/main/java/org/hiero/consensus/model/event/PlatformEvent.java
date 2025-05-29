@@ -361,8 +361,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their birth
      *                                   round overridden
      */
-    public void overrideBirthRound(final long birthRound, final long ancientGenerationThreshold) {
-        metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
+    public void overrideBirthRoundAndGeneration(final long birthRound, final long ancientGenerationThreshold) {
+        metadata.setBirthRoundAndGenerationOverride(birthRound, ancientGenerationThreshold);
     }
 
     /**
