@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -11,31 +10,44 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedReader;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
  * A {@link UtilOp} that validates that the selected nodes' application or platform log contains
- * a sequence of patterns within a specified timeframe.
+ * a sequence of patterns within a specified timeframe, reading the log incrementally.
  */
 public class LogContainmentTimeframeOp extends UtilOp {
+    private static final Logger log = LogManager.getLogger(LogContainmentTimeframeOp.class);
     private static final DateTimeFormatter LOG_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
     private final NodeSelector selector;
     private final ExternalPath path;
-    private final List<String> patterns;
+    private final List<String> originalPatterns;
     private final Supplier<Instant> startTimeSupplier;
     private final Duration timeframe;
     private final Duration waitTimeout;
+
+    // State for incremental reading
+    private final AtomicLong linesProcessed = new AtomicLong(0L);
+    private final Set<String> foundPatterns = new HashSet<>();
 
     public LogContainmentTimeframeOp(
             @NonNull final NodeSelector selector,
@@ -48,7 +60,7 @@ public class LogContainmentTimeframeOp extends UtilOp {
             throw new IllegalArgumentException(path + " is not a log");
         }
         this.path = requireNonNull(path);
-        this.patterns = requireNonNull(patterns);
+        this.originalPatterns = new ArrayList<>(requireNonNull(patterns)); // Store original
         this.selector = requireNonNull(selector);
         this.startTimeSupplier = requireNonNull(startTimeSupplier);
         this.timeframe = requireNonNull(timeframe);
@@ -57,84 +69,112 @@ public class LogContainmentTimeframeOp extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        // Get the start time when the operation is actually executed
         final Instant startTime = startTimeSupplier.get();
         if (startTime == null) {
             throw new IllegalStateException("Start time supplier returned null");
         }
-
+        final Instant endTime = startTime.plus(timeframe);
         final Instant timeoutDeadline = Instant.now().plus(waitTimeout);
-        List<String> missingPatterns = null;
+
+        log.info(
+                "Starting log check: StartTime={}, Timeframe={}, Timeout={}, TargetPatterns={}",
+                startTime,
+                timeframe,
+                waitTimeout,
+                originalPatterns);
 
         while (Instant.now().isBefore(timeoutDeadline)) {
-            missingPatterns = checkLogsForPatterns(spec, startTime);
-            if (missingPatterns.isEmpty()) {
-                return false; // Success - all patterns found
+            // Process new log lines for all selected nodes
+            spec.targetNetworkOrThrow().nodesFor(selector).forEach(node -> {
+                findNewPatternsInNodeLog(node.getExternalPath(path), startTime, endTime);
+            });
+
+            if (foundPatterns.size() == originalPatterns.size()) {
+                log.info("All patterns found successfully.");
+                return false; // Success
             }
 
-            // Not all patterns found yet, wait and retry if there's time left
             if (Instant.now().isBefore(timeoutDeadline)) {
                 doIfNotInterrupted(() -> MILLISECONDS.sleep(1000));
             }
         }
 
-        // If we get here, we timed out without finding all patterns
-        Assertions.fail(String.format(
-                "Did not find all expected log patterns within timeout period of %s. Missing patterns: %s",
-                waitTimeout, String.join(", ", missingPatterns)));
+        // Timeout occurred
+        final List<String> missingPatterns = originalPatterns.stream()
+                .filter(p -> !foundPatterns.contains(p))
+                .collect(Collectors.toList());
 
-        return false;
+        Assertions.fail(String.format(
+                "Did not find all expected log patterns. StartTime=%s, Timeframe=%s, Timeout=%s. MissingPatterns=[%s]",
+                startTime, timeframe, waitTimeout, String.join(", ", missingPatterns)));
+
+        return false; // Should not be reached due to Assertions.fail
     }
 
-    private List<String> checkLogsForPatterns(@NonNull final HapiSpec spec, @NonNull final Instant startTime) {
-        List<String> missingPatterns = new ArrayList<>();
+    private void findNewPatternsInNodeLog(
+            @NonNull final java.nio.file.Path logPath,
+            @NonNull final Instant startTime,
+            @NonNull final Instant endTime) {
+        long newLinesRead = 0;
+        try (BufferedReader reader = Files.newBufferedReader(logPath)) {
+            // Skip lines already processed and process the rest
+            try (var linesStream = reader.lines().skip(linesProcessed.get())) {
+                List<String> remainingPatternsToCheck = originalPatterns.stream()
+                        .filter(p -> !foundPatterns.contains(p))
+                        .toList();
 
-        spec.targetNetworkOrThrow().nodesFor(selector).forEach(node -> {
-            final var logLines =
-                    rethrowIO(() -> Files.lines(node.getExternalPath(path))).toList();
-
-            // Filter logs to only those within the timeframe
-            List<String> relevantLogs = new ArrayList<>();
-            for (String line : logLines) {
-                LocalDateTime logTime;
-                try {
-                    final String timestamp = line.substring(0, 23); // "2025-03-17 21:36:20.275"
-                    logTime = LocalDateTime.parse(timestamp, LOG_TIMESTAMP_FORMAT);
-                } catch (Exception e) {
-                    // Skip lines that don't match the expected timestamp format
-                    continue;
+                if (remainingPatternsToCheck.isEmpty()) {
+                    return; // All patterns already found, no need to read further for this node
                 }
 
-                final Instant logInstant =
-                        logTime.atZone(ZoneId.systemDefault()).toInstant();
+                final var iterator = linesStream.iterator();
+                while (iterator.hasNext()) {
+                    String line = iterator.next();
+                    newLinesRead++;
 
-                if (logInstant.isAfter(startTime) && logInstant.isBefore(startTime.plus(timeframe))) {
-                    relevantLogs.add(line);
-                }
-            }
+                    LocalDateTime logTime;
+                    Instant logInstant;
+                    try {
+                        // Basic check for timestamp format length
+                        if (line.length() < 23) continue;
+                        final String timestamp = line.substring(0, 23);
+                        logTime = LocalDateTime.parse(timestamp, LOG_TIMESTAMP_FORMAT);
+                        logInstant = logTime.atZone(ZoneId.systemDefault()).toInstant();
+                    } catch (Exception e) {
+                        continue;
+                    }
 
-            // Check each pattern appears in order
-            int lastFoundIndex = -1;
-            for (String pattern : patterns) {
-                boolean found = false;
-                for (int i = lastFoundIndex + 1; i < relevantLogs.size(); i++) {
-                    String log = relevantLogs.get(i);
-                    // Strip timestamp and thread info for comparison
-                    String logContent = log.replaceAll(
-                            "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} \\w+\\s+\\d+\\s+\\w+\\s+-\\s+\\[.*?\\]\\s*",
-                            "");
-                    if (logContent.contains(pattern)) {
-                        found = true;
-                        lastFoundIndex = i;
-                        break;
+                    // Check if the log entry is within the timeframe
+                    if (logInstant.isAfter(startTime) && logInstant.isBefore(endTime)) {
+                        // Check against patterns not yet found
+                        for (final String pattern : remainingPatternsToCheck) {
+                            if (line.contains(pattern)) {
+                                log.debug("Found pattern '{}' in line: {}", pattern, line);
+                                foundPatterns.add(pattern);
+                                // Re-calculate remaining patterns if one was found
+                                remainingPatternsToCheck = originalPatterns.stream()
+                                        .filter(p -> !foundPatterns.contains(p))
+                                        .toList();
+                                if (remainingPatternsToCheck.isEmpty()) {
+                                    break; // Stop checking this line if all patterns found
+                                }
+                            }
+                        }
+                    }
+                    if (remainingPatternsToCheck.isEmpty()) {
+                        break; // Stop processing new lines if all patterns found
                     }
                 }
-                if (!found && !missingPatterns.contains(pattern)) {
-                    missingPatterns.add(pattern);
-                }
             }
-        });
-
-        return missingPatterns;
+        } catch (NoSuchFileException nsfe) {
+            log.warn("Log file not found: {}. Will retry.", logPath);
+            // File might appear later, do nothing and let the loop retry
+        } catch (Exception e) {
+            log.error("Error reading log file {}. Patterns checked so far: {}", logPath, foundPatterns, e);
+            // Rethrow or handle as appropriate for the test framework
+            throw new RuntimeException("Error during log processing for " + logPath, e);
+        }
+        // Update the total lines processed for this file
+        linesProcessed.addAndGet(newLinesRead);
     }
 }

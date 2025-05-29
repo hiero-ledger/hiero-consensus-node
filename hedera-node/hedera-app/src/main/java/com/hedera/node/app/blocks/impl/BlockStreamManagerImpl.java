@@ -693,6 +693,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         @Override
         protected boolean onExecute() {
+            try {
+                return doExecute();
+            } catch (final RuntimeException e) {
+                log.error("Error occurred while executing task", e);
+                throw e;
+            }
+        }
+
+        private boolean doExecute() {
             final var kind = item.item().kind();
             switch (kind) {
                 case EVENT_HEADER, EVENT_TRANSACTION, ROUND_HEADER -> inputTreeHasher.addLeaf(hash);
