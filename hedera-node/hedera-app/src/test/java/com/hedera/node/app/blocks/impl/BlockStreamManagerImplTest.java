@@ -328,7 +328,10 @@ class BlockStreamManagerImplTest {
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                CONSENSUS_THEN);
+                CONSENSUS_THEN,
+                Bytes.EMPTY,
+                Bytes.EMPTY,
+                Bytes.EMPTY);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -552,7 +555,10 @@ class BlockStreamManagerImplTest {
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                CONSENSUS_THEN);
+                CONSENSUS_THEN,
+                Bytes.EMPTY,
+                Bytes.EMPTY,
+                Bytes.EMPTY);
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
