@@ -462,7 +462,7 @@ enum StateIdentifier {
     STATE_ID_NODE_REWARDS = 50;
 
     /**
-    * A state identifier for the Topics state. Singleton state.
+    * A state identifier for the virtual map state. Singleton state.
     */
     STATE_ID_VIRTUAL_MAP_STATE = 51;
 

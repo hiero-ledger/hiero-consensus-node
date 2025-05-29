@@ -65,148 +65,148 @@ message VirtualMapKey {
     /**
      * A state identifier for the Accounts state. 
      */
-    proto.AccountID TokenServiceACCOUNTS = 2;
+    proto.AccountID TokenService_ACCOUNTS = 2;
 
     /**
      * A state identifier for account aliases. 
      */
-    proto.ProtoBytes TokenServiceALIASES = 3;
+    proto.ProtoBytes TokenService__ALIASES = 3;
 
     /**
      * A state identifier for contract storage slots. 
      */
-    proto.SlotKey ContractServiceSTORAGE = 4;
+    proto.SlotKey ContractService__STORAGE = 4;
 
     /**
      * A state identifier for contract bytecode. 
      */
-    proto.ContractID ContractServiceBYTECODE = 5;
+    proto.ContractID ContractService__BYTECODE = 5;
 
     /**
      * A state identifier for Hedera File Service (HFS). 
      */    
-    proto.FileID FileServiceFILES = 6;
+    proto.FileID FileService__FILES = 6;
 
     /**
      * A state identifier for Hedera Token Service (HTS). 
      */    
-    proto.TokenID TokenServiceTOKENS = 7;
+    proto.TokenID TokenService__TOKENS = 7;
 
     /**
      * A state identifier for non-fungible/unique tokens. 
      */    
-    proto.NftID TokenServiceNFTS = 8;
+    proto.NftID TokenService__NFTS = 8;
 
     /**
      * A state identifier for token relationships. 
      */
-    proto.EntityIDPair TokenServiceTOKEN_RELS = 9;
+    proto.EntityIDPair TokenService__TOKEN_RELS = 9;
 
     /**
      * A state identifier for network staking information. 
      */
-    proto.EntityNumber TokenServiceSTAKING_INFOS = 10;
+    proto.EntityNumber TokenService__STAKING_INFOS = 10;
 
     /**
      * A state identifier for scheduled transactions. 
      */
-    proto.ScheduleID ScheduleServiceSCHEDULES_BY_ID = 14;
+    proto.ScheduleID ScheduleService__SCHEDULES_BY_ID = 14;
 
     /**
      * A state identifier for scheduled transaction expiration. 
      */
-    proto.ProtoLong ScheduleServiceSCHEDULES_BY_EXPIRY_SEC = 15;
+    proto.ProtoLong ScheduleService__SCHEDULES_BY_EXPIRY_SEC = 15;
 
     /**
      * A state identifier for scheduled transaction deduplication. 
      */
-    proto.ProtoBytes ScheduleServiceSCHEDULES_BY_EQUALITY = 16;
+    proto.ProtoBytes ScheduleService__SCHEDULES_BY_EQUALITY = 16;
 
     /**
      * A state identifier for address book nodes. 
      */
-    proto.EntityNumber AddressBookServiceNODES = 20;
+    proto.EntityNumber AddressBookService__NODES = 20;
 
     /**
      * A state identifier for the Topics state. 
      */
-    proto.TopicID ConsensusServiceTOPICS = 21;
+    proto.TopicID ConsensusService__TOPICS = 21;
 
     /**
      * A state identifier for pending airdrops. 
      */
-    proto.PendingAirdropId TokenServicePENDING_AIRDROPS = 25;
+    proto.PendingAirdropId TokenService__PENDING_AIRDROPS = 25;
 
     /**
      * A state identifier for the rosters. 
      */
-    proto.ProtoBytes RosterServiceROSTERS = 28;
+    proto.ProtoBytes RosterService__ROSTERS = 28;
 
     /**
     * A state identifier for counts of transactions scheduled and
     * processed in a second. 
     */
-    proto.TimestampSeconds ScheduleServiceSCHEDULED_COUNTS = 29;
+    proto.TimestampSeconds ScheduleService__SCHEDULED_COUNTS = 29;
 
     /**
      * A state identifier for scheduled transaction deduplication. 
      */
-    proto.ProtoBytes ScheduleServiceSCHEDULE_ID_BY_EQUALITY = 30;
+    proto.ProtoBytes ScheduleService__SCHEDULE_ID_BY_EQUALITY = 30;
 
     /**
      * A state identifier for TSS messages. 
      */    
-    com.hedera.hapi.node.state.tss.TssMessageMapKey TssBaseServiceTSS_MESSAGES = 31;
+    com.hedera.hapi.node.state.tss.TssMessageMapKey TssBaseService__TSS_MESSAGES = 31;
 
     /**
      * A state identifier for TSS votes. 
      */    
-    com.hedera.hapi.node.state.tss.TssVoteMapKey TssBaseServiceTSS_VOTES = 32;
+    com.hedera.hapi.node.state.tss.TssVoteMapKey TssBaseService__TSS_VOTES = 32;
     
     /**
     * A state identifier for the ordering of scheduled transactions. 
     */    
-    proto.ScheduledOrder ScheduleServiceSCHEDULED_ORDERS = 33;
+    proto.ScheduledOrder ScheduleService__SCHEDULED_ORDERS = 33;
 
     /**
      * A state identifier for scheduled throttle usage snapshots. 
      */    
-    proto.TimestampSeconds ScheduleServiceSCHEDULED_USAGES = 34;
+    proto.TimestampSeconds ScheduleService__SCHEDULED_USAGES = 34;
 
     /**
      * A state identifier for the TSS encryption keys. 
      */    
-    proto.EntityNumber TssBaseServiceTSS_ENCRYPTION_KEY = 35;
+    proto.EntityNumber TssBaseService__TSS_ENCRYPTION_KEY = 35;
 
     /**
      * A state identifier for hinTS key sets. 
      */    
-    com.hedera.hapi.node.state.hints.HintsPartyId HintsServiceHINTS_KEY_SETS = 37;
+    com.hedera.hapi.node.state.hints.HintsPartyId HintsService__HINTS_KEY_SETS = 37;
 
     /**
      * A state identifier for hinTS preprocessing output votes. 
      */    
-    com.hedera.hapi.node.state.hints.PreprocessingVoteId HintsServicePREPROCESSING_VOTES = 40;
+    com.hedera.hapi.node.state.hints.PreprocessingVoteId HintsService__PREPROCESSING_VOTES = 40;
 
     /**
      * A state identifier for history proof key sets. 
      */    
-    com.hedera.hapi.platform.state.NodeId HistoryServicePROOF_KEY_SETS = 43;
+    com.hedera.hapi.platform.state.NodeId HistoryService__PROOF_KEY_SETS = 43;
 
     /**
      * A state identifier for signatures on roster transition histories. 
      */    
-    com.hedera.hapi.node.state.history.ConstructionNodeId HistoryServiceHISTORY_SIGNATURES = 46;
+    com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService__HISTORY_SIGNATURES = 46;
 
     /**
      * A state identifier for votes on history proofs. 
      */    
-    com.hedera.hapi.node.state.history.ConstructionNodeId HistoryServicePROOF_VOTES = 47;
+    com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService__PROOF_VOTES = 47;
 
     /**
      * A state identifier for the CRS publications. 
      */    
-    com.hedera.hapi.platform.state.NodeId HintsServiceCRS_PUBLICATIONS = 49;
+    com.hedera.hapi.platform.state.NodeId HintsService__CRS_PUBLICATIONS = 49;
 
     // Queue states
     /**
@@ -217,52 +217,52 @@ message VirtualMapKey {
     /**
      * Queue index for the `150` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_150 = 10001;
+    uint64 FileService__UPGRADE_DATA_150 = 10001;
     
     /**
      * Queue index for the `151` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_151 = 10002;
+    uint64 FileService__UPGRADE_DATA_151 = 10002;
 
     /**
      * Queue index for the `152` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_152 = 10003;
+    uint64 FileService__UPGRADE_DATA_152 = 10003;
 
     /**
      * Queue index for the `153` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_153 = 10004;
+    uint64 FileService__UPGRADE_DATA_153 = 10004;
 
     /**
      * Queue index for the `154` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_154 = 10005;
+    uint64 FileService__UPGRADE_DATA_154 = 10005;
 
     /**
      * Queue index for the `155` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_155 = 10006;
+    uint64 FileService__UPGRADE_DATA_155 = 10006;
 
     /**
      * Queue index for the `156` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_156 = 10007;
+    uint64 FileService__UPGRADE_DATA_156 = 10007;
 
     /**
      * Queue index for the `157` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_157 = 10008;
+    uint64 FileService__UPGRADE_DATA_157 = 10008;
 
     /**
      * Queue index for the `158` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_158 = 10009;
+    uint64 FileService__UPGRADE_DATA_158 = 10009;
 
     /**
      * Queue index for the `159` upgrade file data.
      */
-    uint64 FileServiceUPGRADE_DATA_159 = 10010;
+    uint64 FileService__UPGRADE_DATA_159 = 10010;
 
   }
 }

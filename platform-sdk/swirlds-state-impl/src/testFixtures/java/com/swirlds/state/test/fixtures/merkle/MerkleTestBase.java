@@ -3,11 +3,10 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.hedera.hapi.platform.state.SingletonType.ENTITYIDSERVICEENTITY_ID;
 import static com.hedera.hapi.platform.state.SingletonType.TOKENSERVICESTAKING_NETWORK_REWARDS;
-import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.FILESERVICEUPGRADE_DATA_150;
-import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SCHEDULESERVICESCHEDULES_BY_EQUALITY;
+import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.FILESERVICE__UPGRADE_DATA_150;
+import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SCHEDULESERVICE__SCHEDULES_BY_EQUALITY;
 import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SINGLETON;
-import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.TOKEN_SERVICE_A_L_I_A_S_E_S;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
+import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.TOKENSERVICE__ALIASES;
 import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
 import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForKv;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
@@ -219,9 +218,9 @@ public class MerkleTestBase extends StateTestBase {
                         // We have to map "made up" states to existing ones to keep the compatibility with the protocol
                         // The following states are chosen because they have generic `ProtoBytes` as their key type
                         if (FRUIT_SERVICE_NAME.equals(serviceName) || FRUIT_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForKv(TOKEN_SERVICE_A_L_I_A_S_E_S, keyObject);
+                            return createVirtualMapKeyForKv(TOKENSERVICE__ALIASES, keyObject);
                         } else if (ANIMAL_SERVICE_NAME.equals(serviceName) || ANIMAL_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForKv(SCHEDULESERVICESCHEDULES_BY_EQUALITY, keyObject);
+                            return createVirtualMapKeyForKv(SCHEDULESERVICE__SCHEDULES_BY_EQUALITY, keyObject);
                         } else {
                             // Neither the real method nor any test mappings applied.
                             return 65000;
@@ -243,7 +242,7 @@ public class MerkleTestBase extends StateTestBase {
                         // We have to map "made up" states to existing ones to keep the compatibility with the protocol
                         // The following states are chosen because they have generic `ProtoBytes` as their key type
                         if (STEAM_SERVICE_NAME.equals(serviceName) || STEAM_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForQueue(FILESERVICEUPGRADE_DATA_150, keyObject);
+                            return createVirtualMapKeyForQueue(FILESERVICE__UPGRADE_DATA_150, keyObject);
                         } else {
                             // Neither the real method nor any test mappings applied.
                             return 65000;
