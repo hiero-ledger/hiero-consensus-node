@@ -419,6 +419,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     version,
                     asTimestamp(lastIntervalProcessTime),
                     asTimestamp(lastHandleTime)));
+           log.info("BlockStreamInfo: " + blockStreamInfoState.get());
             ((CommittableWritableStates) writableState).commit();
 
             worker.addItem(boundaryStateChangeListener.flushChanges());
