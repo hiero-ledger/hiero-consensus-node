@@ -34,6 +34,9 @@ public class PcesFileTracker {
 
     private final AncientMode fileType;
 
+    /**
+     * Constructor.
+     */
     public PcesFileTracker() {
         this(AncientMode.BIRTH_ROUND_THRESHOLD);
     }
@@ -43,6 +46,7 @@ public class PcesFileTracker {
      *
      * @param fileType the type of file to track
      */
+    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
     public PcesFileTracker(@NonNull final AncientMode fileType) {
         this.fileType = Objects.requireNonNull(fileType);
     }

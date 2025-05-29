@@ -228,10 +228,6 @@ class EventSignatureValidatorTests {
         assertEquals(0, exitedIntakePipelineCount.get());
 
         validatorWithTrueVerifier.setEventWindow(EventWindowBuilder.builder()
-                .setAncientMode(platformContext
-                        .getConfiguration()
-                        .getConfigData(EventConfig.class)
-                        .getAncientMode())
                 .setAncientThreshold(100)
                 .build());
 

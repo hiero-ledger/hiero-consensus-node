@@ -109,7 +109,7 @@ public class EventWindowBuilder {
      * @param ancientMode the mode for determining ancient events
      * @return the builder instance
      */
-    public @NonNull EventWindowBuilder setAncientMode(@NonNull final AncientMode ancientMode) {
+    private @NonNull EventWindowBuilder setAncientMode(@NonNull final AncientMode ancientMode) {
         this.ancientMode = ancientMode;
         return this;
     }

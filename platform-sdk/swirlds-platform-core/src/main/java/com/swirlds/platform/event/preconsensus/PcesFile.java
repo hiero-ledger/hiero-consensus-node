@@ -201,6 +201,7 @@ public final class PcesFile implements Comparable<PcesFile> {
      * @param rootDirectory  the directory where event stream files are stored
      * @return a description of the file
      */
+    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
     @NonNull
     public static PcesFile of(
             @NonNull final AncientMode fileType,
@@ -218,6 +219,17 @@ public final class PcesFile implements Comparable<PcesFile> {
         return new PcesFile(fileType, timestamp, sequenceNumber, minimumBound, maximumBound, origin, path);
     }
 
+    /**
+     * Create a new event file descriptor.
+     *
+     * @param timestamp      the timestamp when this file was created (wall clock time)
+     * @param sequenceNumber the sequence number of the descriptor
+     * @param minimumBound   the minimum event birth round permitted to be in this file (inclusive)
+     * @param maximumBound   the maximum event birth round permitted to be in this file (inclusive)
+     * @param origin         the origin round number, i.e. the round after which the stream is unbroken
+     * @param rootDirectory  the directory where event stream files are stored
+     * @return a description of the file
+     */
     @NonNull
     public static PcesFile of(
             @NonNull final Instant timestamp,

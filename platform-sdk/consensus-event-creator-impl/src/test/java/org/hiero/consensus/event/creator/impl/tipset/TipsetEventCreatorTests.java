@@ -33,7 +33,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -740,7 +739,6 @@ class TipsetEventCreatorTests {
     /**
      * Event from nodes not in the address book should not be used as parents for creating new events.
      *
-     * @param ancientMode  {@link AncientMode#values()}
      * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
@@ -818,7 +816,6 @@ class TipsetEventCreatorTests {
     /**
      * There was once a bug where it was possible to create a self event that was stale at the moment of its creation
      * time. This test verifies that this is no longer possible.
-     * @param ancientMode  {@link AncientMode#values()}
      * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
@@ -857,7 +854,6 @@ class TipsetEventCreatorTests {
      * Checks that birth round on events is being set if the setting for using birth round is set.
      * <p>
      * @param advancingClock  {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
      * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
@@ -984,7 +980,6 @@ class TipsetEventCreatorTests {
      * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
      * self event for the first time from the intake pipeline.
      *
-     * @param ancientMode  {@link AncientMode#values()}
      * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
@@ -1152,7 +1147,6 @@ class TipsetEventCreatorTests {
      *  - current time (wall clock) is the same as the parent's creation time
      * We expect the new event creation time to be set to the parent's creation time + a fixed delta.
      *
-     * @param ancientMode  {@link AncientMode#values()}
      * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate

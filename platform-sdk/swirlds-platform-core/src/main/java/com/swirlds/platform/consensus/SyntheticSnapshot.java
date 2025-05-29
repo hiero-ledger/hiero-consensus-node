@@ -66,28 +66,23 @@ public final class SyntheticSnapshot {
                 .build();
     }
 
-    public static @NonNull ConsensusSnapshot getGenesisSnapshot() {
-        return getGenesisSnapshot(AncientMode.BIRTH_ROUND_THRESHOLD);
-    }
-
     /**
      * Create a genesis snapshot. This snapshot is not the result of consensus but is instead generated to be used as a
      * starting point for consensus.
      *
-     * @param ancientMode the ancient mode
      * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
-    public static @NonNull ConsensusSnapshot getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
+    public static @NonNull ConsensusSnapshot getGenesisSnapshot() {
         return ConsensusSnapshot.newBuilder()
                 .round(ConsensusConstants.ROUND_FIRST)
                 .judgeIds(List.of())
                 .minimumJudgeInfoList(List.of(new MinimumJudgeInfo(
                         ConsensusConstants.ROUND_FIRST,
-                        ancientMode == AncientMode.GENERATION_THRESHOLD
-                                ? EventConstants.FIRST_GENERATION
-                                : ConsensusConstants.ROUND_FIRST)))
+                        ConsensusConstants.ROUND_FIRST)))
                 .nextConsensusNumber(ConsensusConstants.FIRST_CONSENSUS_NUMBER)
                 .consensusTimestamp(CommonUtils.toPbjTimestamp(Instant.EPOCH))
                 .build();
     }
+
+
 }

@@ -584,10 +584,7 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
         for (final ConsensusTestNode node : orchestrator.getNodes()) {
             node.getIntake()
-                    .loadSnapshot(SyntheticSnapshot.getGenesisSnapshot(input.platformContext()
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode()));
+                    .loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
         }
 
         final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =

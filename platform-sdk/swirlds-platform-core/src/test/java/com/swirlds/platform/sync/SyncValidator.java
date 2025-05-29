@@ -13,14 +13,12 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.test.fixtures.sync.SyncNode;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 public class SyncValidator {
@@ -57,19 +55,14 @@ public class SyncValidator {
             printTipSet("Listener's Tip Set", listener);
             System.out.println("*** Asserting that required events were transferred ***");
         }
-        compareEventLists(caller, listener, false, AncientMode.BIRTH_ROUND_THRESHOLD);
+        compareEventLists(caller, listener, false);
     }
 
     public static void assertOnlyRequiredEventsTransferred(final SyncNode caller, final SyncNode listener) {
-        assertOnlyRequiredEventsTransferred(caller, listener, AncientMode.BIRTH_ROUND_THRESHOLD);
-    }
-
-    public static void assertOnlyRequiredEventsTransferred(
-            final SyncNode caller, final SyncNode listener, @NonNull final AncientMode ancientMode) {
         if (enableLogging) {
             System.out.println("*** Asserting that only required events were transferred ***");
         }
-        compareEventLists(caller, listener, true, ancientMode);
+        compareEventLists(caller, listener, true);
     }
 
     public static void assertFallenBehindDetection(final boolean fellBehind, final SyncNode... nodes) {
@@ -113,8 +106,7 @@ public class SyncValidator {
     private static void compareEventLists(
             final SyncNode caller,
             final SyncNode listener,
-            final boolean strictCompare,
-            @NonNull final AncientMode ancientMode) {
+            final boolean strictCompare) {
         // Determine the unique events for the caller and listener, since they could have added some of the
         // same events from step 2.
         final Collection<EventImpl> expectedCallerSendList = new ArrayList<>(caller.getGeneratedEvents());
@@ -125,15 +117,15 @@ public class SyncValidator {
 
         // Remove expired events
         expectedCallerSendList.removeIf(
-                e -> ancientMode.selectIndicator(e.getBaseEvent()) < caller.getExpirationThreshold());
+                e -> e.getBaseEvent().getBirthRound() < caller.getExpirationThreshold());
         expectedListenerSendList.removeIf(
-                e -> ancientMode.selectIndicator(e.getBaseEvent()) < listener.getExpirationThreshold());
+                e -> e.getBaseEvent().getBirthRound() < listener.getExpirationThreshold());
 
         // Remove events that are ancient for the peer
         expectedCallerSendList.removeIf(
-                e -> ancientMode.selectIndicator(e.getBaseEvent()) < listener.getCurrentAncientThreshold());
+                e -> e.getBaseEvent().getBirthRound() < listener.getCurrentAncientThreshold());
         expectedListenerSendList.removeIf(
-                e -> ancientMode.selectIndicator(e.getBaseEvent()) < caller.getCurrentAncientThreshold());
+                e -> e.getBaseEvent().getBirthRound() < caller.getCurrentAncientThreshold());
 
         // Get the events each received from the other in the sync
         final List<PlatformEvent> callerReceivedEvents = caller.getReceivedEvents();
@@ -152,16 +144,15 @@ public class SyncValidator {
         }
 
         // Assert that the event each received are the unique events in the other's shadow graph
-        compareEventLists("listener", expectedCallerSendList, listener, strictCompare, ancientMode);
-        compareEventLists("caller", expectedListenerSendList, caller, strictCompare, ancientMode);
+        compareEventLists("listener", expectedCallerSendList, listener, strictCompare);
+        compareEventLists("caller", expectedListenerSendList, caller, strictCompare);
     }
 
     private static void compareEventLists(
             final String node,
             final Collection<EventImpl> expectedList,
             final SyncNode receiver,
-            final boolean strictCompare,
-            @NonNull final AncientMode ancientMode) {
+            final boolean strictCompare) {
 
         Collection<PlatformEvent> actualList = receiver.getReceivedEvents();
 

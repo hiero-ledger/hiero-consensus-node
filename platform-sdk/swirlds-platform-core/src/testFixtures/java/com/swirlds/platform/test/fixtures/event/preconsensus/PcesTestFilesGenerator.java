@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Predicate;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * A utility class for generating test PCES (Preconsensus event stream) files.
@@ -47,7 +46,6 @@ public final class PcesTestFilesGenerator {
     public static final int DEFAULT_NUM_FILES_TO_GENERATE = 100;
 
     private final Range startingOriginRange;
-    private final AncientMode ancientMode;
     private final Random rng;
     private final int numFilesToGenerate;
     private final Path fileDirectory;
@@ -60,7 +58,6 @@ public final class PcesTestFilesGenerator {
      * Constructs a new PcesTestFilesGenerator.
      *
      * @param startingOriginRange The range to generate origin value.
-     * @param ancientMode The ancient mode to use for file generation.
      * @param rng The random number generator.
      * @param numFilesToGenerate The number of files to generate.
      * @param fileDirectory The directory to store the generated files.
@@ -71,7 +68,6 @@ public final class PcesTestFilesGenerator {
      */
     private PcesTestFilesGenerator(
             final @Nullable Range startingOriginRange,
-            final @NonNull AncientMode ancientMode,
             final @NonNull Random rng,
             final int numFilesToGenerate,
             final @NonNull Path fileDirectory,
@@ -80,7 +76,6 @@ public final class PcesTestFilesGenerator {
             final boolean skipElementAtHalf,
             final @Nullable Predicate<Integer> shouldAdvanceBoundsPredicate) {
         this.startingOriginRange = startingOriginRange;
-        this.ancientMode = ancientMode;
         this.rng = rng;
         this.numFilesToGenerate = numFilesToGenerate;
         this.fileDirectory = fileDirectory;
@@ -154,7 +149,7 @@ public final class PcesTestFilesGenerator {
             }
 
             final PcesFile file = PcesFile.of(
-                    ancientMode, timestamp, sequenceNumber, lowerBound, upperBound, originCurrentValue, fileDirectory);
+                    timestamp, sequenceNumber, lowerBound, upperBound, originCurrentValue, fileDirectory);
 
             // if set, apply custom logic to how (and if) bounds are advanced. Otherwise, advance bounds normally.
             if (shouldAdvanceBoundsPredicate == null || shouldAdvanceBoundsPredicate.test(index)) {
@@ -241,7 +236,6 @@ public final class PcesTestFilesGenerator {
      * A builder for creating PcesTestFilesGenerator instances.
      */
     public static class Builder {
-        private final AncientMode ancientMode;
         private final Random rng;
         private final Path fileDirectory;
 
@@ -255,13 +249,10 @@ public final class PcesTestFilesGenerator {
         /**
          * Constructs a new Builder.
          *
-         * @param ancientMode   The ancient mode to use
          * @param rng           The random number generator.
          * @param fileDirectory The directory to store the generated files.
          */
-        private Builder(
-                final @NonNull AncientMode ancientMode, final @NonNull Random rng, final @NonNull Path fileDirectory) {
-            this.ancientMode = ancientMode;
+        private Builder(final @NonNull Random rng, final @NonNull Path fileDirectory) {
             this.rng = rng;
             this.fileDirectory = fileDirectory;
         }
@@ -275,7 +266,7 @@ public final class PcesTestFilesGenerator {
          */
         @NonNull
         public static Builder create(final @NonNull Random rng, final @NonNull Path fileDirectory) {
-            return new Builder(AncientMode.BIRTH_ROUND_THRESHOLD, rng, fileDirectory);
+            return new Builder(rng, fileDirectory);
         }
 
         /**
@@ -354,7 +345,6 @@ public final class PcesTestFilesGenerator {
         public PcesTestFilesGenerator build() {
             return new PcesTestFilesGenerator(
                     originRange,
-                    ancientMode,
                     rng,
                     numFilesToGenerate,
                     fileDirectory,

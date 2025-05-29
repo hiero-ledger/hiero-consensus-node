@@ -70,8 +70,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
             stateFacade.bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");
                 v.setRound(PlatformStateAccessor.GENESIS_ROUND);
-                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot(
-                        configuration.getConfigData(EventConfig.class).getAncientMode()));
+                v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
             });
             {
                 System.out.printf("Resetting the RosterService state %n");
