@@ -3,7 +3,6 @@ package com.hedera.node.app.hapi.fees.usage.crypto;
 
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.getChangedCryptoKeys;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.getChangedTokenKeys;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
@@ -218,11 +217,7 @@ public class CryptoOpsUsage {
 
     private long getNewBytes(final CryptoApproveAllowanceMeta cryptoApproveMeta, final ExtantCryptoContext ctx) {
         long newTotalBytes = 0;
-        final var newCryptoKeys = getChangedCryptoKeys(
-                cryptoApproveMeta.getCryptoAllowances().keySet(),
-                ctx.currentCryptoAllowances().keySet());
-
-        newTotalBytes += newCryptoKeys * CRYPTO_ALLOWANCE_SIZE;
+        newTotalBytes += cryptoApproveMeta.getCryptoAllowancesCount() * CRYPTO_ALLOWANCE_SIZE;
 
         final var newTokenKeys = getChangedTokenKeys(
                 cryptoApproveMeta.getTokenAllowances().keySet(),
