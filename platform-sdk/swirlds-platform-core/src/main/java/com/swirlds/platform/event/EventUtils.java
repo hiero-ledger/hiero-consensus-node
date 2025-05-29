@@ -40,8 +40,8 @@ public final class EventUtils {
     public static long calculateGenFromParents(@NonNull final List<EventDescriptorWrapper> allParents) {
         return 1
                 + Objects.requireNonNull(allParents).stream()
-                .mapToLong(d -> d.eventDescriptor().generation())
-                .max()
-                .orElse(EventConstants.GENERATION_UNDEFINED);
+                        .mapToLong(d -> d.eventDescriptor().generation())
+                        .max()
+                        .orElse(EventConstants.GENERATION_UNDEFINED);
     }
 }

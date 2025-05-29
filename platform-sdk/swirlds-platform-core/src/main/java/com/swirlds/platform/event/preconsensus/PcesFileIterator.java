@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import com.hedera.hapi.platform.event.EventDescriptor;
+import static com.swirlds.platform.event.EventUtils.calculateGenFromParents;
+
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.IOIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,10 +14,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-
-import static com.swirlds.platform.event.EventUtils.calculateGenFromParents;
 
 /**
  * Iterates over the events in a single preconsensus event file.
