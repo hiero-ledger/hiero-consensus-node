@@ -160,29 +160,13 @@ public class AtomicBatchHandler implements TransactionHandler {
         // The parsing check is done in the pre-handle workflow,
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
-        int numContractOps = -1;
-        int contractOpsSoFar = 0;
         for (final var txnBytes : txns) {
             // Use the unchecked get because if the transaction is correct it should be in the cache by now
             final TransactionBody innerTxnBody;
             innerTxnBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
             final var payerId = innerTxnBody.transactionIDOrThrow().accountIDOrThrow();
-
-            boolean useExplicitTracing = false;
-            if (CONTRACT_DATA_TYPES.contains(innerTxnBody.data().kind())) {
-                if (numContractOps == -1) {
-                    numContractOps = countContractOps(txns);
-                }
-                contractOpsSoFar++;
-                // When more than one contract operation is present in the batch, we need to enable explicit
-                // write tracing for all but the last operation to ensure EVM storage traces are accurate
-                if (numContractOps > 1) {
-                    useExplicitTracing = contractOpsSoFar < numContractOps;
-                }
-            }
-
-            final var dispatchOptions = atomicBatchDispatch(
-                    payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, useExplicitTracing);
+            final var dispatchOptions =
+                    atomicBatchDispatch(payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
@@ -197,22 +181,6 @@ public class AtomicBatchHandler implements TransactionHandler {
                         }));
             }
         }
-    }
-
-    /**
-     * Counts the number of contract operations in the given list of serialized.
-     * @param txns the list of serialized transactions
-     * @return the number of contract operations in the list
-     */
-    private int countContractOps(@NonNull final List<Bytes> txns) {
-        int numContractOps = 0;
-        for (final var txn : txns) {
-            final var body = innerTxnCache.computeIfAbsentUnchecked(txn);
-            if (CONTRACT_DATA_TYPES.contains(body.data().kind())) {
-                numContractOps++;
-            }
-        }
-        return numContractOps;
     }
 
     /**

@@ -838,7 +838,7 @@ public class TestHelpers {
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator) {
         return new HederaEvmContext(
-                NETWORK_GAS_PRICE, false, blocks, tinybarValues, systemContractGasCalculator, null, null, false);
+                NETWORK_GAS_PRICE, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
     }
 
     public static HederaEvmContext wellKnownContextWith(
@@ -847,7 +847,7 @@ public class TestHelpers {
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator) {
         return new HederaEvmContext(
-                NETWORK_GAS_PRICE, staticCall, blocks, tinybarValues, systemContractGasCalculator, null, null, false);
+                NETWORK_GAS_PRICE, staticCall, blocks, tinybarValues, systemContractGasCalculator, null, null);
     }
 
     public static HederaEvmContext wellKnownContextWith(
@@ -862,8 +862,7 @@ public class TestHelpers {
                 tinybarValues,
                 systemContractGasCalculator,
                 recordBuilder,
-                new PendingCreationMetadataRef(),
-                false);
+                new PendingCreationMetadataRef());
     }
 
     public static void assertFailsWith(@NonNull final ResponseCodeEnum status, @NonNull final Runnable something) {

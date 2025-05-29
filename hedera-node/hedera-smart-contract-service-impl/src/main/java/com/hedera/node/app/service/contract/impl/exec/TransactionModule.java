@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -177,10 +176,7 @@ public interface TransactionModule {
                 tinybarValues,
                 systemContractGasCalculator,
                 context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class),
-                pendingCreationMetadataRef,
-                context.dispatchMetadata()
-                        .getMetadata(EXPLICIT_WRITE_TRACING, Boolean.class)
-                        .orElse(Boolean.FALSE));
+                pendingCreationMetadataRef);
     }
 
     @Provides

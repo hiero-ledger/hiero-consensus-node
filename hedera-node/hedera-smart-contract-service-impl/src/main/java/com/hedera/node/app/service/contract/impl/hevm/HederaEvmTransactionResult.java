@@ -15,7 +15,6 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.usesExplicitWriteTraces;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -202,7 +201,7 @@ public record HederaEvmTransactionResult(
                 frame.getOutputData(),
                 frame.getLogs(),
                 streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
-                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses, usesExplicitWriteTraces(frame)) : null,
+                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses) : null,
                 maybeActionsFrom(frame, tracer));
     }
 
@@ -272,7 +271,7 @@ public record HederaEvmTransactionResult(
                 frame.getRevertReason().map(ConversionUtils::tuweniToPbjBytes).orElse(null),
                 Collections.emptyList(),
                 streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
-                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses, usesExplicitWriteTraces(frame)) : null,
+                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses) : null,
                 null,
                 maybeActionsFrom(frame, tracer),
                 null);

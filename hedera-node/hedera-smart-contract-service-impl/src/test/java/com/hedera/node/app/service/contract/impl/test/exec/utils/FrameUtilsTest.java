@@ -330,15 +330,6 @@ class FrameUtilsTest {
     }
 
     @Test
-    void checksForAccessorAsExpected() {
-        givenNonInitialFrame();
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        final var tracker = new StorageAccessTracker();
-        given(initialFrame.getContextVariable(TRACKER_CONTEXT_VARIABLE)).willReturn(tracker);
-        assertSame(tracker, accessTrackerFor(frame));
-    }
-
-    @Test
     void checksForBeneficiaryMapAsExpected() {
         givenNonInitialFrame();
         given(frame.getMessageFrameStack()).willReturn(stack);

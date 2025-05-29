@@ -377,12 +377,23 @@ public class BaseTranslator {
         if (parts.transactionIdOrThrow().scheduled()) {
             Optional.ofNullable(scheduleRefs.get(parts.transactionIdOrThrow())).ifPresent(recordBuilder::scheduleRef);
         }
-        final var rebuiltSidecars =
-                recoveredSidecars(parts.consensusTimestamp(), followingUnitTraces, remainingStateChanges);
-        for (final var sidecar : rebuiltSidecars) {
-            if (!explicitSidecarRecords.contains(sidecar)) {
-                throw new IllegalStateException(
-                        "Rebuilt sidecar " + sidecar + " not found in explicit sidecars " + explicitSidecarRecords);
+        if (!explicitSidecarRecords.isEmpty()) {
+            final var sidecarsHere = explicitSidecarRecords.stream()
+                    .filter(s -> s.consensusTimestampOrThrow().equals(parts.consensusTimestamp()))
+                    .toList();
+            if (!sidecarsHere.isEmpty()) {
+                if (!parts.hasTraces()) {
+                    throw new IllegalStateException(
+                            "Expected traces for " + sidecarsHere.size() + " sidecars, but none found in " + parts);
+                }
+                final var rebuiltSidecars = recoveredSidecars(
+                        parts.consensusTimestamp(), parts.tracesOrThrow(), followingUnitTraces, remainingStateChanges);
+                for (final var sidecar : rebuiltSidecars) {
+                    if (!sidecarsHere.contains(sidecar)) {
+                        throw new IllegalStateException(
+                                "Rebuilt sidecar " + sidecar + " not found in explicit sidecars " + sidecarsHere);
+                    }
+                }
             }
         }
         return new SingleTransactionRecord(
@@ -394,14 +405,10 @@ public class BaseTranslator {
 
     private List<TransactionSidecarRecord> recoveredSidecars(
             @NonNull final Timestamp now,
+            @NonNull final List<TraceData> tracesHere,
             @NonNull final List<TraceData> followingUnitTraces,
             @NonNull final List<StateChange> remainingStateChanges) {
-        System.out.println("Found " + followingUnitTraces.size() + " traces to recover sidecars from");
         final List<TransactionSidecarRecord> sidecars = new ArrayList<>();
-        final var evmTraceDataItems = followingUnitTraces.stream()
-                .filter(TraceData::hasEvmTraceData)
-                .map(TraceData::evmTraceDataOrThrow)
-                .toList();
         final var sets = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
@@ -416,8 +423,15 @@ public class BaseTranslator {
                 .map(StateChange::mapDeleteOrThrow)
                 .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
         writtenSlots.putAll(removals);
-        for (int i = 0, n = evmTraceDataItems.size(); i < n; i++) {
-            final var evmTraceData = evmTraceDataItems.get(i);
+        final var evmTraces = tracesHere.stream()
+                .filter(TraceData::hasEvmTraceData)
+                .map(TraceData::evmTraceDataOrThrow)
+                .toList();
+        final var followingEvmTraces = followingUnitTraces.stream()
+                .filter(TraceData::hasEvmTraceData)
+                .map(TraceData::evmTraceDataOrThrow)
+                .toList();
+        for (final var evmTraceData : evmTraces) {
             final var slotUsages = evmTraceData.contractSlotUsages();
             if (!slotUsages.isEmpty()) {
                 final var expectedStateChanges = explicitSidecarRecords.stream()
@@ -425,112 +439,91 @@ public class BaseTranslator {
                         .findFirst();
                 if (expectedStateChanges.isEmpty()) {
                     throw new IllegalStateException("Got slot usages " + slotUsages + " with no state changes sidecar");
-                } else {
-                    final var contractStateChanges =
-                            expectedStateChanges.get().stateChangesOrThrow().contractStateChanges().stream()
-                                    .collect(toMap(ContractStateChange::contractId, Function.identity()));
-                    final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
-                    for (final var slotUsage : slotUsages) {
-                        final var contractId = slotUsage.contractIdOrThrow();
-                        final var stateChange = contractStateChanges.get(contractId);
-                        if (stateChange == null) {
-                            throw new IllegalStateException("Contract state change " + contractId + " not found");
-                        }
-                        final Map<Bytes, Integer> keyPositions = new HashMap<>();
-                        for (int j = 0, m = stateChange.storageChanges().size(); j < m; j++) {
-                            final var change = stateChange.storageChanges().get(j);
-                            keyPositions.put(change.slot(), j);
-                        }
-                        final List<StorageChange> recoveredChanges = new ArrayList<>();
-                        final var writes = slotUsage.slotWrites();
-                        slotUsage.slotReads().forEach(read -> {
-                            final var builder = StorageChange.newBuilder().valueRead(read.readValue());
-                            if (read.hasIndex()) {
-                                final var write = writes.get(read.indexOrThrow());
-                                final var writtenKey = write.key();
-                                final var slotKey = new SlotKey(contractId, leftPad32(writtenKey));
-                                Bytes value = null;
-                                if (write.hasValue()) {
-                                    System.out.println(
-                                            "Looking for next write for " + writtenKey + " in " + followingUnitTraces);
-                                    for (final var followingTrace : followingUnitTraces) {
-                                        if (!followingTrace.hasEvmTraceData()) {
-                                            continue;
-                                        }
-                                        final var nextEvmTraceData = followingTrace.evmTraceDataOrThrow();
-                                        final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
-                                                .filter(nextUsages -> nextUsages
-                                                                .contractIdOrThrow()
-                                                                .equals(contractId)
-                                                        && nextUsages.slotWrites().stream()
-                                                                .anyMatch(nextWrite -> nextWrite
-                                                                        .key()
-                                                                        .equals(writtenKey)))
-                                                .findFirst();
-                                        if (nextTracedWriteUsage.isPresent()) {
-                                            final int writeIndex = nextTracedWriteUsage
-                                                    .get()
-                                                    .slotWrites()
-                                                    .indexOf(write);
-                                            final var nextRead = nextTracedWriteUsage.get().slotReads().stream()
-                                                    .filter(r -> r.hasIndex() && r.indexOrThrow() == writeIndex)
-                                                    .findFirst()
-                                                    .orElseThrow();
-                                            value = nextRead.readValue();
-                                            break;
-                                        }
-                                    }
-                                    if (value == null) {
-                                        final var valueFromState = writtenSlots.get(slotKey);
-                                        if (valueFromState == null) {
-                                            throw new IllegalStateException("No written value found for write to "
-                                                    + slotKey + " in " + remainingStateChanges);
-                                        }
-                                        value = sansLeadingZeros(valueFromState);
-                                    }
-                                    //                                    value = write.valueOrThrow();
-                                } else {
-                                    final var valueFromState = writtenSlots.get(slotKey);
-                                    if (valueFromState == null) {
-                                        throw new IllegalStateException("No written value found for write to " + slotKey
-                                                + " in " + remainingStateChanges);
-                                    }
-                                    value = sansLeadingZeros(valueFromState);
-                                }
-                                builder.slot(writtenKey).valueWritten(value);
-                            } else {
-                                builder.slot(read.keyOrThrow());
-                            }
-                            recoveredChanges.add(builder.build());
-                        });
-                        for (final var change : recoveredChanges) {
-                            if (keyPositions.get(change.slot()) == null) {
-                                log.error(
-                                        "Missing position for 0.0.{} change {} relative to {} (slotChanges were {})",
-                                        contractId.contractNum(),
-                                        change,
-                                        stateChange.storageChanges(),
-                                        slotUsage);
-                                log.error(
-                                        "Overall expected state changes were: {}",
-                                        expectedStateChanges
-                                                .get()
-                                                .stateChangesOrThrow()
-                                                .contractStateChanges());
-                                log.error("Overall slot usages were: {}", slotUsages);
-                                log.error("Overall written slots were: {}", writtenSlots);
-                                throw new IllegalStateException(
-                                        "No position found for slot " + change.slot() + " in " + keyPositions);
-                            }
-                        }
-                        recoveredChanges.sort(Comparator.comparingInt(c -> keyPositions.get(c.slot())));
-                        recoveredStateChanges.add(new ContractStateChange(contractId, recoveredChanges));
-                    }
-                    sidecars.add(TransactionSidecarRecord.newBuilder()
-                            .consensusTimestamp(now)
-                            .stateChanges(new ContractStateChanges(recoveredStateChanges))
-                            .build());
                 }
+                final var contractStateChanges =
+                        expectedStateChanges.get().stateChangesOrThrow().contractStateChanges().stream()
+                                .collect(toMap(ContractStateChange::contractId, Function.identity()));
+                final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
+                for (final var slotUsage : slotUsages) {
+                    final var contractId = slotUsage.contractIdOrThrow();
+                    final var stateChange = contractStateChanges.get(contractId);
+                    if (stateChange == null) {
+                        throw new IllegalStateException("Contract state change " + contractId + " not found");
+                    }
+                    final Map<Bytes, Integer> keyPositions = new HashMap<>();
+                    for (int j = 0, m = stateChange.storageChanges().size(); j < m; j++) {
+                        final var change = stateChange.storageChanges().get(j);
+                        keyPositions.put(change.slot(), j);
+                    }
+                    final List<StorageChange> recoveredChanges = new ArrayList<>();
+                    final var writes = slotUsage.writtenSlotKeys();
+                    slotUsage.slotReads().forEach(read -> {
+                        final var builder = StorageChange.newBuilder().valueRead(read.readValue());
+                        if (read.hasIndex()) {
+                            final var writtenKey = writes.get(read.indexOrThrow());
+                            final var slotKey = new SlotKey(contractId, leftPad32(writtenKey));
+                            Bytes value = null;
+                            for (final var nextEvmTraceData : followingEvmTraces) {
+                                final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
+                                        .filter(nextUsages ->
+                                                nextUsages.contractIdOrThrow().equals(contractId)
+                                                        && nextUsages.writtenSlotKeys().stream()
+                                                                .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
+                                        .findFirst();
+                                if (nextTracedWriteUsage.isPresent()) {
+                                    final int finalWriteIndex = nextTracedWriteUsage
+                                            .get()
+                                            .writtenSlotKeys()
+                                            .indexOf(writtenKey);
+                                    final var nextRead = nextTracedWriteUsage.get().slotReads().stream()
+                                            .filter(r -> r.hasIndex() && r.indexOrThrow() == finalWriteIndex)
+                                            .findFirst()
+                                            .orElseThrow();
+                                    value = nextRead.readValue();
+                                    break;
+                                }
+                            }
+                            if (value == null) {
+                                final var valueFromState = writtenSlots.get(slotKey);
+                                if (valueFromState == null) {
+                                    throw new IllegalStateException("No written value found for write to " + slotKey
+                                            + " in " + remainingStateChanges);
+                                }
+                                value = sansLeadingZeros(valueFromState);
+                            }
+                            builder.slot(writtenKey).valueWritten(value);
+                        } else {
+                            builder.slot(read.keyOrThrow());
+                        }
+                        recoveredChanges.add(builder.build());
+                    });
+                    for (final var change : recoveredChanges) {
+                        if (keyPositions.get(change.slot()) == null) {
+                            log.error(
+                                    "Missing position for 0.0.{} change {} relative to {} (slotChanges were {})",
+                                    contractId.contractNum(),
+                                    change,
+                                    stateChange.storageChanges(),
+                                    slotUsage);
+                            log.error(
+                                    "Overall expected state changes were: {}",
+                                    expectedStateChanges
+                                            .get()
+                                            .stateChangesOrThrow()
+                                            .contractStateChanges());
+                            log.error("Overall slot usages were: {}", slotUsages);
+                            log.error("Overall written slots were: {}", writtenSlots);
+                            throw new IllegalStateException(
+                                    "No position found for slot " + change.slot() + " in " + keyPositions);
+                        }
+                    }
+                    recoveredChanges.sort(Comparator.comparingInt(c -> keyPositions.get(c.slot())));
+                    recoveredStateChanges.add(new ContractStateChange(contractId, recoveredChanges));
+                }
+                sidecars.add(TransactionSidecarRecord.newBuilder()
+                        .consensusTimestamp(now)
+                        .stateChanges(new ContractStateChanges(recoveredStateChanges))
+                        .build());
             }
         }
         return sidecars;

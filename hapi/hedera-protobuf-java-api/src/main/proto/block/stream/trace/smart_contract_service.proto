@@ -37,36 +37,20 @@ message ContractSlotUsage {
     /**
      * The storage slots that were written to in the EVM transaction.
      * <p>
-     * In general, this list contains only the slot keys, as the written
-     * values usually have unambiguous representation in the state changes
-     * of the transactional unit containing the EVM transaction. <br/>
-     * But if this is not true (because, for example, there were multiple
-     * contract operations in an atomic batch) the values written to the
-     * slots are also included.
+     * The written value can be unambiguously derived from the block items
+     * in this EVM transaction's Hiero transactional unit. In particular,
+     * 1. If a following EVM trace modifies the same slot, the value written
+     * in this EVM transaction was whatever value the following trace read.
+     * 2. If the slot was not modified in a following EVM trace, the value
+     * is whatever value was committed to the Merkle state for the slot.
      */
-    repeated SlotWrite slot_writes = 2;
+    repeated bytes written_slot_keys = 2;
 
     /**
      * The storage slots that were read in this EVM execution. They may or
      * may not have associated slot writes.
      */
     repeated SlotRead slot_reads = 3;
-}
-
-/**
- * A slot write in a contract's storage, as used in an EVM transaction.<br/>
- */
-message SlotWrite {
-    /**
-      * The storage slot key that was written to; may be left-padded with zeros to 32 bytes.
-     */
-    bytes key = 1;
-
-    /**
-     * If not unambiguously externalized in state, the value written to the slot; may be
-     * left-padded with zeros to 32 bytes.
-     */
-    google.protobuf.BytesValue value = 2;
 }
 
 /**

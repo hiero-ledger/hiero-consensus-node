@@ -4,7 +4,6 @@ package com.hedera.node.app.spi.workflows;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
@@ -355,15 +354,13 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param customFeeCharging the custom fee charging strategy for the dispatch
-     * @param useExplicitTracing whether to use explicit tracing for the dispatch
      * @return the options for the atomic batch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> atomicBatchDispatch(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @NonNull final FeeCharging customFeeCharging,
-            final boolean useExplicitTracing) {
+            @NonNull final FeeCharging customFeeCharging) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -376,7 +373,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 streamBuilderType,
                 ReversingBehavior.REVERSIBLE,
                 NOOP_TRANSACTION_CUSTOMIZER,
-                useExplicitTracing ? new DispatchMetadata(EXPLICIT_WRITE_TRACING, true) : EMPTY_METADATA,
+                EMPTY_METADATA,
                 customFeeCharging);
     }
 }

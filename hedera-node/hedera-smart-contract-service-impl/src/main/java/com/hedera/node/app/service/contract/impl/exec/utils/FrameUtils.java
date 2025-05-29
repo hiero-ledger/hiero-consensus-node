@@ -31,7 +31,6 @@ public class FrameUtils {
     public static final String ACTION_SIDECARS_VARIABLE = "actionSidecars";
     public static final String ACTION_SIDECARS_VALIDATION_VARIABLE = "actionSidecarsValidation";
     public static final String BYTECODE_SIDECARS_VARIABLE = "bytecodeSidecars";
-    public static final String EXPLICIT_WRITE_TRACES_VARIABLE = "explicitWriteTraces";
     public static final String TINYBAR_VALUES_CONTEXT_VARIABLE = "tinybarValues";
     public static final String HAPI_RECORD_BUILDER_CONTEXT_VARIABLE = "hapiRecordBuilder";
     public static final String PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE = "propagatedCallFailure";
@@ -77,15 +76,6 @@ public class FrameUtils {
 
     public static @Nullable StorageAccessTracker accessTrackerFor(@NonNull final MessageFrame frame) {
         return initialFrameOf(frame).getContextVariable(TRACKER_CONTEXT_VARIABLE);
-    }
-
-    /**
-     * Returns true if the initial frame has a context variable indicating that explicit write traces are enabled.
-     * @param frame a frame in the transaction of interest
-     * @return true if explicit write traces are enabled, false otherwise
-     */
-    public static boolean usesExplicitWriteTraces(@NonNull final MessageFrame frame) {
-        return initialFrameOf(frame).hasContextVariable(EXPLICIT_WRITE_TRACES_VARIABLE);
     }
 
     /**
