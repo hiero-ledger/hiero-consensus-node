@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
 @HapiTestLifecycle
@@ -54,6 +55,7 @@ public class AtomicBatchCustomFeesTest {
     }
 
     @HapiTest
+    @DisplayName("FT transfer with custom fee rollback")
     public Stream<DynamicTest> fungibleTokenTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
@@ -82,6 +84,7 @@ public class AtomicBatchCustomFeesTest {
     }
 
     @HapiTest
+    @DisplayName("NFT transfer with custom fee rollback")
     public Stream<DynamicTest> nftTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
                         movingUnique("NFT", 1L).between(SENDER, RECEIVER),
@@ -115,6 +118,7 @@ public class AtomicBatchCustomFeesTest {
     }
 
     @HapiTest
+    @DisplayName("Submit message to topic with custom fee rollback")
     public Stream<DynamicTest> submitMessageToTopicWithCustomFeesGetsReverted() {
         final var successfulSubmit = submitMessageTo("topic")
                 .maxCustomFee(maxCustomFee(SENDER, hbarLimit(2)))
@@ -139,6 +143,7 @@ public class AtomicBatchCustomFeesTest {
     }
 
     @HapiTest
+    @DisplayName("Airdrop with custom fees rollback")
     public Stream<DynamicTest> airdropWithCustomFeesGetsReverted() {
         final var successfulAirdrop = tokenAirdrop(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
