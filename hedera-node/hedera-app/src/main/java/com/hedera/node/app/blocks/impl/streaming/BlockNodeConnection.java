@@ -330,16 +330,16 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             "[{}] Block node is behind and block state is not available. Closing connection and retrying.",
                             this);
 
-                    final var lastVerifiedBlockNumber =
-                            blockNodeConnectionManager.getLastVerifiedBlock(blockNodeConfig);
+                    final var earliestBlockNumber = blockStreamStateManager.getEarliestAvailableBlockNumber();
+                    final var highestAckedBlockNumber = blockStreamStateManager.getHighestAckedBlockNumber();
 
+                    // Indicate that the block node should recover and catch up from another trustworthy block node
                     final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
                             .endStream(EndStream.newBuilder()
                                     .endCode(EndStream.Code.TOO_FAR_BEHIND)
-                                    // .earliestBlockNumber()
-                                    .latestBlockNumber(lastVerifiedBlockNumber))
+                                    .earliestBlockNumber(earliestBlockNumber)
+                                    .latestBlockNumber(highestAckedBlockNumber))
                             .build();
-
                     sendRequest(endStream);
 
                     blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);

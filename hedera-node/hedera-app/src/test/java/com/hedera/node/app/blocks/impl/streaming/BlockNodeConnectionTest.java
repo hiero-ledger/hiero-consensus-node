@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -323,6 +324,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
+        verify(stateManager, times(1)).getEarliestAvailableBlockNumber();
+        verify(stateManager, times(1)).getHighestAckedBlockNumber();
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
         verify(stateManager).getBlockState(11L);
         verifyNoMoreInteractions(metrics);
