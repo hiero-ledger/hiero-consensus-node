@@ -24,14 +24,6 @@ public class EventWindowBuilder {
      * @return a new instance of {@link EventWindowBuilder}
      */
     public static @NonNull EventWindowBuilder builder() {
-        return birthRoundMode();
-    }
-
-    /**
-     * Creates a new instance with the ancient mode set to birth round threshold.
-     * @return a new instance of {@link EventWindowBuilder} with birth round mode
-     */
-    public static @NonNull EventWindowBuilder birthRoundMode() {
         return new EventWindowBuilder().setAncientMode(AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 

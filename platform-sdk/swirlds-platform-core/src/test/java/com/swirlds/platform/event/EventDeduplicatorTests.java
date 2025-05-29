@@ -160,7 +160,7 @@ class EventDeduplicatorTests {
 
             if (random.nextBoolean()) {
                 minimumRoundNonAncient++;
-                deduplicator.setEventWindow(EventWindowBuilder.birthRoundMode()
+                deduplicator.setEventWindow(EventWindowBuilder.builder()
                         .setAncientThreshold(minimumRoundNonAncient)
                         .build());
             }
