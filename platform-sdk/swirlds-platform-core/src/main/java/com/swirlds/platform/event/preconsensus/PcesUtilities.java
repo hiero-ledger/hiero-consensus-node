@@ -3,10 +3,12 @@ package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.event.EventUtils.calculateGenFromParents;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
+import com.swirlds.platform.event.EventUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -21,6 +23,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -53,7 +56,13 @@ public final class PcesUtilities {
 
             while (iterator.hasNext()) {
                 final PlatformEvent next = iterator.next();
-                newUpperBound = Math.max(newUpperBound, fileType.selectIndicator(next));
+                final long eventIndicator;
+                if (fileType == AncientMode.GENERATION_THRESHOLD) {
+                    eventIndicator = calculateGenFromParents(next.getAllParents());
+                } else {
+                    eventIndicator = fileType.selectIndicator(next);
+                }
+                newUpperBound = Math.max(newUpperBound, eventIndicator);
             }
 
         } catch (final IOException e) {

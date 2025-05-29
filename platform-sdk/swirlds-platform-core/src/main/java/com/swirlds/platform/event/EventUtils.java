@@ -3,6 +3,10 @@ package com.swirlds.platform.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -31,5 +35,13 @@ public final class EventUtils {
             return event.getConsensusTimestamp();
         }
         return event.getTransactionTime(event.getTransactionCount() - 1);
+    }
+
+    public static long calculateGenFromParents(@NonNull final List<EventDescriptorWrapper> allParents) {
+        return 1
+                + Objects.requireNonNull(allParents).stream()
+                .mapToLong(d -> d.eventDescriptor().generation())
+                .max()
+                .orElse(EventConstants.GENERATION_UNDEFINED);
     }
 }
