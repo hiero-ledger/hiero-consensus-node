@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.fees;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
@@ -19,11 +20,16 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
 
 public class ConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_CREATE = 0.01;
@@ -121,5 +127,56 @@ public class ConsensusServiceFeesSuite {
                 getTopicInfo(TOPIC_NAME).payingWith(PAYER).via("getTopic"),
                 sleepFor(1000),
                 validateChargedUsd("getTopic", BASE_FEE_TOPIC_GET_INFO));
+    }
+
+    @Nested
+    @DisplayName("Atomic batch")
+    @HapiTestLifecycle
+    class JumboEthereumTransactionsPositiveTests {
+
+        @BeforeAll
+        static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+            testLifecycle.overrideInClass(
+                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+        }
+
+        @HapiTest
+        @DisplayName("Topic create base USD fee as expected")
+        final Stream<DynamicTest> topicCreateBaseUSDFee() {
+            final var batchOperator = "batchOperator";
+
+            return hapiTest(
+                cryptoCreate(batchOperator),
+                newKeyNamed("adminKey"),
+
+                atomicBatch(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).batchKey(batchOperator),
+                    cryptoCreate("collector").batchKey(batchOperator),
+                    cryptoCreate("treasury").batchKey(batchOperator),
+                    cryptoCreate("autoRenewAccount").batchKey(batchOperator)
+                    //createTopic(TOPIC_NAME).blankMemo().payingWith(PAYER).via("topicCreate").batchKey(batchOperator)
+//                    createTopic("TopicWithCustomFee")
+//                        .blankMemo()
+//                        .payingWith(PAYER)
+//                        .withConsensusCustomFee(fixedConsensusHbarFee(1, "collector"))
+//                        .via("topicCreateWithCustomFee").batchKey(batchOperator),
+//                    createTopic("TopicWithMultipleCustomFees")
+//                        .blankMemo()
+//                        .payingWith(PAYER)
+//                        .withConsensusCustomFee(fixedConsensusHbarFee(1, "collector"))
+//                        .withConsensusCustomFee(fixedConsensusHbarFee(2, "collector"))
+//                        .withConsensusCustomFee(fixedConsensusHbarFee(3, "collector"))
+//                        .withConsensusCustomFee(fixedConsensusHbarFee(4, "collector"))
+//                        .withConsensusCustomFee(fixedConsensusHbarFee(5, "collector"))
+//                        .via("topicCreateWithMultipleCustomFees")
+//                        .batchKey(batchOperator)
+                ).signedByPayerAnd(batchOperator)
+
+//                validateChargedUsd("topicCreate", BASE_FEE_TOPIC_CREATE),
+//                validateChargedUsd("topicCreateWithCustomFee", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5),
+//                validateChargedUsd("topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5)
+
+            );
+        }
     }
 }
