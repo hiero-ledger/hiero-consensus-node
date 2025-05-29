@@ -60,7 +60,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         SHUTDOWN
     }
 
-    private final Randotron randotron;
+    private final Randotron randotron = Randotron.create(0L);
     private final TurtleTimeManager timeManager;
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
@@ -84,7 +84,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory) {
-        this.randotron = requireNonNull(randotron);
+//        this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
