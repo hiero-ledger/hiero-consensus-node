@@ -576,12 +576,12 @@ public class SyncTests {
         });
         executor.setCustomPreSyncConfiguration((c, l) -> {
             c.getShadowGraph()
-                    .updateEventWindow(EventWindowBuilder.generationMode()
+                    .updateEventWindow(EventWindowBuilder.builder()
                             .setAncientThreshold(callerMaximumIndicator)
                             .setExpiredThreshold(callerExpiredThreshold)
                             .build());
             l.getShadowGraph()
-                    .updateEventWindow(EventWindowBuilder.generationMode()
+                    .updateEventWindow(EventWindowBuilder.builder()
                             .setAncientThreshold(listenerMaximumIndicator)
                             .setExpiredThreshold(listenerExpiredThreshold)
                             .build());

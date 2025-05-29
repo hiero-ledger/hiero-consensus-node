@@ -2,7 +2,6 @@
 package com.swirlds.common.test.fixtures.platform;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -18,8 +17,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
-import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * A utility class for generating PlatformContexts.
@@ -47,18 +44,10 @@ public class TestPlatformContexts {
                 .build();
     }
 
-    public static PlatformContext context(
-            final boolean permitGaps,
-            @Nullable final Path recycleBinPath,
-            @NonNull final Path dataDir,
-            @Nullable final Path fsDirectory) {
-        return context(permitGaps, BIRTH_ROUND_THRESHOLD, recycleBinPath, dataDir, fsDirectory);
-    }
 
     /**
      * Creates a context.
      * @param permitGaps  Whether gaps are permitted when reading pces files
-     * @param ancientMode The strategy used to determine if an event is ancient
      * @param recycleBinPath The directory where recycle bin is placed
      * @param dataDir The directory where data is placed
      * @param fsDirectory the directory for the file-system
@@ -67,7 +56,6 @@ public class TestPlatformContexts {
     @NonNull
     public static PlatformContext context(
             final boolean permitGaps,
-            @NonNull final AncientMode ancientMode,
             @Nullable final Path recycleBinPath,
             @NonNull final Path dataDir,
             @Nullable final Path fsDirectory) {
@@ -76,7 +64,6 @@ public class TestPlatformContexts {
                 .withValue(PcesConfig_.PREFERRED_FILE_SIZE_MEGABYTES, 5)
                 .withValue(PcesConfig_.PERMIT_GAPS, permitGaps)
                 .withValue(PcesConfig_.COMPACT_LAST_FILE_ON_STARTUP, false)
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, ancientMode == BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
 
         final Metrics metrics = new NoOpMetrics();
@@ -104,40 +91,24 @@ public class TestPlatformContexts {
 
     /**
      * Creates a context with a test recycle bin and no-ops metrics.
-     * @param permitGaps  Whether gaps are permitted when reading pces files
-     * @param ancientMode The strategy used to determine if an event is ancient
      * @param dataDir The directory where data is placed
      * @param fsDirectory the directory for the file-system
      * @return a platformContext
      */
     @NonNull
-    public static PlatformContext context(
-            final boolean permitGaps,
-            @NonNull final AncientMode ancientMode,
-            final Path dataDir,
-            final Path fsDirectory) {
-        return context(permitGaps, ancientMode, null, dataDir, fsDirectory);
+    public static PlatformContext context(final Path dataDir, final Path fsDirectory) {
+        return context(false, dataDir, fsDirectory);
     }
 
     /**
      * Creates a context with a test recycle bin and no-ops metrics.
-     * @param ancientMode The strategy used to determine if an event is ancient
+     * @param permitGaps  Whether gaps are permitted when reading pces files
      * @param dataDir The directory where data is placed
      * @param fsDirectory the directory for the file-system
      * @return a platformContext
      */
     @NonNull
-    public static PlatformContext context(
-            @NonNull final AncientMode ancientMode, final Path dataDir, final Path fsDirectory) {
-        return context(false, ancientMode, dataDir, fsDirectory);
-    }
-
-    public static PlatformContext context(final Path dataDir, final Path fsDirectory) {
-        return context(false, BIRTH_ROUND_THRESHOLD, dataDir, fsDirectory);
-    }
-
-    @NonNull
     public static PlatformContext context(final boolean permitGaps, final Path dataDir, final Path fsDirectory) {
-        return context(permitGaps, BIRTH_ROUND_THRESHOLD, null, dataDir, fsDirectory);
+        return context(permitGaps, null, dataDir, fsDirectory);
     }
 }

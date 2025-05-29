@@ -70,6 +70,12 @@ public record EventWindow(
         }
     }
 
+    /**
+     * Creates a genesis event window
+     *
+     * @return a genesis event window
+     */
+    @NonNull
     public static EventWindow getGenesisEventWindow() {
         return getGenesisEventWindow(BIRTH_ROUND_THRESHOLD);
     }
@@ -81,6 +87,7 @@ public record EventWindow(
      * @return a genesis event window.
      */
     @NonNull
+    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
     public static EventWindow getGenesisEventWindow(@NonNull final AncientMode ancientMode) {
         final long firstIndicator = ancientMode == GENERATION_THRESHOLD ? FIRST_GENERATION : ROUND_FIRST;
         return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, firstIndicator, firstIndicator, ancientMode);
