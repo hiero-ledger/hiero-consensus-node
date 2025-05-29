@@ -236,10 +236,9 @@ class VirtualMapTests extends VirtualTestBase {
     @DisplayName("Size matches number of items input")
     void sizeMatchesNumberOfItemsInput() {
         final VirtualMap vm = createMap();
-        // initial size of the map is one because of `VirtualMapState`
-        assertEquals(1, vm.size(), "Unexpected size");
+        assertEquals(0, vm.size(), "Unexpected size");
 
-        // Add an element
+        // Add an element, count is 2 becuase of the VM state
         vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         assertEquals(2, vm.size(), "Unexpected size");
 
@@ -412,6 +411,10 @@ class VirtualMapTests extends VirtualTestBase {
 
         assertEquals(0, vm.size()); // VM state is hidden
         assertTrue(vm.isEmpty());
+
+        vm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        assertFalse(vm.isEmpty());
+
         vm.release();
     }
 
@@ -1068,7 +1071,7 @@ class VirtualMapTests extends VirtualTestBase {
                 map.remove(TestKey.longToKey(i));
             }
 
-            assertTrue(map.size() == 1, "Map should contain only VirtualMapState");
+            assertEquals(0, map.size(), "All elements should have been removed");
 
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
@@ -1118,8 +1121,8 @@ class VirtualMapTests extends VirtualTestBase {
 
         VirtualMap copy = map.copy();
         map.release();
-        map = copy;
         map.waitUntilFlushed();
+        map = copy;
 
         // Move key/value to a different path, then delete
         map.remove(TestObjectKey.longToKey(0));
@@ -1132,8 +1135,8 @@ class VirtualMapTests extends VirtualTestBase {
 
         copy = map.copy();
         map.release();
-        map = copy;
         map.waitUntilFlushed();
+        map = copy;
 
         // During this second flush, key/value 0 must be deleted from the map despite it's
         // path the virtual tree doesn't match the path in the data source
@@ -1375,7 +1378,7 @@ class VirtualMapTests extends VirtualTestBase {
             root1.remove(key, null);
         }
 
-        assertTrue(root1.size() == 1, "All elements but VirtualMapState should have been removed");
+        assertEquals(0, root1.size(), "All elements should have been removed");
         root1.release();
         TimeUnit.MILLISECONDS.sleep(100);
         System.gc();
