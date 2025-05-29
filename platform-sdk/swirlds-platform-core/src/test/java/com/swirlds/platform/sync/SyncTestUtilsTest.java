@@ -22,14 +22,14 @@ class SyncTestUtilsTest {
     @Test
     void testUnknownNonAncient() {
         // the following graph is used for this test
-        // GEN
-        //   3  e7
+        //  BR
+        //   4  e7
         //      | \
-        //   2  e5 e6
+        //   3  e5 e6
         //		|  |
-        //   1  e3 e4
+        //   2  e3 e4
         //     	 \ | \
-        //   0     e1 e2
+        //   1     e1 e2
 
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -47,7 +47,7 @@ class SyncTestUtilsTest {
         knownSet.add(e1);
 
         final EventWindow eventWindow =
-                EventWindowBuilder.generationMode().setAncientThreshold(1).build();
+                EventWindowBuilder.birthRoundMode().setAncientThreshold(2).build();
 
         final Predicate<ShadowEvent> unknownNonAncient =
                 SyncUtils.unknownNonAncient(knownSet, eventWindow, eventWindow, BIRTH_ROUND_THRESHOLD);
