@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.SlotRead;
-import com.hedera.hapi.block.stream.trace.SlotWrite;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -121,7 +120,7 @@ public class BlockStreamBuilderTest {
     @Test
     void testBlockItemsWithTraceAndOutput() {
         final var usages = List.of(
-                new ContractSlotUsage(ContractID.DEFAULT, List.of(SlotWrite.DEFAULT), List.of(SlotRead.DEFAULT)));
+                new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
                 .contractCallResult(contractCallResult)
