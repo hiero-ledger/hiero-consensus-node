@@ -616,6 +616,22 @@ public class BlockStreamStateManager {
      * @return the lowest unacked block number
      */
     public long getLowestUnackedBlockNumber() {
-        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? 0 : highestAckedBlockNumber.get() + 1;
+        return getHighestAckedBlockNumber() + 1;
+    }
+
+    /**
+     * Retrieves the highest acked block number in the buffer. This is the highest block number that has been acknowledged.
+     * @return the highest acked block number
+     */
+    public long getHighestAckedBlockNumber() {
+        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? 0 : highestAckedBlockNumber.get();
+    }
+
+    /**
+     * Retrieves the earliest available block number in the buffer. This is the lowest block number currently in the buffer.
+     * @return the earliest available block number or -1 if the buffer is empty
+     */
+    public long getEarliestAvailableBlockNumber() {
+        return blockBuffer.isEmpty() ? -1 : blockBuffer.peek().blockNumber();
     }
 }
