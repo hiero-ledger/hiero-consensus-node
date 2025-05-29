@@ -14,7 +14,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.estimatedFee;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,10 +49,8 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDbDataSource;
-import java.time.Duration;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -111,11 +108,7 @@ class QueryCheckerTest extends AppTestBase {
         if (state != null) {
             state.release();
         }
-        assertEventuallyEquals(
-                0L,
-                MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(5, ChronoUnit.SECONDS),
-                "All databases should be closed");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @SuppressWarnings("ConstantConditions")

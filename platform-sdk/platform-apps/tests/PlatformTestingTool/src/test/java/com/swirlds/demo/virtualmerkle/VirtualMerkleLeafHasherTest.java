@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.virtualmerkle;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.demo.virtualmerkle.VirtualMerkleLeafHasher.hashOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -14,10 +13,10 @@ import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractB
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValueCodec;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
@@ -25,8 +24,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
@@ -212,10 +209,6 @@ class VirtualMerkleLeafHasherTest {
 
     @AfterEach
     void tearDown() {
-        assertEventuallyEquals(
-                0L,
-                MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(5, ChronoUnit.SECONDS),
-                "All databases should be closed");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

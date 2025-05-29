@@ -43,9 +43,11 @@ import org.hiero.base.exceptions.ReferenceCountException;
  *     <li>calling {@link #release()} concurrently with read or write operations</li>
  * </ul>
  *
+ * @deprecated should be removed once <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19002">Testing Tools support Virtual Mega Map state</a>.
  * @param <K> the type of the key
  * @param <V> the type of the value
  */
+@Deprecated
 public class FCHashMap<K, V> extends AbstractMap<K, V> implements FastCopyable {
 
     /**
