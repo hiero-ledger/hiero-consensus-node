@@ -521,10 +521,10 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var stateChangesHash = stateChangesHasher.rootHash().join();
         final var traceDataHash = traceDataHasher.rootHash().join();
 
-        final var l2_left =
+        final var leftParent =
                 combine(combine(previousBlockHash, startOfBlockStateHash), combine(consensusHeaderHash, inputTreeHash));
-        final var l2_right = combine(combine(outputTreeHash, stateChangesHash), combine(traceDataHash, NULL_HASH));
-        return combine(l2_left, l2_right);
+        final var rightParent = combine(combine(outputTreeHash, stateChangesHash), combine(traceDataHash, NULL_HASH));
+        return combine(leftParent, rightParent);
     }
 
     private void validateBlockProof(

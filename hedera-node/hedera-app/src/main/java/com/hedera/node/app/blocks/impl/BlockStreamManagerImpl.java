@@ -431,15 +431,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var traceDataHash = traceDataHasher.rootHash().join();
 
             // compute level 1 hashes
-            final var l1_a = combine(lastBlockHash, blockStartStateHash); // [0,1]
-            final var l1_b = combine(consensusHeaderHash, inputHash); // [2,3]
-            final var l1_c = combine(outputHash, stateChangesHash); // [4,5]
-            final var l1_d = combine(traceDataHash, NULL_HASH); // [6,7]
+            final var level1A = combine(lastBlockHash, blockStartStateHash); // [0,1]
+            final var level1B = combine(consensusHeaderHash, inputHash); // [2,3]
+            final var level1C = combine(outputHash, stateChangesHash); // [4,5]
+            final var level1D = combine(traceDataHash, NULL_HASH); // [6,7]
             // compute level 2 hashes
-            final var l2_left = combine(l1_a, l1_b); // [0..3]
-            final var l2_right = combine(l1_c, l1_d); // [4..7]
+            final var leftParent = combine(level1A, level1B); // [0..3]
+            final var rightParent = combine(level1C, level1D); // [4..7]
             // compute level 3 hash
-            final var blockHash = combine(l2_left, l2_right);
+            final var blockHash = combine(leftParent, rightParent);
 
             final var pendingProof = BlockProof.newBuilder()
                     .block(blockNumber)
@@ -452,8 +452,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     pendingProof,
                     writer,
                     new MerkleSiblingHash(false, blockStartStateHash),
-                    new MerkleSiblingHash(false, l1_b),
-                    new MerkleSiblingHash(false, l2_right)));
+                    new MerkleSiblingHash(false, level1B),
+                    new MerkleSiblingHash(false, rightParent)));
 
             if (streamToBlockNodes) {
                 // Write any pre-block proof block items
