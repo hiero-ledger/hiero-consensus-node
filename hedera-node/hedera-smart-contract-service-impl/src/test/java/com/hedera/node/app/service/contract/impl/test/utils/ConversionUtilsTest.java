@@ -139,7 +139,7 @@ class ConversionUtilsTest {
         final long number = A_NEW_ACCOUNT_ID.accountNumOrThrow();
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        final var address = asHeadlongAddress(asEvmAddress(shard, realm, number));
+        final var address = asHeadlongAddress(asEvmAddress(number));
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(number, actual);
     }
@@ -279,7 +279,7 @@ class ConversionUtilsTest {
         System.arraycopy(Longs.toByteArray(realm), 0, expected, 4, 8);
         System.arraycopy(Longs.toByteArray(num), 0, expected, 12, 8);
 
-        final byte[] actual = asEvmAddress(shard, realm, num);
+        final byte[] actual = asEvmAddress(num);
 
         assertArrayEquals(expected, actual, "EVM address is not as expected");
     }

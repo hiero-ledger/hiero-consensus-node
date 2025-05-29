@@ -1491,10 +1491,8 @@ public class TransferWithCustomRoyaltyFees {
                                                     .setAccountID(AccountID.newBuilder()
                                                             .setShardNum(spec.shard())
                                                             .setRealmNum(spec.realm())
-                                                            .setAlias(ByteString.copyFrom(asEvmAddress(
-                                                                    ownerId.getShardNum(),
-                                                                    ownerId.getRealmNum(),
-                                                                    ownerId.getAccountNum())))
+                                                            .setAlias(ByteString.copyFrom(
+                                                                    asEvmAddress(ownerId.getAccountNum())))
                                                             .build())
                                                     .setAmount(xferAmount)
                                                     .setIsApproval(false)

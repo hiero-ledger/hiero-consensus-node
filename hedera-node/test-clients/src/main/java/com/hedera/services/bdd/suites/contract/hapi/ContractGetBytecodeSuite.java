@@ -128,8 +128,7 @@ public class ContractGetBytecodeSuite {
             final var actualBytecode = spec.registry().getBytes(key);
             ContractID contractId = TxnUtils.asContractId(contract, spec);
             final byte[] expectedBytecode = redirectBytecodeFunction
-                    .apply(Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(
-                            contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum()))))
+                    .apply(Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(contractId.getContractNum()))))
                     .toArray();
             Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
         });

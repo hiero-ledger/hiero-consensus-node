@@ -10,13 +10,10 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.en
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
-import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -141,7 +138,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final AccountID accountID) {
         requireNonNull(accountID);
         final var integralAddress = accountID.hasAccountNum()
-                ? asEvmAddress(accountID.shardNum(), accountID.realmNum(), accountID.accountNumOrThrow())
+                ? asEvmAddress(accountID.accountNumOrThrow())
                 : accountID
                         .aliasOrElse(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY)
                         .toByteArray();
@@ -157,7 +154,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final ContractID contractId) {
         requireNonNull(contractId);
         final var integralAddress = contractId.hasContractNum()
-                ? asEvmAddress(contractId.shardNum(), contractId.realmNum(), contractId.contractNumOrThrow())
+                ? asEvmAddress(contractId.contractNumOrThrow())
                 : contractId.evmAddressOrThrow().toByteArray();
         return asHeadlongAddress(integralAddress);
     }
@@ -170,8 +167,7 @@ public class ConversionUtils {
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final ScheduleID scheduleID) {
         requireNonNull(scheduleID);
-        final var integralAddress =
-                asEvmAddress(scheduleID.shardNum(), scheduleID.realmNum(), scheduleID.scheduleNum());
+        final var integralAddress = asEvmAddress(scheduleID.scheduleNum());
         return asHeadlongAddress(integralAddress);
     }
 
@@ -184,8 +180,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(
             @NonNull final com.hederahashgraph.api.proto.java.ScheduleID scheduleID) {
         requireNonNull(scheduleID);
-        final var integralAddress =
-                asEvmAddress(scheduleID.getShardNum(), scheduleID.getRealmNum(), scheduleID.getScheduleNum());
+        final var integralAddress = asEvmAddress(scheduleID.getScheduleNum());
         return asHeadlongAddress(integralAddress);
     }
 
@@ -197,7 +192,7 @@ public class ConversionUtils {
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final TokenID tokenId) {
         requireNonNull(tokenId);
-        return asHeadlongAddress(asEvmAddress(tokenId.shardNum(), tokenId.realmNum(), tokenId.tokenNum()));
+        return asHeadlongAddress(asEvmAddress(tokenId.tokenNum()));
     }
 
     /**
@@ -497,8 +492,7 @@ public class ConversionUtils {
      * @return the long zero address
      */
     public static Address asLongZeroAddress(@NonNull final AccountID accountID) {
-        return Address.wrap(
-                Bytes.wrap(asEvmAddress(accountID.shardNum(), accountID.realmNum(), accountID.accountNumOrThrow())));
+        return Address.wrap(Bytes.wrap(asEvmAddress(accountID.accountNumOrThrow())));
     }
 
     /**
@@ -701,25 +695,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Given a long entity number, returns its 20-byte EVM address.
-     * The shard is downcast to an int so it must not exceed the range of an int.
-     *
-     * @param shard the shard number
-     * @param realm the realm number
-     * @param num the entity number
-     * @return its 20-byte EVM address
-     */
-    public static byte[] asEvmAddress(final long shard, final long realm, final long num) {
-        final byte[] evmAddress = new byte[20];
-
-        arraycopy(Ints.toByteArray((int) shard), 0, evmAddress, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, evmAddress, 4, 8);
-        arraycopy(Longs.toByteArray(num), 0, evmAddress, 12, 8);
-
-        return evmAddress;
-    }
-
-    /**
      * Given a headlong address, returns its explicit 20-byte array.
      *
      * @param address the headlong address
@@ -813,10 +788,7 @@ public class ConversionUtils {
         final var evmAddress = extractEvmAddress(account.alias());
         return evmAddress != null
                 ? evmAddress.toByteArray()
-                : asEvmAddress(
-                        account.accountIdOrThrow().shardNum(),
-                        account.accountIdOrThrow().realmNum(),
-                        account.accountIdOrThrow().accountNumOrThrow());
+                : asEvmAddress(account.accountIdOrThrow().accountNumOrThrow());
     }
 
     /**
