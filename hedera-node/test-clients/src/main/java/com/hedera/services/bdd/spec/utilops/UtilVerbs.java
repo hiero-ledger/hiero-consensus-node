@@ -2002,10 +2002,6 @@ public class UtilVerbs {
         });
     }
 
-    public static CustomSpecAssert validateInnerTxnChargedUsd(String txn, String parent, double expectedUsd) {
-        return validateInnerTxnChargedUsd(txn, parent, expectedUsd, 1.0);
-    }
-
     public static CustomSpecAssert validateInnerTxnChargedUsd(
             String txn, String parent, double expectedUsd, double allowedPercentDiff) {
         return assertionsHold((spec, assertLog) -> {
