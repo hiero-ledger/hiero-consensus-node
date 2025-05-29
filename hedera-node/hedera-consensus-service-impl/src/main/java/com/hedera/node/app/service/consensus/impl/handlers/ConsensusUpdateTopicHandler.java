@@ -35,6 +35,9 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.common.EntityCreate;
+import com.hedera.node.app.hapi.fees.apis.common.YesOrNo;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
@@ -63,6 +66,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CONSENSUS_UPDATE_TOPIC}.
@@ -197,10 +203,18 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         final var topicId = topicUpdate.topicIDOrElse(TopicID.DEFAULT);
         final var topic = feeContext.readableStore(ReadableTopicStore.class).getTopic(topicId);
 
-        return feeContext
+        final var oldFees = feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGivenExplicit(op, sigValueObj, topic));
+
+        EntityCreate entity = new EntityCreate("Consensus", "ConsensusUpdateTopic", "Update topic", 0, false);
+        Map<String, Object> params = new HashMap<>();
+        params.put("numSignatures", feeContext.numTxnSignatures());
+        params.put("numKeys", 0);
+        params.put("hasCustomFee", YesOrNo.NO);
+        FeeResult simpleFee = entity.computeFee(params);
+        return new Fees(oldFees.nodeFee(), 0, oldFees.serviceFee(), simpleFee.fee);
     }
 
     private void resolveMutableBuilderAttributes(

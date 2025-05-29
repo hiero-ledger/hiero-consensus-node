@@ -13,6 +13,9 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.common.EntityCreate;
+import com.hedera.node.app.hapi.fees.apis.common.YesOrNo;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenDeleteUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -34,6 +37,8 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -117,10 +122,19 @@ public class TokenDeleteHandler implements TransactionHandler {
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var op = feeContext.body();
-        return feeContext
+
+        final var oldFees = feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj));
+
+        EntityCreate entity = new EntityCreate("Token", "TokenDelete", "Delete a token type", 0, false);
+        Map<String, Object> params = new HashMap<>();
+        params.put("numSignatures", 0);
+        params.put("numKeys", 0);
+        params.put("hasCustomFee", YesOrNo.NO);
+        FeeResult simpleFee = entity.computeFee(params);
+        return new Fees(oldFees.nodeFee(), 0, oldFees.serviceFee(), simpleFee.fee);
     }
 
     private FeeData usageGiven(final com.hederahashgraph.api.proto.java.TransactionBody txn, final SigValueObj svo) {

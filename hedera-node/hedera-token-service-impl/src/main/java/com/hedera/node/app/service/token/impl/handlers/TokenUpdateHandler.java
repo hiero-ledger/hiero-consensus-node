@@ -32,6 +32,9 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.common.EntityCreate;
+import com.hedera.node.app.hapi.fees.apis.common.YesOrNo;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -56,6 +59,8 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -597,10 +602,18 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         final var readableStore = feeContext.readableStore(ReadableTokenStore.class);
         final var token = readableStore.get(op.tokenOrThrow());
 
-        return feeContext
+        final var oldFees = feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, token));
+
+        EntityCreate entity = new EntityCreate("Token", "TokenUpdate", "Update a token type", 0, false);
+        Map<String, Object> params = new HashMap<>();
+        params.put("numSignatures", 0);
+        params.put("numKeys", 0);
+        params.put("hasCustomFee", YesOrNo.NO);
+        FeeResult simpleFee = entity.computeFee(params);
+        return new Fees(oldFees.nodeFee(), 0, oldFees.serviceFee(), simpleFee.fee);
     }
 
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {
