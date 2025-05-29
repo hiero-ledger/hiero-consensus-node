@@ -100,6 +100,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractOperationStreamBuilder addContractStateChanges(
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration);
 

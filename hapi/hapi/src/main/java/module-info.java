@@ -63,6 +63,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.block.stream;
     exports com.hedera.hapi.block.stream.input;
     exports com.hedera.hapi.block.stream.output;
+    exports com.hedera.hapi.block.stream.trace;
     exports com.hedera.hapi.platform.state;
     exports com.hedera.hapi.node.state.roster;
     exports com.hedera.hapi.block.stream.schema;
@@ -81,6 +82,7 @@ module com.hedera.node.hapi {
 
     // for testing against Google protobuf
     opens com.hedera.hapi.block.stream.input.protoc;
+    opens com.hedera.hapi.block.stream.trace.protoc;
     opens com.hedera.hapi.node.state.tss.legacy;
     opens com.hedera.hapi.platform.state.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
@@ -94,8 +96,6 @@ module com.hedera.node.hapi {
             org.assertj.core;
     opens com.hedera.hapi.node.token to
             org.assertj.core;
-
-    exports com.hedera.hapi.block.stream.trace;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

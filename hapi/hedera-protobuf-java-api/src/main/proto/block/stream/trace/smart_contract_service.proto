@@ -53,6 +53,9 @@ message ContractSlotUsage {
     repeated SlotRead slot_reads = 3;
 }
 
+/**
+ * A slot write in a contract's storage, as used in an EVM transaction.<br/>
+ */
 message SlotWrite {
     /**
       * The storage slot key that was written to; may be left-padded with zeros to 32 bytes.
@@ -67,7 +70,7 @@ message SlotWrite {
 }
 
 /**
- * A read slot in a contract's storage, as used in an EVM transaction.<br/>
+ * A slot read in a contract's storage, as used in an EVM transaction.<br/>
  */
 message SlotRead {
     oneof identifier {

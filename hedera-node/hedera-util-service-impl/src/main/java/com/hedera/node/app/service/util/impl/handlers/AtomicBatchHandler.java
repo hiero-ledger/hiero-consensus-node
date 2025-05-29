@@ -11,6 +11,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.CONTRACT_CALL;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.CONTRACT_CREATE_INSTANCE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -67,6 +70,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class AtomicBatchHandler implements TransactionHandler {
+    private static final Set<TransactionBody.DataOneOfType> CONTRACT_DATA_TYPES =
+            Set.of(CONTRACT_CALL, CONTRACT_CREATE_INSTANCE, ETHEREUM_TRANSACTION);
+
     private final Supplier<FeeCharging> appFeeCharging;
     private final InnerTxnCache innerTxnCache;
 
@@ -154,14 +160,29 @@ public class AtomicBatchHandler implements TransactionHandler {
         // The parsing check is done in the pre-handle workflow,
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
+        int numContractOps = -1;
+        int contractOpsSoFar = 0;
         for (final var txnBytes : txns) {
             // Use the unchecked get because if the transaction is correct it should be in the cache by now
             final TransactionBody innerTxnBody;
             innerTxnBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
             final var payerId = innerTxnBody.transactionIDOrThrow().accountIDOrThrow();
-            // all the inner transactions' keys are verified in PreHandleWorkflow
-            final var dispatchOptions =
-                    atomicBatchDispatch(payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
+
+            boolean useExplicitTracing = false;
+            if (CONTRACT_DATA_TYPES.contains(innerTxnBody.data().kind())) {
+                if (numContractOps == -1) {
+                    numContractOps = countContractOps(txns);
+                }
+                contractOpsSoFar++;
+                // When more than one contract operation is present in the batch, we need to enable explicit
+                // write tracing for all but the last operation to ensure EVM storage traces are accurate
+                if (numContractOps > 1) {
+                    useExplicitTracing = contractOpsSoFar < numContractOps;
+                }
+            }
+
+            final var dispatchOptions = atomicBatchDispatch(
+                    payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, useExplicitTracing);
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
@@ -176,6 +197,22 @@ public class AtomicBatchHandler implements TransactionHandler {
                         }));
             }
         }
+    }
+
+    /**
+     * Counts the number of contract operations in the given list of serialized.
+     * @param txns the list of serialized transactions
+     * @return the number of contract operations in the list
+     */
+    private int countContractOps(@NonNull final List<Bytes> txns) {
+        int numContractOps = 0;
+        for (final var txn : txns) {
+            final var body = innerTxnCache.computeIfAbsentUnchecked(txn);
+            if (CONTRACT_DATA_TYPES.contains(body.data().kind())) {
+                numContractOps++;
+            }
+        }
+        return numContractOps;
     }
 
     /**

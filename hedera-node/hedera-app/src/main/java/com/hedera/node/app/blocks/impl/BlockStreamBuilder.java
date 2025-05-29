@@ -998,7 +998,7 @@ public class BlockStreamBuilder
 
     @NonNull
     @Override
-    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+    public BlockStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
         requireNonNull(slotUsages);
         this.slotUsages = slotUsages;
         return this;

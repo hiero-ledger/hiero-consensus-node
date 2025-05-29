@@ -10,12 +10,15 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -42,7 +45,6 @@ import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.Fees;
@@ -53,6 +55,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -83,9 +86,6 @@ class TransactionModuleTest {
 
     @Mock
     private SystemContractOperations systemContractOperations;
-
-    @Mock
-    private EvmFrameStateFactory factory;
 
     @Mock
     private EthereumCallDataHydration hydration;
@@ -144,7 +144,7 @@ class TransactionModuleTest {
     }
 
     @Test
-    void providesExpectedEvmContext() {
+    void providesExpectedEvmContextWithExplicitTracingOff() {
         final var recordBuilder = mock(ContractOperationStreamBuilder.class);
         final var gasCalculator = mock(SystemContractGasCalculator.class);
         final var blocks = mock(HederaEvmBlocks.class);
@@ -157,10 +157,29 @@ class TransactionModuleTest {
         final var pendingCreationBuilder = new PendingCreationMetadataRef();
         final var result = provideHederaEvmContext(
                 context, tinybarValues, gasCalculator, hederaOperations, blocks, pendingCreationBuilder);
+        assertFalse(result.traceExplicitWrites());
         assertSame(blocks, result.blocks());
         assertSame(123L, result.gasPrice());
         assertSame(recordBuilder, result.recordBuilder());
         assertSame(pendingCreationBuilder, result.pendingCreationRecordBuilderReference());
+    }
+
+    @Test
+    void providesExpectedEvmContextWithExplicitTracingOn() {
+        final var recordBuilder = mock(ContractOperationStreamBuilder.class);
+        final var gasCalculator = mock(SystemContractGasCalculator.class);
+        final var blocks = mock(HederaEvmBlocks.class);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var metadata = mock(HandleContext.DispatchMetadata.class);
+        given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
+        given(context.savepointStack()).willReturn(stack);
+        given(context.dispatchMetadata()).willReturn(metadata);
+        given(metadata.getMetadata(EXPLICIT_WRITE_TRACING, Boolean.class)).willReturn(Optional.of(Boolean.TRUE));
+        given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
+        final var pendingCreationBuilder = new PendingCreationMetadataRef();
+        final var result = provideHederaEvmContext(
+                context, tinybarValues, gasCalculator, hederaOperations, blocks, pendingCreationBuilder);
+        assertTrue(result.traceExplicitWrites());
     }
 
     @Test

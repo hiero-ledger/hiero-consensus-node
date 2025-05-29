@@ -341,7 +341,7 @@ public class ConversionUtils {
                 if (!access.isReadOnly()) {
                     final var write = SlotWrite.newBuilder().key(access.trimmedKeyBytes());
                     if (useExplicitWrites) {
-                        write.value(access.trimmedValueBytes());
+                        write.value(access.trimmedWrittenValueBytesOrThrow());
                     }
                     writes.add(write.build());
                     reads.add(SlotRead.newBuilder()
