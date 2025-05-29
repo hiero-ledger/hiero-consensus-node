@@ -30,7 +30,6 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -57,12 +56,12 @@ public class AtomicBatchCustomFeesTest {
     @HapiTest
     public Stream<DynamicTest> fungibleTokenTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
-                        TokenMovement.moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
+                        moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
                 .payingWith(SENDER)
                 .batchKey(BATCH_OPERATOR);
         // This transfer will fail because the account has no associations
         final var failingTransfer = cryptoTransfer(
-                        TokenMovement.moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, ACCOUNT_WITH_NO_ASSOCIATIONS))
+                        moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, ACCOUNT_WITH_NO_ASSOCIATIONS))
                 .payingWith(SENDER)
                 .batchKey(BATCH_OPERATOR);
 
@@ -72,7 +71,7 @@ public class AtomicBatchCustomFeesTest {
                         .treasury(TREASURY)
                         .withCustom(fixedHbarFee(1, FEE_COLLECTOR))
                         .initialSupply(100L),
-                cryptoTransfer(TokenMovement.moving(5, FT_WITH_FIXED_HBAR_FEE).between(TREASURY, SENDER)),
+                cryptoTransfer(moving(5, FT_WITH_FIXED_HBAR_FEE).between(TREASURY, SENDER)),
                 getAccountBalance(FEE_COLLECTOR).hasTinyBars(0L),
                 atomicBatch(successfulTransfer).payingWith(BATCH_OPERATOR),
                 getAccountBalance(FEE_COLLECTOR).hasTinyBars(1L),
@@ -105,7 +104,7 @@ public class AtomicBatchCustomFeesTest {
                         .supplyKey("supplyKey")
                         .initialSupply(0),
                 mintToken("NFT", List.of(copyFromUtf8("meta1"))),
-                cryptoTransfer(TokenMovement.movingUnique("NFT", 1).between(TREASURY, SENDER)),
+                cryptoTransfer(movingUnique("NFT", 1).between(TREASURY, SENDER)),
                 getAccountBalance(SENDER).hasTokenBalance("feeDenom", 0L),
                 atomicBatch(successfulTransfer).payingWith(BATCH_OPERATOR),
                 getAccountBalance(SENDER).hasTokenBalance("feeDenom", 75L),
@@ -142,12 +141,12 @@ public class AtomicBatchCustomFeesTest {
     @HapiTest
     public Stream<DynamicTest> airdropWithCustomFeesGetsReverted() {
         final var successfulAirdrop = tokenAirdrop(
-                        TokenMovement.moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
+                        moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
                 .payingWith(SENDER)
                 .batchKey(BATCH_OPERATOR);
         // This airdrop will fail because the sender didn't sign the transaction
         final var failingAirdrop = tokenAirdrop(
-                        TokenMovement.moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
+                        moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
                 .payingWith(DEFAULT_PAYER)
                 .batchKey(BATCH_OPERATOR);
 
@@ -157,7 +156,7 @@ public class AtomicBatchCustomFeesTest {
                         .treasury(TREASURY)
                         .withCustom(fixedHbarFee(1, FEE_COLLECTOR))
                         .initialSupply(100L),
-                cryptoTransfer(TokenMovement.moving(5, FT_WITH_FIXED_HBAR_FEE).between(TREASURY, SENDER)),
+                cryptoTransfer(moving(5, FT_WITH_FIXED_HBAR_FEE).between(TREASURY, SENDER)),
                 getAccountBalance(FEE_COLLECTOR).hasTinyBars(0L),
                 atomicBatch(successfulAirdrop).payingWith(BATCH_OPERATOR),
                 getAccountBalance(FEE_COLLECTOR).hasTinyBars(1L),
