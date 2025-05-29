@@ -205,8 +205,8 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
         // first to see if it is a valid long zero, and if not, then we look it up in the map.
         if (isEntityNumAlias(alias, shardNum, realmNum)) {
             return AccountID.newBuilder()
-                    .shardNum(extractShardFromAddressAlias(alias))
-                    .realmNum(extractRealmFromAddressAlias(alias))
+                    .shardNum(extractShardFromAddressAlias(alias, shardNum))
+                    .realmNum(extractRealmFromAddressAlias(alias, realmNum))
                     .accountNum(extractIdFromAddressAlias(alias))
                     .build();
         }

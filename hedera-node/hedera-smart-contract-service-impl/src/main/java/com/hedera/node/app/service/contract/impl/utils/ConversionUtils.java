@@ -75,14 +75,17 @@ public class ConversionUtils {
     /**
      * Given a list of {@link com.esaulpaugh.headlong.abi.Address}, returns their implied token ids.
      *
+     * @param entityIdFactory the entity id factory
      * @param tokenAddresses the {@link com.esaulpaugh.headlong.abi.Address}es
      * @return the implied token ids
      */
-    public static TokenID[] asTokenIds(@NonNull final com.esaulpaugh.headlong.abi.Address... tokenAddresses) {
+    public static TokenID[] asTokenIds(
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final com.esaulpaugh.headlong.abi.Address... tokenAddresses) {
         requireNonNull(tokenAddresses);
         final TokenID[] tokens = new TokenID[tokenAddresses.length];
         for (int i = 0; i < tokens.length; i++) {
-            tokens[i] = asTokenId(tokenAddresses[i]);
+            tokens[i] = asTokenId(entityIdFactory, tokenAddresses[i]);
         }
         return tokens;
     }
@@ -109,10 +112,11 @@ public class ConversionUtils {
      * @param address the {@link com.esaulpaugh.headlong.abi.Address}
      * @return the implied token id
      */
-    public static TokenID asTokenId(@NonNull final com.esaulpaugh.headlong.abi.Address address) {
-        return TokenID.newBuilder()
-                .tokenNum(numberOfLongZero(explicitFromHeadlong(address)))
-                .build();
+    public static TokenID asTokenId(
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        final var explicit = explicitFromHeadlong(address);
+        return entityIdFactory.newTokenId(numberOfLongZero(explicit));
     }
 
     /**

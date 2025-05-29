@@ -104,6 +104,7 @@ class GrantApprovalTranslatorTest extends CallAttemptTestBase {
         given(attempt.isSelector(ERC_GRANT_APPROVAL)).willReturn(false);
         given(attempt.inputBytes()).willReturn(inputBytes);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var call = subject.callFrom(attempt);
         assertInstanceOf(ClassicGrantApprovalCall.class, call);
@@ -124,6 +125,7 @@ class GrantApprovalTranslatorTest extends CallAttemptTestBase {
         given(attempt.isSelector(ERC_GRANT_APPROVAL)).willReturn(false);
         given(attempt.inputBytes()).willReturn(inputBytes);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var call = subject.callFrom(attempt);
         assertInstanceOf(ClassicGrantApprovalCall.class, call);

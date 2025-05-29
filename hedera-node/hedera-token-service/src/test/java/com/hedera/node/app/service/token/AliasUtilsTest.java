@@ -170,19 +170,19 @@ class AliasUtilsTest {
     @Test
     void extractShardFromAddressAliasReturnsCorrectValue() {
         var alias = Bytes.wrap(HexFormat.of().parseHex(TEST_NON_ZERO_SHARD_ALIAS));
-        assertEquals(1, AliasUtils.extractShardFromAddressAlias(alias));
+        assertEquals(1, AliasUtils.extractShardFromAddressAlias(alias, 10));
     }
 
     @Test
     void extractShardFromAddressAliasReturnsZeroForZeroShard() {
         var alias = Bytes.wrap(HexFormat.of().parseHex(TEST_ENTITY_NUM_ALIAS));
-        assertEquals(0, AliasUtils.extractShardFromAddressAlias(alias));
+        assertEquals(10, AliasUtils.extractShardFromAddressAlias(alias, 10));
     }
 
     @Test
     void extractRealmFromAddressAliasReturnsZeroForZeroRealm() {
         var alias = Bytes.wrap(HexFormat.of().parseHex(TEST_ENTITY_NUM_ALIAS));
-        assertEquals(0L, AliasUtils.extractRealmFromAddressAlias(alias));
+        assertEquals(20L, AliasUtils.extractRealmFromAddressAlias(alias, 20));
     }
 
     @Test

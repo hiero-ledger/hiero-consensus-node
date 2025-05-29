@@ -313,7 +313,7 @@ class ConversionUtilsTest {
     void asTokenIdWithZeros() {
         final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000000000000000000000000000000000000");
 
-        var tokenId = ConversionUtils.asTokenId(address);
+        var tokenId = ConversionUtils.asTokenId(entityIdFactory, address);
 
         assertEquals(0, tokenId.shardNum());
         assertEquals(0, tokenId.realmNum());
@@ -324,7 +324,7 @@ class ConversionUtilsTest {
     void asTokenId() {
         final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000000000000000000000000000000000007");
 
-        var tokenId = ConversionUtils.asTokenId(address);
+        var tokenId = ConversionUtils.asTokenId(entityIdFactory, address);
 
         assertEquals(0, tokenId.shardNum());
         assertEquals(0, tokenId.realmNum());
