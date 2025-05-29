@@ -271,8 +271,8 @@ class ConversionUtilsTest {
 
     @Test
     void evmAddressConversionTest() {
-        final long shard = 1L;
-        final long realm = 2L;
+        final long shard = 0L;
+        final long realm = 0L;
         final long num = 3L;
         final byte[] expected = new byte[20];
         System.arraycopy(Ints.toByteArray((int) shard), 0, expected, 0, 4);
