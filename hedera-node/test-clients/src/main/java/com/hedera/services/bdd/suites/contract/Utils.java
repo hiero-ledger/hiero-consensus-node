@@ -504,8 +504,6 @@ public class Utils {
     public static byte[] asSolidityAddress(final int shard, final long realm, final long num) {
         final byte[] solidityAddress = new byte[20];
 
-        arraycopy(Ints.toByteArray(shard), 0, solidityAddress, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, solidityAddress, 4, 8);
         arraycopy(Longs.toByteArray(num), 0, solidityAddress, 12, 8);
 
         return solidityAddress;
@@ -630,16 +628,13 @@ public class Utils {
                 .build();
     }
 
-    public static boolean isLongZeroAddress(final long shard, final long realm, final byte[] explicit) {
-        // check if first bytes are matching the shard and the realm
-        final byte[] shardAndRealm = new byte[12];
-        arraycopy(Ints.toByteArray((int) shard), 0, shardAndRealm, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, shardAndRealm, 4, 8);
+    public static boolean isLongZeroAddress(final byte[] explicit) {
         for (int i = 0; i < NUM_LONG_ZEROS; i++) {
-            if (explicit[i] != shardAndRealm[i]) {
+            if (explicit[i] != 0) {
                 return false;
             }
         }
+
         return true;
     }
 }
