@@ -518,9 +518,7 @@ class FutureEventBufferTests {
         }
 
         public EventWindow getEventWindowForMaxBirthRound() {
-            return EventWindowBuilder.builder()
-                    .setLatestConsensusRound(3)
-                    .build();
+            return EventWindowBuilder.builder().setLatestConsensusRound(3).build();
         }
 
         /**

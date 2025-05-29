@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.stream.LongStream;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
@@ -76,13 +75,10 @@ public final class SyntheticSnapshot {
         return ConsensusSnapshot.newBuilder()
                 .round(ConsensusConstants.ROUND_FIRST)
                 .judgeIds(List.of())
-                .minimumJudgeInfoList(List.of(new MinimumJudgeInfo(
-                        ConsensusConstants.ROUND_FIRST,
-                        ConsensusConstants.ROUND_FIRST)))
+                .minimumJudgeInfoList(
+                        List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, ConsensusConstants.ROUND_FIRST)))
                 .nextConsensusNumber(ConsensusConstants.FIRST_CONSENSUS_NUMBER)
                 .consensusTimestamp(CommonUtils.toPbjTimestamp(Instant.EPOCH))
                 .build();
     }
-
-
 }

@@ -148,8 +148,8 @@ public final class PcesTestFilesGenerator {
                 originCurrentValue = originCurrentValue + getIntFromRange(MAX_DELTA_RANGE);
             }
 
-            final PcesFile file = PcesFile.of(
-                    timestamp, sequenceNumber, lowerBound, upperBound, originCurrentValue, fileDirectory);
+            final PcesFile file =
+                    PcesFile.of(timestamp, sequenceNumber, lowerBound, upperBound, originCurrentValue, fileDirectory);
 
             // if set, apply custom logic to how (and if) bounds are advanced. Otherwise, advance bounds normally.
             if (shouldAdvanceBoundsPredicate == null || shouldAdvanceBoundsPredicate.test(index)) {

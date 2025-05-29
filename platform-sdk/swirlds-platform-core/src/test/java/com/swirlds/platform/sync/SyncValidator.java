@@ -103,10 +103,7 @@ public class SyncValidator {
         assertNotNull(listener.getSyncException(), "Expected the listener to have thrown an exception.");
     }
 
-    private static void compareEventLists(
-            final SyncNode caller,
-            final SyncNode listener,
-            final boolean strictCompare) {
+    private static void compareEventLists(final SyncNode caller, final SyncNode listener, final boolean strictCompare) {
         // Determine the unique events for the caller and listener, since they could have added some of the
         // same events from step 2.
         final Collection<EventImpl> expectedCallerSendList = new ArrayList<>(caller.getGeneratedEvents());
@@ -116,16 +113,12 @@ public class SyncValidator {
         expectedListenerSendList.removeAll(caller.getGeneratedEvents());
 
         // Remove expired events
-        expectedCallerSendList.removeIf(
-                e -> e.getBaseEvent().getBirthRound() < caller.getExpirationThreshold());
-        expectedListenerSendList.removeIf(
-                e -> e.getBaseEvent().getBirthRound() < listener.getExpirationThreshold());
+        expectedCallerSendList.removeIf(e -> e.getBaseEvent().getBirthRound() < caller.getExpirationThreshold());
+        expectedListenerSendList.removeIf(e -> e.getBaseEvent().getBirthRound() < listener.getExpirationThreshold());
 
         // Remove events that are ancient for the peer
-        expectedCallerSendList.removeIf(
-                e -> e.getBaseEvent().getBirthRound() < listener.getCurrentAncientThreshold());
-        expectedListenerSendList.removeIf(
-                e -> e.getBaseEvent().getBirthRound() < caller.getCurrentAncientThreshold());
+        expectedCallerSendList.removeIf(e -> e.getBaseEvent().getBirthRound() < listener.getCurrentAncientThreshold());
+        expectedListenerSendList.removeIf(e -> e.getBaseEvent().getBirthRound() < caller.getCurrentAncientThreshold());
 
         // Get the events each received from the other in the sync
         final List<PlatformEvent> callerReceivedEvents = caller.getReceivedEvents();

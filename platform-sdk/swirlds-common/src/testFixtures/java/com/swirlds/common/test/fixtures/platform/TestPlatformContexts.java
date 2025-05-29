@@ -44,7 +44,6 @@ public class TestPlatformContexts {
                 .build();
     }
 
-
     /**
      * Creates a context.
      * @param permitGaps  Whether gaps are permitted when reading pces files

@@ -22,7 +22,6 @@ import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -227,9 +226,8 @@ class EventSignatureValidatorTests {
         assertNotEquals(null, validator.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
 
-        validatorWithTrueVerifier.setEventWindow(EventWindowBuilder.builder()
-                .setAncientThreshold(100)
-                .build());
+        validatorWithTrueVerifier.setEventWindow(
+                EventWindowBuilder.builder().setAncientThreshold(100).build());
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());

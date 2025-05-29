@@ -123,8 +123,7 @@ class TipsetWeightCalculatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Basic Behavior Test")
-    public void basicBehaviorTest(
-            @ParamName("random") final Random random) {
+    public void basicBehaviorTest(@ParamName("random") final Random random) {
         final int nodeCount = 5;
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
@@ -277,8 +276,7 @@ class TipsetWeightCalculatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Selfish Node Test")
-    public void selfishNodeTest(
-            @ParamName("random") final Random random) {
+    public void selfishNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
@@ -491,8 +489,7 @@ class TipsetWeightCalculatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Zero Stake Node Test")
-    public void zeroWeightNodeTest(
-            @ParamName("random") final Random random) {
+    public void zeroWeightNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
         Roster roster = RandomRosterBuilder.create(random)
@@ -589,8 +586,7 @@ class TipsetWeightCalculatorTests {
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Ancient Parent Test")
-    public void ancientParentTest(
-            @ParamName("random") final Random random) {
+    public void ancientParentTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
         final Roster roster = RandomRosterBuilder.create(random)
@@ -622,7 +618,7 @@ class TipsetWeightCalculatorTests {
         tipsetTracker.addPeerEvent(c0);
         tipsetTracker.addPeerEvent(d0);
 
-        final long newEventBirthRound =  2L;
+        final long newEventBirthRound = 2L;
         // Create some events (birth round 2). Node A does not create an event yet.
         final PlatformEvent b1 = newEvent(
                 random, NonDeterministicGeneration.FIRST_GENERATION, b0, List.of(a0, c0, d0), newEventBirthRound);
