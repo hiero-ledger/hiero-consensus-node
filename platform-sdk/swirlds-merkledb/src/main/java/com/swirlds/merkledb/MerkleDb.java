@@ -26,7 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -513,6 +515,18 @@ public final class MerkleDb {
         final TableMetadata metadata = tableConfigs.get(tableId);
         final MerkleDbTableConfig tableConfig = metadata != null ? metadata.getTableConfig() : null;
         return tableConfig;
+    }
+
+    public Map<String, MerkleDbTableConfig> getTableConfigs() {
+        final Map<String, MerkleDbTableConfig> result = new HashMap<>();
+        for (int i = 0; i < tableConfigs.length(); i++) {
+            final TableMetadata tableMetadata = tableConfigs.get(i);
+            if ((tableMetadata == null) || !primaryTables.contains(tableMetadata.getTableId())) {
+                continue;
+            }
+            result.put(tableMetadata.getTableName(), tableMetadata.getTableConfig());
+        }
+        return result;
     }
 
     /**

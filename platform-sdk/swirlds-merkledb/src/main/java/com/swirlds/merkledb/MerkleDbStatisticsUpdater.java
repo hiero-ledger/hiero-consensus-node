@@ -132,7 +132,7 @@ public class MerkleDbStatisticsUpdater {
         }
         if (dataSource.getHashStoreRam() != null) {
             totalOffHeapMemoryConsumption +=
-                    updateOffHeapStat(dataSource.getHashStoreRam(), statistics::setOffHeapHashesListMb);
+                    updateOffHeapStat((OffHeapUser) dataSource.getHashStoreRam(), statistics::setOffHeapHashesListMb);
         }
         statistics.setOffHeapDataSourceMb(totalOffHeapMemoryConsumption);
     }
