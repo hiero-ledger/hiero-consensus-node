@@ -99,7 +99,8 @@ public interface QueryModule {
                 tinybarValues,
                 systemContractGasCalculator,
                 null,
-                null);
+                null,
+                false);
     }
 
     @Binds

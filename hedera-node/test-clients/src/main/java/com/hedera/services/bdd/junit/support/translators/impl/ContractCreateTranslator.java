@@ -31,7 +31,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                     .map(TransactionOutput::contractCreateOrThrow)
                     .ifPresent(createContractOutput -> {

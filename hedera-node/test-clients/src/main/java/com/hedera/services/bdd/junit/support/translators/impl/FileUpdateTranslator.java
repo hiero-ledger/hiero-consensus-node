@@ -27,7 +27,7 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
                 for (final var stateChange : remainingStateChanges) {
                     if (stateChange.hasMapUpdate()

@@ -21,7 +21,7 @@ public class ContractUpdateTranslator implements BlockTransactionPartsTranslator
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges) {
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
                 final var iter = remainingStateChanges.listIterator();
                 while (iter.hasNext()) {

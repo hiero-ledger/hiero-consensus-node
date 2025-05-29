@@ -20,7 +20,7 @@ public class TokenAssociateTranslator implements BlockTransactionPartsTranslator
             @NonNull final BlockTransactionParts parts,
             @NonNull BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges) {
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
                 final var op = parts.body().tokenAssociateOrThrow();
                 final var accountId = op.accountOrThrow();

@@ -89,7 +89,7 @@ class CustomGasChargingTest {
     @Test
     void zeroPriceGasDoesNoChargingWorkButDoesReturnIntrinsicGas() {
         final var context =
-                new HederaEvmContext(0L, false, blocks, tinybarValues, systemContractGasCalculator, null, null);
+                new HederaEvmContext(0L, false, blocks, tinybarValues, systemContractGasCalculator, null, null, false);
         givenWellKnownIntrinsicGasCost();
         final var chargingResult = subject.chargeForGas(sender, relayer, context, worldUpdater, wellKnownHapiCall());
         assertEquals(0, chargingResult.relayerAllowanceUsed());

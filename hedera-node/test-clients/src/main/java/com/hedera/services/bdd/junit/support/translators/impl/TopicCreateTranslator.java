@@ -29,7 +29,7 @@ public class TopicCreateTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
                 final var createdNum = baseTranslator.nextCreatedNum(TOPIC);
                 final var iter = remainingStateChanges.listIterator();

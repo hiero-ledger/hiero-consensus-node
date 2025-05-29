@@ -25,7 +25,7 @@ public class ScheduleSignTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
                 parts.outputIfPresent(TransactionOutput.TransactionOneOfType.SIGN_SCHEDULE)
                         .map(TransactionOutput::signScheduleOrThrow)

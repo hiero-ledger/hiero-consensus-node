@@ -28,7 +28,7 @@ public class SubmitMessageTranslator implements BlockTransactionPartsTranslator 
             @NonNull final BlockTransactionParts parts,
             @NonNull BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges) {
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             if (parts.status() == SUCCESS) {
                 recordBuilder.assessedCustomFees(parts.assessedCustomFees());
                 receiptBuilder.topicRunningHashVersion(RUNNING_HASH_VERSION);

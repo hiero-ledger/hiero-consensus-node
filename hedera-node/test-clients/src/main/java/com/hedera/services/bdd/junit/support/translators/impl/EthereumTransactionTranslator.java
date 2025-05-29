@@ -31,14 +31,14 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
             parts.outputIfPresent(TransactionOutput.TransactionOneOfType.ETHEREUM_CALL)
                     .map(TransactionOutput::ethereumCallOrThrow)
                     .ifPresent(ethTxOutput -> {
                         recordBuilder.ethereumHash(ethTxOutput.ethereumHash());
                         final var result =
                                 switch (ethTxOutput.ethResult().kind()) {
-                                        // CONSENSUS_GAS_EXHAUSTED
+                                    // CONSENSUS_GAS_EXHAUSTED
                                     case UNSET -> ContractFunctionResult.DEFAULT;
                                     case ETHEREUM_CALL_RESULT -> {
                                         final var callResult = ethTxOutput.ethereumCallResultOrThrow();

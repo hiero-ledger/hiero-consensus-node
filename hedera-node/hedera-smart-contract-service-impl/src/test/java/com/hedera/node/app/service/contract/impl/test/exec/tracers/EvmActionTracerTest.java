@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.tracers;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,7 +12,7 @@ import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import java.util.Deque;
 import java.util.Optional;
 import org.apache.logging.log4j.Level;
@@ -163,7 +162,7 @@ class EvmActionTracerTest {
 
     @Test
     void accountCreationTraceDoesNotFinalizesEvenWithSidecarsUnlessHaltReasonProvided() {
-        givenActionSidecarsAndValidation();
+        givenSidecarsOnly();
 
         subject.traceAccountCreationResult(frame, Optional.empty());
 
@@ -192,10 +191,12 @@ class EvmActionTracerTest {
     }
 
     private void givenConfig(final boolean actionSidecars, final boolean validation) {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("contracts.sidecars", actionSidecars ? "CONTRACT_ACTION" : "CONTRACT_STATE_CHANGE")
-                .withValue("contracts.sidecarValidationEnabled", validation ? "true" : "false")
-                .getOrCreateConfig();
-        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+        if (actionSidecars) {
+            given(frame.hasContextVariable(FrameUtils.ACTION_SIDECARS_VARIABLE)).willReturn(true);
+        }
+        if (validation) {
+            given(frame.hasContextVariable(FrameUtils.ACTION_SIDECARS_VALIDATION_VARIABLE))
+                    .willReturn(true);
+        }
     }
 }

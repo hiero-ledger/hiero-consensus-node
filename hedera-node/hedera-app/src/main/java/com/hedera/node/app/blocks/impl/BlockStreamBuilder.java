@@ -117,7 +117,7 @@ import java.util.function.Consumer;
 /**
  * An implementation of {@link BlockStreamBuilder} that produces block items for a single user or
  * synthetic transaction; that is, the "input" block item with a {@link Transaction} and "output" block items
- * with a {@link TransactionResult} and, optionally, {@link TransactionOutput}.
+ * with a {@link TransactionResult} and, optionally, {@link TransactionOutput} and {@link TraceData}.
  */
 public class BlockStreamBuilder
         implements StreamBuilder,
@@ -525,14 +525,6 @@ public class BlockStreamBuilder
                 .build());
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
-        if (!stateChanges.isEmpty()) {
-            blockItems.add(BlockItem.newBuilder()
-                    .stateChanges(StateChanges.newBuilder()
-                            .consensusTimestamp(asTimestamp(consensusNow))
-                            .stateChanges(stateChanges)
-                            .build())
-                    .build());
-        }
         if (slotUsages != null) {
             final var builder = EVMTraceData.newBuilder();
             if (slotUsages != null) {
@@ -540,6 +532,14 @@ public class BlockStreamBuilder
             }
             blockItems.add(BlockItem.newBuilder()
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
+                    .build());
+        }
+        if (!stateChanges.isEmpty()) {
+            blockItems.add(BlockItem.newBuilder()
+                    .stateChanges(StateChanges.newBuilder()
+                            .consensusTimestamp(asTimestamp(consensusNow))
+                            .stateChanges(stateChanges)
+                            .build())
                     .build());
         }
         return new Output(blockItems, translationContext());

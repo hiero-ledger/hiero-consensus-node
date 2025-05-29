@@ -13,7 +13,6 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,11 +31,11 @@ public class CryptoCreateTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
-            if (parts.status() == SUCCESS && parts.transactionOutputs() != null) {
-                Arrays.stream(parts.transactionOutputs())
+        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
+            if (parts.status() == SUCCESS && parts.outputs() != null) {
+                parts.outputs()
                         .forEach(transactionOutput -> receiptBuilder.accountID(
-                                transactionOutput.accountCreate().createdAccountId()));
+                                transactionOutput.accountCreateOrThrow().createdAccountId()));
 
                 final var accountAlias = ((CryptoCreateTransactionBody)
                                 parts.transactionParts().body().data().value())

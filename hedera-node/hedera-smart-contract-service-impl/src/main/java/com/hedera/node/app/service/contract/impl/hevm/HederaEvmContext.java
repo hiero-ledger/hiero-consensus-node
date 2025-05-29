@@ -18,7 +18,8 @@ public record HederaEvmContext(
         @NonNull TinybarValues tinybarValues,
         @NonNull SystemContractGasCalculator systemContractGasCalculator,
         @Nullable ContractOperationStreamBuilder recordBuilder,
-        @Nullable PendingCreationMetadataRef pendingCreationRecordBuilderReference) {
+        @Nullable PendingCreationMetadataRef pendingCreationRecordBuilderReference,
+        boolean traceExplicitWrites) {
 
     public HederaEvmContext {
         requireNonNull(blocks);

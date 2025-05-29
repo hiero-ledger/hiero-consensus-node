@@ -20,18 +20,19 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges) {
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> parts.outputIfPresent(
-                        TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
-                .map(TransactionOutput::contractCallOrThrow)
-                .ifPresent(callContractOutput -> {
-                    final var result = callContractOutput.contractCallResultOrThrow();
-                    recordBuilder.contractCallResult(result);
-                    if (parts.transactionIdOrThrow().nonce() == 0 && result.gasUsed() > 0L) {
-                        // set contract ID only if the call was not reverted
-                        if (!parts.status().equals(ResponseCodeEnum.REVERTED_SUCCESS)) {
-                            receiptBuilder.contractID(result.contractID());
-                        }
-                    }
-                }));
+        return baseTranslator.recordFrom(
+                parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> parts.outputIfPresent(
+                                TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
+                        .map(TransactionOutput::contractCallOrThrow)
+                        .ifPresent(callContractOutput -> {
+                            final var result = callContractOutput.contractCallResultOrThrow();
+                            recordBuilder.contractCallResult(result);
+                            if (parts.transactionIdOrThrow().nonce() == 0 && result.gasUsed() > 0L) {
+                                // set contract ID only if the call was not reverted
+                                if (!parts.status().equals(ResponseCodeEnum.REVERTED_SUCCESS)) {
+                                    receiptBuilder.contractID(result.contractID());
+                                }
+                            }
+                        }));
     }
 }

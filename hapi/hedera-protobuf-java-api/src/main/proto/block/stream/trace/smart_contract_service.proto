@@ -35,12 +35,16 @@ message ContractSlotUsage {
     proto.ContractID contract_id = 1;
 
     /**
-     * The keys of storage slots that were written to in the EVM transaction.
-     * These keys are 256-bit words, left-padded with zeros if necessary.<br/>
-     * Interested consumers can get the written values from the state changes
-     * block item of the transactional unit containing this trace data.
+     * The storage slots that were written to in the EVM transaction.
+     * <p>
+     * In general, this list contains only the slot keys, as the written
+     * values usually have unambiguous representation in the state changes
+     * of the transactional unit containing the EVM transaction. <br/>
+     * But if this is not true (because, for example, there were multiple
+     * contract operations in an atomic batch) the values written to the
+     * slots are also included.
      */
-    repeated bytes written_slot_keys = 2;
+    repeated SlotWrite slot_writes = 2;
 
     /**
      * The storage slots that were read in this EVM execution. They may or
@@ -49,26 +53,38 @@ message ContractSlotUsage {
     repeated SlotRead slot_reads = 3;
 }
 
+message SlotWrite {
+    /**
+      * The storage slot key that was written to; may be left-padded with zeros to 32 bytes.
+     */
+    bytes key = 1;
+
+    /**
+     * If not unambiguously externalized in state, the value written to the slot; may be
+     * left-padded with zeros to 32 bytes.
+     */
+    google.protobuf.BytesValue value = 2;
+}
+
 /**
  * A read slot in a contract's storage, as used in an EVM transaction.<br/>
  */
 message SlotRead {
     oneof identifier {
         /**
-        * If this slot was also written, the index in the ContractSlotUsage#written_slot_keys
-        * list above.
+        * If this slot was also written, the index of the written key in the
+        * ContractSlotUsage#slot_writes list above.
         */
         int32 index = 1;
 
         /**
-        * If this slot was only read, its key; may be left-padded with zeros to form a
-        * 256-bit word.
+        * If this slot was only read, its key; may be left-padded with zeros to 32 bytes.
         */
         bytes key = 2;
     }
 
     /**
-    * The storage value in this slot, may be left-padded with zeros to form a 256-bit word.
+    * The storage value in this slot, may be left-padded with zeros to 32 bytes.
     */
     bytes read_value = 3;
 }

@@ -19,6 +19,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.SlotRead;
+import com.hedera.hapi.block.stream.trace.SlotWrite;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -295,11 +296,14 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a PBJ {@link ContractStateChanges}.
-     *
      * @param storageAccesses the {@link StorageAccesses}
      * @return the PBJ {@link ContractStateChanges}
      */
-    public static ContractStateChanges asPbjStateChanges(@NonNull final List<StorageAccesses> storageAccesses) {
+    public static @Nullable ContractStateChanges asPbjStateChanges(
+            @Nullable final List<StorageAccesses> storageAccesses) {
+        if (storageAccesses == null) {
+            return null;
+        }
         final List<ContractStateChange> allStateChanges = new ArrayList<>();
         for (final var storageAccess : storageAccesses) {
             final List<StorageChange> changes = new ArrayList<>();
@@ -321,18 +325,27 @@ public class ConversionUtils {
      * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
      *
      * @param storageAccesses the {@link StorageAccesses}
+     * @param useExplicitWrites whether the {@link SlotWrite}s should have explicit values
      * @return the list of slot usages
      */
-    public static List<ContractSlotUsage> asPbjSlotUsages(@NonNull final List<StorageAccesses> storageAccesses) {
+    public static @Nullable List<ContractSlotUsage> asPbjSlotUsages(
+            @Nullable final List<StorageAccesses> storageAccesses, final boolean useExplicitWrites) {
+        if (storageAccesses == null) {
+            return null;
+        }
         final List<ContractSlotUsage> slotUsages = new ArrayList<>();
         for (final var storageAccess : storageAccesses) {
             final List<SlotRead> reads = new ArrayList<>();
-            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writtenKeys = new ArrayList<>();
+            final List<SlotWrite> writes = new ArrayList<>();
             for (final var access : storageAccess.accesses()) {
                 if (!access.isReadOnly()) {
-                    writtenKeys.add(access.trimmedKeyBytes());
+                    final var write = SlotWrite.newBuilder().key(access.trimmedKeyBytes());
+                    if (useExplicitWrites) {
+                        write.value(access.trimmedValueBytes());
+                    }
+                    writes.add(write.build());
                     reads.add(SlotRead.newBuilder()
-                            .index(writtenKeys.size())
+                            .index(writes.size() - 1)
                             .readValue(access.trimmedValueBytes())
                             .build());
                 } else {
@@ -342,7 +355,7 @@ public class ConversionUtils {
                             .build());
                 }
             }
-            slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), writtenKeys, reads));
+            slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), writes, reads));
         }
         return slotUsages;
     }

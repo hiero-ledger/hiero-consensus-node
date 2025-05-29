@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
@@ -47,7 +46,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class TopicCreateSuite {
     public static final String TEST_TOPIC = "testTopic";
@@ -71,7 +69,6 @@ public class TopicCreateSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> autoRenewAccountIsValidated() {
         return hapiTest(createTopic("testTopic")
                 // Intentionally use a bogus shard and realm
