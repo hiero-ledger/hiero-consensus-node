@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
@@ -29,10 +30,12 @@ public interface BlockTransactionPartsTranslator {
      * @param parts the parts of the transaction
      * @param baseTranslator the base translator
      * @param remainingStateChanges the state changes remaining to be processed
+     * @param followingUnitTraces any additional trace data associated with the transaction unit
      * @return the translated record
      */
     SingleTransactionRecord translate(
             @NonNull BlockTransactionParts parts,
             @NonNull BaseTranslator baseTranslator,
-            @NonNull List<StateChange> remainingStateChanges);
+            @NonNull List<StateChange> remainingStateChanges,
+            @NonNull List<TraceData> followingUnitTraces);
 }

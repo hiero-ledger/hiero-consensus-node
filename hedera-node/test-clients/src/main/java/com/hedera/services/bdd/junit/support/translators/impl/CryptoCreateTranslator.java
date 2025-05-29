@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -27,26 +28,31 @@ public class CryptoCreateTranslator implements BlockTransactionPartsTranslator {
     public SingleTransactionRecord translate(
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
-            @NonNull final List<StateChange> remainingStateChanges) {
+            @NonNull final List<StateChange> remainingStateChanges,
+            @NonNull final List<TraceData> followingUnitTraces) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> {
-            if (parts.status() == SUCCESS && parts.outputs() != null) {
-                parts.outputs()
-                        .forEach(transactionOutput -> receiptBuilder.accountID(
-                                transactionOutput.accountCreateOrThrow().createdAccountId()));
+        return baseTranslator.recordFrom(
+                parts,
+                remainingStateChanges,
+                (receiptBuilder, recordBuilder) -> {
+                    if (parts.status() == SUCCESS && parts.outputs() != null) {
+                        parts.outputs()
+                                .forEach(transactionOutput -> receiptBuilder.accountID(
+                                        transactionOutput.accountCreateOrThrow().createdAccountId()));
 
-                final var accountAlias = ((CryptoCreateTransactionBody)
-                                parts.transactionParts().body().data().value())
-                        .alias();
-                if (!isOfEvmAddressSize(accountAlias)) {
-                    final var maybeEvmAddress = extractEvmAddress(accountAlias);
-                    if (maybeEvmAddress != null) {
-                        recordBuilder.evmAddress(maybeEvmAddress);
+                        final var accountAlias = ((CryptoCreateTransactionBody)
+                                        parts.transactionParts().body().data().value())
+                                .alias();
+                        if (!isOfEvmAddressSize(accountAlias)) {
+                            final var maybeEvmAddress = extractEvmAddress(accountAlias);
+                            if (maybeEvmAddress != null) {
+                                recordBuilder.evmAddress(maybeEvmAddress);
+                            }
+                        }
                     }
-                }
-            }
-        });
+                },
+                followingUnitTraces);
     }
 }

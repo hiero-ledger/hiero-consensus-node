@@ -164,6 +164,10 @@ public record BlockTransactionParts(
                 && outputs.stream().anyMatch(com.hedera.hapi.block.stream.output.TransactionOutput::hasContractCall);
     }
 
+    public @NonNull List<TraceData> tracesOrThrow() {
+        return requireNonNull(traces);
+    }
+
     /**
      * Returns a contract call output or throws if it is not present.
      */
@@ -186,6 +190,10 @@ public record BlockTransactionParts(
                 .findAny()
                 .map(TransactionOutput::contractCreateOrThrow)
                 .orElseThrow();
+    }
+
+    public boolean hasTraces() {
+        return traces != null && !traces.isEmpty();
     }
 
     /**

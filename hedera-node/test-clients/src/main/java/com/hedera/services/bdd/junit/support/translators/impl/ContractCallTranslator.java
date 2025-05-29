@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -19,9 +20,12 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
     public SingleTransactionRecord translate(
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
-            @NonNull final List<StateChange> remainingStateChanges) {
+            @NonNull final List<StateChange> remainingStateChanges,
+            @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
-                parts, remainingStateChanges, (receiptBuilder, recordBuilder) -> parts.outputIfPresent(
+                parts,
+                remainingStateChanges,
+                (receiptBuilder, recordBuilder) -> parts.outputIfPresent(
                                 TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
                         .map(TransactionOutput::contractCallOrThrow)
                         .ifPresent(callContractOutput -> {
@@ -33,6 +37,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                     receiptBuilder.contractID(result.contractID());
                                 }
                             }
-                        }));
+                        }),
+                followingUnitTraces);
     }
 }
