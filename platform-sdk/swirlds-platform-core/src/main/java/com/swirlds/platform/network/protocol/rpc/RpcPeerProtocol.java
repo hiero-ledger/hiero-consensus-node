@@ -309,7 +309,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
         while (shouldContinueSendingMessages()) {
             rpcPeerState.possiblyStartSync();
-            syncMetrics.rpcQueueSize(outputQueue.size());
+            syncMetrics.rpcQueueSize(remotePeerId, outputQueue.size());
             final StreamWriter message;
             try {
                 message = outputQueue.poll(5, TimeUnit.MILLISECONDS);
@@ -339,12 +339,11 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * <b>processMessagesToSend</b> means remote side said to us they want to end conversation and we should behave
      * <p>
      * <b>gossipHalted</b> means there is reconnect happening very soon, so we need to exit ASAP and free the permits
-     * and
-     * connection
+     * and connection
      * <p>
-     * <b>permitProvider health</b> indicates that system is overloaded and we are getting backpressure; we need to give
-     * up on
-     * spamming network and/or reading new messages and let things settle down
+     * <b>permitProvider health</b> indicates that system is overloaded and we are getting backpressure; we need to
+     * give
+     * up on spamming network and/or reading new messages and let things settle down
      *
      * @return true if sending messages loop should continue
      */

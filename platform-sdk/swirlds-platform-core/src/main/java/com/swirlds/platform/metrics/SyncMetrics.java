@@ -3,7 +3,6 @@ package com.swirlds.platform.metrics;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
@@ -11,6 +10,7 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
+import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.SyncResult;
@@ -24,7 +24,9 @@ import com.swirlds.platform.stats.MaxStat;
 import com.swirlds.platform.system.PlatformStatNames;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Interface to update relevant sync statistics
@@ -163,7 +165,8 @@ public class SyncMetrics {
     private final AverageAndMax avgEventsPerSyncRec;
     private final MaxStat multiTipsPerSync;
     private final RunningAverageMetric syncFilterTime;
-    private final AverageAndMax rpcQueueSize;
+    private final ConcurrentHashMap<NodeId, AverageStat> rpcQueueSize = new ConcurrentHashMap<>();
+    private final Metrics metrics;
 
     /**
      * Constructor of {@code SyncMetrics}
@@ -172,6 +175,7 @@ public class SyncMetrics {
      * @throws IllegalArgumentException if {@code metrics} is {@code null}
      */
     public SyncMetrics(final Metrics metrics) {
+        this.metrics = metrics;
         avgBytesPerSecSync = metrics.getOrCreate(AVG_BYTES_PER_SEC_SYNC_CONFIG);
         callSyncsPerSecond = new CountPerSecond(metrics, CALL_SYNCS_PER_SECOND_CONFIG);
         recSyncsPerSecond = new CountPerSecond(metrics, REC_SYNCS_PER_SECOND_CONFIG);
@@ -272,9 +276,6 @@ public class SyncMetrics {
                 PlatformStatNames.MULTI_TIPS_PER_SYNC,
                 "the number of creators that have more than one tip at the start of each sync",
                 "%5d");
-
-        rpcQueueSize = new AverageAndMax(
-                metrics, PLATFORM_CATEGORY, "rpcQueueSize", "size of internal RPC send queue", FORMAT_8_0);
     }
 
     /**
@@ -489,9 +490,21 @@ public class SyncMetrics {
 
     /**
      * Report size of the outgoing queue
+     *
      * @param size size of the queue
      */
-    public void rpcQueueSize(final int size) {
-        rpcQueueSize.update(size);
+    public void rpcQueueSize(NodeId node, final int size) {
+
+        rpcQueueSize
+                .computeIfAbsent(
+                        node,
+                        nodeId -> new AverageStat(
+                                metrics,
+                                PLATFORM_CATEGORY,
+                                String.format("rpc_queue_size_%02d", nodeId.id()),
+                                String.format("gossip rpc output queue size to node %02d", nodeId.id()),
+                                FloatFormats.FORMAT_10_0,
+                                AverageStat.WEIGHT_VOLATILE))
+                .update(size);
     }
 }
