@@ -24,12 +24,12 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
-import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -192,7 +192,10 @@ public class HbarAllowanceApprovalTest {
                                 successGasUsed.set(e.getContractCallResult().getGasUsed())),
                 // revert call
                 hbarAllowanceCall(
-                        () -> mirrorAddrWith(0, 0, 999_999), spenderNum::get, revertTx, CONTRACT_REVERT_EXECUTED),
+                        () -> HapiSpecSetup.getDefaultInstance().missingAddress(),
+                        spenderNum::get,
+                        revertTx,
+                        CONTRACT_REVERT_EXECUTED),
                 getTxnRecord(revertTx)
                         .hasPriority(recordWith()
                                 .status(CONTRACT_REVERT_EXECUTED)
@@ -325,7 +328,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
-                                                isLiteralResult(new Object[] {22L, BigInteger.valueOf(0)})))));
+                                                isLiteralResult(new Object[] {22L, BigInteger.ZERO})))));
     }
 
     @HapiTest

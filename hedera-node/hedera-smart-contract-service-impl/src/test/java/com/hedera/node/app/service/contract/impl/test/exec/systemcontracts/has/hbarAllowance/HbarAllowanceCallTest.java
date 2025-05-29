@@ -81,7 +81,6 @@ class HbarAllowanceCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator())
                 .willReturn(new SystemContractGasCalculator(tinybarValues, dispatchPrices, feeCalculator));
         given(dispatchPrices.canonicalPriceInTinycents(DispatchType.TOKEN_INFO)).willReturn(1_000_000L);
-        given(tinybarValues.childTransactionTinycentGasPrice()).willReturn(852_000L);
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
         subject = new HbarAllowanceCall(attempt, B_NEW_ACCOUNT_ID, UNAUTHORIZED_SPENDER_ID);
