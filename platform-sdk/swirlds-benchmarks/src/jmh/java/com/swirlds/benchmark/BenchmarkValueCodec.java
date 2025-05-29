@@ -23,7 +23,7 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
     public BenchmarkValue parse(
             @NonNull final ReadableSequentialData in,
             final boolean strictMode,
-            boolean parseUnknownFields,
+            final boolean parseUnknownFields,
             final int maxDepth) {
         return new BenchmarkValue(in);
     }

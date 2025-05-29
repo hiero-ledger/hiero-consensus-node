@@ -4,10 +4,10 @@ package com.hedera.services.bdd.spec.transactions.token;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyUnchecked;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
@@ -68,6 +68,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     private boolean advertiseCreation = false;
     private boolean asCallableContract = false;
+    private boolean skipAutoRenewPeriod = false;
     private Optional<TokenType> tokenType = Optional.empty();
     private Optional<SubType> tokenSubType = Optional.empty();
     private Optional<TokenSupplyType> supplyType = Optional.empty();
@@ -156,6 +157,11 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     public HapiTokenCreate asCallableContract() {
         asCallableContract = true;
+        return this;
+    }
+
+    public HapiTokenCreate skipAutoRenewPeriod() {
+        skipAutoRenewPeriod = true;
         return this;
     }
 
@@ -347,11 +353,12 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
                             if (autoRenewAccount.isPresent()) {
                                 final var id = TxnUtils.asId(autoRenewAccount.get(), spec);
                                 b.setAutoRenewAccount(id);
-                                final long secs = autoRenewPeriod.orElse(
-                                        spec.setup().defaultAutoRenewPeriod().getSeconds());
-                                b.setAutoRenewPeriod(
-                                        Duration.newBuilder().setSeconds(secs).build());
+                                if (autoRenewPeriod.isEmpty() && !skipAutoRenewPeriod) {
+                                    b.setAutoRenewPeriod(spec.setup().defaultAutoRenewPeriod());
+                                }
                             }
+                            autoRenewPeriod.ifPresent(p -> b.setAutoRenewPeriod(
+                                    Duration.newBuilder().setSeconds(p).build()));
                             if (autoRenewPeriod.isEmpty()) {
                                 expiry.ifPresentOrElse(
                                         t -> b.setExpiry(Timestamp.newBuilder()
