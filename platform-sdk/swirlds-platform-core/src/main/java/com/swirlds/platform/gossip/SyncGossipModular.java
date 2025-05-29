@@ -34,13 +34,14 @@ import com.swirlds.platform.reconnect.ReconnectPlatformHelper;
 import com.swirlds.platform.reconnect.ReconnectPlatformHelperImpl;
 import com.swirlds.platform.reconnect.ReconnectSyncHelper;
 import com.swirlds.platform.reconnect.ReconnectThrottle;
-import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -87,7 +88,7 @@ public class SyncGossipModular implements Gossip {
      * @param roster                        the current roster
      * @param selfId                        this node's ID
      * @param appVersion                    the version of the app
-     * @param swirldStateManager            manages the mutable state
+     * @param stateLifecycleManager            manages the mutable state
      * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
      * @param statusActionSubmitter         for submitting updates to the platform status manager
      * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
@@ -101,13 +102,13 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
-            @NonNull final SwirldStateManager swirldStateManager,
-            @NonNull final Supplier<ReservedSignedState> latestCompleteState,
+            @NonNull final Supplier<ReservedSignedState<?>> latestCompleteState,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -154,7 +155,7 @@ public class SyncGossipModular implements Gossip {
                         roster,
                         loadReconnectState,
                         clearAllPipelinesForReconnect,
-                        swirldStateManager,
+                        stateLifecycleManager,
                         selfId,
                         this.syncProtocol,
                         platformStateFacade),
@@ -178,7 +179,7 @@ public class SyncGossipModular implements Gossip {
      * @param roster                        the current roster
      * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
-     * @param swirldStateManager            manages the mutable state
+     * @param stateLifecycleManager            manages the mutable state
      * @param selfId                        this node's ID
      * @param gossipController              way to pause/resume gossip while reconnect is in progress
      * @return constructed ReconnectProtocol
@@ -187,11 +188,11 @@ public class SyncGossipModular implements Gossip {
             @NonNull final PlatformContext platformContext,
             @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final ThreadManager threadManager,
-            @NonNull final Supplier<ReservedSignedState> latestCompleteState,
+            @NonNull final Supplier<ReservedSignedState<?>> latestCompleteState,
             @NonNull final Roster roster,
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
-            @NonNull final SwirldStateManager swirldStateManager,
+            @NonNull final StateLifecycleManager<MerkleNodeState> stateLifecycleManager,
             @NonNull final NodeId selfId,
             @NonNull final GossipController gossipController,
             @NonNull final PlatformStateFacade platformStateFacade) {
@@ -218,7 +219,7 @@ public class SyncGossipModular implements Gossip {
         var throttle = new ReconnectLearnerThrottle(platformContext.getTime(), selfId, reconnectConfig);
 
         final ReconnectSyncHelper reconnectNetworkHelper = new ReconnectSyncHelper(
-                swirldStateManager::getConsensusState,
+                stateLifecycleManager::getMutableState,
                 getRoundSupplier,
                 new ReconnectLearnerFactory(
                         platformContext,
@@ -233,7 +234,7 @@ public class SyncGossipModular implements Gossip {
         final ReconnectPlatformHelper reconnectPlatformHelper = new ReconnectPlatformHelperImpl(
                 gossipController::pause,
                 clearAllPipelinesForReconnect::run,
-                swirldStateManager::getConsensusState,
+                stateLifecycleManager::getMutableState,
                 state -> {
                     loadReconnectState.accept(state);
                     fallenBehindManager.resetFallenBehind(); // this is almost direct communication to SyncProtocol

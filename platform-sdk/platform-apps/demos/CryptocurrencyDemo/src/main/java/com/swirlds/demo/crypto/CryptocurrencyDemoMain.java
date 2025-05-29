@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -28,6 +29,8 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -195,6 +198,11 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
         final CryptocurrencyDemoState state = new CryptocurrencyDemoState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
+    }
+
+    @Override
+    public StateLifecycleManager<CryptocurrencyDemoState> newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl<>(new NoOpMetrics());
     }
 
     /**

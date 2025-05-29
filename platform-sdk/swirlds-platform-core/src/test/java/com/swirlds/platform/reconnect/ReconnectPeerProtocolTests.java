@@ -40,6 +40,7 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestStateLifecycleManager;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -63,12 +64,12 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Tests for the {@link ReconnectPeerProtocol}
  */
 class ReconnectPeerProtocolTests {
-    private final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
     private static final NodeId PEER_ID = NodeId.of(1L);
 
     private ReconnectThrottle teacherThrottle;
     private ReconnectMetrics reconnectMetrics;
     private ReconnectSyncHelper reconnectNetworkHelper;
+    private TestStateLifecycleManager lifecycleManager;
 
     private static Stream<Arguments> initiateParams() {
         return Stream.of(
@@ -123,6 +124,7 @@ class ReconnectPeerProtocolTests {
 
     @BeforeEach
     void setup() {
+        lifecycleManager = new TestStateLifecycleManager();
         MerkleDb.resetDefaultInstancePath();
 
         reconnectNetworkHelper = mock(ReconnectSyncHelper.class);

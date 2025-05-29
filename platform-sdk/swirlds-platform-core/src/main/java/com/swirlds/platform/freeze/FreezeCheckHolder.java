@@ -11,10 +11,9 @@ import java.util.function.Predicate;
  * Holds a reference to the freeze check. Since the freeze check is not available at boot time, this class
  * allows the freeze check to be set later.
  */
-public class FreezeCheckHolder implements FreezePeriodChecker, Predicate<Instant> {
+public class FreezeCheckHolder implements Predicate<Instant> {
     private final AtomicReference<Predicate<Instant>> freezeCheckRef = new AtomicReference<>();
 
-    @Override
     public boolean isInFreezePeriod(@NonNull final Instant timestamp) {
         final Predicate<Instant> isInFreezePeriod = freezeCheckRef.get();
         if (isInFreezePeriod == null) {

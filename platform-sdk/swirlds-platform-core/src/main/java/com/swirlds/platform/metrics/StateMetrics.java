@@ -3,7 +3,6 @@ package com.swirlds.platform.metrics;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_6;
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_16_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
@@ -40,13 +39,6 @@ public class StateMetrics {
             .withFormat(FORMAT_9_6);
     private final SpeedometerMetric transHandledPerSecond;
 
-    private static final RunningAverageMetric.Config AVG_STATE_COPY_MICROS_CONFIG = new RunningAverageMetric.Config(
-                    INTERNAL_CATEGORY, "stateCopyMicros")
-            .withDescription("average time it takes the State.copy() method in ConsensusStateEventHandler to finish "
-                    + "(in microseconds)")
-            .withFormat(FORMAT_16_2);
-    private final RunningAverageMetric avgStateCopyMicros;
-
     /**
      * Constructor of {@code StateMetrics}
      *
@@ -59,7 +51,6 @@ public class StateMetrics {
         avgSecTransHandled = metrics.getOrCreate(AVG_SEC_TRANS_HANDLED_CONFIG);
         avgConsHandleTime = metrics.getOrCreate(AVG_CONS_HANDLE_TIME_CONFIG);
         transHandledPerSecond = metrics.getOrCreate(TRANS_HANDLED_PER_SECOND_CONFIG);
-        avgStateCopyMicros = metrics.getOrCreate(AVG_STATE_COPY_MICROS_CONFIG);
     }
 
     /**
@@ -87,15 +78,5 @@ public class StateMetrics {
      */
     public void consensusTransHandled(final int numTrans) {
         transHandledPerSecond.update(numTrans);
-    }
-
-    /**
-     * Records the time it takes {@link State#copy()} to finish (in microseconds)
-     *
-     * @param micros
-     * 		the amount of time in microseconds
-     */
-    public void stateCopyMicros(final double micros) {
-        avgStateCopyMicros.update(micros);
     }
 }

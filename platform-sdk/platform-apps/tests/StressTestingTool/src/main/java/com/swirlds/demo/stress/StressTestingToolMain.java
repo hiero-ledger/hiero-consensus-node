@@ -22,6 +22,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -31,6 +32,8 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -242,6 +245,11 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         final StressTestingToolState state = new StressTestingToolState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
+    }
+
+    @Override
+    public StateLifecycleManager<StressTestingToolState> newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl<>(new NoOpMetrics());
     }
 
     @Override

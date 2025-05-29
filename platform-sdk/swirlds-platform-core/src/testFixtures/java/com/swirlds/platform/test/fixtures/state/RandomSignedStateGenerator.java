@@ -106,7 +106,7 @@ public class RandomSignedStateGenerator {
      *
      * @return a new signed state
      */
-    public SignedState build() {
+    public SignedState<MerkleNodeState> build() {
         return buildWithFacade().left();
     }
 
@@ -115,7 +115,7 @@ public class RandomSignedStateGenerator {
      *
      * @return a new signed state
      */
-    public Pair<SignedState, TestPlatformStateFacade> buildWithFacade() {
+    public Pair<SignedState<MerkleNodeState>, TestPlatformStateFacade> buildWithFacade() {
 
         final Roster rosterInstance;
         if (roster == null) {

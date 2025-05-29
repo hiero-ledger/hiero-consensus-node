@@ -18,6 +18,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.SwirldsPlatform;
@@ -27,6 +28,8 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
 import org.hiero.base.constructable.ClassConstructorPair;
@@ -120,6 +123,11 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
         final HelloSwirldDemoState state = new HelloSwirldDemoState();
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
+    }
+
+    @Override
+    public StateLifecycleManager<HelloSwirldDemoState> newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl<>(new NoOpMetrics());
     }
 
     @NonNull

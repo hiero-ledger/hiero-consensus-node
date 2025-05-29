@@ -132,6 +132,8 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -196,7 +198,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * including its state. It constructs the Dagger dependency tree, and manages the gRPC server, and in all other ways,
  * controls execution of the node. If you want to understand our system, this is a great place to start!
  */
-public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatusChangeListener, AppContext.Gossip {
+public final class Hedera implements SwirldMain<HederaStateRoot>, PlatformStatusChangeListener, AppContext.Gossip {
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     private static final java.time.Duration SHUTDOWN_TIMEOUT = java.time.Duration.ofSeconds(10);
@@ -302,7 +304,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      */
     private final StartupNetworksFactory startupNetworksFactory;
 
-    private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
+    private final ConsensusStateEventHandler<HederaStateRoot> consensusStateEventHandler;
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -351,7 +353,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     /**
      * The state root supplier to use for creating a new state root.
      */
-    private final Supplier<MerkleNodeState> stateRootSupplier;
+    private final Supplier<HederaStateRoot> stateRootSupplier;
 
     /**
      * The action to take, if any, when a consensus round is sealed.
@@ -536,7 +538,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .forEach(servicesRegistry::register);
         try {
             consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
-            final Supplier<MerkleNodeState> baseSupplier = HederaStateRoot::new;
+            final Supplier<HederaStateRoot> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
@@ -572,7 +574,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      */
     @Override
     @NonNull
-    public MerkleNodeState newStateRoot() {
+    public HederaStateRoot newStateRoot() {
         return stateRootSupplier.get();
     }
 
@@ -580,8 +582,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * {@inheritDoc}
      */
     @Override
-    public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
+    public ConsensusStateEventHandler<HederaStateRoot> newConsensusStateEvenHandler() {
         return consensusStateEventHandler;
+    }
+
+    @Override
+    public StateLifecycleManager<HederaStateRoot> newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl<>(metrics);
     }
 
     @Override
@@ -1303,7 +1310,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         }
     }
 
-    private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
+    private HederaStateRoot withListeners(@NonNull final HederaStateRoot root) {
         root.registerCommitListener(boundaryStateChangeListener);
         root.registerCommitListener(kvStateChangeListener);
         return root;
