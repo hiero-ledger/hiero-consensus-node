@@ -3,9 +3,6 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.merkledb.MerkleDbCompactionCoordinator.HASH_STORE_DISK_SUFFIX;
-import static com.swirlds.merkledb.MerkleDbCompactionCoordinator.OBJECT_KEY_TO_PATH_SUFFIX;
-import static com.swirlds.merkledb.MerkleDbCompactionCoordinator.PATH_TO_KEY_VALUE_SUFFIX;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -13,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
@@ -73,9 +71,9 @@ class CompactionInterruptTest {
             createData(dataSource);
             coordinator.enableBackgroundCompaction();
             // start compaction
-            coordinator.compactDiskStoreForHashesAsync();
-            coordinator.compactDiskStoreForKeyToPathAsync();
-            coordinator.compactPathToKeyValueAsync();
+            coordinator.compactIfNotRunningYet("hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+            coordinator.compactIfNotRunningYet("keyToPath", dataSource.newKeyToPathCompactor());
+            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newPathToKeyValueCompactor());
             // wait a small-time for merging to start
             MILLISECONDS.sleep(20);
             stopCompactionAndVerifyItsStopped(tableName, coordinator);
@@ -130,9 +128,9 @@ class CompactionInterruptTest {
             // we should take into account previous test runs
             long initTaskCount = compactingExecutor.getTaskCount();
             // start compaction for all three storages
-            coordinator.compactDiskStoreForHashesAsync();
-            coordinator.compactDiskStoreForKeyToPathAsync();
-            coordinator.compactPathToKeyValueAsync();
+            coordinator.compactIfNotRunningYet("hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+            coordinator.compactIfNotRunningYet("keyToPath", dataSource.newKeyToPathCompactor());
+            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newPathToKeyValueCompactor());
 
             assertEventuallyEquals(
                     initTaskCount + 3L,
@@ -156,21 +154,26 @@ class CompactionInterruptTest {
         long initCount = compactingExecutor.getCompletedTaskCount();
 
         // getting access to the guts of the compactor to check the state of the futures
-        Future<Boolean> hashStoreDiskFuture = compactor.compactionFuturesByName.get(tableName + HASH_STORE_DISK_SUFFIX);
-        Future<Boolean> pathToKeyValueFuture =
-                compactor.compactionFuturesByName.get(tableName + PATH_TO_KEY_VALUE_SUFFIX);
-        Future<Boolean> objectKeyToPathFuture =
-                compactor.compactionFuturesByName.get(tableName + OBJECT_KEY_TO_PATH_SUFFIX);
+        final DataFileCompactor pathToKeyValueFuture;
+        final DataFileCompactor hashStoreDiskFuture;
+        final DataFileCompactor objectKeyToPathFuture;
+        synchronized (compactor) {
+            hashStoreDiskFuture = compactor.compactorsByName.get("hashStoreDisk");
+            pathToKeyValueFuture = compactor.compactorsByName.get("pathToKeyValue");
+            objectKeyToPathFuture = compactor.compactorsByName.get("keyToPath");
+        }
 
         // stopping the compaction
         compactor.stopAndDisableBackgroundCompaction();
 
         assertFalse(compactor.isCompactionEnabled(), "compactionEnabled should be false");
 
-        assertFutureCancelled(hashStoreDiskFuture, "hashStoreDiskFuture should have been cancelled");
-        assertFutureCancelled(pathToKeyValueFuture, "pathToKeyValueFuture should have been cancelled");
-        assertFutureCancelled(objectKeyToPathFuture, "objectKeyToPathFuture should have been cancelled");
-        assertTrue(compactor.compactionFuturesByName.isEmpty(), "compactionFuturesByName should be empty");
+        assertFalse(hashStoreDiskFuture.notInterrupted(), "hashStoreDiskFuture should be interrupted");
+        assertFalse(pathToKeyValueFuture.notInterrupted(), "pathToKeyValueFuture should be interrupted");
+        assertFalse(objectKeyToPathFuture.notInterrupted(), "objectKeyToPathFuture should be interrupted");
+        synchronized (compactor) {
+            assertTrue(compactor.compactorsByName.isEmpty(), "compactorsByName should be empty");
+        }
         assertEventuallyEquals(
                 0, () -> compactingExecutor.getQueue().size(), Duration.ofMillis(100), "The queue should be empty");
         long expectedTaskCount = initCount + 3;

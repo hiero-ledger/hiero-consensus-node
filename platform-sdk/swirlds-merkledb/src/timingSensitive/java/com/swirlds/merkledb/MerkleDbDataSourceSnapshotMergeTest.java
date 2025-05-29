@@ -182,13 +182,20 @@ class MerkleDbDataSourceSnapshotMergeTest {
                         e.printStackTrace();
                     }
                 } else { // thread 1 initiates compaction and waits for its completion
-                    dataSource.compactionCoordinator.compactPathToKeyValueAsync();
-                    dataSource.compactionCoordinator.compactDiskStoreForKeyToPathAsync();
-                    dataSource.compactionCoordinator.compactPathToKeyValueAsync();
+                    dataSource.compactionCoordinator.compactIfNotRunningYet(
+                            "hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+                    dataSource.compactionCoordinator.compactIfNotRunningYet(
+                            "objectKeyToPath", dataSource.newKeyToPathCompactor());
+                    dataSource.compactionCoordinator.compactIfNotRunningYet(
+                            "pathToKeyValue", dataSource.newPathToKeyValueCompactor());
 
                     assertEventuallyTrue(
-                            dataSource.compactionCoordinator.compactionFuturesByName::isEmpty,
-                            Duration.ofSeconds(1),
+                            () -> {
+                                synchronized (dataSource.compactionCoordinator) {
+                                    return dataSource.compactionCoordinator.compactorsByName.isEmpty();
+                                }
+                            },
+                            Duration.ofSeconds(4),
                             "compaction tasks should have been completed");
 
                     compacting.set(false);
