@@ -51,7 +51,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -65,6 +64,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     public static final int LETTER_COUNT = 26;
     public static final String LETTERS = "abcdefghijklmnopqrstuvwxyz";
     public static final int ZZZZZ = 26 * 26 * 26 * 26 * 26; // key value corresponding to five Z's (plus 1)
+    public static final int MAX_NUMBER_OF_KEYS = 65536;
 
     @Override
     protected VirtualDataSourceBuilder createBuilder(String postfix) throws IOException {
@@ -74,10 +74,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1, DigestType.SHA_384, MAX_NUMBER_OF_KEYS, merkleDbConfig.hashesRamToDiskThreshold());
         return new MerkleDbDataSourceBuilder(defaultVirtualMapPath, tableConfig, CONFIGURATION);
     }
 
@@ -183,11 +180,6 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         }
 
         return arguments.stream();
-    }
-
-    @BeforeEach
-    void setUp()  {
-        MerkleDb.resetDefaultInstancePath();
     }
 
     @ParameterizedTest
