@@ -17,11 +17,8 @@ import com.hedera.services.bdd.spec.infrastructure.listeners.TokenAccountRegistr
 import com.hedera.services.bdd.spec.infrastructure.providers.names.RegistrySourcedNameProvider;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.Optional;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class RandomTokenTransfer implements OpProvider {
-    private static final Logger log = LogManager.getLogger(RandomTokenTransfer.class);
 
     private final RegistrySourcedNameProvider<TokenAccountRegistryRel> tokenRels;
     private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(

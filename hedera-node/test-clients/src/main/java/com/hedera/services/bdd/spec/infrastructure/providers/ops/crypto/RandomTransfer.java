@@ -25,11 +25,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.stream.IntStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class RandomTransfer implements OpProvider {
-    private static final Logger log = LogManager.getLogger(RandomTransfer.class);
 
     public static final int DEFAULT_NUM_STABLE_ACCOUNTS = 200;
     public static final double DEFAULT_RECORD_PROBABILITY = 0.0;
