@@ -19,5 +19,4 @@ module com.hedera.node.app.service.token {
     requires com.swirlds.common;
     requires org.hiero.base.utility;
     requires com.github.spotbugs.annotations;
-    requires com.google.common;
 }
