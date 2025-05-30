@@ -291,9 +291,13 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
     }
 
     public ContractFnResultAsserts gasUsed(long gasUsed) {
+        return gasUsed(() -> gasUsed);
+    }
+
+    public ContractFnResultAsserts gasUsed(LongSupplier gasUsed) {
         registerProvider((spec, o) -> {
             ContractFunctionResult result = (ContractFunctionResult) o;
-            assertEquals(gasUsed, result.getGasUsed(), "Wrong amount of Gas was used!");
+            assertEquals(gasUsed.getAsLong(), result.getGasUsed(), "Wrong amount of Gas was used!");
         });
         return this;
     }

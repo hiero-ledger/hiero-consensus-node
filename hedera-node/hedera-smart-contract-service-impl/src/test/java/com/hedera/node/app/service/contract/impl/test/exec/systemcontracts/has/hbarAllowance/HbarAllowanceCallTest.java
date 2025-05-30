@@ -88,6 +88,7 @@ class HbarAllowanceCallTest extends CallTestBase {
         final var successResult = subject.execute(frame);
         assertEquals(ResponseCodeEnum.SUCCESS, successResult.responseCode(), "responseCode should be SUCCESS");
         assertTrue(successResult.fullResult().gasRequirement() > 0, "gasRequirement should be > 0");
+        assertTrue(successResult.isViewCall(), "isViewCall should be true");
 
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(null);
         final var revertResult = subject.execute(frame);
@@ -96,6 +97,7 @@ class HbarAllowanceCallTest extends CallTestBase {
                 revertResult.responseCode(),
                 "responseCode should be INVALID_ALLOWANCE_OWNER_ID");
         assertTrue(revertResult.fullResult().gasRequirement() > 0, "gasRequirement should be > 0");
+        assertTrue(revertResult.isViewCall(), "isViewCall should be true");
         assertEquals(
                 successResult.fullResult().gasRequirement(),
                 revertResult.fullResult().gasRequirement(),
