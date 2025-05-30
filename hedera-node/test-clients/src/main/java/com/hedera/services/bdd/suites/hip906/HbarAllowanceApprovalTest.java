@@ -78,9 +78,9 @@ public class HbarAllowanceApprovalTest {
                             spec,
                             // call hbarAllowance from EOA
                             contractCallWithFunctionAbi(
-                                    accountAddress,
-                                    getABIFor(FUNCTION, HBAR_ALLOWANCE, IHRC632),
-                                    spenderAddress)
+                                            accountAddress,
+                                            getABIFor(FUNCTION, HBAR_ALLOWANCE, IHRC632),
+                                            spenderAddress)
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(HBAR_ALLOWANCE_TXN));
@@ -92,7 +92,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, HBAR_ALLOWANCE, IHRC632),
-                                                isLiteralResult(new Object[]{22L, BigInteger.valueOf(1_000_000L)})))));
+                                                isLiteralResult(new Object[] {22L, BigInteger.valueOf(1_000_000L)})))));
     }
 
     @HapiTest
@@ -109,10 +109,10 @@ public class HbarAllowanceApprovalTest {
                             spec,
                             // call hbarApprove from EOA
                             contractCallWithFunctionAbi(
-                                    accountAddress,
-                                    getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
-                                    spenderAddress,
-                                    BigInteger.valueOf(1_000_000L))
+                                            accountAddress,
+                                            getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
+                                            spenderAddress,
+                                            BigInteger.valueOf(1_000_000L))
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(HBAR_APPROVE_TXN));
@@ -124,7 +124,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
-                                                isLiteralResult(new Object[]{22L})))));
+                                                isLiteralResult(new Object[] {22L})))));
     }
 
     @HapiTest
@@ -150,7 +150,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
-                                                isLiteralResult(new Object[]{22L, BigInteger.valueOf(1_000_000L)})))));
+                                                isLiteralResult(new Object[] {22L, BigInteger.valueOf(1_000_000L)})))));
     }
 
     private CustomSpecAssert hbarAllowanceCall(
@@ -193,8 +193,10 @@ public class HbarAllowanceApprovalTest {
                         .hasNonStakingChildRecordCount(1)
                         .hasPriority(recordWith().status(SUCCESS))
                         .exposingAllTo(e -> {
-                            successGasUsed.set(e.getFirst().getContractCallResult().getGasUsed());
-                            successChildGasUsed.set(e.getLast().getContractCallResult().getGasUsed());
+                            successGasUsed.set(
+                                    e.getFirst().getContractCallResult().getGasUsed());
+                            successChildGasUsed.set(
+                                    e.getLast().getContractCallResult().getGasUsed());
                         }),
                 // revert call
                 hbarAllowanceCall(
@@ -211,8 +213,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith().approxGasUsed(successGasUsed::get, () -> 2d)))
                         // revert child record gsUsed should be equal to success child record gsUsed
                         .hasChildRecords(
-                                recordWith().contractCallResult(resultWith().gasUsed(successChildGasUsed::get)))
-        );
+                                recordWith().contractCallResult(resultWith().gasUsed(successChildGasUsed::get))));
     }
 
     @HapiTest
@@ -234,11 +235,11 @@ public class HbarAllowanceApprovalTest {
                             spec,
                             // call hbarApprove from contract
                             contractCall(
-                                    HRC632_CONTRACT,
-                                    HBAR_APPROVE_CALL,
-                                    contractAddress,
-                                    spenderAddress,
-                                    BigInteger.valueOf(1_000_000L))
+                                            HRC632_CONTRACT,
+                                            HBAR_APPROVE_CALL,
+                                            contractAddress,
+                                            spenderAddress,
+                                            BigInteger.valueOf(1_000_000L))
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .via(HBAR_APPROVE_TXN),
@@ -255,7 +256,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, HBAR_APPROVE_CALL, HRC632_CONTRACT),
-                                                isLiteralResult(new Object[]{22L})))),
+                                                isLiteralResult(new Object[] {22L})))),
                 getTxnRecord(HBAR_ALLOWANCE_TXN)
                         .logged()
                         .hasPriority(recordWith()
@@ -263,7 +264,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
-                                                isLiteralResult(new Object[]{22L, BigInteger.valueOf(1_000_000L)})))));
+                                                isLiteralResult(new Object[] {22L, BigInteger.valueOf(1_000_000L)})))));
     }
 
     @HapiTest
@@ -285,10 +286,10 @@ public class HbarAllowanceApprovalTest {
                             spec,
                             // call hbarApprove from EOA with wrong payer.  should fail
                             contractCallWithFunctionAbi(
-                                    accountAddress,
-                                    getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
-                                    spenderAddress,
-                                    BigInteger.valueOf(1_000_000L))
+                                            accountAddress,
+                                            getABIFor(FUNCTION, HBAR_APPROVE, IHRC632),
+                                            spenderAddress,
+                                            BigInteger.valueOf(1_000_000L))
                                     .payingWith(SIGNER)
                                     .gas(1_000_000)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -317,11 +318,11 @@ public class HbarAllowanceApprovalTest {
                             spec,
                             // try calling hbarApprove from contract with account as owner.  should fail
                             contractCall(
-                                    HRC632_CONTRACT,
-                                    HBAR_APPROVE_CALL,
-                                    accountAddress,
-                                    spenderAddress,
-                                    BigInteger.valueOf(1_000_000L))
+                                            HRC632_CONTRACT,
+                                            HBAR_APPROVE_CALL,
+                                            accountAddress,
+                                            spenderAddress,
+                                            BigInteger.valueOf(1_000_000L))
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -340,7 +341,7 @@ public class HbarAllowanceApprovalTest {
                                 .contractCallResult(resultWith()
                                         .resultThruAbi(
                                                 getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
-                                                isLiteralResult(new Object[]{22L, BigInteger.ZERO})))));
+                                                isLiteralResult(new Object[] {22L, BigInteger.ZERO})))));
     }
 
     @HapiTest
@@ -362,11 +363,11 @@ public class HbarAllowanceApprovalTest {
                             spec,
                             // try delegate call to system contract.  should fail
                             contractCall(
-                                    HRC632_CONTRACT,
-                                    HBAR_APPROVE_DELEGATE_CALL,
-                                    contractAddress,
-                                    spenderAddress,
-                                    BigInteger.valueOf(1_000_000L))
+                                            HRC632_CONTRACT,
+                                            HBAR_APPROVE_DELEGATE_CALL,
+                                            contractAddress,
+                                            spenderAddress,
+                                            BigInteger.valueOf(1_000_000L))
                                     .payingWith(ACCOUNT)
                                     .gas(1_000_000)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
