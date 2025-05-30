@@ -596,7 +596,7 @@ public class ContractCallSuite {
                         contractCall(WHITELISTER, "addToWhitelist", asHeadlongAddress(childEip1014.get()))
                                 .payingWith(DEFAULT_PAYER),
                         contractCallWithFunctionAbi(
-                                        asContractString(contractIdFromHexedMirrorAddress(childMirror.get())),
+                                        asContractString(contractIdFromHexedMirrorAddress(spec, childMirror.get())),
                                         getABIFor(FUNCTION, "isWhitelisted", WHITELISTER),
                                         asHeadlongAddress(getNestedContractAddress(WHITELISTER, spec)))
                                 .payingWith(DEFAULT_PAYER)

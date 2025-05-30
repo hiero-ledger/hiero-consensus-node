@@ -5,8 +5,6 @@ import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasOrElse;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.extractIdFromAddressAlias;
-import static com.hedera.node.app.service.token.AliasUtils.extractRealmFromAddressAlias;
-import static com.hedera.node.app.service.token.AliasUtils.extractShardFromAddressAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static java.util.Objects.requireNonNull;
 
@@ -205,8 +203,8 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
         // first to see if it is a valid long zero, and if not, then we look it up in the map.
         if (isEntityNumAlias(alias)) {
             return AccountID.newBuilder()
-                    .shardNum(extractShardFromAddressAlias(alias, shardNum))
-                    .realmNum(extractRealmFromAddressAlias(alias, realmNum))
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
                     .accountNum(extractIdFromAddressAlias(alias))
                     .build();
         }

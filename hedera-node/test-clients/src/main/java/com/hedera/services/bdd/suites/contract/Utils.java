@@ -22,7 +22,6 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -529,29 +528,29 @@ public class Utils {
         return CommonUtils.hex(asSolidityAddress(shard, realm, num));
     }
 
-    public static ContractID contractIdFromHexedMirrorAddress(final String hexedEvm) {
+    public static ContractID contractIdFromHexedMirrorAddress(final HapiSpec spec, final String hexedEvm) {
         byte[] unhex = CommonUtils.unhex(hexedEvm);
         return ContractID.newBuilder()
-                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
-                .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build();
     }
 
-    public static AccountID accountIdFromHexedMirrorAddress(final String hexedEvm) {
+    public static AccountID accountIdFromHexedMirrorAddress(final HapiSpec spec, final String hexedEvm) {
         byte[] unhex = CommonUtils.unhex(hexedEvm);
         return AccountID.newBuilder()
-                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
-                .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setAccountNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build();
     }
 
-    public static String literalIdFromHexedMirrorAddress(final String hexedEvm) {
+    public static String literalIdFromHexedMirrorAddress(final HapiSpec spec, final String hexedEvm) {
         byte[] unhex = CommonUtils.unhex(hexedEvm);
         return HapiPropertySource.asContractString(ContractID.newBuilder()
-                .setShardNum(Ints.fromByteArray(Arrays.copyOfRange(unhex, 0, 4)))
-                .setRealmNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 4, 12)))
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setContractNum(Longs.fromByteArray(Arrays.copyOfRange(unhex, 12, 20)))
                 .build());
     }
@@ -612,18 +611,16 @@ public class Utils {
      * @return the {@link ScheduleID}
      */
     public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
-            @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+            @NonNull final HapiSpec spec, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
         var addressHex = toChecksumAddress(address.value());
         if (addressHex.startsWith("0x")) {
             addressHex = addressHex.substring(2);
         }
-        var shard = addressHex.substring(0, 8);
-        var realm = addressHex.substring(8, 24);
         var scheduleNum = addressHex.substring(24, 40);
 
         return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
-                .setShardNum(new BigInteger(shard, 16).longValue())
-                .setRealmNum(new BigInteger(realm, 16).longValue())
+                .setShardNum(spec.shard())
+                .setRealmNum(spec.realm())
                 .setScheduleNum(new BigInteger(scheduleNum, 16).longValue())
                 .build();
     }
