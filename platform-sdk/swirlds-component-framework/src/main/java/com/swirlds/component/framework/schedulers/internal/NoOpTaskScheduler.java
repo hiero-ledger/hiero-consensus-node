@@ -11,6 +11,7 @@ import com.swirlds.component.framework.wires.input.NoOpInputWire;
 import com.swirlds.component.framework.wires.output.NoOpOutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -21,6 +22,9 @@ import java.util.function.Consumer;
  *              just to appease the compiler, as this scheduler never produces output.
  */
 public class NoOpTaskScheduler<OUT> extends TaskScheduler<OUT> {
+    private static final UncaughtExceptionHandler NOOP_UNCAUGHT_EXCEPTION = (thread, exception) -> {
+        // No-op uncaught exception handler
+    };
 
     private final TraceableWiringModel model;
 
@@ -39,7 +43,7 @@ public class NoOpTaskScheduler<OUT> extends TaskScheduler<OUT> {
             @NonNull final TaskSchedulerType type,
             final boolean flushEnabled,
             final boolean squelchingEnabled) {
-        super(model, name, type, flushEnabled, squelchingEnabled, false);
+        super(model, name, type, NOOP_UNCAUGHT_EXCEPTION, flushEnabled, squelchingEnabled, false);
 
         this.model = Objects.requireNonNull(model);
     }
