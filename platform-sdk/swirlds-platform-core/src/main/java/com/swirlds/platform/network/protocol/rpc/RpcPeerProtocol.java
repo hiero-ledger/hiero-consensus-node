@@ -312,7 +312,9 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             syncMetrics.rpcQueueSize(remotePeerId, outputQueue.size());
             final StreamWriter message;
             try {
+                final long startNanos = System.nanoTime();
                 message = outputQueue.poll(5, TimeUnit.MILLISECONDS);
+                syncMetrics.outputQueuePollTime(System.nanoTime() - startNanos);
             } catch (InterruptedException e) {
                 processMessagesToSend = false;
                 logger.warn("Interrupted while waiting for message", e);

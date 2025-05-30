@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
@@ -167,6 +168,7 @@ public class SyncMetrics {
     private final RunningAverageMetric syncFilterTime;
     private final ConcurrentHashMap<NodeId, AverageStat> rpcQueueSize = new ConcurrentHashMap<>();
     private final Metrics metrics;
+    private final AverageAndMax outputQueuePollTime;
 
     /**
      * Constructor of {@code SyncMetrics}
@@ -276,6 +278,13 @@ public class SyncMetrics {
                 PlatformStatNames.MULTI_TIPS_PER_SYNC,
                 "the number of creators that have more than one tip at the start of each sync",
                 "%5d");
+
+        this.outputQueuePollTime = new AverageAndMax(
+                metrics,
+                PLATFORM_CATEGORY,
+                "rpc_output_queue_poll_time",
+                "amount of us spent sleeping waiting for poll to happen or timeout",
+                FORMAT_10_0);
     }
 
     /**
@@ -506,5 +515,9 @@ public class SyncMetrics {
                                 FloatFormats.FORMAT_10_0,
                                 AverageStat.WEIGHT_VOLATILE))
                 .update(size);
+    }
+
+    public void outputQueuePollTime(final long nanos) {
+        outputQueuePollTime.update(nanos / 1000);
     }
 }
