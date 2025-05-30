@@ -568,7 +568,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             impliesIndirectProof = true;
         }
         if (blockNumber == Long.MIN_VALUE) {
-            log.info("Ignoring signature on already proven block hash '{}'", blockHash);
+            log.debug("Ignoring signature on already proven block hash '{}'", blockHash);
             return;
         }
         // Write proofs for all pending blocks up to and including the signed block number

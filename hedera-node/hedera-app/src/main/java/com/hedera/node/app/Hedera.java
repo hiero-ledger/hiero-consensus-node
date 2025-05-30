@@ -1238,28 +1238,27 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * computed at the end of the block that the context describes, assuming the final state change block item
      * was the state change that put the context into the state.
      *
-     * @param blockStreamInfo the context to use
+     * @param info the context to use
      * @return the inferred output tree root hash
      */
-    private @NonNull Bytes stateChangesTreeRootHashFrom(@NonNull final BlockStreamInfo blockStreamInfo) {
+    private @NonNull Bytes stateChangesTreeRootHashFrom(@NonNull final BlockStreamInfo info) {
         // This was the last state change in the block
         final var blockStreamInfoChange = StateChange.newBuilder()
                 .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
                 .singletonUpdate(SingletonUpdateChange.newBuilder()
-                        .blockStreamInfoValue(blockStreamInfo)
+                        .blockStreamInfoValue(info)
                         .build())
                 .build();
         // And this was the last output block item
         final var lastStateChanges = BlockItem.newBuilder()
-                .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(blockStreamInfoChange)))
+                .stateChanges(new StateChanges(info.blockEndTime(), List.of(blockStreamInfoChange)))
                 .build();
         // So we can combine this last leaf's has with the size and rightmost hashes
         // store from the pending state changes tree to recompute its final root hash
-        final var penultimateOutputTreeStatus = new StreamingTreeHasher.Status(
-                blockStreamInfo.numPrecedingStateChangesItems(),
-                blockStreamInfo.rightmostPrecedingStateChangesTreeHashes());
+        final var penultimateStateChangesTreeStatus = new StreamingTreeHasher.Status(
+                info.numPrecedingStateChangesItems(), info.rightmostPrecedingStateChangesTreeHashes());
         final var lastLeafHash = noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(lastStateChanges));
-        return rootHashFrom(penultimateOutputTreeStatus, lastLeafHash);
+        return rootHashFrom(penultimateStateChangesTreeStatus, lastLeafHash);
     }
 
     private void logConfiguration() {
