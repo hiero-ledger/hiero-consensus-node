@@ -426,7 +426,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     consensusHeaderHash,
                     traceDataHash,
                     outputHash));
-            log.info("BlockStreamInfo: " + blockStreamInfoState.get());
             ((CommittableWritableStates) writableState).commit();
 
             worker.addItem(boundaryStateChangeListener.flushChanges());
