@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.hevm;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
 
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Optional;
@@ -65,13 +66,15 @@ public class HederaEVM extends EVM {
     private final boolean enableShanghai;
     private final Map<Integer, Long> opsDurationValueMap;
     private final long opsDurationMultiplier;
+    private final ContractMetrics contractMetrics;
 
     public HederaEVM(
             @NonNull final OperationRegistry operations,
             @NonNull final GasCalculator gasCalculator,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final EvmSpecVersion evmSpecVersion,
-            @NonNull final HederaOpsDuration opsDuration) {
+            @NonNull final HederaOpsDuration opsDuration,
+            @NonNull final ContractMetrics contractMetrics) {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
         this.operations = operations;
         this.gasCalculator = gasCalculator;
@@ -80,6 +83,7 @@ public class HederaEVM extends EVM {
         this.enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
         this.opsDurationValueMap = opsDuration.getOpsDuration();
         this.opsDurationMultiplier = opsDuration.opsDurationMultiplier();
+        this.contractMetrics = contractMetrics;
     }
 
     @Override
@@ -201,8 +205,10 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                usedOpsDuration +=
+                final var duration =
                         opsDurationValueMap.getOrDefault(opcode, result.getGasCost() * opsDurationMultiplier);
+                usedOpsDuration += duration;
+                contractMetrics.recordEVMOperationDuration(opcode, duration);
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {
