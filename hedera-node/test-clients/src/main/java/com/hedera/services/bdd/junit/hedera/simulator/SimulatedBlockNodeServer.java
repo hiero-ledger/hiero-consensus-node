@@ -265,6 +265,37 @@ public class SimulatedBlockNodeServer {
                             if (item.hasBlockHeader()) {
                                 final var header = item.getBlockHeader();
                                 final long blockNumber = header.getNumber();
+
+                                // TODO: extract method
+                                final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
+                                if (blockNumber - lastVerifiedBlockNum > 1) {
+                                    final PublishStreamResponse.EndOfStream eos =
+                                            PublishStreamResponse.EndOfStream.newBuilder()
+                                                    .setBlockNumber(lastVerifiedBlockNum)
+                                                    .setStatus(EndOfStream.Code.BEHIND)
+                                                    .build();
+                                    final PublishStreamResponse response = PublishStreamResponse.newBuilder()
+                                            .setEndStream(eos)
+                                            .build();
+                                    try {
+                                        responseObserver.onNext(response);
+                                        log.debug(
+                                                "Sent EndOfStream BEHIND for block {} to stream {} on port {}. Last verified: {}",
+                                                blockNumber,
+                                                responseObserver.hashCode(),
+                                                port,
+                                                lastVerifiedBlockNumber.get());
+                                    } catch (Exception e) {
+                                        log.error(
+                                                "Failed to send BlockAcknowledgement for block {} to stream {} on port {}. Removing stream.",
+                                                blockNumber,
+                                                responseObserver.hashCode(),
+                                                port,
+                                                e);
+                                    }
+                                    continue;
+                                }
+
                                 // Set the current block number being processed by THIS stream instance
                                 currentBlockNumber = blockNumber;
                                 log.info(
@@ -496,7 +527,7 @@ public class SimulatedBlockNodeServer {
                 final long blockNumber) {
             final EndOfStream endOfStream = EndOfStream.newBuilder()
                     .setStatus(responseCode)
-                    .setBlockNumber(lastVerifiedBlockNumber.get()) // Use current last verified
+                    .setBlockNumber(blockNumber)
                     .build();
             final PublishStreamResponse response =
                     PublishStreamResponse.newBuilder().setEndStream(endOfStream).build();

@@ -130,6 +130,11 @@ public class BlockBufferService {
                 .streamToBlockNodes();
     }
 
+    public void setBlockNumberToJumpTo(long blockNumber) {
+        logger.debug("Setting target block number to jump to {}", blockNumber);
+        blockNodeConnectionManager.setJumpTargetBlock(blockNumber);
+    }
+
     /**
      * The type of item that can be in the block stream queue.
      */

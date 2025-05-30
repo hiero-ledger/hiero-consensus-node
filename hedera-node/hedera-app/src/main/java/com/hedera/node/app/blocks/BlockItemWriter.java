@@ -17,7 +17,11 @@ public interface BlockItemWriter {
      *
      * @param blockNumber the number of the block to open
      */
-    void openBlock(long blockNumber);
+    default void openBlock(long blockNumber) {
+        openBlock(blockNumber, false);
+    }
+
+    void openBlock(long blockNumber, boolean isPending);
 
     /**
      * Writes an item and/or its serialized bytes to the destination stream.
@@ -59,4 +63,6 @@ public interface BlockItemWriter {
      * Performs any actions that need to be done before the block proof is complete.
      */
     void writePreBlockProofItems();
+
+    void jumpToBlockAfterFreeze(long blockNumber);
 }

@@ -276,7 +276,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void openBlock(final long blockNumber) {
+    public void openBlock(final long blockNumber, boolean isPending) {
         if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriter twice");
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
@@ -402,6 +402,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
     public void writePreBlockProofItems() {
         throw new UnsupportedOperationException(
                 "FileBlockItemWriter does not support writing pre-block proof block items");
+    }
+
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        // no-op
     }
 
     /**

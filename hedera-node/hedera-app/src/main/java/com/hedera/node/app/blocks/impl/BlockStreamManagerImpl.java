@@ -310,13 +310,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 path.toAbsolutePath());
         try {
             final var onDiskPendingBlocks = loadContiguousPendingBlocks(path, blockNumber);
+            if (onDiskPendingBlocks.isEmpty()) {
+                log.info("No contiguous pending blocks found for block #{}", blockNumber);
+                final var pendingWriter = writerSupplier.get();
+                pendingWriter.jumpToBlockAfterFreeze(blockNumber);
+                return;
+            }
+
             onDiskPendingBlocks.forEach(block -> {
                 try {
                     final var pendingWriter = writerSupplier.get();
-                    pendingWriter.openBlock(block.number());
+                    pendingWriter.openBlock(block.number(), true);
                     block.items()
-                            .forEach(item -> pendingWriter.writeItem(
-                                    BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+                            .forEach(
+                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
                     final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
