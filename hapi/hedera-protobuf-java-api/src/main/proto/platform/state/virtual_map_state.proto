@@ -55,7 +55,8 @@ import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
 
 /**
- * TBD
+ * This message defines the type of keys used in the Virtual Map State.
+ * Field number of this message MUST be unique across this type and SingletonType.
  */
 message VirtualMapKey {
   oneof key {
@@ -267,6 +268,10 @@ message VirtualMapKey {
   }
 }
 
+/**
+  * An enumeration of the singleton state types.
+  * Numbers of the enum MUST be unique across this type and VirtualMapKey.
+ */
 enum SingletonType {
   /**
    * An "unset value" flag, this value SHALL NOT be used.<br/>

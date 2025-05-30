@@ -31,8 +31,10 @@ public class VirtualMapState {
 
     /**
      * A singleton key for the virtual map state. This is used to store the state in the {@link VirtualMap}.
+     * These bytes correspond {@code VirtualMapKey.SINGLETON_KEY (VIRTUAL_MAP_STATE)} (see {@code virtual_map_state.proto}).
+     * Field tag=8 (field 1, varint), value=51 (VIRTUAL_MAP_STATE)
      */
-    public static final Bytes VM_STATE_KEY = Bytes.wrap(new byte[] {0x08, 0x33}); // tag=8 (field 1, varint), value=51
+    public static final Bytes VM_STATE_KEY = Bytes.wrap(new byte[] {0x08, 0x33}); //
 
     public static final FieldDefinition FIELD_FIRST_LEAF_PATH =
             new FieldDefinition("firstLeafPath", FieldType.FIXED64, false, true, false, 1);
