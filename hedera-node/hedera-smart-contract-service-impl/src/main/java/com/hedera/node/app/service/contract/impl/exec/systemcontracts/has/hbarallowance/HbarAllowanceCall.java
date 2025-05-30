@@ -46,7 +46,7 @@ public class HbarAllowanceCall extends AbstractCall {
         }
 
         final var allowance = getAllowance(nativeOperations().getAccount(owner), spender);
-        return gasOnly(successResult(encodedAllowanceOutput(allowance), gasRequirement), SUCCESS, false);
+        return gasOnly(successResult(encodedAllowanceOutput(allowance), gasRequirement), SUCCESS, true);
     }
 
     @NonNull
