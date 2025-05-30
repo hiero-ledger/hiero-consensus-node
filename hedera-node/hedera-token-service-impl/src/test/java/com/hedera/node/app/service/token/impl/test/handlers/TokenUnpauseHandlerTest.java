@@ -27,6 +27,7 @@ import com.hedera.hapi.node.token.TokenUnpauseTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenUnpauseHandler;
@@ -194,7 +195,7 @@ class TokenUnpauseHandlerTest extends TokenHandlerTestBase {
     @Test
     void doesntAddAnyKeyIfPauseKeyMissing() throws PreCheckException {
         final var copy = token.copyBuilder().pauseKey(Key.DEFAULT).build();
-        readableTokenState = MapReadableKVState.<TokenID, Token>builder(TOKENS)
+        readableTokenState = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
                 .value(tokenId, copy)
                 .build();
         given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);

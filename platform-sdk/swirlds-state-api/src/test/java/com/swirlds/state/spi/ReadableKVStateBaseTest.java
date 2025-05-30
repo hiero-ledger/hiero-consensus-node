@@ -41,7 +41,7 @@ public class ReadableKVStateBaseTest extends StateTestBase {
     }
 
     protected ReadableKVStateBase<String, String> createFruitState(Map<String, String> backingMap) {
-        return new MapReadableKVState<>(FRUIT_STATE_KEY, backingMap);
+        return new MapReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, backingMap);
     }
 
     /** Make sure the constructor is holding onto the state key properly */

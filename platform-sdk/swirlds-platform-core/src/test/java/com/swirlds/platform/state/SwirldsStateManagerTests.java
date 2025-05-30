@@ -15,13 +15,14 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestNewMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,7 +60,19 @@ class SwirldsStateManagerTests {
 
     @AfterEach
     void tearDown() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        if (!initialState.isDestroyed()) {
+            initialState.release();
+        }
+        if (!swirldStateManager.getConsensusState().isDestroyed()) {
+            swirldStateManager.getConsensusState().release();
+        }
+        if (!initialState.isDestroyed()) {
+            initialState.release();
+        }
+        if (!swirldStateManager.getConsensusState().isDestroyed()) {
+            swirldStateManager.getConsensusState().release();
+        }
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
@@ -123,11 +136,16 @@ class SwirldsStateManagerTests {
                 state1.getReservationCount(),
                 "The previous immutable state was replaced, so the old state's reference count should have been "
                         + "decremented.");
+        state1.release();
+        state2.release();
+        state2.release();
         consensusState2.release();
     }
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
-        final MerkleNodeState state = new TestMerkleStateRoot();
+        final String virtualMapLabel =
+                SwirldsStateManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final MerkleNodeState state = TestNewMerkleStateRoot.createInstanceWithVirtualMapLabel(virtualMapLabel);
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(

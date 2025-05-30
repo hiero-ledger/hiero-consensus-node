@@ -4,11 +4,16 @@ package com.swirlds.state.merkle.singleton;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.utility.Labeled;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
+/**
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
+ */
+@Deprecated
 /** A leaf in the merkle tree that stores a string as its value. */
 public class StringLeaf extends PartialMerkleLeaf implements Labeled, MerkleLeaf {
     private static final long CLASS_ID = 0x9C829FF3B2283L;

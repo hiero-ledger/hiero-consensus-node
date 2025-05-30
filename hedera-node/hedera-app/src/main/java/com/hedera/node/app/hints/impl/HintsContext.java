@@ -8,14 +8,13 @@ import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -160,26 +159,29 @@ public class HintsContext {
     /**
      * Creates a new asynchronous signing process for the given block hash.
      * @param blockHash     the block hash
-     * @param currentRoster the current roster
+     * @param onCompletion a callback to run when the signing process completes
      * @return the signing process
      */
-    public @NonNull Signing newSigning(
-            @NonNull final Bytes blockHash, final Roster currentRoster, Runnable onCompletion) {
+    public @NonNull Signing newSigning(@NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
+        requireNonNull(onCompletion);
         throwIfNotReady();
-        final var preprocessedKeys =
-                requireNonNull(construction).hintsSchemeOrThrow().preprocessedKeysOrThrow();
+        requireNonNull(construction);
+        final var preprocessedKeys = construction.hintsSchemeOrThrow().preprocessedKeysOrThrow();
         final var verificationKey = preprocessedKeys.verificationKey();
-        final long totalWeight = currentRoster.rosterEntries().stream()
-                .mapToLong(RosterEntry::weight)
-                .sum();
+        final Map<Long, Long> nodeWeights = new HashMap<>();
+        long totalWeight = 0L;
+        for (final var nodePartyId : construction.hintsSchemeOrThrow().nodePartyIds()) {
+            totalWeight += nodePartyId.partyWeight();
+            nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
+        }
         return new Signing(
                 blockHash,
                 atLeastOneThirdOfTotal(totalWeight),
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
+                nodeWeights,
                 verificationKey,
-                currentRoster,
                 onCompletion);
     }
 
@@ -209,11 +211,11 @@ public class HintsContext {
         private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
+        private final Map<Long, Long> nodeWeights;
         private final Map<Long, Integer> partyIds;
         private final CompletableFuture<Bytes> future = new CompletableFuture<>();
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
-        private final Roster currentRoster;
         private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
@@ -221,16 +223,16 @@ public class HintsContext {
                 final long thresholdWeight,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
+                @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
-                @NonNull final Roster currentRoster,
                 @NonNull final Runnable onCompletion) {
             this.thresholdWeight = thresholdWeight;
             requireNonNull(onCompletion);
             this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
+            this.nodeWeights = requireNonNull(nodeWeights);
             this.verificationKey = requireNonNull(verificationKey);
-            this.currentRoster = requireNonNull(currentRoster);
             executor.schedule(
                     () -> {
                         if (!future.isDone()) {
@@ -273,11 +275,7 @@ public class HintsContext {
             }
             final var partyId = partyIds.get(nodeId);
             signatures.put(partyId, signature);
-            final var weight = currentRoster.rosterEntries().stream()
-                    .filter(e -> e.nodeId() == nodeId)
-                    .mapToLong(RosterEntry::weight)
-                    .findFirst()
-                    .orElse(0L);
+            final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
             if (totalWeight >= thresholdWeight && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =

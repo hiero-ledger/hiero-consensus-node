@@ -5,6 +5,7 @@ import static com.swirlds.demo.platform.TestUtil.generateRandomContent;
 import static com.swirlds.demo.platform.TestUtil.generateTxRecord;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType.FCQ;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -114,7 +115,7 @@ public class MapValueFCQTests {
             io.getOutput().writeMerkleTree(testDirectory, fcm);
             io.startReading();
             final MerkleMap<MapKey, MapValueFCQ<TransactionRecord>> deserialized =
-                    io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
+                    io.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
             cryptography.digestTreeSync(deserialized);
 
             assertEquals(fcm, deserialized);

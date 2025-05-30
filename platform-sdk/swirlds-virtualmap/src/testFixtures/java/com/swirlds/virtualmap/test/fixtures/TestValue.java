@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.test.fixtures;
 
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -21,7 +20,7 @@ public final class TestValue {
         this.s = s;
     }
 
-    public TestValue(ReadableSequentialData in) throws ParseException {
+    public TestValue(ReadableSequentialData in) {
         final int len = in.readInt();
         final byte[] value = new byte[len];
         in.readBytes(value);

@@ -13,6 +13,7 @@ open module com.swirlds.merkle.test.fixtures {
 
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
+    requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.fchashmap;
     requires transitive com.swirlds.fcqueue;
     requires transitive com.swirlds.merkle;
@@ -24,6 +25,8 @@ open module com.swirlds.merkle.test.fixtures {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.logging;
+    requires com.swirlds.merkledb;
+    requires com.swirlds.virtualmap;
     requires org.hiero.base.utility.test.fixtures;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;

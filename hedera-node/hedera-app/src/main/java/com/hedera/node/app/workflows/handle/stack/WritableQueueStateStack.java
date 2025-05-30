@@ -28,6 +28,7 @@ import java.util.function.Predicate;
 public class WritableQueueStateStack<E> implements WritableQueueState<E> {
 
     private final WritableStatesStack writableStatesStack;
+    private final String serviceName;
     private final String stateKey;
 
     /**
@@ -37,18 +38,28 @@ public class WritableQueueStateStack<E> implements WritableQueueState<E> {
      * {@link com.hedera.node.app.spi.workflows.HandleContext.SavepointStack}
      *
      * @param writableStatesStack the {@link WritableStatesStack}
+     * @param serviceName the service name
      * @param stateKey the state key
      * @throws NullPointerException if any of the arguments is {@code null}
      */
     public WritableQueueStateStack(
-            @NonNull final WritableStatesStack writableStatesStack, @NonNull final String stateKey) {
+            @NonNull final WritableStatesStack writableStatesStack,
+            @NonNull final String serviceName,
+            @NonNull final String stateKey) {
         this.writableStatesStack = requireNonNull(writableStatesStack, "writableStatesStack must not be null");
+        this.serviceName = requireNonNull(serviceName, "serviceName must not be null");
         this.stateKey = requireNonNull(stateKey, "stateKey must not be null");
     }
 
     @NonNull
     private WritableQueueState<E> getCurrent() {
         return writableStatesStack.getCurrent().getQueue(stateKey);
+    }
+
+    @NonNull
+    @Override
+    public String getServiceName() {
+        return serviceName;
     }
 
     @NonNull

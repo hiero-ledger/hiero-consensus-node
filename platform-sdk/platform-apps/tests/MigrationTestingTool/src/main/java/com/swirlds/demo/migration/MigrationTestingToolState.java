@@ -24,7 +24,10 @@ import org.hiero.consensus.model.roster.AddressBook;
 
 @ConstructableIgnored
 public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingToolState> implements MerkleNodeState {
+
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolState.class);
+
+    private static final long INITIAL_ACCOUNTS_HINT = 1_000_000;
 
     /**
      * The version history of this class. Versions that have been released must NEVER be given a different value.
@@ -117,13 +120,13 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     }
 
     @Override
-    public MerkleNode migrate(int version) {
+    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
         if (version == ClassVersion.VIRTUAL_MAP) {
             TestingAppStateInitializer.DEFAULT.initRosterState(this);
             return this;
         }
 
-        return super.migrate(version);
+        return super.migrate(configuration, version);
     }
 
     /**
@@ -177,10 +180,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
         setMerkleMap(new MerkleMap<>());
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1, DigestType.SHA_384, INITIAL_ACCOUNTS_HINT, merkleDbConfig.hashesRamToDiskThreshold());
         // to make it work for the multiple node in one JVM case, we need reset the default instance path every time
         // we create another instance of MerkleDB.
         MerkleDb.resetDefaultInstancePath();

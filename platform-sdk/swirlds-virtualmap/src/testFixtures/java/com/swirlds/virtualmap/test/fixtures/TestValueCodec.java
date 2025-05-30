@@ -20,7 +20,8 @@ public class TestValueCodec implements Codec<TestValue> {
 
     @NonNull
     @Override
-    public TestValue parse(@NonNull ReadableSequentialData in, boolean strictMode, int maxDepth) throws ParseException {
+    public TestValue parse(
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new TestValue(in);
     }
 

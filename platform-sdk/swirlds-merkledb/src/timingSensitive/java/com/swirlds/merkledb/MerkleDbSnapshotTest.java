@@ -19,13 +19,13 @@ import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.test.fixtures.AssertionUtils;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -86,20 +86,13 @@ class MerkleDbSnapshotTest {
     @AfterEach
     public void afterTest() {
         // check db count
-        AssertionUtils.assertEventuallyEquals(
-                0L,
-                MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.ofSeconds(1),
-                "Expected no open dbs. Actual number of open dbs: " + MerkleDbDataSource.getCountOfOpenDatabases());
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     private static MerkleDbTableConfig fixedConfig() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         return new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1, DigestType.SHA_384, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
     }
 
     private void verify(final MerkleInternal stateRoot) {
@@ -157,7 +150,7 @@ class MerkleDbSnapshotTest {
         MerkleDb.resetDefaultInstancePath();
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 
@@ -222,7 +215,7 @@ class MerkleDbSnapshotTest {
         MerkleDb.resetDefaultInstancePath();
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 

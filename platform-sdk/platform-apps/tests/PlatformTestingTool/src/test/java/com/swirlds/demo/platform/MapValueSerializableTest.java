@@ -2,6 +2,7 @@
 package com.swirlds.demo.platform;
 
 import static com.swirlds.merkle.test.fixtures.map.pta.TransactionRecord.DEFAULT_EXPIRATION_TIME;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -317,7 +318,8 @@ class MapValueSerializableTest {
 
             final ByteArrayInputStream inStream = new ByteArrayInputStream(outStream.toByteArray());
             final MerkleDataInputStream inputStream = new MerkleDataInputStream(inStream);
-            final MerkleMap<MapKey, T> deserializedMap = inputStream.readMerkleTree(testDirectory, Integer.MAX_VALUE);
+            final MerkleMap<MapKey, T> deserializedMap =
+                    inputStream.readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
             cryptography.digestTreeSync(deserializedMap);
 
             assertEquals(map, deserializedMap);

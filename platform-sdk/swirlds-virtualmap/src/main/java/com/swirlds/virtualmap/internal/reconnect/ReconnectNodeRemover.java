@@ -103,6 +103,13 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * 		the last leaf path after reconnect completes
      */
     public synchronized void setPathInformation(final long newFirstLeafPath, final long newLastLeafPath) {
+        logger.info(
+                RECONNECT.getMarker(),
+                "setPathInformation(): firstLeafPath: {} -> {}, lastLeafPath: {} -> {}",
+                oldFirstLeafPath,
+                newFirstLeafPath,
+                oldLastLeafPath,
+                newLastLeafPath);
         flusher.start(newFirstLeafPath, newLastLeafPath);
         this.newLastLeafPath = newLastLeafPath;
         if (oldLastLeafPath > 0) {
@@ -113,6 +120,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
                 flusher.deleteLeaf(oldRecord);
             }
         }
+        logger.info(RECONNECT.getMarker(), "setPathInformation(): done");
     }
 
     /**
@@ -132,9 +140,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     }
 
     public synchronized void allNodesReceived() {
-        logger.info(
-                RECONNECT.getMarker(),
-                "allNodesReceived(): newLastLeafPath = " + newLastLeafPath + ", oldLastLeafPath = " + oldLastLeafPath);
+        logger.info(RECONNECT.getMarker(), "allNodesReceived()");
         final long firstOldStalePath = (newLastLeafPath == Path.INVALID_PATH) ? 1 : newLastLeafPath + 1;
         // No-op if newLastLeafPath is greater or equal to oldLastLeafPath
         for (long p = firstOldStalePath; p <= oldLastLeafPath; p++) {
@@ -144,5 +150,6 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
                 flusher.deleteLeaf(oldExtraLeafRecord);
             }
         }
+        logger.info(RECONNECT.getMarker(), "allNodesReceived(): done");
     }
 }

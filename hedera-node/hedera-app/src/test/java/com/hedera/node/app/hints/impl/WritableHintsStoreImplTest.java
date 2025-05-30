@@ -56,8 +56,8 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -121,10 +121,14 @@ class WritableHintsStoreImplTest {
         state = emptyState();
         entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
+                new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME,
+                        ENTITY_ID_STATE_KEY,
+                        () -> EntityNumber.newBuilder().build(),
+                        c -> {}),
                 ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(
+                new FunctionWritableSingletonState<>(
+                        EntityIdService.NAME,
                         ENTITY_COUNTS_KEY,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
                         c -> {}))));
@@ -290,18 +294,19 @@ class WritableHintsStoreImplTest {
         final var verificationKey = Bytes.wrap("VK");
         final var keys = new PreprocessedKeys(Bytes.EMPTY, verificationKey);
         final var nodePartyIds = Map.of(1L, 2, 3L, 6);
+        final var nodeWeights = Map.of(1L, 100L, 3L, 300L);
         assertNull(subject.getActiveVerificationKey());
 
-        subject.setHintsScheme(456L, keys, nodePartyIds);
+        subject.setHintsScheme(456L, keys, nodePartyIds, nodeWeights);
 
         final var construction = constructionNow(NEXT_HINT_CONSTRUCTION_KEY);
         assertEquals(keys, construction.hintsSchemeOrThrow().preprocessedKeysOrThrow());
         assertEquals(
-                List.of(new NodePartyId(1L, 2), new NodePartyId(3L, 6)),
+                List.of(new NodePartyId(1L, 2, 100L), new NodePartyId(3L, 6, 300L)),
                 construction.hintsSchemeOrThrow().nodePartyIds());
         assertNull(subject.getActiveVerificationKey());
 
-        subject.setHintsScheme(123L, keys, nodePartyIds);
+        subject.setHintsScheme(123L, keys, nodePartyIds, nodeWeights);
         assertEquals(verificationKey, subject.getActiveVerificationKey());
     }
 
@@ -372,13 +377,14 @@ class WritableHintsStoreImplTest {
                 .build();
         final AtomicReference<CRSState> crsStateRef = new AtomicReference<>();
         given(writableStates.<CRSState>getSingleton(CRS_STATE_KEY))
-                .willReturn(new WritableSingletonStateBase<>(CRS_STATE_KEY, crsStateRef::get, crsStateRef::set));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HintsService.NAME, CRS_STATE_KEY, crsStateRef::get, crsStateRef::set));
         given(writableStates.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY))
-                .willReturn(new WritableSingletonStateBase<>(
-                        NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HintsService.NAME, NEXT_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
         given(writableStates.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY))
-                .willReturn(new WritableSingletonStateBase<>(
-                        ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HintsService.NAME, ACTIVE_HINT_CONSTRUCTION_KEY, () -> HintsConstruction.DEFAULT, c -> {}));
 
         subject = new WritableHintsStoreImpl(writableStates, entityCounters);
         subject.setCrsState(crsState);
@@ -464,7 +470,6 @@ class WritableHintsStoreImplTest {
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
-                NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,

@@ -121,7 +121,13 @@ public final class CompareStatesCommand extends AbstractCommand {
         logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", statePath);
 
         final ReservedSignedState signedState = SignedStateFileReader.readStateFile(
-                        statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext)
+                        statePath,
+                        (virtualMap) -> {
+                            // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                            throw new UnsupportedOperationException();
+                        },
+                        DEFAULT_PLATFORM_STATE_FACADE,
+                        platformContext)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
         try {

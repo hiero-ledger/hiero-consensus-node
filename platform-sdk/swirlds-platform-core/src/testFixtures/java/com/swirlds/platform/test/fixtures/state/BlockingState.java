@@ -19,7 +19,9 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * A test implementation of {@link MerkleStateRoot} state for SignedStateManager unit tests.
  * Node that some of the {@link MerkleStateRoot} methods are intentionally not implemented. If a test needs these methods,
  * {@link MerkleStateRoot} should be used instead.
+ * @deprecated This test class is only required for the testing of MerkleStateRoot class and will be removed together with that class.
  */
+@Deprecated
 public class BlockingState extends TestMerkleStateRoot {
 
     static {

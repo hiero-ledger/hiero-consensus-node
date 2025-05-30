@@ -6,7 +6,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
@@ -15,7 +14,6 @@ import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
-import org.junit.jupiter.api.AfterEach;
 
 /**
  * This base class provides helpful methods and defaults for simplifying the other merkle related
@@ -105,7 +103,9 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     /**
      * Looks within the merkle tree for a node with the given label. This is useful for tests that
      * need to verify some change actually happened in the merkle tree.
+     * @deprecated This method is only required for the testing of MerkleStateRoot class and will be removed together with that class.
      */
+    @Deprecated
     protected MerkleNode getNodeForLabel(MerkleStateRoot stateRoot, String label) {
         // This is not idea, as it requires white-box testing -- knowing the
         // internal details of the MerkleStateRoot. But lacking a getter
@@ -132,11 +132,13 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
 
     /** A convenience method for adding a k/v pair to a virtual map */
     protected void add(VirtualMap map, StateMetadata<String, String> md, String key, String value) {
-        super.add(map, md.stateDefinition().keyCodec(), md.stateDefinition().valueCodec(), key, value);
-    }
-
-    @AfterEach
-    void cleanUp() {
-        MerkleDb.resetDefaultInstancePath();
+        super.add(
+                map,
+                md.serviceName(),
+                md.stateDefinition().stateKey(),
+                md.stateDefinition().keyCodec(),
+                md.stateDefinition().valueCodec(),
+                key,
+                value);
     }
 }

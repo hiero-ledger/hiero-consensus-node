@@ -6,7 +6,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
@@ -30,7 +29,6 @@ public interface ServiceMigrator {
      * @param currentVersion The current version of the state
      * @param appConfig The app configuration to use for the migrations
      * @param platformConfig The platform configuration to use for subsequent object initializations
-     * @param metrics The metrics to use for the migrations
      * @param startupNetworks The startup networks to use for the migrations
      * @param storeMetricsService The store metrics service to use for the migrations
      * @param configProvider The config provider to use for the migrations
@@ -44,7 +42,6 @@ public interface ServiceMigrator {
             @NonNull SemanticVersion currentVersion,
             @NonNull Configuration appConfig,
             @NonNull Configuration platformConfig,
-            @NonNull Metrics metrics,
             @NonNull StartupNetworks startupNetworks,
             @NonNull StoreMetricsServiceImpl storeMetricsService,
             @NonNull ConfigProviderImpl configProvider,

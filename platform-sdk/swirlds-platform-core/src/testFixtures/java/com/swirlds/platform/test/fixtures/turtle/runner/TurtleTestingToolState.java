@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.turtle.runner;
 
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.*;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.merkle.NewStateRoot;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -14,19 +19,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *   ﹉∏﹉∏﹉                   ﹉∏﹉∏﹉
  * </pre>
  */
-public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolState> implements MerkleNodeState {
-
-    private static final long CLASS_ID = 0xa49b3822a4136ac6L;
-
-    private static final class ClassVersion {
-
-        public static final int ORIGINAL = 1;
-    }
+public class TurtleTestingToolState extends NewStateRoot<TurtleTestingToolState> implements MerkleNodeState {
 
     long state;
 
-    public TurtleTestingToolState() {
-        // empty
+    public TurtleTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        super(configuration, metrics);
+    }
+
+    public TurtleTestingToolState(@NonNull final VirtualMap virtualMap) {
+        super(virtualMap);
     }
 
     /**
@@ -42,27 +44,9 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
     /**
      * {@inheritDoc}
      */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @NonNull
     @Override
     public TurtleTestingToolState copy() {
-        throwIfImmutable();
-        setImmutable(true);
         return new TurtleTestingToolState(this);
     }
 
@@ -71,22 +55,22 @@ public class TurtleTestingToolState extends MerkleStateRoot<TurtleTestingToolSta
         return new TurtleTestingToolState(this);
     }
 
+    @Override
+    protected TurtleTestingToolState newInstance(@NonNull VirtualMap virtualMap) {
+        return new TurtleTestingToolState(virtualMap);
+    }
+
     /**
      * Creates a merkle node to act as a state tree root.
      *
      * @return merkle tree root
      */
     @NonNull
-    public static MerkleNodeState getStateRootNode() {
-        final MerkleNodeState state = new TurtleTestingToolState();
+    public static MerkleNodeState getStateRootNode(@NonNull final Metrics metrics) {
+        final MerkleNodeState state = new TurtleTestingToolState(CONFIGURATION, metrics);
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         TestingAppStateInitializer.DEFAULT.initRosterState(state);
 
         return state;
-    }
-
-    @Override
-    public int getMinimumSupportedVersion() {
-        return ClassVersion.ORIGINAL;
     }
 }

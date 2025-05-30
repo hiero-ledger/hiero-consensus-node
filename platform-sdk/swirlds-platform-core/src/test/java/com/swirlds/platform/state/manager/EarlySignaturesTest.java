@@ -102,6 +102,7 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
                     .setCalculateHash(true)
                     .setRound(round)
                     .setSignatures(new HashMap<>())
+                    .setCalculateHash(true)
                     .build();
             states.add(signedState);
         }

@@ -32,6 +32,15 @@ public class ReadonlyKVStateWrapper<K, V> implements ReadableKVState<K, V> {
     /**
      * {@inheritDoc}
      */
+    @Override
+    @NonNull
+    public final String getServiceName() {
+        return delegate.getServiceName();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public String getStateKey() {

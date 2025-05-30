@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 
-import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
+import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
+import java.io.IOException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,8 +27,8 @@ class OnDiskReadableStateTest extends MerkleTestBase {
         setupFruitVirtualMap();
     }
 
-    private void add(String key, String value) {
-        add(fruitVirtualMap, STRING_CODEC, STRING_CODEC, key, value);
+    private void add(String serviceName, String stateKey, String key, String value) {
+        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, STRING_CODEC, key, value);
     }
 
     @Nested
@@ -37,23 +36,42 @@ class OnDiskReadableStateTest extends MerkleTestBase {
     final class ConstructorTest {
 
         @Test
-        @DisplayName("You must specify the metadata")
+        @DisplayName("You must specify the serviceName")
+        void nullServiceNameThrows() {
+            assertThatThrownBy(() -> new OnDiskReadableKVState<>(
+                            null, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("You must specify the stateKey")
         void nullStateKeyThrows() {
-            assertThatThrownBy(() -> new OnDiskReadableKVState<>(null, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
+            assertThatThrownBy(() -> new OnDiskReadableKVState<>(
+                            FRUIT_SERVICE_NAME, null, STRING_CODEC, STRING_CODEC, fruitVirtualMap))
                     .isInstanceOf(NullPointerException.class);
         }
 
         @Test
         @DisplayName("You must specify the virtual map")
         void nullVirtualMapThrows() {
-            assertThatThrownBy(() -> new OnDiskReadableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, null))
+            assertThatThrownBy(() -> new OnDiskReadableKVState<>(
+                            FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, null))
                     .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("The serviceName matches that supplied")
+        void serviceName() {
+            final var state = new OnDiskReadableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            assertThat(state.getServiceName()).isEqualTo(FRUIT_SERVICE_NAME);
         }
 
         @Test
         @DisplayName("The stateKey matches that supplied")
         void stateKey() {
-            final var state = new OnDiskReadableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            final var state = new OnDiskReadableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
             assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
         }
     }
@@ -65,10 +83,11 @@ class OnDiskReadableStateTest extends MerkleTestBase {
 
         @BeforeEach
         void setUp() {
-            state = new OnDiskReadableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
-            add(A_KEY, APPLE);
-            add(B_KEY, BANANA);
-            add(C_KEY, CHERRY);
+            state = new OnDiskReadableKVState<>(
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, APPLE);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, B_KEY, BANANA);
+            add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, C_KEY, CHERRY);
         }
 
         @Test
@@ -87,26 +106,16 @@ class OnDiskReadableStateTest extends MerkleTestBase {
     @Test
     @DisplayName("The method warm() calls the appropriate method on the virtual map")
     void warm(@Mock VirtualMap virtualMapMock) {
-        final var state = new OnDiskReadableKVState<>(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, virtualMapMock);
+        final var state = new OnDiskReadableKVState<>(
+                FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, virtualMapMock);
         state.warm(A_KEY);
-        verify(virtualMapMock).warm(STRING_CODEC.toBytes(A_KEY));
+        verify(virtualMapMock)
+                .warm(StateUtils.getVirtualMapKey(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, STRING_CODEC));
     }
 
     @AfterEach
-    void tearDown() {
-        if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
-            fruitVirtualMap.release();
-        }
-        assertEventuallyEquals(
-                0L,
-                MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(5, ChronoUnit.SECONDS),
-                "All databases should be closed");
-        try {
-            // FUTURE WORK: need a better way to make sure that DB files are deleted
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+    void tearDown() throws IOException {
+        fruitVirtualMap.getDataSource().close();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

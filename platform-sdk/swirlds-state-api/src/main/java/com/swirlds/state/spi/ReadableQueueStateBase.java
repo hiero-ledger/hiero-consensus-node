@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
-import static java.util.Objects.requireNonNull;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
+import java.util.Objects;
 
 /**
  * Base implementation of the {@link ReadableQueueState}. Caches the peeked element.
@@ -13,12 +12,23 @@ import java.util.Iterator;
  * @param <E> The type of the elements in this queue
  */
 public abstract class ReadableQueueStateBase<E> implements ReadableQueueState<E> {
-    private final String stateKey;
+
     private E peekedElement;
 
+    protected final String serviceName;
+
+    protected final String stateKey;
+
     /** Create a new instance */
-    protected ReadableQueueStateBase(@NonNull final String stateKey) {
-        this.stateKey = requireNonNull(stateKey);
+    protected ReadableQueueStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
+        this.serviceName = Objects.requireNonNull(serviceName);
+        this.stateKey = Objects.requireNonNull(stateKey);
+    }
+
+    @Override
+    @NonNull
+    public final String getServiceName() {
+        return serviceName;
     }
 
     @Override

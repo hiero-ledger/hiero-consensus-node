@@ -13,12 +13,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.BlockItemSet;
-import com.hedera.hapi.block.PublishStreamRequest;
-import com.hedera.hapi.block.PublishStreamResponse;
-import com.hedera.hapi.block.PublishStreamResponse.Acknowledgement;
-import com.hedera.hapi.block.PublishStreamResponse.BlockAcknowledgement;
-import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
@@ -35,6 +29,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.block.api.BlockItemSet;
+import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -660,11 +659,9 @@ class BlockNodeConnectionTest {
     @Test
     void testOnNext_WithAcknowledgement() {
         // Arrange
-        final Acknowledgement acknowledgement = Acknowledgement.newBuilder()
-                .blockAck(BlockAcknowledgement.newBuilder()
-                        .blockNumber(TEST_BLOCK_NUMBER)
-                        .blockAlreadyExists(false)
-                        .build())
+        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
+                .blockNumber(TEST_BLOCK_NUMBER)
+                .blockAlreadyExists(false)
                 .build();
         final PublishStreamResponse response = PublishStreamResponse.newBuilder()
                 .acknowledgement(acknowledgement)
@@ -696,11 +693,9 @@ class BlockNodeConnectionTest {
     @Test
     void testOnNext_WithAcknowledgementWithAlreadyVerifiedBlock() {
         // Arrange
-        final Acknowledgement acknowledgement = Acknowledgement.newBuilder()
-                .blockAck(BlockAcknowledgement.newBuilder()
-                        .blockNumber(TEST_BLOCK_NUMBER)
-                        .blockAlreadyExists(true)
-                        .build())
+        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
+                .blockNumber(TEST_BLOCK_NUMBER)
+                .blockAlreadyExists(true)
                 .build();
         final PublishStreamResponse response = PublishStreamResponse.newBuilder()
                 .acknowledgement(acknowledgement)
@@ -732,11 +727,9 @@ class BlockNodeConnectionTest {
         final long currentBlockNumber = TEST_BLOCK_NUMBER + 1L;
         connection.setCurrentBlockNumber(currentBlockNumber);
         // Arrange
-        final Acknowledgement acknowledgement = Acknowledgement.newBuilder()
-                .blockAck(BlockAcknowledgement.newBuilder()
-                        .blockNumber(TEST_BLOCK_NUMBER)
-                        .blockAlreadyExists(true)
-                        .build())
+        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
+                .blockNumber(TEST_BLOCK_NUMBER)
+                .blockAlreadyExists(true)
                 .build();
         final PublishStreamResponse response = PublishStreamResponse.newBuilder()
                 .acknowledgement(acknowledgement)
@@ -775,11 +768,9 @@ class BlockNodeConnectionTest {
 
         connectionSpy.setCurrentBlockNumber(currentBlockNumber);
         // Arrange
-        final Acknowledgement acknowledgement = Acknowledgement.newBuilder()
-                .blockAck(BlockAcknowledgement.newBuilder()
-                        .blockNumber(TEST_BLOCK_NUMBER)
-                        .blockAlreadyExists(true)
-                        .build())
+        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
+                .blockNumber(TEST_BLOCK_NUMBER)
+                .blockAlreadyExists(true)
                 .build();
         final PublishStreamResponse response = PublishStreamResponse.newBuilder()
                 .acknowledgement(acknowledgement)
@@ -817,7 +808,7 @@ class BlockNodeConnectionTest {
         final BlockNodeConnection connectionSpy = spy(connection);
         final PublishStreamResponse.EndOfStream endOfStream = PublishStreamResponse.EndOfStream.newBuilder()
                 .blockNumber(TEST_BLOCK_NUMBER)
-                .status(PublishStreamResponseCode.STREAM_ITEMS_INTERNAL_ERROR)
+                .status(Code.INTERNAL_ERROR)
                 .build();
         final PublishStreamResponse response =
                 PublishStreamResponse.newBuilder().endStream(endOfStream).build();

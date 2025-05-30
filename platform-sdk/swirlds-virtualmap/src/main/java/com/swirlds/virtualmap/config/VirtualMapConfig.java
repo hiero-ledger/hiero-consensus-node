@@ -69,6 +69,8 @@ import java.time.Duration;
  * 		increase the amount of time required to make a fast copy by this amount of time.
  * @param maximumFlushThrottlePeriod
  * 		The maximum amount of time that any virtual map fast copy will be delayed due to a flush backlog.
+ * @param validateMigrationEnabled
+ *      Feature flag to enable validation during migration to the single Virtual Map (see {@code MerkleStateRoot}).
  */
 @ConfigData("virtualMap")
 public record VirtualMapConfig(
@@ -86,11 +88,12 @@ public record VirtualMapConfig(
         @ConstraintMethod("virtualMapWarningIntervalValidation") @Min(1) @ConfigProperty(defaultValue = "100000")
                 long virtualMapWarningInterval,
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
-        @ConfigProperty(defaultValue = "400000000") long copyFlushCandidateThreshold,
-        @ConfigProperty(defaultValue = "3200000000") long familyThrottleThreshold,
+        @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
+        @ConfigProperty(defaultValue = "5000000000") long familyThrottleThreshold,
         @ConfigProperty(defaultValue = "10000") int preferredFlushQueueSize,
         @ConfigProperty(defaultValue = "200ms") Duration flushThrottleStepSize,
-        @ConfigProperty(defaultValue = "5s") Duration maximumFlushThrottlePeriod) {
+        @ConfigProperty(defaultValue = "5s") Duration maximumFlushThrottlePeriod,
+        @ConfigProperty(defaultValue = "false") boolean validateMigrationEnabled) {
 
     private static final double UNIT_FRACTION_PERCENT = 100.0;
 

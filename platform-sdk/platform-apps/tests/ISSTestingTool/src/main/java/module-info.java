@@ -11,6 +11,7 @@ module com.swirlds.demo.iss {
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
+    requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;

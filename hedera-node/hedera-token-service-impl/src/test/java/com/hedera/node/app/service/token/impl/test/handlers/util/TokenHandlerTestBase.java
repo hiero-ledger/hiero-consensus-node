@@ -22,6 +22,7 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
@@ -153,19 +154,20 @@ public class TokenHandlerTestBase {
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> emptyWritableTokenState() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS).build();
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
+                .build();
     }
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> writableTokenStateWithOneKey() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS)
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
                 .value(tokenId, token)
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<TokenID, Token> readableTokenState() {
-        return MapReadableKVState.<TokenID, Token>builder(TOKENS)
+        return MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
                 .value(tokenId, token)
                 .build();
     }

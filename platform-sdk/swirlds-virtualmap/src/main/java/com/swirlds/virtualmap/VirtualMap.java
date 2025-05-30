@@ -1326,7 +1326,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         // During reconnect we want to look up state from the original records
         final VirtualMapState originalState = originalMap.getState();
         reconnectFlusher = new ReconnectHashLeafFlusher(
-                reconnectRecords.getDataSource(), virtualMapConfig.flushInterval(), statistics);
+                reconnectRecords.getDataSource(), virtualMapConfig.reconnectFlushInterval(), statistics);
         nodeRemover = new ReconnectNodeRemover(
                 originalMap.getRecords(),
                 originalState.getFirstLeafPath(),
@@ -1606,7 +1606,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     @Override
-    public MerkleNode migrate(int version) {
+    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
         if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
             // removing VirtualMapState
             super.setChild(0, null);

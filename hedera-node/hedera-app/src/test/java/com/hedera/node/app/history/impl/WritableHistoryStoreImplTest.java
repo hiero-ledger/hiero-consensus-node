@@ -387,7 +387,6 @@ class WritableHistoryStoreImplTest {
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
-                NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
