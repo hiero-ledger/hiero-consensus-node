@@ -380,6 +380,5 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         teacherTree.release();
         learnerTree.release();
         afterLearnerMap.release();
-        afterLearnerMap.release();
     }
 }
