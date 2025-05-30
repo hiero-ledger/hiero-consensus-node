@@ -2,6 +2,8 @@
 package com.swirlds.state.test.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,35 +19,39 @@ public class StateTestBase extends TestBase {
 
     public static final String UNKNOWN_SERVICE = "Bogus-Service";
     protected static final String UNKNOWN_STATE_KEY = "BOGUS_STATE_KEY";
-    protected static final String UNKNOWN_KEY = "BOGUS_KEY";
+    protected static final ProtoBytes UNKNOWN_KEY = new ProtoBytes(Bytes.wrap("BOGUS_KEY"));
 
     protected static final String FRUIT_SERVICE_NAME = "Plants";
     protected static final String FRUIT_STATE_KEY = "FRUIT";
-    protected static final int FRUIT_STATE_ID = 20123;
+    protected static final int FRUIT_STATE_ID = 3;
 
     protected static final String ANIMAL_SERVICE_NAME = "Organisms";
     protected static final String ANIMAL_STATE_KEY = "ANIMAL";
-    protected static final int ANIMAL_STATE_ID = 20234;
+    protected static final int ANIMAL_STATE_ID = 16;
 
     protected static final String SPACE_SERVICE_NAME = "Universe";
     protected static final String SPACE_STATE_KEY = "SPACE";
-    protected static final int SPACE_STATE_ID = 20345;
+    protected static final int SPACE_STATE_ID = 1;
 
     protected static final String STEAM_SERVICE_NAME = "Learning";
     protected static final String STEAM_STATE_KEY = "STEAM";
-    protected static final int STEAM_STATE_ID = 20456;
+    protected static final int STEAM_STATE_ID = 10001;
 
     public static final String COUNTRY_SERVICE_NAME = "Planets";
     public static final String COUNTRY_STATE_KEY = "COUNTRY";
-    protected static final int COUNTRY_STATE_ID = 20567;
+    protected static final int COUNTRY_STATE_ID = 11;
 
-    protected static final String A_KEY = "A";
-    protected static final String B_KEY = "B";
-    protected static final String C_KEY = "C";
-    protected static final String D_KEY = "D";
-    protected static final String E_KEY = "E";
-    protected static final String F_KEY = "F";
-    protected static final String G_KEY = "G";
+    protected static final ProtoBytes A_KEY = toProtoBytes("A");
+    protected static final ProtoBytes B_KEY = toProtoBytes("B");
+    protected static final ProtoBytes C_KEY = toProtoBytes("C");
+    protected static final ProtoBytes D_KEY = toProtoBytes("D");
+    protected static final ProtoBytes E_KEY = toProtoBytes("E");
+    protected static final ProtoBytes F_KEY = toProtoBytes("F");
+    protected static final ProtoBytes G_KEY = toProtoBytes("G");
+
+    protected static ProtoBytes toProtoBytes(final String value) {
+        return new ProtoBytes(Bytes.wrap(value));
+    }
 
     protected static final String APPLE = "Apple";
     protected static final String ACAI = "Acai";
@@ -95,8 +101,8 @@ public class StateTestBase extends TestBase {
     protected static final String GHANA = "Ghana";
 
     @NonNull
-    protected MapReadableKVState<String, String> readableFruitState() {
-        return MapReadableKVState.<String, String>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
+    protected MapReadableKVState<ProtoBytes, String> readableFruitState() {
+        return MapReadableKVState.<ProtoBytes, String>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
                 .value(A_KEY, APPLE)
                 .value(B_KEY, BANANA)
                 .value(C_KEY, CHERRY)
@@ -108,8 +114,8 @@ public class StateTestBase extends TestBase {
     }
 
     @NonNull
-    protected MapWritableKVState<String, String> writableFruitState() {
-        return MapWritableKVState.<String, String>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
+    protected MapWritableKVState<ProtoBytes, String> writableFruitState() {
+        return MapWritableKVState.<ProtoBytes, String>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
                 .value(A_KEY, APPLE)
                 .value(B_KEY, BANANA)
                 .value(C_KEY, CHERRY)
@@ -121,8 +127,8 @@ public class StateTestBase extends TestBase {
     }
 
     @NonNull
-    protected MapReadableKVState<String, String> readableAnimalState() {
-        return MapReadableKVState.<String, String>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
+    protected MapReadableKVState<ProtoBytes, String> readableAnimalState() {
+        return MapReadableKVState.<ProtoBytes, String>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
                 .value(A_KEY, AARDVARK)
                 .value(B_KEY, BEAR)
                 .value(C_KEY, CUTTLEFISH)
@@ -134,8 +140,8 @@ public class StateTestBase extends TestBase {
     }
 
     @NonNull
-    protected MapWritableKVState<String, String> writableAnimalState() {
-        return MapWritableKVState.<String, String>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
+    protected MapWritableKVState<ProtoBytes, String> writableAnimalState() {
+        return MapWritableKVState.<ProtoBytes, String>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
                 .value(A_KEY, AARDVARK)
                 .value(B_KEY, BEAR)
                 .value(C_KEY, CUTTLEFISH)

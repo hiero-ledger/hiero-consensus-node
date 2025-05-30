@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
@@ -27,8 +28,8 @@ class OnDiskReadableStateTest extends MerkleTestBase {
         setupFruitVirtualMap();
     }
 
-    private void add(String serviceName, String stateKey, String key, String value) {
-        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, STRING_CODEC, key, value);
+    private void add(String serviceName, String stateKey, ProtoBytes key, String value) {
+        add(fruitVirtualMap, serviceName, stateKey, STRING_CODEC, key, value);
     }
 
     @Nested
@@ -79,12 +80,12 @@ class OnDiskReadableStateTest extends MerkleTestBase {
     @Nested
     @DisplayName("Query Tests")
     final class QueryTest {
-        private OnDiskReadableKVState<String, String> state;
+        private OnDiskReadableKVState<ProtoBytes, String> state;
 
         @BeforeEach
         void setUp() {
             state = new OnDiskReadableKVState<>(
-                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, fruitVirtualMap);
+                    FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, fruitVirtualMap);
             add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, APPLE);
             add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, B_KEY, BANANA);
             add(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, C_KEY, CHERRY);
@@ -107,10 +108,9 @@ class OnDiskReadableStateTest extends MerkleTestBase {
     @DisplayName("The method warm() calls the appropriate method on the virtual map")
     void warm(@Mock VirtualMap virtualMapMock) {
         final var state = new OnDiskReadableKVState<>(
-                FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC, virtualMapMock);
+                FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, virtualMapMock);
         state.warm(A_KEY);
-        verify(virtualMapMock)
-                .warm(StateUtils.getVirtualMapKey(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY, STRING_CODEC));
+        verify(virtualMapMock).warm(StateUtils.getVirtualMapKeyForKv(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, A_KEY));
     }
 
     @AfterEach

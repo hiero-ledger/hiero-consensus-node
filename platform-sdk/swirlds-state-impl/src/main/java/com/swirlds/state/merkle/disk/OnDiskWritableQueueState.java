@@ -2,12 +2,12 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueueAdd;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.queue.QueueState;
 import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -59,7 +59,10 @@ public class OnDiskWritableQueueState<E> extends WritableQueueStateBase<E> {
             // Adding to this Queue State first time - initialize QueueState.
             state = new QueueState();
         }
-        virtualMap.put(getVirtualMapKey(serviceName, stateKey, state.getTailAndIncrement()), element, valueCodec);
+        virtualMap.put(
+                StateUtils.getVirtualMapKeyForQueue(serviceName, stateKey, state.getTailAndIncrement()),
+                element,
+                valueCodec);
         onDiskQueueHelper.updateState(state);
         // Log to transaction state log, what was added
         logQueueAdd(computeLabel(serviceName, stateKey), element);
@@ -70,8 +73,9 @@ public class OnDiskWritableQueueState<E> extends WritableQueueStateBase<E> {
     protected void removeFromDataSource() {
         final QueueState state = requireNonNull(onDiskQueueHelper.getState());
         if (!state.isEmpty()) {
-            final var removedValue =
-                    virtualMap.remove(getVirtualMapKey(serviceName, stateKey, state.getHeadAndIncrement()), valueCodec);
+            final var removedValue = virtualMap.remove(
+                    StateUtils.getVirtualMapKeyForQueue(serviceName, stateKey, state.getHeadAndIncrement()),
+                    valueCodec);
             onDiskQueueHelper.updateState(state);
             // Log to transaction state log, what was removed
             logQueueRemove(computeLabel(serviceName, stateKey), removedValue);

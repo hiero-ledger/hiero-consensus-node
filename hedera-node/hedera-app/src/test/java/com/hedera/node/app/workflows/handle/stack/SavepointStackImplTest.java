@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -50,7 +51,7 @@ class SavepointStackImplTest extends StateTestBase {
             AccountID.newBuilder().accountNum(666L).build();
     private static final Timestamp VALID_START = new Timestamp(1_234_567L, 890);
 
-    private final Map<String, String> BASE_DATA = Map.of(
+    private final Map<ProtoBytes, String> BASE_DATA = Map.of(
             A_KEY, APPLE,
             B_KEY, BANANA,
             C_KEY, CHERRY,
@@ -762,11 +763,11 @@ class SavepointStackImplTest extends StateTestBase {
         }
     }
 
-    private static Condition<ReadableStates> content(Map<String, String> expected) {
+    private static Condition<ReadableStates> content(Map<ProtoBytes, String> expected) {
         return new Condition<>(contentCheck(expected), "state " + expected);
     }
 
-    private static Predicate<ReadableStates> contentCheck(Map<String, String> expected) {
+    private static Predicate<ReadableStates> contentCheck(Map<ProtoBytes, String> expected) {
         return readableStates -> {
             final var actual = readableStates.get(FRUIT_STATE_KEY);
             if (expected.size() != actual.size()) {

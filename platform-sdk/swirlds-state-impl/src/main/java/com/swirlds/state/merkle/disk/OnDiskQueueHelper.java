@@ -2,11 +2,11 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.queue.QueueState;
 import com.swirlds.state.merkle.queue.QueueStateCodec;
 import com.swirlds.virtualmap.VirtualMap;
@@ -120,7 +120,7 @@ public final class OnDiskQueueHelper<E> {
      */
     @NonNull
     public E getFromStore(final long index) {
-        final var value = virtualMap.get(getVirtualMapKey(serviceName, stateKey, index), valueCodec);
+        final var value = virtualMap.get(StateUtils.getVirtualMapKeyForQueue(serviceName, stateKey, index), valueCodec);
         if (value == null) {
             throw new IllegalStateException("Can't find queue element at index " + index + " in the store");
         }
@@ -133,7 +133,8 @@ public final class OnDiskQueueHelper<E> {
      * @return The current state of the queue.
      */
     public QueueState getState() {
-        final QueueState state = virtualMap.get(getVirtualMapKey(serviceName, stateKey), QueueStateCodec.INSTANCE);
+        final QueueState state = virtualMap.get(
+                StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey), QueueStateCodec.INSTANCE);
         if (state == null) {
             return null;
         }
@@ -147,7 +148,7 @@ public final class OnDiskQueueHelper<E> {
      * @param state The new state to set for the queue.
      */
     public void updateState(@NonNull final QueueState state) {
-        virtualMap.put(getVirtualMapKey(serviceName, stateKey), state, QueueStateCodec.INSTANCE);
+        virtualMap.put(StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey), state, QueueStateCodec.INSTANCE);
     }
 
     /**
