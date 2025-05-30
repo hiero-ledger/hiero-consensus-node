@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.contract;
 
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.plus;
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardPrechecksAnd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_DELETED;
 
 import com.hedera.services.bdd.spec.HapiSpecOperation;

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.files;
 
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardOutcomesAnd;
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardPrechecksAnd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FILE_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;

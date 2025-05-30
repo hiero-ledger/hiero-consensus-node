@@ -10,14 +10,13 @@ import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 public class RandomAtomicBatch implements OpProvider {
 
     private final OpProvider[] ops;
-    private final ResponseCodeEnum[] permissibleOutcomes = OpProvider.standardOutcomesAnd(INNER_TRANSACTION_FAILED);
+    final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(INNER_TRANSACTION_FAILED);
 
     public RandomAtomicBatch(OpProvider... ops) {
         this.ops = ops;
@@ -54,26 +53,9 @@ public class RandomAtomicBatch implements OpProvider {
 
         var atomicBatch = TxnVerbs.atomicBatch(opsToIncludeArray)
                 .payingWith(UNIQUE_PAYER_ACCOUNT)
-                .hasPrecheckFrom(flattenResponseCodes(
-                        STANDARD_PERMISSIBLE_PRECHECKS,
-                        RandomAccount.permissiblePrechecks,
-                        RandomAccountDeletion.permissiblePrechecks,
-                        RandomAccountDeletionWithReceiver.permissiblePrechecks,
-                        RandomTransferFromSigner.permissiblePrechecks,
-                        RandomTransferToSigner.permissiblePrechecks))
-                .hasKnownStatusFrom(flattenResponseCodes(
-                        STANDARD_PERMISSIBLE_OUTCOMES,
-                        permissibleOutcomes,
-                        RandomAccount.permissibleOutcomes,
-                        RandomAccountDeletion.permissibleOutcomes,
-                        RandomAccountDeletionWithReceiver.permissibleOutcomes,
-                        RandomAccountUpdate.permissibleOutcomes,
-                        RandomTransfer.permissibleOutcomes));
+                .hasPrecheckFrom(STANDARD_PERMISSIBLE_PRECHECKS)
+                .hasKnownStatusFrom(permissibleOutcomes);
 
         return Optional.of(atomicBatch);
-    }
-
-    private static ResponseCodeEnum[] flattenResponseCodes(ResponseCodeEnum[]... listOfResponseCodeEnums) {
-        return Arrays.stream(listOfResponseCodeEnums).flatMap(Arrays::stream).toArray(ResponseCodeEnum[]::new);
     }
 }

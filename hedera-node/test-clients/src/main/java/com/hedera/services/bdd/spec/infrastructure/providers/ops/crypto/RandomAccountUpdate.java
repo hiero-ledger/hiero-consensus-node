@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto;
 
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardOutcomesAnd;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -17,7 +16,7 @@ public class RandomAccountUpdate implements OpProvider {
     protected final EntityNameProvider keys;
     protected final EntityNameProvider accounts;
 
-    static final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
+    private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
 
     public RandomAccountUpdate(EntityNameProvider keys, EntityNameProvider accounts) {
         this.keys = keys;

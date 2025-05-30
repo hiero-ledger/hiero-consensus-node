@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto;
 
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardPrechecksAnd;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -23,8 +22,8 @@ public class RandomAccountDeletionWithReceiver implements OpProvider {
 
     private final EntityNameProvider accountsToDelete;
 
-    static final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
-    static final ResponseCodeEnum[] permissibleOutcomes = {
+    private final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
+    private final ResponseCodeEnum[] permissibleOutcomes = {
         SUCCESS, LIVE_HASH_NOT_FOUND, INSUFFICIENT_PAYER_BALANCE, UNKNOWN, ACCOUNT_DELETED, INVALID_ACCOUNT_ID
     };
 

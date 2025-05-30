@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto;
 
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.plus;
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardOutcomesAnd;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto.RandomAccount.INITIAL_BALANCE;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto.RandomAccount.SEND_THRESHOLD;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -33,7 +31,7 @@ public class RandomTransfer implements OpProvider {
     public static final int DEFAULT_NUM_STABLE_ACCOUNTS = 200;
     public static final double DEFAULT_RECORD_PROBABILITY = 0.0;
 
-    static final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(
+    private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(
             ACCOUNT_DELETED, INSUFFICIENT_ACCOUNT_BALANCE, PAYER_ACCOUNT_DELETED, INVALID_SIGNATURE);
 
     private final ResponseCodeEnum[] customOutcomes;

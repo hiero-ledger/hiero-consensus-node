@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.schedule;
 
-import static com.hedera.services.bdd.spec.infrastructure.OpProvider.standardOutcomesAnd;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleDelete;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
