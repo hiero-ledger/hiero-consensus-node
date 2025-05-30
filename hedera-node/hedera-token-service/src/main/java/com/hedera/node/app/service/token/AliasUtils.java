@@ -3,11 +3,8 @@ package com.hedera.node.app.service.token;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static java.lang.Math.toIntExact;
-import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
