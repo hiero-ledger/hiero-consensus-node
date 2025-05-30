@@ -131,14 +131,7 @@ class MerkleDbCompactionCoordinator {
         for (final DataFileCompactor compactor : compactorsByName.values()) {
             compactor.interruptCompaction();
         }
-        // Wait till all the tasks are stopped
-        try {
-            while (!compactorsByName.isEmpty()) {
-                wait(SHUTDOWN_TIMEOUT_MILLIS);
-            }
-        } catch (final InterruptedException e) {
-            logger.warn(MERKLE_DB.getMarker(), "Interrupted while waiting for compaction tasks to complete", e);
-        }
+        awaitForCurrentCompactionsToComplete(SHUTDOWN_TIMEOUT_MILLIS);
         // If some tasks are still running, there is nothing else to than to log it
         if (!compactorsByName.isEmpty()) {
             logger.warn(MERKLE_DB.getMarker(), "Timed out waiting to stop all compactions tasks");
@@ -146,13 +139,28 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
+     * Waits for all currently running compaction tasks to complete.
+     * @param timeoutMillis - maximum timeout to wait for compaction tasks to complete (0 for indefinite wait).
+     */
+    synchronized void awaitForCurrentCompactionsToComplete(long timeoutMillis) {
+        while (!compactorsByName.isEmpty()) {
+            try {
+                wait(timeoutMillis);
+            } catch (InterruptedException e) {
+                logger.warn(MERKLE_DB.getMarker(), "Interrupted while waiting for compaction tasks to complete", e);
+                Thread.currentThread().interrupt(); // Restore the interrupted status
+            }
+        }
+    }
+
+    /**
      * Submits a compaction task for execution. If a compactor with the given name is already in progress,
      * the call is effectively no op.
      *
-     * @param key Compaction task name
+     * @param key       Compaction task name
      * @param compactor Compactor to run
      */
-    public synchronized void compactIfNotRunningYet(final String key, final DataFileCompactor compactor) {
+    synchronized void compactIfNotRunningYet(final String key, final DataFileCompactor compactor) {
         if (!compactionEnabled) {
             return;
         }
