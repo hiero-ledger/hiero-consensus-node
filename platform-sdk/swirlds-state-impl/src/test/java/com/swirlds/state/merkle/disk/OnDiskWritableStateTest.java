@@ -270,7 +270,6 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             oldVirtualMap.release();
             state = new OnDiskWritableKVState<>(
                     FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, fruitVirtualMap);
-            oldVirtualMap.release();
             assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             state.remove(B_KEY);
             assertThat(state.get(C_KEY)).isEqualTo(CHERRY);
