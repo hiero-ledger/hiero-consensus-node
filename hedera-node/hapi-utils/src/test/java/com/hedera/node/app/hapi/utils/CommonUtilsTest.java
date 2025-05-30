@@ -308,7 +308,7 @@ class CommonUtilsTest {
     @Test
     void getExpectEvmAddress() {
         final var address = new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123};
-        final var evmAddress = asEvmAddress(0, 0, 123L);
+        final var evmAddress = asEvmAddress(123L);
         assertArrayEquals(address, evmAddress);
     }
 }
