@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import static com.hedera.hapi.platform.state.SingletonType.ENTITYIDSERVICEENTITY_ID;
-import static com.hedera.hapi.platform.state.SingletonType.TOKENSERVICESTAKING_NETWORK_REWARDS;
+import static com.hedera.hapi.platform.state.SingletonType.ENTITYIDSERVICE__ENTITY_ID;
+import static com.hedera.hapi.platform.state.SingletonType.TOKENSERVICE__STAKING_NETWORK_REWARDS;
 import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.FILESERVICE__UPGRADE_DATA_150;
 import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SCHEDULESERVICE__SCHEDULES_BY_EQUALITY;
 import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SINGLETON;
@@ -263,11 +263,11 @@ public class MerkleTestBase extends StateTestBase {
                         // We have to map "made up" states to existing ones to keep the compatibility with the protocol
                         // The following states are chosen because they have generic `ProtoBytes` as their key type
                         if (SPACE_SERVICE_NAME.equals(serviceName) || SPACE_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForSingleton(ENTITYIDSERVICEENTITY_ID);
+                            return createVirtualMapKeyForSingleton(ENTITYIDSERVICE__ENTITY_ID);
                         } else if (STEAM_SERVICE_NAME.equals(serviceName) || STEAM_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForSingleton(SingletonType.FILESERVICEUPGRADE_DATA_150);
+                            return createVirtualMapKeyForSingleton(SingletonType.FILESERVICE__UPGRADE_DATA_150);
                         } else if (COUNTRY_SERVICE_NAME.equals(serviceName) || COUNTRY_STATE_KEY.equals(stateKey)) {
-                            return createVirtualMapKeyForSingleton(TOKENSERVICESTAKING_NETWORK_REWARDS);
+                            return createVirtualMapKeyForSingleton(TOKENSERVICE__STAKING_NETWORK_REWARDS);
                         } else {
                             // Neither the real method nor any test mappings applied.
                             return 65000;

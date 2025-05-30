@@ -56,7 +56,6 @@ import "services/state/tss/tss_vote_map_key.proto";
 
 /**
  * This message defines the type of keys used in the Virtual Map State.
- * Field number of this message MUST be unique across this type and SingletonType.
  */
 message VirtualMapKey {
   oneof key {
@@ -270,7 +269,6 @@ message VirtualMapKey {
 
 /**
   * An enumeration of the singleton state types.
-  * Numbers of the enum MUST be unique across this type and VirtualMapKey.
  */
 enum SingletonType {
   /**
@@ -283,102 +281,102 @@ enum SingletonType {
   /**
    * A state identifier for the next entity Identifier.
    */
-  EntityIdServiceENTITY_ID = 1;
+  EntityIdService__ENTITY_ID = 1;
 
   /**
    * A state identifier for network staking rewards.
    */
-  TokenServiceSTAKING_NETWORK_REWARDS = 11;
+  TokenService__STAKING_NETWORK_REWARDS = 11;
 
   /**
    * A state identifier for throttle usage.
    */
-  CongestionThrottleServiceTHROTTLE_USAGE_SNAPSHOTS = 12;
+  CongestionThrottleService__THROTTLE_USAGE_SNAPSHOTS = 12;
 
   /**
    * A state identifier for network congestion start times.
    */
-  CongestionThrottleServiceCONGESTION_LEVEL_STARTS = 13;
+  CongestionThrottleService__CONGESTION_LEVEL_STARTS = 13;
 
   /**
    * A state identifier for conversion rate updates.
    */
-  FeeServiceMIDNIGHT_RATES = 17;
+  FeeService__MIDNIGHT_RATES = 17;
 
   /**
    * A state identifier for the network running hash(es).
    */
-  BlockRecordServiceRUNNING_HASHES = 18;
+  BlockRecordService__RUNNING_HASHES = 18;
 
   /**
    * A state identifier for network block information.
    */
-  BlockRecordServiceBLOCKS = 19;
+  BlockRecordService__BLOCKS = 19;
 
   /**
    * A state identifier for the hash of the next "upgrade" file.
    */
-  FreezeServiceUPGRADE_FILE_HASH = 22;
+  FreezeService__UPGRADE_FILE_HASH = 22;
 
   /**
    * A state identifier for the next network freeze time. Singleton state.
    */
-  FreezeServiceFREEZE_TIME = 23;
+  FreezeService__FREEZE_TIME = 23;
 
   /**
    * A state identifier for the block stream status. Singleton state.
    */
-  BlockStreamServiceBLOCK_STREAM_INFO = 24;
+  BlockStreamService__BLOCK_STREAM_INFO = 24;
 
   /**
    * A state identifier for the platform state. Singleton state.
    */
-  PlatformStateServicePLATFORM_STATE = 26;
+  PlatformStateService__PLATFORM_STATE = 26;
   
   /**
    * A state identifier for the roster state. Singleton state.
    */
-  RosterServiceROSTER_STATE = 27;
+  RosterService__ROSTER_STATE = 27;
 
   /**
    * A state identifier for the active hinTS construction. Singleton state.
    */
-  HintsServiceACTIVE_HINTS_CONSTRUCTION = 38;
+  HintsService__ACTIVE_HINTS_CONSTRUCTION = 38;
   
   /**
    * A state identifier for the next hinTS construction. Singleton state.
    */
-  HintsServiceNEXT_HINTS_CONSTRUCTION = 39;
+  HintsService__NEXT_HINTS_CONSTRUCTION = 39;
 
   /**
    * A state identifier for the entity counts. Singleton state.
    */
-  EntityIdServiceENTITY_COUNTS = 41;
+  EntityIdService__ENTITY_COUNTS = 41;
 
   /**
    * A state identifier for the ledger id. Singleton state.
    */
-  HistoryServiceLEDGER_ID = 42;
+  HistoryService__LEDGER_ID = 42;
 
   /**
    * A state identifier for the active proof construction. Singleton state.
    */
-  HistoryServiceACTIVE_PROOF_CONSTRUCTION = 44;
+  HistoryService__ACTIVE_PROOF_CONSTRUCTION = 44;
 
   /**
    * A state identifier for the next proof construction. Singleton state.
    */
-  HistoryServiceNEXT_PROOF_CONSTRUCTION = 45;
+  HistoryService__NEXT_PROOF_CONSTRUCTION = 45;
 
   /**
    * A state identifier for the CRS state. Singleton state.
    */
-  HintsServiceCRS_STATE = 48;
+  HintsService__CRS_STATE = 48;
 
   /**
    * A state identifier for the node rewards. Singleton state.
    */
-  TokenServiceNODE_REWARDS = 50;
+  TokenService__NODE_REWARDS = 50;
 
   /**
    * Virtual Map State metadata
@@ -395,51 +393,51 @@ enum SingletonType {
   /**
    * Metadata of the `150` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_150 = 10001;
+  FileService__UPGRADE_DATA_150 = 10001;
 
   /**
    * Metadata of the`151` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_151 = 10002;
+  FileService__UPGRADE_DATA_151 = 10002;
 
   /**
    * Metadata of the `152` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_152 = 10003;
+  FileService__UPGRADE_DATA_152 = 10003;
 
   /**
    * Metadata of the `153` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_153 = 10004;
+  FileService__UPGRADE_DATA_153 = 10004;
 
   /**
    * Metadata of the`154` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_154 = 10005;
+  FileService__UPGRADE_DATA_154 = 10005;
 
   /**
    * Metadata of the `155` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_155 = 10006;
+  FileService__UPGRADE_DATA_155 = 10006;
 
   /**
    * Metadata of the `156` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_156 = 10007;
+  FileService__UPGRADE_DATA_156 = 10007;
 
   /**
    * Metadata of the `157` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_157 = 10008;
+  FileService__UPGRADE_DATA_157 = 10008;
 
   /**
    * Metadata of the `158` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_158 = 10009;
+  FileService__UPGRADE_DATA_158 = 10009;
 
   /**
    * Metadata of the `159` upgrade file data queue.
    */
-  FileServiceUPGRADE_DATA_159 = 10010;
+  FileService__UPGRADE_DATA_159 = 10010;
 
 }
