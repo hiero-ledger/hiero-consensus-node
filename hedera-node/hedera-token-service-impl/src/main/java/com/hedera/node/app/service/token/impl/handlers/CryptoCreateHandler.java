@@ -321,7 +321,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
 
         // You can never set the alias to be an "entity num alias" (sometimes called "long-zero").
-        validateFalse(isEntityNumAlias(alias, hederaConfig.shard(), hederaConfig.realm()), INVALID_ALIAS_KEY);
+        validateFalse(isEntityNumAlias(alias), INVALID_ALIAS_KEY);
 
         // We have a limit on the total maximum number of entities that can be created on the network, for different
         // types of entities. We need to verify that creating a new account won't exceed that number.
