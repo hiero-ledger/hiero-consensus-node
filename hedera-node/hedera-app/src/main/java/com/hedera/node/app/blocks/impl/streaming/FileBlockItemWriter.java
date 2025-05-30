@@ -404,6 +404,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 "FileBlockItemWriter does not support writing pre-block proof block items");
     }
 
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        // no-op
+    }
+
     /**
      * Get the path for a block file with the block number.
      *

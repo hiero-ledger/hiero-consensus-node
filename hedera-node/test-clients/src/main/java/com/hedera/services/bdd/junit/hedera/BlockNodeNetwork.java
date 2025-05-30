@@ -120,18 +120,22 @@ public class BlockNodeNetwork {
             if (entry.getValue() == BlockNodeMode.REAL) {
                 // TODO
             } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
-                // Find an available port
-                int port = findAvailablePort();
-                SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                try {
-                    server.start();
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to start simulated block node on port " + port, e);
-                }
-                logger.info("Started shared simulated block node @ localhost:{}", port);
-                simulatedBlockNodeById.put(entry.getKey(), server);
+                addSimulatorNode(entry.getKey());
             }
         }
+    }
+
+    public void addSimulatorNode(Long id) {
+        // Find an available port
+        int port = findAvailablePort();
+        SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
+        try {
+            server.start();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start simulated block node on port " + port, e);
+        }
+        logger.info("Started shared simulated block node @ localhost:{}", port);
+        simulatedBlockNodeById.put(id, server);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {

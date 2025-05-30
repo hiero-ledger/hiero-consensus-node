@@ -87,6 +87,11 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         blockStreamStateManager.streamPreBlockProofItems(blockNumber);
     }
 
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        blockStreamStateManager.setBlockNumberToJumpTo(blockNumber);
+    }
+
     /**
      * No-op implementation as pending proofs are handled differently in the gRPC streaming context.
      */
