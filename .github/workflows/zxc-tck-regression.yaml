@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: TCK Regression"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag, or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job:"
+        required: false
+        type: string
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  checks: write
+  contents: read
+
+env:
+  SOLO_CLUSTER_NAME: "solo-tck-e2e"
+  SOLO_NAMESPACE: "solo-tck-e2e"
+  SOLO_DEPLOYMENT: "solo-tck-deployment"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+
+jobs:
+  # Execute TCK Regression Tests using specified version of hiero-consensus-node
+  tck-regression:
+    name: ${{ inputs.custom-job-name || 'Standard' }}
+    runs-on: hiero-network-node-linux-large
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      #  Check out the specified hiero-consensus-node reference
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 0
+
+      #  Checkout the sdk-tck repository and the TCK SDK Client
+      - name: Checkout Regression Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: platform-sdk/regression
+          repository: hiero-ledger/hiero-sdk-tck
+          fetch-depth: "1"
+
+      # Checkout the JS-SDK server
+      - name: Checkout JS-SDK Server
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: platform-sdk/sdk-server
+          repository: hiero-ledger/hiero-sdk-js
+          fetch-depth: "1"
+
+      # Set up Java Environment
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21.0.6
+
+      # Set up the node environment
+      # Version 20.18.0 is the recommended version for solo.
+      - name: Setup NodeJS Environment
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      - name: Setup PNPM
+        run: |
+          npm install -g pnpm
+
+      # Set up the gradle environment
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        with:
+          cache-read-only: false
+
+      # Build the hiero-consensus-node artifacts
+      - name: Build hiero-consensus-node
+        run: ${GRADLE_EXEC} assemble
+
+      # Set up the npm dependencies and cache on the tck-client
+      - name: Set up the tck-client
+        run: |
+          npm install
+          npm cache clean --force
+        working-directory: platform-sdk/regression
+
+      # Set up the npm dependencies and cache on the sdk-server
+      - name: Install NodeJS Dependencies (sdk-server)
+        id: start-sdk-server
+        run: |
+          pnpm add @hashgraph/sdk@^2.63.0-beta.1 long@^5.2.3 @hashgraph/proto@^2.17.0-beta.1
+          pnpm install
+          nohup pnpm start &
+          server_pid=$!
+          echo "pid=${server_pid}" >> "${GITHUB_OUTPUT}"
+        working-directory: platform-sdk/sdk-server/tck
+
+      # Install solo and configure to use the artifacts from
+      # the hiero-consensus-node build
+      - name: Install Solo
+        run: npm install -g @hashgraph/solo@0.36.0
+
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      # Set up solo
+      - name: Configure and run solo
+        run: |
+          kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
+          solo init
+          solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
+          solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
+          solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+          solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
+
+          nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/mirror-monitor -n ${{ env.SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:8084 > /dev/null 2>&1 &
+
+      # Start the TCK client
+      - name: Start tck-client
+        env:
+          OPERATOR_ACCOUNT_ID: "0.0.1002"
+          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b657004220420a608e2130a0a3cb34f86e757303c862bee353d9ab77ba4387ec084f881d420d4"
+          NODE_TIMEOUT: 15000
+        run: |
+          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          npm run test
+        working-directory: platform-sdk/regression # required
+
+      # Stop the TCK server
+      - name: Stop tck-server
+        if: ${{ always() }}
+        run: |
+          echo ${{ steps.start-sdk-server.outputs.pid }}
+          kill -9 ${{ steps.start-sdk-server.outputs.pid }}
+
+      # Stop the solo nodes
+      - name: Stop solo
+        if: ${{ always() }}
+        run: |
+          kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}

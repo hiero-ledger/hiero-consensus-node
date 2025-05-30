@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Set;
 import org.hiero.base.crypto.DigestType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -143,7 +144,8 @@ class OnDiskTest extends MerkleTestBase {
         // We will now make another fast copy of our working copy of the tree.
         // Then we will hash the immutable copy and write it out. Then we will
         // release the immutable copy.
-        virtualMap.copy(); // throw away the copy, we won't use it
+        VirtualMap copy = virtualMap.copy(); // throw away the copy, we won't use it
+        copy.release();
         CRYPTO.digestTreeSync(virtualMap);
 
         final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
@@ -153,6 +155,8 @@ class OnDiskTest extends MerkleTestBase {
         // I plan to deserialize.
         final var r = new MerkleSchemaRegistry(registry, SERVICE_NAME, CONFIGURATION, new SchemaApplications());
         r.register(schema);
+
+        virtualMap.release();
 
         // read it back now as our map and validate the data come back fine
         virtualMap = parseTree(serializedBytes, snapshotDir);
@@ -206,5 +210,10 @@ class OnDiskTest extends MerkleTestBase {
         final var key = new OnDiskKey<>(onDiskKeyClassId(SERVICE_NAME, ACCOUNT_STATE_KEY), AccountID.PROTOBUF);
         final var string = key.toString();
         assertThat(string).isEqualTo("OnDiskKey{key=null}");
+    }
+
+    @AfterEach
+    void tearDown() {
+        virtualMap.release();
     }
 }

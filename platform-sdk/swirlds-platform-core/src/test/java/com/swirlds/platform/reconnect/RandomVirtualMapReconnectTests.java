@@ -67,10 +67,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1, DigestType.SHA_384, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
         return new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
     }
 
@@ -269,7 +266,11 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             copiesQueue.remove().release();
         }
 
-        afterSyncLearnerTree.release();
+        if (afterSyncLearnerTree != null) {
+            afterSyncLearnerTree.release();
+        } else {
+            afterMap.release();
+        }
         copy.release();
         teacherTree.release();
         learnerTree.release();
@@ -352,5 +353,6 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         afterCopy.release();
         teacherTree.release();
         learnerTree.release();
+        afterLearnerMap.release();
     }
 }

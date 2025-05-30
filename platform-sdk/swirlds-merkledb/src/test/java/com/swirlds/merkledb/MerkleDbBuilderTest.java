@@ -21,6 +21,8 @@ import org.junit.jupiter.api.Test;
 
 class MerkleDbBuilderTest {
 
+    private static final long INITIAL_SIZE = 1_000_000;
+
     private static Path testDirectory;
 
     @BeforeAll
@@ -37,15 +39,11 @@ class MerkleDbBuilderTest {
     private MerkleDbTableConfig createTableConfig() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         return new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1, DigestType.SHA_384, INITIAL_SIZE, merkleDbConfig.hashesRamToDiskThreshold());
     }
 
-    private MerkleDbTableConfig createTableConfig(final long maxNumOfKeys, final long hashesRamToDiskThreshold) {
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        return new MerkleDbTableConfig((short) 1, DigestType.SHA_384, maxNumOfKeys, hashesRamToDiskThreshold);
+    private MerkleDbTableConfig createTableConfig(final long initialCapacity, final long hashesRamToDiskThreshold) {
+        return new MerkleDbTableConfig((short) 1, DigestType.SHA_384, initialCapacity, hashesRamToDiskThreshold);
     }
 
     @Test
@@ -87,7 +85,7 @@ class MerkleDbBuilderTest {
             final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
             final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
             assertFalse(merkleDbDataSource.isPreferDiskBasedIndexes());
-            assertEquals(merkleDbConfig.maxNumOfKeys(), merkleDbDataSource.getMaxNumberOfKeys());
+            assertEquals(INITIAL_SIZE, merkleDbDataSource.getInitialCapacity());
             assertEquals(merkleDbConfig.hashesRamToDiskThreshold(), merkleDbDataSource.getHashesRamToDiskThreshold());
             // set explicitly above
             assertFalse(merkleDbDataSource.isCompactionEnabled());
@@ -112,7 +110,7 @@ class MerkleDbBuilderTest {
             assertEquals(
                     defaultDbPath.resolve("tables").resolve("test3-" + merkleDbDataSource.getTableId()),
                     merkleDbDataSource.getStorageDir());
-            assertEquals(1999, merkleDbDataSource.getMaxNumberOfKeys());
+            assertEquals(1999, merkleDbDataSource.getInitialCapacity());
             assertEquals(Integer.MAX_VALUE >> 4, merkleDbDataSource.getHashesRamToDiskThreshold());
             // set explicitly above
             assertTrue(merkleDbDataSource.isCompactionEnabled());
