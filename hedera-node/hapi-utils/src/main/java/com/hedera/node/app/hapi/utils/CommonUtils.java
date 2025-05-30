@@ -8,7 +8,6 @@ import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -140,15 +139,11 @@ public final class CommonUtils {
     /**
      * get the EVM address from the long number.
      *
-     * @param shard the shard number
-     * @param realm the realm number
      * @param num the input long number
      * @return evm address
      */
-    public static byte[] asEvmAddress(final long shard, final long realm, final long num) {
+    public static byte[] asEvmAddress(final long num) {
         final byte[] evmAddress = new byte[20];
-        arraycopy(Ints.toByteArray((int) shard), 0, evmAddress, 0, 4);
-        arraycopy(Longs.toByteArray(realm), 0, evmAddress, 4, 8);
         arraycopy(Longs.toByteArray(num), 0, evmAddress, 12, 8);
         return evmAddress;
     }

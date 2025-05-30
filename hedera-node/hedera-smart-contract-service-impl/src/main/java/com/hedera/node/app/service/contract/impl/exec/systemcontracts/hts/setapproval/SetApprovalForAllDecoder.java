@@ -31,7 +31,11 @@ public class SetApprovalForAllDecoder {
     public TransactionBody decodeSetApprovalForAll(@NonNull final HtsCallAttempt attempt) {
         final var call = SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL.decodeCall(attempt.inputBytes());
         final var operatorId = attempt.addressIdConverter().convert(call.get(1));
-        return bodyOf(approveAllAllowanceNFTBody(attempt.senderId(), asTokenId(call.get(0)), operatorId, call.get(2)));
+        return bodyOf(approveAllAllowanceNFTBody(
+                attempt.senderId(),
+                asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0)),
+                operatorId,
+                call.get(2)));
     }
 
     /**

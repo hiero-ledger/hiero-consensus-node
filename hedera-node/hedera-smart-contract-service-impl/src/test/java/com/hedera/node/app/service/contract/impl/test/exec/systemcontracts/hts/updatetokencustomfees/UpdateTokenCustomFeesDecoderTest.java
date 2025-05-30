@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -21,6 +22,7 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesDecoder;
@@ -49,6 +51,9 @@ class UpdateTokenCustomFeesDecoderTest {
 
     @Mock
     private TokensConfig tokensConfig;
+
+    @Mock
+    protected HederaNativeOperations nativeOperations;
 
     private UpdateTokenCustomFeesDecoder subject;
 
@@ -132,6 +137,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -155,6 +162,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -183,6 +192,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -218,6 +229,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -270,6 +283,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -293,6 +308,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -316,6 +333,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 new Tuple[] {FRACTIONAL_FEE_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -340,6 +359,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                         new Tuple[] {ROYALTY_FEE_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -423,6 +444,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                         new Tuple[] {ROYALTY_FEE_WITH_FALLBACK_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -447,6 +470,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                         new Tuple[] {ROYALTY_FEE_WITH_HBAR_FALLBACK_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -470,6 +495,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         setConfiguration();
 
         // When decoding the request
@@ -492,6 +519,9 @@ class UpdateTokenCustomFeesDecoderTest {
                                         EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+
         setConfiguration();
 
         // When decoding the request

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.airdr
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -40,12 +41,15 @@ public class TokenAirdropDecoder {
     // Validation constant
     private static final Long LAST_RESERVED_SYSTEM_ACCOUNT = 1000L;
 
+    private HtsCallAttempt attempt;
+
     @Inject
     public TokenAirdropDecoder() {
         // Dagger2
     }
 
     public TransactionBody decodeAirdrop(@NonNull final HtsCallAttempt attempt) {
+        this.attempt = requireNonNull(attempt);
         final var call = TokenAirdropTranslator.TOKEN_AIRDROP.decodeCall(attempt.inputBytes());
         final var transferList = (Tuple[]) call.get(0);
         final var ledgerConfig = attempt.configuration().getConfigData(LedgerConfig.class);
@@ -61,7 +65,8 @@ public class TokenAirdropDecoder {
         validateSemantics(transferList, ledgerConfig);
         Arrays.stream(transferList).forEach(transfer -> {
             final var tokenTransferList = TokenTransferList.newBuilder();
-            final var token = ConversionUtils.asTokenId(transfer.get(TOKEN));
+            final var token =
+                    ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), transfer.get(TOKEN));
             tokenTransferList.token(token);
             final var tokenAmountsTuple = (Tuple[]) transfer.get(TOKEN_TRANSFERS);
             final var nftAmountsTuple = (Tuple[]) transfer.get(NFT_AMOUNT);

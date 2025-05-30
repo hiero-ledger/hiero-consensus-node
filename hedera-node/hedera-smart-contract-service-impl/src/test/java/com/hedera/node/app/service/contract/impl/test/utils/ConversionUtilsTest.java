@@ -120,7 +120,6 @@ class ConversionUtilsTest {
 
     @Test
     void justReturnsNumberFromSmallLongZeroAddress() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var smallNumber = 0x1234L;
         final var address = Address.fromHexString("0x1234");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
@@ -140,7 +139,7 @@ class ConversionUtilsTest {
         final long number = A_NEW_ACCOUNT_ID.accountNumOrThrow();
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        final var address = asHeadlongAddress(asEvmAddress(shard, realm, number));
+        final var address = asHeadlongAddress(asEvmAddress(number));
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(number, actual);
     }
@@ -156,7 +155,6 @@ class ConversionUtilsTest {
 
     @Test
     void justReturnsNumberFromLargeLongZeroAddress() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var largeNumber = 0x7fffffffffffffffL;
         final var address = Address.fromHexString("0x7fffffffffffffff");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
@@ -165,7 +163,6 @@ class ConversionUtilsTest {
 
     @Test
     void returnsMissingOnAbsentAlias() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         final var address = Address.fromHexString("0x010000000000000000");
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
@@ -175,7 +172,6 @@ class ConversionUtilsTest {
 
     @Test
     void returnsMissingOnAbsentAliasReference() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(configuration);
         final var address =
                 asHeadlongAddress(Address.fromHexString("0x010000000000000000").toArray());
@@ -188,7 +184,6 @@ class ConversionUtilsTest {
     void returnsGivenIfPresentAlias() {
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(0x1234L);
         given(nativeOperations.configuration()).willReturn(configuration);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = Address.fromHexString("0x010000000000000000");
         final var actual = ConversionUtils.maybeMissingNumberOf(address, nativeOperations);
         assertEquals(0x1234L, actual);
@@ -276,51 +271,49 @@ class ConversionUtilsTest {
 
     @Test
     void evmAddressConversionTest() {
-        final long shard = 1L;
-        final long realm = 2L;
+        final long shard = 0L;
+        final long realm = 0L;
         final long num = 3L;
         final byte[] expected = new byte[20];
         System.arraycopy(Ints.toByteArray((int) shard), 0, expected, 0, 4);
         System.arraycopy(Longs.toByteArray(realm), 0, expected, 4, 8);
         System.arraycopy(Longs.toByteArray(num), 0, expected, 12, 8);
 
-        final byte[] actual = asEvmAddress(shard, realm, num);
+        final byte[] actual = asEvmAddress(num);
 
         assertArrayEquals(expected, actual, "EVM address is not as expected");
     }
 
     @Test
     void isLongZeroAddressTest() {
-        assertThat(isLongZeroAddress(entityIdFactory, LONG_ZERO_ADDRESS_BYTES.toByteArray()))
-                .isTrue();
+        assertThat(isLongZeroAddress(LONG_ZERO_ADDRESS_BYTES.toByteArray())).isTrue();
     }
 
     @Test
     void isLongZeroAddressWrongTest() {
-        assertThat(isLongZeroAddress(entityIdFactory, NON_LONG_ZERO_ADDRESS_BYTES.toByteArray()))
-                .isFalse();
+        assertThat(isLongZeroAddress(NON_LONG_ZERO_ADDRESS_BYTES.toByteArray())).isFalse();
     }
 
     @Test
     void evmContractIDToNumTest() {
-        assertThat(contractIDToNum(entityIdFactory, LONG_ZERO_CONTRACT_ID)).isEqualTo(291);
+        assertThat(contractIDToNum(LONG_ZERO_CONTRACT_ID)).isEqualTo(291);
     }
 
     @Test
     void evmContractIDToNumZeroTest() {
-        assertThat(contractIDToNum(entityIdFactory, INVALID_CONTRACT_ADDRESS)).isEqualTo(0);
+        assertThat(contractIDToNum(INVALID_CONTRACT_ADDRESS)).isEqualTo(0);
     }
 
     @Test
     void evmContractIDToNumNonLongZeroTest() {
-        assertThat(contractIDToNum(entityIdFactory, VALID_CONTRACT_ADDRESS)).isEqualTo(0);
+        assertThat(contractIDToNum(VALID_CONTRACT_ADDRESS)).isEqualTo(0);
     }
 
     @Test
     void asTokenIdWithZeros() {
         final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000000000000000000000000000000000000");
 
-        var tokenId = ConversionUtils.asTokenId(address);
+        var tokenId = ConversionUtils.asTokenId(entityIdFactory, address);
 
         assertEquals(0, tokenId.shardNum());
         assertEquals(0, tokenId.realmNum());
@@ -329,12 +322,12 @@ class ConversionUtilsTest {
 
     @Test
     void asTokenId() {
-        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000500000000000000060000000000000007");
+        final var address = com.esaulpaugh.headlong.abi.Address.wrap("0x0000000000000000000000000000000000000007");
 
-        var tokenId = ConversionUtils.asTokenId(address);
+        var tokenId = ConversionUtils.asTokenId(entityIdFactory, address);
 
-        assertEquals(5, tokenId.shardNum());
-        assertEquals(6, tokenId.realmNum());
+        assertEquals(0, tokenId.shardNum());
+        assertEquals(0, tokenId.realmNum());
         assertEquals(7, tokenId.tokenNum());
     }
 

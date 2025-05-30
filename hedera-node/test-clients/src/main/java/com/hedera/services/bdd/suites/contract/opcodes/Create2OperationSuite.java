@@ -47,6 +47,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -489,10 +490,10 @@ public class Create2OperationSuite {
                         .gas(4_000_000L)
                         .via(CREATE_2_TXN),
                 captureOneChildCreate2MetaFor("Precompile user", CREATE_2_TXN, userMirrorAddr, userAliasAddr),
-                sourcing(() -> getAliasedContractBalance(userAliasAddr.get())
-                        .hasId(accountIdFromHexedMirrorAddress(userMirrorAddr.get()))),
-                withOpContext((spec, opLog) ->
-                        userLiteralId.set(asContractString(contractIdFromHexedMirrorAddress(userMirrorAddr.get())))),
+                withOpContext((spec, opLog) -> getAliasedContractBalance(userAliasAddr.get())
+                        .hasId(accountIdFromHexedMirrorAddress(spec, userMirrorAddr.get()))),
+                withOpContext((spec, opLog) -> userLiteralId.set(
+                        asContractString(contractIdFromHexedMirrorAddress(spec, userMirrorAddr.get())))),
                 sourcing(() -> tokenCreate(nft)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(userLiteralId.get())
@@ -554,8 +555,8 @@ public class Create2OperationSuite {
                         .gas(4_000_000L)
                         .via(creation2),
                 captureOneChildCreate2MetaFor("Precompile user", creation2, userMirrorAddr, userAliasAddr),
-                withOpContext((spec, opLog) ->
-                        userLiteralId.set(asContractString(contractIdFromHexedMirrorAddress(userMirrorAddr.get())))),
+                withOpContext((spec, opLog) -> userLiteralId.set(
+                        asContractString(contractIdFromHexedMirrorAddress(spec, userMirrorAddr.get())))),
                 tokenCreate(ft)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -781,7 +782,7 @@ public class Create2OperationSuite {
                 captureOneChildCreate2MetaFor(
                         "Salting creator", creation2, saltingCreatorMirrorAddr, saltingCreatorAliasAddr),
                 withOpContext((spec, opLog) -> saltingCreatorLiteralId.set(
-                        asContractString(contractIdFromHexedMirrorAddress(saltingCreatorMirrorAddr.get())))),
+                        asContractString(contractIdFromHexedMirrorAddress(spec, saltingCreatorMirrorAddr.get())))),
                 // https://github.com/hashgraph/hedera-services/issues/2867 (can't
                 // re-create2 after selfdestruct)
                 sourcing(() -> contractCallWithFunctionAbi(
@@ -859,8 +860,8 @@ public class Create2OperationSuite {
                         .payingWith(GENESIS)
                         .gas(4_000_000L)
                         .via(innerCreation2)),
-                sourcing(() -> {
-                    final var emitterId = literalIdFromHexedMirrorAddress(saltingCreatorMirrorAddr.get());
+                sourcingContextual(spec -> {
+                    final var emitterId = literalIdFromHexedMirrorAddress(spec, saltingCreatorMirrorAddr.get());
                     return getTxnRecord(innerCreation2)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()

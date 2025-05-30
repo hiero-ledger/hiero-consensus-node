@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.delete.DeleteTranslator.DELETE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -56,10 +57,13 @@ class DeleteTranslatorTest extends CallAttemptTestBase {
         byte[] inputBytes = Bytes.wrapByteBuffer(DELETE_TOKEN.encodeCall(tuple)).toArray();
         given(attempt.inputBytes()).willReturn(inputBytes);
         given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(addressIdConverter.convertSender(any())).willReturn(NON_SYSTEM_ACCOUNT_ID);
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var call = subject.callFrom(attempt);
         assertThat(call).isInstanceOf(DispatchForResponseCodeHtsCall.class);

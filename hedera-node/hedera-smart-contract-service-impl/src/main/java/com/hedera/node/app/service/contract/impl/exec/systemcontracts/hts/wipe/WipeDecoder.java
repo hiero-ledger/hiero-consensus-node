@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -32,7 +31,7 @@ public class WipeDecoder {
      */
     public TransactionBody decodeWipeFungibleV1(@NonNull final HtsCallAttempt attempt) {
         final var call = WipeTranslator.WIPE_FUNGIBLE_V1.decodeCall(attempt.inputBytes());
-        return bodyOf(wipeFungible(attempt.addressIdConverter(), call.get(0), call.get(1), call.get(2)));
+        return bodyOf(wipeFungible(attempt, call.get(0), call.get(1), call.get(2)));
     }
 
     /**
@@ -43,7 +42,7 @@ public class WipeDecoder {
      */
     public TransactionBody decodeWipeFungibleV2(@NonNull final HtsCallAttempt attempt) {
         final var call = WipeTranslator.WIPE_FUNGIBLE_V2.decodeCall(attempt.inputBytes());
-        return bodyOf(wipeFungible(attempt.addressIdConverter(), call.get(0), call.get(1), call.get(2)));
+        return bodyOf(wipeFungible(attempt, call.get(0), call.get(1), call.get(2)));
     }
 
     /**
@@ -54,29 +53,29 @@ public class WipeDecoder {
      */
     public TransactionBody decodeWipeNonFungible(@NonNull final HtsCallAttempt attempt) {
         final var call = WipeTranslator.WIPE_NFT.decodeCall(attempt.inputBytes());
-        return bodyOf(wipeNonFungible(attempt.addressIdConverter(), call.get(0), call.get(1), call.get(2)));
+        return bodyOf(wipeNonFungible(attempt, call.get(0), call.get(1), call.get(2)));
     }
 
     private TokenWipeAccountTransactionBody wipeFungible(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address tokenAddress,
             @NonNull final Address accountAddress,
             final long amount) {
         return TokenWipeAccountTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
-                .account(addressIdConverter.convert(accountAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
+                .account(attempt.addressIdConverter().convert(accountAddress))
                 .amount(amount)
                 .build();
     }
 
     private TokenWipeAccountTransactionBody wipeNonFungible(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address tokenAddress,
             @NonNull final Address accountAddress,
             @NonNull final long[] serialNumbers) {
         return TokenWipeAccountTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
-                .account(addressIdConverter.convert(accountAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
+                .account(attempt.addressIdConverter().convert(accountAddress))
                 .serialNumbers(Arrays.stream(serialNumbers).boxed().toList())
                 .build();
     }

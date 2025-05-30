@@ -1373,7 +1373,7 @@ public class LeakyContractTestsSuite {
     final Stream<DynamicTest> callToNonExistingContractFailsGracefullyInV038() {
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("1.1.1"))),
+                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoCreate(TOKEN_TREASURY),

@@ -6,10 +6,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllDecoder;
@@ -29,6 +31,9 @@ public class SetApprovalForAllDecoderTest {
     @Mock
     private AddressIdConverter addressIdConverter;
 
+    @Mock
+    private HederaNativeOperations nativeOperations;
+
     private final SetApprovalForAllDecoder subject = new SetApprovalForAllDecoder();
 
     @BeforeEach
@@ -45,6 +50,8 @@ public class SetApprovalForAllDecoderTest {
                 .encodeCallWithArgs(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, APPROVED_HEADLONG_ADDRESS, true)
                 .array();
         given(attempt.inputBytes()).willReturn(encodedInput);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when
         final var transactionBody = subject.decodeSetApprovalForAll(attempt);
@@ -60,6 +67,8 @@ public class SetApprovalForAllDecoderTest {
                 .encodeCallWithArgs(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, APPROVED_HEADLONG_ADDRESS, false)
                 .array();
         given(attempt.inputBytes()).willReturn(encodedInput);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         // when
         final var transactionBody = subject.decodeSetApprovalForAll(attempt);
