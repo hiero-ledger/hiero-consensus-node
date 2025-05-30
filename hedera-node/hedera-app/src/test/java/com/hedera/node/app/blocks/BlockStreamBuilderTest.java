@@ -119,8 +119,8 @@ public class BlockStreamBuilderTest {
 
     @Test
     void testBlockItemsWithTraceAndOutput() {
-        final var usages = List.of(
-                new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
+        final var usages =
+                List.of(new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
                 .contractCallResult(contractCallResult)
