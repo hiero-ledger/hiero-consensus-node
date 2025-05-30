@@ -408,7 +408,7 @@ public final class StateUtils {
      */
     public static Bytes getVirtualMapKeyForSingleton(
             @NonNull final String serviceName, @NonNull final String stateKey) {
-        final int stateId = getStateIdForVm(serviceName, stateKey);
+        final int stateId = getValidatedStateId(serviceName, stateKey);
         Bytes key = VIRTUAL_MAP_KEY_CACHE[stateId];
         if (key == null) {
             key = VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(
@@ -437,10 +437,10 @@ public final class StateUtils {
             @NonNull final String serviceName, @NonNull final String stateKey, final long index) {
 
         return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(
-                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getStateIdForVm(serviceName, stateKey)), index)));
+                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), index)));
     }
 
-    private static int getStateIdForVm(String serviceName, String stateKey) {
+    private static int getValidatedStateId(String serviceName, String stateKey) {
         final int stateId = stateIdFor(serviceName, stateKey);
         if (stateId < 0 || stateId > 65535) {
             throw new IllegalArgumentException("State ID " + stateId + " must fit in [0..65535]");
@@ -469,7 +469,7 @@ public final class StateUtils {
     public static <K> Bytes getVirtualMapKeyForKv(
             @NonNull final String serviceName, @NonNull final String stateKey, final K key) {
         return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(
-                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getStateIdForVm(serviceName, stateKey)), key)));
+                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), key)));
     }
 
     /**
