@@ -4,7 +4,6 @@ package com.swirlds.state.lifecycle;
 import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -96,9 +95,7 @@ public final class StateMetadata<K, V> {
         // Normalize the string so things are deterministic (different JVMs might be using different
         // default internal representation for strings, and we need to normalize that)
         final var data = getNormalisedStringBytes(s);
-        long l = hashBytes(data);
-        logger.debug(LogMarker.STARTUP.getMarker(), "Hashed string {} to {}", s, l);
-        return l;
+        return hashBytes(data);
     }
 
     // Will be moved to `NonCryptographicHashing` with

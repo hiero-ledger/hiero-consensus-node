@@ -21,6 +21,7 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -73,6 +74,7 @@ class DependencyMigrationTest extends MerkleTestBase {
     @AfterEach
     void tearDown() {
         merkleTree.release();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Nested

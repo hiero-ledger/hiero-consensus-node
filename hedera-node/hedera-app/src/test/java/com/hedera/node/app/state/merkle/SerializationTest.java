@@ -2,6 +2,7 @@
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.merkle.MerkleStateRoot.CURRENT_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +20,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -43,11 +45,12 @@ import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -57,6 +60,7 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -86,7 +90,7 @@ class SerializationTest extends MerkleTestBase {
         this.config = new TestConfigBuilder()
                 .withSource(new SimpleConfigSource()
                         .withValue(VirtualMapConfig_.FLUSH_INTERVAL, 1 + "")
-                        .withValue(VirtualMapConfig_.COPY_FLUSH_THRESHOLD, 1 + ""))
+                        .withValue(VirtualMapConfig_.COPY_FLUSH_CANDIDATE_THRESHOLD, 1 + ""))
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(CryptoConfig.class)
@@ -150,13 +154,12 @@ class SerializationTest extends MerkleTestBase {
             try {
                 Field vmField = OnDiskReadableKVState.class.getDeclaredField("virtualMap");
                 vmField.setAccessible(true);
-                VirtualMap<?, ?> vm = (VirtualMap<?, ?>) vmField.get(state);
+                VirtualMap vm = (VirtualMap) vmField.get(state);
 
-                final VirtualRootNode<?, ?> root = vm.getRight();
-                if (!vm.isEmpty()) {
-                    root.enableFlush();
+                if (vm.size() > 1) {
+                    vm.enableFlush();
                     vm.release();
-                    root.waitUntilFlushed();
+                    vm.waitUntilFlushed();
                 }
             } catch (IllegalAccessException | NoSuchFieldException | InterruptedException e) {
                 throw new RuntimeException(e);
@@ -382,5 +385,17 @@ class SerializationTest extends MerkleTestBase {
         assertThat(steamState.iterator())
                 .toIterable()
                 .containsExactly(ART, BIOLOGY, CHEMISTRY, DISCIPLINE, ECOLOGY, FIELDS, GEOMETRY);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
+            fruitVirtualMap.release();
+        }
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 }

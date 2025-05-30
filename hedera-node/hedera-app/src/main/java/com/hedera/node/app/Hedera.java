@@ -56,7 +56,7 @@ import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -132,6 +132,7 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -343,10 +344,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private final BoundaryStateChangeListener boundaryStateChangeListener;
 
     /**
-     * A {@link StateChangeListener} that accumulates state changes that must be immediately reported as they occur,
+     * A {@link StateChangeListener} that accumulates k/v and queue state changes that must be immediately reported as they occur,
      * because the exact order of mutations---not just the final values---determines the Merkle root hash.
      */
-    private final KVStateChangeListener kvStateChangeListener = new KVStateChangeListener();
+    private final ImmediateStateChangeListener immediateStateChangeListener = new ImmediateStateChangeListener();
 
     /**
      * The state root supplier to use for creating a new state root.
@@ -593,7 +594,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .getConfigData(BlockStreamConfig.class)
                 .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> startGrpcServer();
+            case ACTIVE -> {
+                startGrpcServer();
+                if (initState != null) {
+                    ((MerkleStateRoot<?>) initState).disableStartupMode();
+                }
+            }
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
@@ -754,7 +760,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 platformStateFacade);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
-        kvStateChangeListener.reset();
+        immediateStateChangeListener.reset();
         boundaryStateChangeListener.reset();
         // If still using BlockRecordManager state, then for specifically a non-genesis upgrade,
         // set in state that post-upgrade work is pending
@@ -1059,8 +1065,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return streamMode != RECORDS;
     }
 
-    public KVStateChangeListener kvStateChangeListener() {
-        return kvStateChangeListener;
+    public ImmediateStateChangeListener kvStateChangeListener() {
+        return immediateStateChangeListener;
     }
 
     public BoundaryStateChangeListener boundaryStateChangeListener() {
@@ -1162,7 +1168,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .instantSource(appContext.instantSource())
                 .throttleFactory(appContext.throttleFactory())
                 .metrics(metrics)
-                .kvStateChangeListener(kvStateChangeListener)
+                .kvStateChangeListener(immediateStateChangeListener)
                 .boundaryStateChangeListener(boundaryStateChangeListener)
                 .migrationStateChanges(migrationStateChanges != null ? migrationStateChanges : new ArrayList<>())
                 .initialStateHash(initialStateHash)
@@ -1305,7 +1311,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
     private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
         root.registerCommitListener(boundaryStateChangeListener);
-        root.registerCommitListener(kvStateChangeListener);
+        root.registerCommitListener(immediateStateChangeListener);
         return root;
     }
 

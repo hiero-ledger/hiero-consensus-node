@@ -9,7 +9,7 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.components.IngestInjectionComponent;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
@@ -213,7 +213,7 @@ public interface HederaInjectionComponent {
         Builder boundaryStateChangeListener(BoundaryStateChangeListener boundaryStateChangeListener);
 
         @BindsInstance
-        Builder kvStateChangeListener(KVStateChangeListener kvStateChangeListener);
+        Builder kvStateChangeListener(ImmediateStateChangeListener immediateStateChangeListener);
 
         @BindsInstance
         Builder migrationStateChanges(List<StateChanges.Builder> migrationStateChanges);

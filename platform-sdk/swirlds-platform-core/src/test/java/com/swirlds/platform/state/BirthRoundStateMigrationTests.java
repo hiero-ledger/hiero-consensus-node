@@ -83,6 +83,7 @@ class BirthRoundStateMigrationTests {
         return new RandomSignedStateGenerator(random)
                 .setConsensusSnapshot(snapshot)
                 .setRound(round)
+                .setCalculateHash(true)
                 .build();
     }
 
