@@ -1,0 +1,14 @@
+ROUND:                               51
+HASH:                                48e1ebafb94dcb9304acadabbd3f2accaf6b4db149353541d0cdad576d34c956f449a69a147e5641dfe6286806bc5671
+HASH_MNEMONIC:                       bring-mechanic-stool-misery
+NUMBER_OF_CONSENSUS_EVENTS:          3326
+CONSENSUS_TIMESTAMP:                 2027-03-02T20:40:08.624001Z
+LEGACY_RUNNING_EVENT_HASH:           38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  bid-belt-culture-decorate
+MINIMUM_GENERATION_NON_ANCIENT:      417
+SOFTWARE_VERSION:                    SemanticVersion[major=1, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2025-05-29T19:06:57.537778Z
+NODE_ID:                             0
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4115

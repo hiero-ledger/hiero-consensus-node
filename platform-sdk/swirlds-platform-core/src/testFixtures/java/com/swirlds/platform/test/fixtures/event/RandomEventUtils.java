@@ -20,7 +20,6 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
@@ -92,9 +91,7 @@ public class RandomEventUtils {
                 birthRound,
                 timestamp,
                 convertedTransactions,
-                birthRound > ConsensusConstants.ROUND_FIRST
-                        ? AncientMode.BIRTH_ROUND_THRESHOLD
-                        : AncientMode.GENERATION_THRESHOLD);
+                AncientMode.BIRTH_ROUND_THRESHOLD);
 
         if (fakeHash) {
             unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));
