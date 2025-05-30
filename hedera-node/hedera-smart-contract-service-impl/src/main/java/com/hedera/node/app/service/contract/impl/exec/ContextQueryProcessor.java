@@ -5,28 +5,22 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EV
 
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
-import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.function.Supplier;
 import javax.inject.Inject;
 
 /**
- * A utility class for running
- * {@link TransactionProcessor#processTransaction(HederaEvmTransaction, HederaWorldUpdater, Supplier, HederaEvmContext, ActionSidecarContentTracer, Configuration)}
- * call implied by the in-scope {@link QueryContext}.
- * Analogous to {@link ContextTransactionProcessor} but for queries.
+ * A utility class for running the {@code processTransaction()} call implied by the in-scope
+ * {@link QueryContext}. Analogous to {@link ContextTransactionProcessor} but for queries.
  */
 @QueryScope
 public class ContextQueryProcessor implements Callable<CallOutcome> {
@@ -35,7 +29,6 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
     private final ActionSidecarContentTracer tracer;
     private final ProxyWorldUpdater worldUpdater;
     private final HevmStaticTransactionFactory hevmStaticTransactionFactory;
-    private final Supplier<HederaWorldUpdater> feesOnlyUpdater;
     private final Map<HederaEvmVersion, TransactionProcessor> processors;
 
     /**
@@ -44,7 +37,6 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
      * @param tracer the tracer to use
      * @param worldUpdater the world updater for the transaction
      * @param hevmStaticTransactionFactory the factory to create Hedera EVM transaction for static calls
-     * @param feesOnlyUpdater if base commit fails, a fees-only updater
      * @param processors a map from the version of the Hedera EVM to the transaction processor
      */
     @Inject
@@ -54,11 +46,9 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final ProxyWorldUpdater worldUpdater,
             @NonNull final HevmStaticTransactionFactory hevmStaticTransactionFactory,
-            @NonNull final Supplier<HederaWorldUpdater> feesOnlyUpdater,
             @NonNull final Map<HederaEvmVersion, TransactionProcessor> processors) {
         this.context = Objects.requireNonNull(context);
         this.tracer = Objects.requireNonNull(tracer);
-        this.feesOnlyUpdater = Objects.requireNonNull(feesOnlyUpdater);
         this.processors = Objects.requireNonNull(processors);
         this.worldUpdater = Objects.requireNonNull(worldUpdater);
         this.hederaEvmContext = Objects.requireNonNull(hederaEvmContext);
@@ -77,7 +67,7 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
 
             // Process the transaction
             final var result = processor.processTransaction(
-                    hevmTransaction, worldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, context.configuration());
+                    hevmTransaction, worldUpdater, hederaEvmContext, tracer, context.configuration());
 
             // Return the outcome (which cannot include sidecars to be externalized, since this is a query)
             return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(worldUpdater), result);

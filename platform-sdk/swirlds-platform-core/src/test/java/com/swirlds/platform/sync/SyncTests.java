@@ -4,10 +4,8 @@ package com.swirlds.platform.sync;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
-import static org.hiero.base.CompareTo.max;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,6 +46,7 @@ import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -677,20 +676,17 @@ public class SyncTests {
             caller.setSaveGeneratedEvents(true);
             listener.setSaveGeneratedEvents(true);
         });
-
         executor.setCustomPreSyncConfiguration((c, l) -> {
             c.getShadowGraph()
-                    .updateEventWindow(new EventWindow(
-                            0 /* ignored by shadowgraph */,
-                            callerMaximumIndicator,
-                            callerExpiredThreshold,
-                            GENERATION_THRESHOLD));
+                    .updateEventWindow(EventWindowBuilder.generationMode()
+                            .setAncientThreshold(callerMaximumIndicator)
+                            .setExpiredThreshold(callerExpiredThreshold)
+                            .build());
             l.getShadowGraph()
-                    .updateEventWindow(new EventWindow(
-                            0 /* ignored by shadowgraph */,
-                            listenerMaximumIndicator,
-                            listenerExpiredThreshold,
-                            GENERATION_THRESHOLD));
+                    .updateEventWindow(EventWindowBuilder.generationMode()
+                            .setAncientThreshold(listenerMaximumIndicator)
+                            .setExpiredThreshold(listenerExpiredThreshold)
+                            .build());
         });
 
         executor.execute();
@@ -730,18 +726,18 @@ public class SyncTests {
             long callerMinIndicator = listenerNonAncientThreshold - 1;
 
             listener.getShadowGraph()
-                    .updateEventWindow(new EventWindow(
-                            ROUND_FIRST /* ignored */,
-                            Math.max(ancientMode.getGenesisIndicator(), listenerNonAncientThreshold),
-                            Math.max(ancientMode.getGenesisIndicator(), listenerMinIndicator),
-                            ancientMode));
+                    .updateEventWindow(EventWindowBuilder.builder()
+                            .setAncientMode(ancientMode)
+                            .setAncientThresholdOrGenesis(listenerNonAncientThreshold)
+                            .setExpiredThresholdOrGenesis(listenerMinIndicator)
+                            .build());
 
             caller.getShadowGraph()
-                    .updateEventWindow(new EventWindow(
-                            ROUND_FIRST /* ignored */,
-                            Math.max(ancientMode.getGenesisIndicator(), callerNonAncientThreshold),
-                            Math.max(ancientMode.getGenesisIndicator(), callerMinIndicator),
-                            ancientMode));
+                    .updateEventWindow(EventWindowBuilder.builder()
+                            .setAncientMode(ancientMode)
+                            .setAncientThresholdOrGenesis(callerNonAncientThreshold)
+                            .setExpiredThresholdOrGenesis(callerMinIndicator)
+                            .build());
         });
 
         executor.execute();
@@ -770,11 +766,10 @@ public class SyncTests {
                             executor.getCaller().getShadowGraph().getTips();
 
                     // Expire the events from the shadow graph
-                    final EventWindow eventWindow = new EventWindow(
-                            0 /* ignored by shadowgraph */,
-                            ancientMode.getGenesisIndicator(),
-                            indicatorToExpire.get() + 1,
-                            ancientMode);
+                    final EventWindow eventWindow = EventWindowBuilder.builder()
+                            .setAncientMode(ancientMode)
+                            .setExpiredThreshold(indicatorToExpire.get() + 1)
+                            .build();
                     executor.getCaller().getShadowGraph().updateEventWindow(eventWindow);
                 },
                 false));
@@ -835,28 +830,28 @@ public class SyncTests {
         // before the sync, expire the tip on the listener
         executor.setCustomPreSyncConfiguration((c, l) -> {
             l.getShadowGraph()
-                    .updateEventWindow(new EventWindow(
-                            0 /* ignored by shadowgraph */,
-                            maximumIndicator.get() + 2,
-                            maximumIndicator.get() + 1,
-                            params.getAncientMode()));
+                    .updateEventWindow(EventWindowBuilder.builder()
+                            .setAncientMode(params.getAncientMode())
+                            .setAncientThreshold(maximumIndicator.get() + 2)
+                            .setExpiredThreshold(maximumIndicator.get() + 1)
+                            .build());
 
-            c.updateEventWindow(new EventWindow(
-                    0 /* ignored by shadowgraph */,
-                    maximumIndicator.get() + 2,
-                    max(params.getAncientMode().getGenesisIndicator(), maximumIndicator.get() - 1),
-                    params.getAncientMode()));
+            c.updateEventWindow(EventWindowBuilder.builder()
+                    .setAncientMode(params.getAncientMode())
+                    .setAncientThreshold(maximumIndicator.get() + 2)
+                    .setExpiredThresholdOrGenesis(maximumIndicator.get() - 1)
+                    .build());
         });
 
         // after phase 1, expire the tip on the caller
         final SyncPhaseParallelExecutor parallelExecutor = new SyncPhaseParallelExecutor(
                 getStaticThreadManager(),
                 () -> executor.getCaller()
-                        .updateEventWindow(new EventWindow(
-                                0 /* ignored by shadowgraph */,
-                                maximumIndicator.get() + 2,
-                                maximumIndicator.get() + 1,
-                                params.getAncientMode())),
+                        .updateEventWindow(EventWindowBuilder.builder()
+                                .setAncientMode(params.getAncientMode())
+                                .setAncientThreshold(maximumIndicator.get() + 2)
+                                .setExpiredThreshold(maximumIndicator.get() + 1)
+                                .build()),
                 null,
                 true);
         executor.setExecutorSupplier(() -> parallelExecutor);
@@ -967,11 +962,10 @@ public class SyncTests {
         executor.setCustomPreSyncConfiguration((c, l) ->
                 indicatorToExpire.set(l.getEmitter().getGraphGenerator().getMaxGeneration(creatorId) / 2));
 
-        final EventWindow eventWindow = new EventWindow(
-                0 /* ignored by shadowgraph */,
-                params.getAncientMode().getGenesisIndicator(),
-                Math.max(params.getAncientMode().getGenesisIndicator(), indicatorToExpire.get()),
-                params.getAncientMode());
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(params.getAncientMode())
+                .setExpiredThresholdOrGenesis(indicatorToExpire.get())
+                .build();
 
         // Expire events from the listener's graph after the supplied phase
         final Runnable expireEvents =
@@ -1110,18 +1104,18 @@ public class SyncTests {
                     ancientMode);
 
             listener.getShadowGraph()
-                    .updateEventWindow(new EventWindow(
-                            ROUND_FIRST /* ignored */,
-                            callerMaximumIndicator / 2,
-                            callerAncientIndicator,
-                            ancientMode));
+                    .updateEventWindow(EventWindowBuilder.builder()
+                            .setAncientMode(params.getAncientMode())
+                            .setAncientThreshold(callerMaximumIndicator / 2)
+                            .setExpiredThreshold(callerAncientIndicator)
+                            .build());
 
             listener.getShadowGraph()
-                    .updateEventWindow(new EventWindow(
-                            ROUND_FIRST /* ignored */,
-                            callerMaximumIndicator / 2,
-                            callerAncientIndicator,
-                            ancientMode));
+                    .updateEventWindow(EventWindowBuilder.builder()
+                            .setAncientMode(params.getAncientMode())
+                            .setAncientThreshold(callerMaximumIndicator / 2)
+                            .setExpiredThreshold(callerAncientIndicator)
+                            .build());
         });
         executor.execute();
         SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener(), ancientMode);

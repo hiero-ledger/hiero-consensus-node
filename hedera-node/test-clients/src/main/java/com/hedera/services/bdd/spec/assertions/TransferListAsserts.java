@@ -92,11 +92,10 @@ class ExactParticipantsAssert extends TransferListAsserts {
 
 class ExplicitTransferAsserts extends TransferListAsserts {
     public ExplicitTransferAsserts(List<Function<HapiSpec, TransferList>> providers) {
-        providers.stream()
-                .forEach(provider -> registerProvider((spec, o) -> {
-                    TransferList expected = provider.apply(spec);
-                    assertInclusion(expected, (TransferList) o);
-                }));
+        providers.forEach(provider -> registerProvider((spec, o) -> {
+            TransferList expected = provider.apply(spec);
+            assertInclusion(expected, (TransferList) o);
+        }));
     }
 }
 

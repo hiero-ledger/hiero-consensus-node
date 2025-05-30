@@ -21,6 +21,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -104,11 +105,11 @@ class InOrderLinkerTests {
             };
         }
 
-        final EventWindow eventWindow = new EventWindow(
-                ROUND_FIRST /* ignored in this context */,
-                ancientValue + 1, /* one more than the ancient value, so that the events are ancient */
-                ROUND_FIRST /* ignored in this context */,
-                ancientMode);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                /* one more than the ancient value, so that the events are ancient */
+                .setAncientThreshold(ancientValue + 1)
+                .build();
 
         for (final PlatformEvent ancientEvent : ancientEvents) {
             assertTrue(eventWindow.isAncient(ancientEvent));
@@ -249,11 +250,10 @@ class InOrderLinkerTests {
                 useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
         inOrderLinkerSetup(ancientMode);
 
-        inOrderLinker.setEventWindow(new EventWindow(
-                ROUND_FIRST /* not consequential for this test */,
-                3,
-                ROUND_FIRST /* ignored in this context */,
-                ancientMode));
+        inOrderLinker.setEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(ancientMode)
+                .setAncientThreshold(3)
+                .build());
 
         final PlatformEvent child1 = new TestingEventBuilder(random)
                 .setCreatorId(selfId)

@@ -28,6 +28,7 @@ public class ThrottleMetrics {
 
     private static final String GAS_THROTTLE_ID = "<GAS>";
     private static final String BYTES_THROTTLE_ID = "<GAS>";
+    private static final String OPS_DURATION_ID = "<OPS_DURATION>";
 
     private final Metrics metrics;
     private final String nameTemplate;
@@ -35,6 +36,7 @@ public class ThrottleMetrics {
     private final Function<StatsConfig, List<String>> throttlesToSampleSupplier;
     private List<MetricPair> liveMetricPairs = List.of();
     private MetricPair gasThrottleMetricPair;
+    private MetricPair opsDurationThrottleMetricPair;
 
     /**
      * Constructs a {@link ThrottleMetrics} instance.
@@ -104,6 +106,15 @@ public class ThrottleMetrics {
                 throttlesToSample.contains(BYTES_THROTTLE_ID) ? setupLiveMetricPair(bytesThrottle) : null;
     }
 
+    public void setupOpsDurationMetric(
+            @NonNull final LeakyBucketDeterministicThrottle opsDurationThrottle,
+            @NonNull final Configuration configuration) {
+        final var statsConfig = configuration.getConfigData(StatsConfig.class);
+        final var throttlesToSample = throttlesToSampleSupplier.apply(statsConfig);
+        opsDurationThrottleMetricPair =
+                throttlesToSample.contains(OPS_DURATION_ID) ? setupLiveMetricPair(opsDurationThrottle) : null;
+    }
+
     /**
      * Updates all metrics for the given throttles.
      */
@@ -113,6 +124,11 @@ public class ThrottleMetrics {
         }
         if (gasThrottleMetricPair != null) {
             gasThrottleMetricPair.gauge().set(gasThrottleMetricPair.throttle().instantaneousPercentUsed());
+        }
+        if (opsDurationThrottleMetricPair != null) {
+            opsDurationThrottleMetricPair
+                    .gauge()
+                    .set(opsDurationThrottleMetricPair.throttle().instantaneousPercentUsed());
         }
     }
 

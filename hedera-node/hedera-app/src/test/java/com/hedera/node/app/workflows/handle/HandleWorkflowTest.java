@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.blocks.impl.streaming.BlockBufferService.backPressureCompletableFutureRef;
+import static com.hedera.node.app.blocks.impl.streaming.BlockBufferService.ensureNewBlocksPermitted;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
@@ -29,7 +31,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
-import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
@@ -505,12 +507,12 @@ class HandleWorkflowTest {
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
 
         // Use a static mock to verify the static method call
-        try (MockedStatic<BlockStreamStateManager> mockedStatic = mockStatic(BlockStreamStateManager.class)) {
+        try (MockedStatic<BlockBufferService> mockedStatic = mockStatic(BlockBufferService.class)) {
             // Execute the method
             subject.handleRound(state, round, txn -> {});
 
             // Verify that ensureNewBlocksPermitted was called
-            mockedStatic.verify(() -> BlockStreamStateManager.ensureNewBlocksPermitted());
+            mockedStatic.verify(() -> ensureNewBlocksPermitted());
         }
     }
 
@@ -533,12 +535,12 @@ class HandleWorkflowTest {
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
 
         // Use a static mock to verify the static method call
-        try (MockedStatic<BlockStreamStateManager> mockedStatic = mockStatic(BlockStreamStateManager.class)) {
+        try (MockedStatic<BlockBufferService> mockedStatic = mockStatic(BlockBufferService.class)) {
             // Execute the method
             subject.handleRound(state, round, txn -> {});
 
-            // Verify that ensureNewBlocksPermitted was NOT called
-            mockedStatic.verify(() -> BlockStreamStateManager.ensureNewBlocksPermitted(), never());
+            // Verify that ensureNewBlocksPermitted was a NO-OP call
+            mockedStatic.verify(() -> backPressureCompletableFutureRef(), never());
         }
     }
 }

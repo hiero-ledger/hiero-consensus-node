@@ -9,6 +9,7 @@ public class BlockStreamUtils {
 
     public static String stateNameOf(final int stateId, final long shard, final long realm) {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
+            case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
@@ -31,7 +32,6 @@ public class BlockStreamUtils {
             case STATE_ID_UPGRADE_DATA_157 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 157);
             case STATE_ID_UPGRADE_DATA_158 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 158);
             case STATE_ID_UPGRADE_DATA_159 -> String.format(UPGRADE_DATA_FILE_NUM_FORMAT, shard, realm, 159);
-            case STATE_ID_UPGRADE_FILE -> "FileService.UPGRADE_FILE";
             case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
             case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
             case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";

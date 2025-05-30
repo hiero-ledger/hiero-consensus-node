@@ -24,9 +24,11 @@ import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -295,6 +297,33 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     }
 
     @Test
+    void delegatesFeeChargingForPayer() {
+        given(feeAccumulator.chargeFee(payerId, 123L, null)).willReturn(new Fees(0, 123L, 0));
+
+        assertTrue(subject.tryToChargePayer(123L));
+    }
+
+    @Test
+    void failsFastOnNegativeAmounts() {
+        assertThrows(IllegalArgumentException.class, () -> subject.tryToChargePayer(-123L));
+        assertThrows(IllegalArgumentException.class, () -> subject.refundBestEffort(payerId, -123L));
+    }
+
+    @Test
+    void delegatesFeeChargingForOtherAccount() {
+        given(feeAccumulator.chargeFee(AccountID.DEFAULT, 123L, null)).willReturn(new Fees(0, 122L, 0));
+
+        assertFalse(subject.tryToCharge(AccountID.DEFAULT, 123L));
+    }
+
+    @Test
+    void delegatesRefunding() {
+        subject.refundBestEffort(payerId, 123L);
+
+        verify(feeAccumulator).refundFee(payerId, 123L);
+    }
+
+    @Test
     void numTxnSignaturesConsultsVerifier() {
         given(verifier.numSignaturesVerified()).willReturn(2);
         assertThat(subject.numTxnSignatures()).isEqualTo(2);
@@ -389,7 +418,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             feeAccumulator,
             EMPTY_METADATA,
             transactionChecker,
-            List.of(result)
+            List.of(result),
+            USER
         };
 
         final var constructor = DispatchHandleContext.class.getConstructors()[0];
@@ -791,7 +821,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
-                results);
+                results,
+                category);
     }
 
     private void mockNeeded() {

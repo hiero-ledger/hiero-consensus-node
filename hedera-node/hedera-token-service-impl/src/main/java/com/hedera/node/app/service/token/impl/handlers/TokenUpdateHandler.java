@@ -52,7 +52,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -129,7 +128,6 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
         final var tokenRelStore = storeFactory.writableStore(WritableTokenRelationStore.class);
         final var tokenStore = storeFactory.writableStore(WritableTokenStore.class);
         final var config = context.configuration();
-        final var tokensConfig = config.getConfigData(TokensConfig.class);
 
         // If the operation has treasury change, then we need to check if the new treasury is valid
         // and if the treasury is not already associated with the token, see if it has auto associations

@@ -19,7 +19,7 @@ public class ControlActionTest {
     public static void setUp() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
-        registry.registerConstructables("org.hiero.consensus");
+        registry.registerConstructables("org.hiero");
     }
 
     @Test

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -154,7 +153,7 @@ public class CryptoGetInfoRegression {
     final Stream<DynamicTest> succeedsNormally() {
         long balance = 1_234_567L;
         KeyShape misc = listOf(SIMPLE, listOf(2));
-        final var stakedAccountId = asEntityString(20);
+        final var stakedAccountId = 20;
 
         return hapiTest(
                 newKeyNamed("misc").shape(misc),
@@ -163,7 +162,7 @@ public class CryptoGetInfoRegression {
                 cryptoCreate("targetWithStakedAccountId")
                         .key("misc")
                         .balance(balance)
-                        .stakedAccountId(stakedAccountId),
+                        .stakedAccountId("20"),
                 getAccountInfo("noStakingTarget")
                         .has(accountWith()
                                 .accountId("noStakingTarget")
@@ -183,7 +182,7 @@ public class CryptoGetInfoRegression {
                 getAccountInfo("targetWithStakedAccountId")
                         .has(accountWith()
                                 .accountId("targetWithStakedAccountId")
-                                .stakedAccountIdWithLiteral(stakedAccountId)
+                                .stakedAccountId(stakedAccountId)
                                 .key("misc")
                                 .balance(balance))
                         .logged());

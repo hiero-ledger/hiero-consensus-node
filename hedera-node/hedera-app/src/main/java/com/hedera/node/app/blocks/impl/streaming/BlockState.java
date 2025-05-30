@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import com.hedera.hapi.block.BlockItemSet;
-import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -11,6 +10,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockItemSet;
+import org.hiero.block.api.PublishStreamRequest;
 
 /**
  * Represents the state of a block being streamed to block nodes. This class maintains the block items,
@@ -72,7 +73,11 @@ public class BlockState {
      * @param index the index of the request to retrieve
      * @return the request at the given index
      */
-    public PublishStreamRequest getRequest(int index) {
+    public @Nullable PublishStreamRequest getRequest(final int index) {
+        if (index < 0 || requests.isEmpty()) {
+            return null;
+        }
+
         return requests.get(index);
     }
 
@@ -117,17 +122,23 @@ public class BlockState {
      * @param batchSize the size of the batch to create
      * @param forceCreation if true, create a request even if the batch size is not met
      */
-    public void createRequestFromCurrentItems(int batchSize, boolean forceCreation) {
-        batchSize = Math.max(1, batchSize); // if batchSize is less than 1, set the size to 1
-        final List<BlockItem> blockItems = new ArrayList<>(batchSize);
+    public void createRequestFromCurrentItems(final int batchSize, final boolean forceCreation) {
+        final int maxItems = Math.max(1, batchSize); // if batchSize is less than 1, set the size to 1
+        final List<BlockItem> blockItems = new ArrayList<>(maxItems);
 
-        if (items.size() >= batchSize || (forceCreation && !items.isEmpty())) {
+        if (items.isEmpty()) {
+            return;
+        }
+
+        if (items.size() >= maxItems || forceCreation) {
             final Iterator<BlockItem> it = items.iterator();
-            while (it.hasNext() && blockItems.size() != batchSize) {
+            while (it.hasNext() && blockItems.size() != maxItems) {
                 blockItems.add(it.next());
                 it.remove();
             }
-        } else {
+        }
+
+        if (blockItems.isEmpty()) {
             return;
         }
 
@@ -139,11 +150,21 @@ public class BlockState {
         final PublishStreamRequest request =
                 PublishStreamRequest.newBuilder().blockItems(itemSet).build();
 
-        logger.debug(
-                "[{}] Added request to block {} - request count now: {}",
-                Thread.currentThread().getName(),
-                blockNumber,
-                requests.size());
+        logger.debug("Added request to block {} - request count now: {}", blockNumber, requests.size());
         requests.add(request);
+
+        if (!items.isEmpty()) {
+            createRequestFromCurrentItems(batchSize, forceCreation);
+        }
+    }
+
+    @Override
+    public String toString() {
+        return "BlockState{" + "blockNumber="
+                + blockNumber + ", items="
+                + items + ", requests="
+                + requests + ", requestsCreated="
+                + requestsCreated + ", closedTimestamp="
+                + closedTimestamp + '}';
     }
 }

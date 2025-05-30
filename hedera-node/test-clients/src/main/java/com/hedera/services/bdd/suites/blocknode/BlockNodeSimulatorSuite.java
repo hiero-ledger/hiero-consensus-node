@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
-import com.hedera.hapi.block.protoc.PublishStreamResponseCode;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
 import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
@@ -27,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream.Code;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -140,15 +140,13 @@ public class BlockNodeSimulatorSuite {
             })
     @Order(4)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsCanStreamGenesisBlock() {
-        AtomicReference<Instant> time = new AtomicReference<>();
-        List<Integer> portNumbers = new ArrayList<>();
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
                 doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(PublishStreamResponseCode.STREAM_ITEMS_BEHIND)
-                        .withBlockNumber(Long.MAX_VALUE),
+                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -178,8 +176,8 @@ public class BlockNodeSimulatorSuite {
             })
     @Order(5)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
-        AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
-        List<Integer> portNumbers = new ArrayList<>();
+        final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
                 doingContextual(spec -> {
                     portNumbers.add(spec.getBlockNodePortById(0));

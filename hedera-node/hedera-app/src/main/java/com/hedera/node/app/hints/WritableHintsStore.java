@@ -54,7 +54,10 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @return the updated construction
      */
     HintsConstruction setHintsScheme(
-            long constructionId, @NonNull PreprocessedKeys keys, @NonNull Map<Long, Integer> nodePartyIds);
+            long constructionId,
+            @NonNull PreprocessedKeys keys,
+            @NonNull Map<Long, Integer> nodePartyIds,
+            @NonNull Map<Long, Long> nodeWeights);
 
     /**
      * Sets the preprocessing start time for the construction with the given ID and returns the updated construction.
@@ -68,17 +71,14 @@ public interface WritableHintsStore extends ReadableHintsStore {
     /**
      * Updates state for a handoff to the given roster hash.
      *
-     * @param previousRoster the previous roster
-     * @param adoptedRoster the adopted roster
-     * @param adoptedRosterHash the adopted roster hash
+     * @param fromRoster the previous roster
+     * @param toRoster the adopted roster
+     * @param toRosterHash the adopted roster hash
      * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      * @return whether the handoff changed the hinTS scheme
      */
-    boolean updateAtHandoff(
-            @NonNull Roster previousRoster,
-            @NonNull Roster adoptedRoster,
-            @NonNull Bytes adoptedRosterHash,
-            boolean forceHandoff);
+    boolean handoff(
+            @NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash, boolean forceHandoff);
 
     /**
      * Sets the {@link CRSState} for the network.

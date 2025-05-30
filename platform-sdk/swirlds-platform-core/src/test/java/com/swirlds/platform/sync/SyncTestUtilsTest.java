@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.Test;
 
 class SyncTestUtilsTest {
@@ -45,7 +46,8 @@ class SyncTestUtilsTest {
         knownSet.add(e3);
         knownSet.add(e1);
 
-        final EventWindow eventWindow = new EventWindow(0, 1, 0, GENERATION_THRESHOLD);
+        final EventWindow eventWindow =
+                EventWindowBuilder.generationMode().setAncientThreshold(1).build();
 
         final Predicate<ShadowEvent> unknownNonAncient =
                 SyncUtils.unknownNonAncient(knownSet, eventWindow, eventWindow, GENERATION_THRESHOLD);

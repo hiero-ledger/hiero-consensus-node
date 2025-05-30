@@ -65,6 +65,7 @@ import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
+import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
@@ -1355,6 +1356,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (tssConfig.historyEnabled()) {
+            final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
+            final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
+            final var store = new WritableHistoryStoreImpl(writableHistoryStates);
+            store.handoff(previousRoster, adoptedRoster, adoptedRosterHash);
+            ((CommittableWritableStates) writableHistoryStates).commit();
+        }
         if (tssConfig.hintsEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
@@ -1370,24 +1378,29 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     /**
      * Initializes block node connections and waits for at least one connection to be established.
      * This should be called before platform.start() to ensure we don't miss any blocks.
-     *
-     * @param timeout maximum time to wait for a connection
      */
-    public void initializeBlockNodeConnections(java.time.Duration timeout) {
-        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+    public void initializeBlockNodeConnections() {
+        final BlockStreamConfig blockStreamConfig =
+                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+
         if (!blockStreamConfig.streamToBlockNodes()) {
             logger.info("Block stream to Block Nodes is disabled, skipping block node connection initialization");
             return;
         }
 
-        logger.info("Initializing block node connections with timeout {}", timeout);
-        boolean connected = daggerApp.blockNodeConnectionManager().waitForConnection(timeout);
-        final var blockNodeConnectionConfig =
+        final BlockNodeConnectionConfig blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-        if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes() && !connected) {
-            logger.fatal("No block node connections established within timeout, shutting down");
-            this.shutdown();
-            System.exit(1);
+
+        try {
+            daggerApp.blockNodeConnectionManager().start();
+        } catch (final RuntimeException e) {
+            if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()) {
+                logger.fatal("No block nodes available to connect to; shutting down");
+                shutdown();
+                System.exit(1);
+            } else {
+                logger.warn("No block nodes available to connect to");
+            }
         }
     }
 }

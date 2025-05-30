@@ -43,4 +43,7 @@ public interface PcesFileWriter {
      * @return the size of the file in bytes
      */
     long fileSize();
+
+    /** Keeps stats of the writing process */
+    PcesFileWriterStats getStats();
 }

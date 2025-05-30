@@ -56,6 +56,9 @@ class HintsControllersTest {
     @Mock
     private HintsContext context;
 
+    @Mock
+    private OnHintsFinished onHintsFinished;
+
     private HintsControllers subject;
 
     @BeforeEach
@@ -67,7 +70,8 @@ class HintsControllersTest {
                 submissions,
                 context,
                 selfNodeInfoSupplier,
-                HederaTestConfigBuilder::createConfig);
+                HederaTestConfigBuilder::createConfig,
+                onHintsFinished);
     }
 
     @Test

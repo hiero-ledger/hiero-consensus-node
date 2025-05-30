@@ -6,6 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
@@ -44,6 +45,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -58,7 +60,14 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodePcesResult;
+import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
@@ -89,10 +98,10 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
-    private final PlatformStatusChangeListener platformStatusChangeListener =
-            data -> TurtleNode.this.platformStatus = data.getNewStatus();
+    private final PlatformStatusChangeListener platformStatusChangeListener;
 
     private DeterministicWiringModel model;
+    private PlatformContext platformContext;
     private Platform platform;
     private PlatformWiring platformWiring;
     private LifeCycle lifeCycle = LifeCycle.INIT;
@@ -118,6 +127,11 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             this.network = requireNonNull(network);
             this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
+            this.platformStatusChangeListener = data -> {
+                final PlatformStatus newStatus = data.getNewStatus();
+                TurtleNode.this.platformStatus = newStatus;
+                resultsCollector.addPlatformStatus(newStatus);
+            };
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -181,6 +195,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
+            checkLifeCycle(LifeCycle.INIT, "Node has not been started previously.");
             checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
@@ -220,10 +235,41 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         return nodeConfiguration;
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public SingleNodeConsensusResult getConsensusResult() {
         return resultsCollector.getConsensusResult();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public SingleNodeLogResult getLogResult() {
+        final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId.id());
+        return new SingleNodeLogResultImpl(selfId, logs);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeStatusProgression getStatusProgression() {
+        return resultsCollector.getStatusProgression();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodePcesResult getPcesResult() {
+        return new SingleNodePcesResultImpl(selfId, platformContext);
     }
 
     /**
@@ -311,14 +357,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
         setupGlobalMetrics(currentConfiguration);
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(currentConfiguration)
-                .build();
-
-        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
-                .withDeterministicModeEnabled(true)
-                .build();
         final SemanticVersion version =
                 currentConfiguration.getValue(TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class);
         assert version != null; // avoids a warning, not really needed as there is always a default
@@ -329,6 +367,19 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
+
+        platformContext = TestPlatformContextBuilder.create()
+                .withTime(time)
+                .withConfiguration(currentConfiguration)
+                .withFileSystemManager(fileSystemManager)
+                .withMetrics(metrics)
+                .withRecycleBin(recycleBin)
+                .build();
+
+        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
+                .withDeterministicModeEnabled(true)
+                .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                .build();
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,

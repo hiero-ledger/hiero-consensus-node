@@ -16,7 +16,6 @@ import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
@@ -29,16 +28,14 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
- * A small utility that runs the
- * {@link TransactionProcessor#processTransaction(HederaEvmTransaction, HederaWorldUpdater, Supplier, HederaEvmContext, ActionSidecarContentTracer, Configuration)}
- * call implied by the in-scope {@link HandleContext}.
+ * A small utility that runs the * {@code #processTransaction()} call implied by the
+ * in-scope {@link HandleContext}.
  */
 @TransactionScope
 public class ContextTransactionProcessor implements Callable<CallOutcome> {
@@ -57,7 +54,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final EvmActionTracer evmActionTracer;
     private final RootProxyWorldUpdater rootProxyWorldUpdater;
     private final HevmTransactionFactory hevmTransactionFactory;
-    private final Supplier<HederaWorldUpdater> feesOnlyUpdater;
     private final CustomGasCharging gasCharging;
 
     /**
@@ -70,7 +66,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
      * @param evmActionTracer the EVM action tracer
      * @param worldUpdater the world updater for the transaction
      * @param hevmTransactionFactory the factory for EVM transaction
-     * @param feesOnlyUpdater if base commit fails, a fees-only updater
      * @param processor a map from the version of the Hedera EVM to the transaction processor
      * @param customGasCharging the Hedera gas charging logic
      */
@@ -85,21 +80,19 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final EvmActionTracer evmActionTracer,
             @NonNull final RootProxyWorldUpdater worldUpdater,
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
-            @NonNull final Supplier<HederaWorldUpdater> feesOnlyUpdater,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging) {
-        this.context = Objects.requireNonNull(context);
+        this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
-        this.evmActionTracer = Objects.requireNonNull(evmActionTracer);
-        this.feesOnlyUpdater = Objects.requireNonNull(feesOnlyUpdater);
-        this.processor = Objects.requireNonNull(processor);
-        this.rootProxyWorldUpdater = Objects.requireNonNull(worldUpdater);
-        this.configuration = Objects.requireNonNull(configuration);
-        this.contractsConfig = Objects.requireNonNull(contractsConfig);
-        this.hederaEvmContext = Objects.requireNonNull(hederaEvmContext);
-        this.hevmTransactionFactory = Objects.requireNonNull(hevmTransactionFactory);
-        this.gasCharging = Objects.requireNonNull(customGasCharging);
+        this.evmActionTracer = requireNonNull(evmActionTracer);
+        this.processor = requireNonNull(processor);
+        this.rootProxyWorldUpdater = requireNonNull(worldUpdater);
+        this.configuration = requireNonNull(configuration);
+        this.contractsConfig = requireNonNull(contractsConfig);
+        this.hederaEvmContext = requireNonNull(hederaEvmContext);
+        this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
+        this.gasCharging = requireNonNull(customGasCharging);
     }
 
     @Override
@@ -125,7 +118,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     ? new AddOnEvmActionTracer(evmActionTracer, addOnTracers.get())
                     : evmActionTracer;
             var result = processor.processTransaction(
-                    hevmTransaction, rootProxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, configuration);
+                    hevmTransaction, rootProxyWorldUpdater, hederaEvmContext, tracer, configuration);
 
             if (hydratedEthTxData != null) {
                 final var sender = requireNonNull(rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()));

@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -116,10 +117,12 @@ class DataFileCollectionCompactionTest {
                 return false;
             }
 
-            public <T extends Throwable> void forEach(final LongAction<T> action) throws InterruptedException, T {
+            public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
+                    throws InterruptedException, T {
                 for (final Map.Entry<Long, Long> e : index.entrySet()) {
                     action.handle(e.getKey(), e.getValue());
                 }
+                return true;
             }
         };
         final var compactor =
@@ -208,11 +211,12 @@ class DataFileCollectionCompactionTest {
                             return true;
                         }
 
-                        public <T extends Throwable> void forEach(final LongAction<T> action)
+                        public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
                                 throws InterruptedException, T {
                             for (int i = 0; i < MAXKEYS; i++) {
                                 action.handle(i, index[i]);
                             }
+                            return true;
                         }
                     };
 
@@ -265,10 +269,12 @@ class DataFileCollectionCompactionTest {
                     return true;
                 }
 
-                public <T extends Throwable> void forEach(final LongAction<T> action) throws InterruptedException, T {
+                public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
+                        throws InterruptedException, T {
                     for (int i = 0; i < MAXKEYS; i++) {
                         action.handle(i, index[i]);
                     }
+                    return true;
                 }
             };
 
@@ -323,11 +329,12 @@ class DataFileCollectionCompactionTest {
                         return index.compareAndSet((int) key, oldValue, newValue);
                     }
 
-                    public <T extends Throwable> void forEach(final LongAction<T> action)
+                    public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
                             throws InterruptedException, T {
                         for (int i = 0; i < index.length(); i++) {
                             action.handle(i, index.get(i));
                         }
+                        return true;
                     }
                 };
 
@@ -396,11 +403,12 @@ class DataFileCollectionCompactionTest {
                         return index.compareAndSet((int) key, oldValue, newValue);
                     }
 
-                    public <T extends Throwable> void forEach(final LongAction<T> action)
+                    public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
                             throws InterruptedException, T {
                         for (int i = 0; i < index.length(); i++) {
                             action.handle(i, index.get(i));
                         }
+                        return true;
                     }
                 };
 
@@ -615,8 +623,9 @@ class DataFileCollectionCompactionTest {
                 return true;
             }
 
-            public <T extends Throwable> void forEach(final LongAction<T> action) throws InterruptedException, T {
-                index.forEach(action);
+            public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
+                    throws InterruptedException, T {
+                return index.forEach(action, cond);
             }
         };
 
@@ -647,8 +656,9 @@ class DataFileCollectionCompactionTest {
                 return true;
             }
 
-            public <T extends Throwable> void forEach(final LongAction<T> action) throws InterruptedException, T {
-                index2.forEach(action);
+            public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
+                    throws InterruptedException, T {
+                return index2.forEach(action, cond);
             }
         };
 

@@ -27,10 +27,9 @@ import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -236,14 +235,13 @@ class EventSignatureValidatorTests {
         assertNotEquals(null, validator.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
 
-        validatorWithTrueVerifier.setEventWindow(new EventWindow(
-                ConsensusConstants.ROUND_FIRST,
-                100L,
-                ConsensusConstants.ROUND_FIRST /* ignored in this context */,
-                platformContext
+        validatorWithTrueVerifier.setEventWindow(EventWindowBuilder.builder()
+                .setAncientMode(platformContext
                         .getConfiguration()
                         .getConfigData(EventConfig.class)
-                        .getAncientMode()));
+                        .getAncientMode())
+                .setAncientThreshold(100)
+                .build());
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
@@ -153,19 +154,26 @@ class CompactionInterruptTest {
         long initCount = compactingExecutor.getCompletedTaskCount();
 
         // getting access to the guts of the compactor to check the state of the futures
-        final Future<Boolean> hashStoreDiskFuture = compactor.futuresByName.get("hashStoreDisk");
-        final Future<Boolean> pathToKeyValueFuture = compactor.futuresByName.get("pathToKeyValue");
-        final Future<Boolean> objectKeyToPathFuture = compactor.futuresByName.get("keyToPath");
+        final DataFileCompactor hashStoreDiskFuture;
+        final DataFileCompactor pathToKeyValueFuture;
+        final DataFileCompactor objectKeyToPathFuture;
+        synchronized (compactor) {
+            hashStoreDiskFuture = compactor.compactorsByName.get("hashStoreDisk");
+            pathToKeyValueFuture = compactor.compactorsByName.get("pathToKeyValue");
+            objectKeyToPathFuture = compactor.compactorsByName.get("keyToPath");
+        }
 
         // stopping the compaction
         compactor.stopAndDisableBackgroundCompaction();
 
         assertFalse(compactor.isCompactionEnabled(), "compactionEnabled should be false");
 
-        assertFutureCancelled(hashStoreDiskFuture, "hashStoreDiskFuture should have been cancelled");
-        assertFutureCancelled(pathToKeyValueFuture, "pathToKeyValueFuture should have been cancelled");
-        assertFutureCancelled(objectKeyToPathFuture, "objectKeyToPathFuture should have been cancelled");
-        assertTrue(compactor.futuresByName.isEmpty(), "compactionFuturesByName should be empty");
+        assertFalse(hashStoreDiskFuture.notInterrupted(), "hashStoreDiskFuture should be interrupted");
+        assertFalse(pathToKeyValueFuture.notInterrupted(), "pathToKeyValueFuture should be interrupted");
+        assertFalse(objectKeyToPathFuture.notInterrupted(), "objectKeyToPathFuture should be interrupted");
+        synchronized (compactor) {
+            assertTrue(compactor.compactorsByName.isEmpty(), "compactorsByName should be empty");
+        }
         assertEventuallyEquals(
                 0, () -> compactingExecutor.getQueue().size(), Duration.ofMillis(100), "The queue should be empty");
         long expectedTaskCount = initCount + 3;

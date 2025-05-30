@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessful;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -59,9 +59,10 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         final var outcome = component.contextTransactionProcessor().call();
 
         // Assemble the appropriate top-level record for the result
-        outcome.addCreateDetailsTo(context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class));
+        final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
+        outcome.addCreateDetailsTo(streamBuilder);
 
-        throwIfUnsuccessful(outcome.status());
+        throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
     }
 
     @Override

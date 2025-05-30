@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -82,6 +81,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -129,8 +129,8 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        final var stakedAccountId = asEntityString(20);
-        final var newStakedAccountId = asEntityString(21);
+        final var stakedAccountId = 20;
+        final var newStakedAccountId = 21;
         return hapiTest(
                 cryptoCreate("user").stakedAccountId(stakedAccountId).declinedReward(true),
                 submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoUpdate("user")
@@ -236,16 +236,13 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateStakingFieldsWorks() {
-        final var stakedAccountId = asEntityString(20);
+        final var stakedAccountId = 20;
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
-                cryptoCreate("user")
-                        .key(ADMIN_KEY)
-                        .stakedAccountId(stakedAccountId)
-                        .declinedReward(true),
+                cryptoCreate("user").key(ADMIN_KEY).stakedAccountId(20).declinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountIdWithLiteral(stakedAccountId)
+                                .stakedAccountId(stakedAccountId)
                                 .noStakingNodeId()
                                 .isDeclinedReward(true)),
                 cryptoUpdate("user").newStakedNodeId(0L).newDeclinedReward(false),
@@ -255,13 +252,10 @@ public class CryptoUpdateSuite {
                 cryptoUpdate("user").newStakedNodeId(-25L).hasKnownStatus(INVALID_STAKING_ID),
                 getAccountInfo("user")
                         .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(false)),
-                cryptoUpdate("user")
-                        .key(ADMIN_KEY)
-                        .newStakedAccountId(stakedAccountId)
-                        .newDeclinedReward(true),
+                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("20").newDeclinedReward(true),
                 getAccountInfo("user")
                         .has(accountWith()
-                                .stakedAccountIdWithLiteral(stakedAccountId)
+                                .stakedAccountId(stakedAccountId)
                                 .noStakingNodeId()
                                 .isDeclinedReward(true))
                         .logged(),
@@ -452,18 +446,14 @@ public class CryptoUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateFailsWithContractKey() {
-        AtomicLong id = new AtomicLong();
+        final var id = new AtomicReference<ContractID>();
         final var CONTRACT = "Multipurpose";
         return hapiTest(
                 cryptoCreate(TARGET_ACCOUNT),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).exposingNumTo(id::set),
+                contractCreate(CONTRACT).exposingContractIdTo(id::set),
                 sourcing(() -> cryptoUpdate(TARGET_ACCOUNT)
-                        .protoKey(Key.newBuilder()
-                                .setContractID(ContractID.newBuilder()
-                                        .setContractNum(id.get())
-                                        .build())
-                                .build())
+                        .protoKey(Key.newBuilder().setContractID(id.get()).build())
                         .hasKnownStatus(INVALID_SIGNATURE)));
     }
 

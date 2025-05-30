@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEd25519PrivateKe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -142,11 +143,7 @@ public class ContractSignScheduleTest {
                     uploadInitCode(CONTRACT),
                     // For whatever reason, omitting the admin key sets the admin key to the contract key
                     contractCreate(CONTRACT).omitAdminKey(),
-                    cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, CONTRACT)),
-                    scheduleCreate(SCHEDULE_C, cryptoTransfer(tinyBarsFromTo(CONTRACT, RECEIVER, 1)))
-                            .exposingCreatedIdTo(scheduleID_C::set),
-                    scheduleCreate(SCHEDULE_D, cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1)))
-                            .exposingCreatedIdTo(scheduleID_D::set));
+                    cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, CONTRACT)));
         }
 
         @HapiTest
@@ -154,12 +151,14 @@ public class ContractSignScheduleTest {
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         final Stream<DynamicTest> authorizeScheduleWithContract() {
             return hapiTest(
+                    scheduleCreate(SCHEDULE_C, cryptoTransfer(tinyBarsFromTo(CONTRACT, RECEIVER, 1)))
+                            .exposingCreatedIdTo(scheduleID_C::set),
                     getScheduleInfo(SCHEDULE_C).isNotExecuted(),
-                    contractCall(
+                    sourcing(() -> contractCall(
                                     CONTRACT,
                                     AUTHORIZE_SCHEDULE_CALL,
                                     mirrorAddrParamFunction(scheduleID_C.get().getScheduleNum()))
-                            .gas(1_000_000L),
+                            .gas(1_000_000L)),
                     sleepFor(1000L),
                     getScheduleInfo(SCHEDULE_C).isExecuted());
         }
@@ -168,12 +167,14 @@ public class ContractSignScheduleTest {
         @DisplayName("Signature does not executes schedule transaction")
         final Stream<DynamicTest> authorizeScheduleWithContractNoExec() {
             return hapiTest(
+                    scheduleCreate(SCHEDULE_D, cryptoTransfer(tinyBarsFromTo(SENDER, RECEIVER, 1)))
+                            .exposingCreatedIdTo(scheduleID_D::set),
                     getScheduleInfo(SCHEDULE_D).isNotExecuted(),
-                    contractCall(
+                    sourcing(() -> contractCall(
                                     CONTRACT,
                                     AUTHORIZE_SCHEDULE_CALL,
                                     mirrorAddrParamFunction(scheduleID_D.get().getScheduleNum()))
-                            .gas(1_000_000L),
+                            .gas(1_000_000L)),
                     getScheduleInfo(SCHEDULE_D).isNotExecuted());
         }
     }

@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFeeInheritingRoyaltyCollector;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
@@ -18,6 +17,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenInfoStructForFungibleToken;
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenInfoStructForNonFungibleToken;
 import static com.hedera.services.bdd.suites.contract.precompile.TokenInfoHTSSuite.getTokenKeyFromSpec;
@@ -51,6 +51,8 @@ public class GetScheduledInfoTest {
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String HTS_COLLECTOR = "denomFee";
     private static final String TOKEN_TREASURY = "treasury";
+    private static final String GET_FUNGIBLE_CREATE_TOKEN_INFO = "getFungibleCreateTokenInfo";
+    private static final String GET_NON_FUNGIBLE_CREATE_TOKEN_INFO = "getNonFungibleCreateTokenInfo";
     private static final String ADMIN_KEY = TokenKeyType.ADMIN_KEY.name();
     private static final String KYC_KEY = TokenKeyType.KYC_KEY.name();
     private static final String SUPPLY_KEY = TokenKeyType.SUPPLY_KEY.name();
@@ -72,9 +74,7 @@ public class GetScheduledInfoTest {
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentFungibleCreateSchedule() {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
-                            "getFungibleCreateTokenInfo",
-                            asHeadlongAddress(
-                                    toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "1234")))
+                            GET_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
@@ -85,9 +85,7 @@ public class GetScheduledInfoTest {
     public Stream<DynamicTest> cannotGetScheduledInfoForNonExistentNonFungibleCreateSchedule() {
         return hapiTest(withOpContext((spec, log) -> {
             final var callOp = contract.call(
-                            "getNonFungibleCreateTokenInfo",
-                            asHeadlongAddress(
-                                    toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "1234")))
+                            GET_NON_FUNGIBLE_CREATE_TOKEN_INFO, asHeadlongAddress(asSolidityAddress(spec, 1234)))
                     .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, RECORD_NOT_FOUND));
             allRunFor(spec, callOp);
         }));
@@ -146,10 +144,10 @@ public class GetScheduledInfoTest {
                             .exposingCreatedIdTo(scheduleId::set));
             allRunFor(
                     spec,
-                    contract.call("getFungibleCreateTokenInfo", ConversionUtils.headlongAddressOf(scheduleId.get()))
-                            .via("getFungibleCreateTokenInfo"),
+                    contract.call(GET_FUNGIBLE_CREATE_TOKEN_INFO, ConversionUtils.headlongAddressOf(scheduleId.get()))
+                            .via("getFungibleTokenInfoTxn"),
                     childRecordsCheck(
-                            "getFungibleCreateTokenInfo",
+                            "getFungibleTokenInfoTxn",
                             SUCCESS,
                             recordWith()
                                     .contractCallResult(resultWith()
@@ -216,10 +214,12 @@ public class GetScheduledInfoTest {
                             .exposingCreatedIdTo(scheduleId::set));
             allRunFor(
                     spec,
-                    contract.call("getNonFungibleCreateTokenInfo", ConversionUtils.headlongAddressOf(scheduleId.get()))
-                            .via("getNonFungibleCreateTokenInfo"),
+                    contract.call(
+                                    GET_NON_FUNGIBLE_CREATE_TOKEN_INFO,
+                                    ConversionUtils.headlongAddressOf(scheduleId.get()))
+                            .via("getInfoTxn"),
                     childRecordsCheck(
-                            "getNonFungibleCreateTokenInfo",
+                            "getInfoTxn",
                             SUCCESS,
                             recordWith()
                                     .contractCallResult(resultWith()

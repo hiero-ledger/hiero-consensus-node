@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package org.hiero.block.api;
+
+option java_package = "org.hiero.block.api.protoc";
+// <<<pbj.java_package = "org.hiero.block.api">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "block/stream/block_item.proto";
+
+/**
+ * A wrapper around a repeated BlockItem.<br/>
+ * This message is required so that we can include ordered lists of block
+ * items as `oneof` alternatives in streams.
+ *
+ * Each `BlockItemSet` MUST contain at least one `BlockItem`,
+ * and MAY contain up to one full block.<br/>
+ * A single `BlockItemSet` SHALL NOT contain block items from
+ * more than one block.<br/>
+ * If a `BlockHeader` is present in a `BlockItemSet`, that item
+ * MUST be the first item in the list.<br/>
+ * If a `BlockProof` is present in a `BlockItemSet`, that item
+ * MUST be the last item in the list.
+ */
+message BlockItemSet {
+  /**
+   * An ordered list of `BlockItem`s.<br/>
+   * This list supports sending block items to subscribers in batches
+   * for greater channel efficiency.
+   */
+  repeated com.hedera.hapi.block.stream.BlockItem block_items = 1;
+}

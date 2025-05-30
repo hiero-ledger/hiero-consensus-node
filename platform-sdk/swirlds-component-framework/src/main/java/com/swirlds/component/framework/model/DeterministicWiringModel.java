@@ -9,6 +9,8 @@ import com.swirlds.component.framework.wires.output.NoOpOutputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -36,16 +38,23 @@ public class DeterministicWiringModel extends TraceableWiringModel {
 
     private final DeterministicHeartbeatScheduler heartbeatScheduler;
 
+    private final UncaughtExceptionHandler taskSchedulerExceptionHandler;
+
     /**
      * Constructor.
      *
      * @param metrics the metrics
      * @param time the time
+     * @param taskSchedulerExceptionHandler the global {@link UncaughtExceptionHandler}
      */
-    DeterministicWiringModel(@NonNull final Metrics metrics, @NonNull final Time time) {
+    DeterministicWiringModel(
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @Nullable final UncaughtExceptionHandler taskSchedulerExceptionHandler) {
         super(false);
         this.metrics = Objects.requireNonNull(metrics);
         this.heartbeatScheduler = new DeterministicHeartbeatScheduler(this, time, "heartbeat");
+        this.taskSchedulerExceptionHandler = taskSchedulerExceptionHandler;
     }
 
     /**
@@ -80,7 +89,12 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public <O> TaskSchedulerBuilder<O> schedulerBuilder(@NonNull final String name) {
-        return new DeterministicTaskSchedulerBuilder<>(metrics, this, name, this::submitWork);
+        final DeterministicTaskSchedulerBuilder<O> builder =
+                new DeterministicTaskSchedulerBuilder<>(metrics, this, name, this::submitWork);
+        if (taskSchedulerExceptionHandler != null) {
+            builder.withUncaughtExceptionHandler(taskSchedulerExceptionHandler);
+        }
+        return builder;
     }
 
     /**

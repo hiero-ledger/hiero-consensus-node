@@ -47,7 +47,7 @@ public class NodeConnectInfo {
                 .filter(TxnUtils::isIdLiteral)
                 .map(HapiPropertySource::asAccount)
                 .findAny()
-                .orElse(HapiPropertySource.asAccount(asEntityString(NEXT_DEFAULT_ACCOUNT_NUM++)));
+                .orElse(HapiPropertySource.asAccount(asEntityString(0, 0, NEXT_DEFAULT_ACCOUNT_NUM++)));
         host = Stream.of(aspects)
                 .filter(aspect -> !(isIdLiteral(aspect) || isNumericLiteral(aspect)))
                 .findAny()

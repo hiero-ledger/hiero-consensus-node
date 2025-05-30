@@ -2,9 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.*;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -40,6 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdW
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATE_2_TXN;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATION;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.DEPLOY;
@@ -60,7 +58,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -411,8 +408,7 @@ public class AirdropToContractSystemContractTest {
                         contractCreate(receiverContract)
                                 .bytecode("AssociateContract")
                                 .gas(5_000_000L)
-                                .exposingNumTo(
-                                        num -> receiverContractAddress.set(asHexedSolidityAddress(shard, realm, num))),
+                                .exposingContractIdTo(id -> receiverContractAddress.set(asHexedSolidityAddress(id))),
                         newKeyNamed("adminKey"),
                         newKeyNamed("feeScheduleKey"),
                         tokenCreate(token)
@@ -493,7 +489,7 @@ public class AirdropToContractSystemContractTest {
             final AtomicReference<String> factoryEvmAddress = new AtomicReference<>();
             final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
             final AtomicReference<String> expectedCreate2Address = new AtomicReference<>();
-            final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+            final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
             final AtomicReference<String> hollowCreationAddress = new AtomicReference<>();
 
             final var salt = BigInteger.valueOf(42);
@@ -506,10 +502,10 @@ public class AirdropToContractSystemContractTest {
                     sender.associateTokens(token, nft),
                     airdropContract.associateTokens(token, nft),
                     uploadInitCode(contract),
-                    sourcing(() -> contractCreate(contract)
+                    contractCreate(contract)
                             .payingWith(GENESIS)
                             .via(CREATE_2_TXN)
-                            .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num)))),
+                            .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                     // GET BYTECODE OF THE CREATE2 CONTRACT
                     sourcing(() -> contractCallLocal(
                                     contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
@@ -1156,10 +1152,10 @@ public class AirdropToContractSystemContractTest {
                         sender.associateTokens(token),
                         uploadInitCode(create2Contract),
                         token.treasury().transferUnitsTo(sender, 1_000L, token),
-                        sourcing(() -> contractCreate(create2Contract)
+                        contractCreate(create2Contract)
                                 .payingWith(GENESIS)
                                 .via(CREATE_2_TXN)
-                                .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num)))),
+                                .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                         // GET BYTECODE OF THE CREATE2 CONTRACT
                         sourcing(() -> contractCallLocal(
                                         create2Contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)

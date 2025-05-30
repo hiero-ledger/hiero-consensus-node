@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.staking;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -10,10 +11,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.sleepToExactly;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThree;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledExecutionResult;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -22,27 +25,36 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withRecordSpec;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.TestMethodOrder;
 
 /**
  * Staking tests that need virtual time for fast execution.
  */
 @HapiTestLifecycle
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableStakingTests {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -58,6 +70,7 @@ public class RepeatableStakingTests {
      * Validates that staking metadata stays up-to-date even when returning to a staked account
      * after a long period of inactivity.
      */
+    @Order(1)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     Stream<DynamicTest> noStakingInteractionsForExtendedPeriodIsFine() {
         final var numPeriodsToElapse = 366;
@@ -79,6 +92,7 @@ public class RepeatableStakingTests {
      * Validates that staking metadata stays up-to-date even when returning to a staked account
      * after a long period of inactivity.
      */
+    @Order(2)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     Stream<DynamicTest> scheduledTransactionCrossingThresholdTriggersExpectedRewards() {
         final AtomicReference<Instant> secondBoundary = new AtomicReference<>();
@@ -111,5 +125,42 @@ public class RepeatableStakingTests {
                 cryptoCreate("justBeforeSecondPeriod"),
                 // Trigger block closure to ensure block is closed
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+    }
+
+    @Order(3)
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
+            overrides = {"staking.perHbarRewardRate", "staking.rewardBalanceThreshold"})
+    Stream<DynamicTest> rewardRateSmoothedToZeroSafely() {
+        final AtomicLong stakerBalanceAfter = new AtomicLong();
+        final AtomicLong stakerBalanceBefore = new AtomicLong();
+        final AtomicLong rewardAccountBalance = new AtomicLong();
+        return hapiTest(
+                overridingTwo(
+                        "staking.perHbarRewardRate",
+                        "6849",
+                        "staking.rewardBalanceThreshold",
+                        "" + 1000 * ONE_HUNDRED_HBARS),
+                cryptoCreate("staker").stakedNodeId(0).balance(ONE_BILLION_HBARS),
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "staker", 1L)).noLogging(),
+                withOpContext((spec, opLog) -> {
+                    long rewardPaid;
+                    do {
+                        allRunFor(
+                                spec,
+                                waitUntilStartOfNextStakingPeriod(1),
+                                viewAccount("staker", account -> stakerBalanceBefore.set(account.tinybarBalance())),
+                                cryptoTransfer(tinyBarsFromTo(GENESIS, "staker", 1L))
+                                        .noLogging(),
+                                viewAccount("staker", account -> stakerBalanceAfter.set(account.tinybarBalance())),
+                                viewAccount(
+                                        STAKING_REWARD, account -> rewardAccountBalance.set(account.tinybarBalance())));
+                        if (rewardAccountBalance.get() == 0) {
+                            Assertions.fail("Reward rate should go to zero before the reward account goes to zero");
+                        }
+                        rewardPaid = stakerBalanceAfter.get() - stakerBalanceBefore.get() - 1;
+                    } while (rewardPaid > 0);
+                }));
     }
 }

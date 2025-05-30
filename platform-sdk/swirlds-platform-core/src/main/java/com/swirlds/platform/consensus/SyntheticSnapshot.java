@@ -16,7 +16,10 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * Utility class for generating "synthetic" snapshots
+ *
+ * @deprecated this class is deprecated and will be removed in a future version. Use {@link ConsensusSnapshot} instead.
  */
+@Deprecated(forRemoval = true, since = "0.63.0")
 public final class SyntheticSnapshot {
     /**
      * Utility class, should not be instantiated

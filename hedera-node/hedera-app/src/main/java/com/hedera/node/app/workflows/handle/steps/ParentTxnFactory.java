@@ -271,9 +271,7 @@ public class ParentTxnFactory {
         requireNonNull(exchangeRates);
         final var preHandleResult = parentTxn.preHandleResult();
         final var keyVerifier = new DefaultKeyVerifier(
-                parentTxn.txnInfo().signatureMap().sigPair().size(),
-                parentTxn.config().getConfigData(HederaConfig.class),
-                preHandleResult.getVerificationResults());
+                parentTxn.config().getConfigData(HederaConfig.class), preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
         final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
         return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
@@ -356,7 +354,8 @@ public class ParentTxnFactory {
                 feeAccumulator,
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
-                preHandleResult.innerResults());
+                preHandleResult.innerResults(),
+                transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(

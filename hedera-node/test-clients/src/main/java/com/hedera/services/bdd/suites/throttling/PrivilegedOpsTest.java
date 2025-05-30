@@ -35,17 +35,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 public class PrivilegedOpsTest {
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
-    private static final String ACCOUNT_88 = String.format("%s.%s.88", SHARD, REALM);
-    private static final String ACCOUNT_2 = String.format("%s.%s.2", SHARD, REALM);
+    private static final String ACCOUNT_88 = "88";
+    private static final String ACCOUNT_2 = "2";
     private static final String CIVILIAN = "civilian";
     private static final String NEW_88 = "new88";
     private static final int BURST_SIZE = 10;

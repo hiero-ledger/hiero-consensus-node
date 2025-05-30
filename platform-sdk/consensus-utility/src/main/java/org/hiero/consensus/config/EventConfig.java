@@ -24,7 +24,7 @@ public record EventConfig(
         @ConfigProperty(defaultValue = "5") long eventsLogPeriod,
         @ConfigProperty(defaultValue = "/opt/hgcapp/eventsStreams") String eventsLogDir,
         @ConfigProperty(defaultValue = "true") boolean enableEventStreaming,
-        @ConfigProperty(defaultValue = "false") boolean useBirthRoundAncientThreshold) {
+        @ConfigProperty(defaultValue = "true") boolean useBirthRoundAncientThreshold) {
 
     /**
      * @return the {@link AncientMode} based on useBirthRoundAncientThreshold

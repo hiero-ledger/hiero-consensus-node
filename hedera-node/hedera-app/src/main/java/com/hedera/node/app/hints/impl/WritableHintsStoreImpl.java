@@ -51,9 +51,6 @@ import org.apache.logging.log4j.Logger;
 public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements WritableHintsStore {
     private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
 
-    private static final Comparator<NodePartyId> NODE_PARTY_ID_COMPARATOR =
-            Comparator.comparingLong(NodePartyId::nodeId);
-
     private final WritableKVState<HintsPartyId, HintsKeySet> hintsKeys;
     private final WritableSingletonState<HintsConstruction> nextConstruction;
     private final WritableSingletonState<HintsConstruction> activeConstruction;
@@ -133,10 +130,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     public HintsConstruction setHintsScheme(
             final long constructionId,
             @NonNull final PreprocessedKeys keys,
-            @NonNull final Map<Long, Integer> nodePartyIds) {
+            @NonNull final Map<Long, Integer> nodePartyIds,
+            @NonNull final Map<Long, Long> nodeWeights) {
         requireNonNull(keys);
         requireNonNull(nodePartyIds);
-        return updateOrThrow(constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds))));
+        return updateOrThrow(
+                constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds, nodeWeights))));
     }
 
     @Override
@@ -146,14 +145,14 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     @Override
-    public boolean updateAtHandoff(
-            @NonNull final Roster previousRoster,
-            @NonNull final Roster adoptedRoster,
-            @NonNull final Bytes adoptedRosterHash,
+    public boolean handoff(
+            @NonNull final Roster fromRoster,
+            @NonNull final Roster toRoster,
+            @NonNull final Bytes toRosterHash,
             final boolean forceHandoff) {
-        requireNonNull(previousRoster);
-        requireNonNull(adoptedRoster);
-        requireNonNull(adoptedRosterHash);
+        requireNonNull(fromRoster);
+        requireNonNull(toRoster);
+        requireNonNull(toRosterHash);
         final var upcomingConstruction = requireNonNull(nextConstruction.get());
         // It is pointless to adopt any incomplete construction
         if (!upcomingConstruction.hasHintsScheme()) {
@@ -164,7 +163,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
             }
             return false;
         }
-        final boolean handoffMatches = upcomingConstruction.targetRosterHash().equals(adoptedRosterHash);
+        final boolean handoffMatches = upcomingConstruction.targetRosterHash().equals(toRosterHash);
         if (!handoffMatches) {
             if (forceHandoff) {
                 log.warn(
@@ -173,15 +172,15 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
             } else {
                 throw new IllegalStateException("Cannot handoff to construction #"
                         + upcomingConstruction.constructionId() + " with different target roster (constructed for '"
-                        + upcomingConstruction.targetRosterHash() + " but incoming is '" + adoptedRosterHash + "')");
+                        + upcomingConstruction.targetRosterHash() + " but incoming is '" + toRosterHash + "')");
             }
         }
         log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
         // The next construction is becoming the active one; so purge obsolete votes now
-        purgeVotes(requireNonNull(activeConstruction.get()), ignore -> previousRoster);
+        purgeVotes(requireNonNull(activeConstruction.get()), ignore -> fromRoster);
         // If the previous scheme's party size was different than the new one, purge the hinTS keys;
         // this is likely optional, but seems like a better default behavior than leaving them in state
-        maybePurgeHintsKeys(partySizeForRoster(adoptedRoster), previousRoster);
+        maybePurgeHintsKeys(partySizeForRoster(toRoster), fromRoster);
         activeConstruction.put(upcomingConstruction);
         nextConstruction.put(HintsConstruction.DEFAULT);
         return true;
@@ -320,15 +319,20 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     /**
-     * Internal helper to convert a map of node IDs to party IDs to a list of node party IDs.
+     * Internal helper to construct a list of weighted node party IDs.
      *
-     * @param nodePartyIds the map
-     * @return the list
+     * @param nodePartyIds the map from node ID to party ID
+     * @param nodeWeights the map from node ID to weight
+     * @return the list of weighted node party IDs, sorted by node ID
      */
-    private List<NodePartyId> asList(@NonNull final Map<Long, Integer> nodePartyIds) {
+    private List<NodePartyId> asList(
+            @NonNull final Map<Long, Integer> nodePartyIds, @NonNull final Map<Long, Long> nodeWeights) {
         return nodePartyIds.entrySet().stream()
-                .map(entry -> new NodePartyId(entry.getKey(), entry.getValue()))
-                .sorted(NODE_PARTY_ID_COMPARATOR)
+                .map(entry -> {
+                    final long nodeId = entry.getKey();
+                    return new NodePartyId(nodeId, entry.getValue(), nodeWeights.get(nodeId));
+                })
+                .sorted(Comparator.comparingLong(NodePartyId::nodeId))
                 .toList();
     }
 }

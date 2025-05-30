@@ -32,10 +32,10 @@ public class SignCommand implements Callable<Integer> {
         var config = configFrom(scheduleCommand.getYahcli());
 
         final var effectiveScheduleId = scheduleId != null ? scheduleId : "";
-        var delegate = new ScheduleSuite(config.asSpecConfig(), effectiveScheduleId);
+        var delegate = new ScheduleSuite(config, effectiveScheduleId);
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - " + "scheduleId " + effectiveScheduleId + " " + " signed");
         } else {
             COMMON_MESSAGES.warn("FAILED - " + "could not sign scheduleId " + effectiveScheduleId);

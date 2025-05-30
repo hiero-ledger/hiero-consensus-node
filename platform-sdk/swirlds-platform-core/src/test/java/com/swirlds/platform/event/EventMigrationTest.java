@@ -18,6 +18,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -30,7 +31,7 @@ public class EventMigrationTest {
     }
 
     public static Stream<Arguments> migrationTestArguments() {
-        return Stream.of(Arguments.of("eventFiles/testnet-59/2025-02-14T00_00_00.005716199Z.evts", 622, 119));
+        return Stream.of();
     }
 
     /**
@@ -41,6 +42,7 @@ public class EventMigrationTest {
      */
     @ParameterizedTest
     @MethodSource("migrationTestArguments")
+    @Disabled("There is no event migration we need to test at the moment. This test is left in place for future use.")
     public void migration(
             @NonNull final String fileName, final int numEventsExpected, final int unmatchedHashesExpected)
             throws URISyntaxException, IOException {

@@ -155,7 +155,7 @@ public class PcesFileReader {
 
         final long initialOrigin = PcesUtilities.getInitialOrigin(files, startingRound);
 
-        final int firstRelevantFileIndex = files.getFirstRelevantFileIndex(startingRound);
+        final int firstRelevantFileIndex = files.getFirstRelevantFileIndex(initialOrigin);
         int firstIndexToDelete = firstRelevantFileIndex + 1;
         for (; firstIndexToDelete < files.getFileCount(); firstIndexToDelete++) {
             final PcesFile file = files.getFile(firstIndexToDelete);

@@ -26,7 +26,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.contract.Utils.accountId;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.checkForBalances;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.checkForEmptyBalance;
@@ -404,7 +404,7 @@ public class AirdropFromContractTest {
                                     "tokenAirdrop",
                                     token,
                                     sender.addressOn(spec.targetNetworkOrThrow()),
-                                    asAddress(accountId(spec, hollowAccountAlias.get())),
+                                    asAddress(accountIdFromEvmAddress(spec, hollowAccountAlias.get())),
                                     10L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)

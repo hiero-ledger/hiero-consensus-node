@@ -31,7 +31,7 @@ public class FeeBasePriceCommand implements Callable<Integer> {
         feeTableSB.append(String.format("%30s |  \t\t |%n", "Transaction and Query Fees"));
         feeTableSB.append(serviceBorder);
 
-        var delegate = new CostOfEveryThingSuite(config.asSpecConfig(), feeTableSB, serviceBorder, services);
+        var delegate = new CostOfEveryThingSuite(config, feeTableSB, serviceBorder, services);
         delegate.runSuiteSync();
 
         printTable(feeTableSB);

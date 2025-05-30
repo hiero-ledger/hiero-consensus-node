@@ -10,7 +10,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessful;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.nonNull;
@@ -152,12 +153,14 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
         if (ethTxData.hasToAddress()) {
-            outcome.addCallDetailsTo(context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class));
+            final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
+            outcome.addCallDetailsTo(streamBuilder);
+            throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
         } else {
-            outcome.addCreateDetailsTo(context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class));
+            final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
+            outcome.addCreateDetailsTo(streamBuilder);
+            throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
         }
-
-        throwIfUnsuccessful(outcome.status());
     }
 
     /**

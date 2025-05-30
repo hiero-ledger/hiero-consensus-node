@@ -36,14 +36,6 @@ public interface TestEnvironment {
     TransactionGenerator generator();
 
     /**
-     * Get the validator associated with this test environment.
-     *
-     * @return the validator
-     */
-    @NonNull
-    Validator validator();
-
-    /**
      * Destroys the test environment. Once this method is called, the test environment and all its
      * components are no longer usable. This method is idempotent, meaning that it is safe to call
      * multiple times.

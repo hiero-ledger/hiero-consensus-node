@@ -385,7 +385,6 @@ public class TransactionExecutorsTest {
         final var configBuilder = HederaTestConfigBuilder.create();
         overrides.forEach(configBuilder::withValue);
         final var config = configBuilder.getOrCreateConfig();
-        final var networkInfo = fakeNetworkInfo();
         final var servicesRegistry = new FakeServicesRegistry();
         final var appContext = new AppContextImpl(
                 InstantSource.system(),
@@ -456,6 +455,17 @@ public class TransactionExecutorsTest {
                             .expirationSecond(Long.MAX_VALUE)
                             .tinybarBalance(
                                     (long) i == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
+                            .build());
+        }
+        for (final long num : List.of(800L, 801L)) {
+            final var accountId = AccountID.newBuilder().accountNum(num).build();
+            accounts.put(
+                    accountId,
+                    Account.newBuilder()
+                            .accountId(accountId)
+                            .key(systemKey)
+                            .expirationSecond(Long.MAX_VALUE)
+                            .tinybarBalance(0L)
                             .build());
         }
         ((CommittableWritableStates) writableStates).commit();

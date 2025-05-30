@@ -23,21 +23,20 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     private final FileDescriptor fileDescriptor;
     /** Counts the bytes written to the file */
     private final CountingStreamExtension counter;
-    /** Whether to sync the file after every event */
-    private final boolean syncEveryEvent;
+    /** Keeps stats of the writing process */
+    private final PcesFileWriterStats stats;
 
     /**
      * Create a new file writer.
      *
-     * @param filePath       the path to the file to write to
-     * @param syncEveryEvent whether to sync the file after every event
+     * @param filePath the path to the file to write to
      * @throws IOException if the file cannot be opened
      */
-    public PcesOutputStreamFileWriter(@NonNull final Path filePath, final boolean syncEveryEvent) throws IOException {
-        this.syncEveryEvent = syncEveryEvent;
+    public PcesOutputStreamFileWriter(@NonNull final Path filePath) throws IOException {
         counter = new CountingStreamExtension(false);
         final FileOutputStream fileOutputStream = new FileOutputStream(filePath.toFile());
         fileDescriptor = fileOutputStream.getFD();
+        this.stats = new PcesFileWriterStats();
         out = new SerializableDataOutputStream(
                 new ExtendableOutputStream(new BufferedOutputStream(fileOutputStream), counter));
     }
@@ -49,9 +48,11 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        out.writePbjRecord(event, GossipEvent.PROTOBUF);
-        if (syncEveryEvent) {
-            sync();
+        long startTime = System.currentTimeMillis();
+        try {
+            out.writePbjRecord(event, GossipEvent.PROTOBUF);
+        } finally {
+            stats.updateWriteStats(startTime, System.currentTimeMillis(), GossipEvent.PROTOBUF.measureRecord(event));
         }
     }
 
@@ -62,11 +63,14 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
+        long startTime = System.currentTimeMillis();
         out.flush();
         try {
             fileDescriptor.sync();
         } catch (final SyncFailedException e) {
             throw new IOException("Failed to sync file", e);
+        } finally {
+            stats.updateSyncStats(startTime, System.currentTimeMillis());
         }
     }
 
@@ -78,5 +82,10 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     @Override
     public long fileSize() {
         return counter.getCount();
+    }
+
+    @Override
+    public PcesFileWriterStats getStats() {
+        return stats;
     }
 }

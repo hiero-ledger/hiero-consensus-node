@@ -198,6 +198,8 @@ public final class IngestChecker {
         // 1. Check the syntax
         final var maxBytes = maxIngestParseSize(configuration);
         final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
+        // check jumbo size after parsing
+        transactionChecker.checkJumboTransactionBody(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
@@ -325,7 +327,7 @@ public final class IngestChecker {
 
         // Verify the signatures
         final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
-        final var verifier = new DefaultKeyVerifier(sigPairs.size(), hederaConfig, results);
+        final var verifier = new DefaultKeyVerifier(hederaConfig, results);
         final SignatureVerification payerKeyVerification;
         if (!isHollow(payer)) {
             payerKeyVerification = verifier.verificationFor(payerKey);

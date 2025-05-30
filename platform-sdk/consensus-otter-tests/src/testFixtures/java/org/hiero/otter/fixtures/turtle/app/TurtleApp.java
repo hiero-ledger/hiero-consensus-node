@@ -65,7 +65,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
      */
     @Override
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final TurtleAppState state) {
-        return false;
+        return true;
     }
 
     /**

@@ -33,8 +33,6 @@ import org.hiero.consensus.model.node.NodeId;
  *                                     error message is written to the log.
  * @param emergencyRecoveryFileLoadDir The path to look for an emergency recovery file on node start. If a file is
  *                                     present in this directory at startup, emergency recovery will begin.
- * @param genesisFreezeTime            If this node starts from genesis, this value is used as the freeze time. This
- *                                     feature is deprecated and planned for removal in a future platform version.
  */
 @ConfigData
 public record BasicConfig(
@@ -44,7 +42,6 @@ public record BasicConfig(
         @ConfigProperty(defaultValue = "1000") int jvmPauseReportMs,
         @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
         @ConfigProperty(defaultValue = "data/saved") String emergencyRecoveryFileLoadDir,
-        @ConfigProperty(defaultValue = "0") long genesisFreezeTime,
         @ConfigProperty(defaultValue = Configuration.EMPTY_LIST) List<NodeId> nodesToRun) {
 
     /**

@@ -3,8 +3,6 @@ package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -58,6 +56,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.CONSTRUCTOR;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
@@ -195,18 +195,16 @@ public class HelloWorldEthereumSuite {
         return hapiTest(
                 newKeyNamed(adminKey),
                 newKeyNamed(maliciousEOA).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER)
+                        .balance(10 * ONE_MILLION_HBARS)
+                        .exposingCreatedIdTo(id -> relayerEvmAddress.set(asHexedSolidityAddress(id))),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, maliciousEOA, maliciousStartBalance))
+                        .via(maliciousAutoCreation),
                 withOpContext((spec, opLog) -> {
-                    final var create = cryptoCreate(RELAYER)
-                            .balance(10 * ONE_MILLION_HBARS)
-                            .exposingCreatedIdTo(id -> relayerEvmAddress.set(
-                                    asHexedSolidityAddress((int) spec.shard(), spec.realm(), id.getAccountNum())));
-                    final var transfer = cryptoTransfer(
-                                    tinyBarsFromAccountToAlias(GENESIS, maliciousEOA, maliciousStartBalance))
-                            .via(maliciousAutoCreation);
                     final var lookup = getTxnRecord(maliciousAutoCreation)
                             .andAllChildRecords()
                             .logged();
-                    allRunFor(spec, create, transfer, lookup);
+                    allRunFor(spec, lookup);
                     final var childCreation = lookup.getFirstNonStakingChildRecord();
                     maliciousEOAId.set(
                             asAccountString(childCreation.getReceipt().getAccountID()));
@@ -634,8 +632,7 @@ public class HelloWorldEthereumSuite {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(123 * ONE_HUNDRED_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> ethereumCryptoTransferToExplicit(
-                                asSolidityAddress((int) spec.shard(), spec.realm(), 666_666), 123)
+                withOpContext((spec, opLog) -> ethereumCryptoTransferToExplicit(asSolidityAddress(spec, 666_666), 123)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)

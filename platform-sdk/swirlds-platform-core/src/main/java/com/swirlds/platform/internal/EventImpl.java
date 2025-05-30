@@ -408,6 +408,25 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the vote for a specific election index.
+     *
+     * @param electionIndex the index of the election to retrieve the vote for
+     * @return true if it's a YES vote, false if it's a NO vote
+     */
+    public boolean getVote(final int electionIndex) {
+        return votes != null && votes.length > electionIndex && votes[electionIndex];
+    }
+
+    /**
+     * Get the size of the votes array.
+     *
+     * @return the number of elements in the votes array. If the votes array is null, returns 0.
+     */
+    public int getVotesSize() {
+        return votes == null ? 0 : votes.length;
+    }
+
+    /**
      * Set this witness' vote on the witness provided
      *
      * @param witness the witness being voted on

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -49,6 +48,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
@@ -1379,9 +1379,9 @@ public class AtomicCryptoTransferHTSSuite {
                 tokenAssociate(RECEIVER, List.of(FUNGIBLE_TOKEN)),
                 cryptoTransfer(moving(200, FUNGIBLE_TOKEN).between(TOKEN_TREASURY, SENDER)),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).adminKey(DEFAULT_PAYER).exposingNumTo(num -> {
-                    whitelistedCalleeMirrorNum.set(num);
-                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num));
+                contractCreate(CONTRACT).adminKey(DEFAULT_PAYER).exposingContractIdTo(id -> {
+                    whitelistedCalleeMirrorNum.set(id.getContractNum());
+                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(id));
                 }),
                 sourcing(() -> overriding(
                         "contracts.permittedDelegateCallers", String.valueOf(whitelistedCalleeMirrorNum.get()))),

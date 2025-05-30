@@ -15,9 +15,9 @@ import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -313,11 +313,10 @@ class ChildlessEventTrackerTests {
         // so one event should be pruned in each event window update.
         for (long nodeId = 0; nodeId < numNodes; nodeId++) {
             final long ancientThreshold = nodeId + ancientThresholdOffset + 1;
-            tracker.pruneOldEvents(new EventWindow(
-                    ancientThreshold + 1, /* Ignored in this context */
-                    ancientThreshold,
-                    1, /* Ignored in this context */
-                    ancientMode));
+            tracker.pruneOldEvents(EventWindowBuilder.builder()
+                    .setAncientMode(ancientMode)
+                    .setAncientThreshold(ancientThreshold)
+                    .build());
             final PlatformEvent event = eventsByCreator.get(nodeId);
             assertThat(tracker.getChildlessEvents())
                     .withFailMessage("Tracker should have pruned event {}", event.getDescriptor())

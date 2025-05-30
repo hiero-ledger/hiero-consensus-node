@@ -30,7 +30,6 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.function.Supplier;
 
 @Module
 public interface QueryModule {
@@ -82,13 +81,6 @@ public interface QueryModule {
     @QueryScope
     static ActionSidecarContentTracer provideActionSidecarContentTracer() {
         return new EvmActionTracer(new ActionStack());
-    }
-
-    @Provides
-    @QueryScope
-    static Supplier<HederaWorldUpdater> provideFeesOnlyUpdater(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement, @NonNull final EvmFrameStateFactory factory) {
-        return () -> new ProxyWorldUpdater(enhancement, requireNonNull(factory), null);
     }
 
     @Provides

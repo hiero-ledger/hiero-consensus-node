@@ -7,8 +7,6 @@ import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusH
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -459,7 +457,9 @@ public class SystemFileExportsTest {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
             final var targetId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -491,7 +491,9 @@ public class SystemFileExportsTest {
                     .orElseThrow();
             final var synthOp = updateItem.body().getFileUpdate();
             final var nodeDetailsId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get("files.nodeDetails")));
             assertEquals(nodeDetailsId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -534,7 +536,9 @@ public class SystemFileExportsTest {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No post-upgrade txn found");
             final var targetId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             final var updateItem = items.entries().stream()
                     .filter(item -> item.function() == FileUpdate)
                     .filter(item ->
@@ -544,7 +548,9 @@ public class SystemFileExportsTest {
             assertNotNull(updateItem, "No update for " + fileNumProperty + " found in post-upgrade txn");
             final var synthOp = updateItem.body().getFileUpdate();
             final var addressBookId = new FileID(
-                    shard, realm, Long.parseLong(spec.startupProperties().get(fileNumProperty)));
+                    spec.shard(),
+                    spec.realm(),
+                    Long.parseLong(spec.startupProperties().get(fileNumProperty)));
             assertEquals(addressBookId, toPbj(synthOp.getFileID()));
             try {
                 final var updatedAddressBook = NodeAddressBook.PROTOBUF.parse(
@@ -623,7 +629,7 @@ public class SystemFileExportsTest {
         assertEquals(Map.of(SUCCESS, 1), histogram.get(NodeStakeUpdate));
         final var fileItem = items.entries().stream()
                 .filter(item -> item.function() == FileCreate)
-                .filter(item -> item.createdFileId().equals(new FileID(shard, realm, fileNumb)))
+                .filter(item -> item.createdFileId().equals(new FileID(spec.shard(), spec.realm(), fileNumb)))
                 .findFirst()
                 .orElse(null);
 

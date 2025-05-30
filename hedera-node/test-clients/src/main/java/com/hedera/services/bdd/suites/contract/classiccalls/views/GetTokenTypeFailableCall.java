@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.classiccalls.views;
 
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.classiccalls.ClassicFailureMode.INVALID_TOKEN_ID_FAILURE;
 import static com.hedera.services.bdd.suites.contract.classiccalls.ClassicFailureMode.NO_REASON_TO_FAIL;
 import static com.hedera.services.bdd.suites.contract.classiccalls.ClassicInventory.INVALID_TOKEN_ADDRESS;

@@ -65,8 +65,6 @@ swirld, 123
 # The above addresses assume all are running on the same computer.
 # If multiple computers are being used, then the listed IP addresses should be changed.
 
-# genesisFreezeTime, -1
-
 ###############################################################################################
 # The first line can be “swirld, “ and then a name for this swirld (shared world / ledger),
 # where the name is any string without commas, line breaks, or leading/trailing whitespace.

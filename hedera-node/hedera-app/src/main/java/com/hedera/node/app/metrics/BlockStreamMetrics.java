@@ -3,7 +3,6 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.PublishStreamResponseCode;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -16,6 +15,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 
 /**
  * Metrics related to the block stream service, specifically tracking responses received
@@ -30,17 +31,16 @@ public class BlockStreamMetrics {
     private final NodeInfo selfNodeInfo;
 
     // Map: EndOfStream Code -> Counter
-    private final Map<PublishStreamResponseCode, Counter> endOfStreamCounters =
-            new EnumMap<>(PublishStreamResponseCode.class);
+    private final Map<EndOfStream.Code, Counter> endOfStreamCounters = new EnumMap<>(EndOfStream.Code.class);
     // Counter for SkipBlock responses
     private Counter skipBlockCounter;
     // Counter for ResendBlock responses
     private Counter resendBlockCounter;
     // Counter for Acknowledgement responses
-    private Counter blockAckReceivedCounter;
+    private Counter acknowledgedBlockCounter;
     // Counter for BlockNodeConnection.onError invocations
     private Counter blockNodeConnectionErrorCounter;
-
+    private Counter unknownRespCounter;
     private LongGauge producingBlockNumberGauge;
     private LongGauge oldestUnacknowledgedBlockTimeGauge;
     private LongGauge latestAcknowledgedBlockNumberGauge;
@@ -63,9 +63,9 @@ public class BlockStreamMetrics {
         logger.info("Registering BlockStreamMetrics for node {}", localNodeId);
 
         // Register EndOfStream counters for each possible code
-        for (final PublishStreamResponseCode code : PublishStreamResponseCode.values()) {
+        for (final EndOfStream.Code code : EndOfStream.Code.values()) {
             // Skip UNKNOWN/UNSET value if necessary, though counting it might be useful
-            if (code == PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN) continue;
+            if (code == Code.UNKNOWN) continue;
 
             final String metricName = "endOfStream_" + code.name() + nodeLabel;
             final Counter counter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, metricName)
@@ -85,8 +85,8 @@ public class BlockStreamMetrics {
                 .withDescription("Total number of ResendBlock responses received by node " + localNodeId));
 
         // Register Block Acknowledgement counter
-        final String ackMetricName = "blockAckReceivedCount" + nodeLabel;
-        blockAckReceivedCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, ackMetricName)
+        final String ackMetricName = "acknowledgeBlock" + nodeLabel;
+        acknowledgedBlockCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, ackMetricName)
                 .withDescription("Total number of block acknowledgements received by node " + localNodeId));
 
         // Register blockNodeConnectionError counter
@@ -112,6 +112,10 @@ public class BlockStreamMetrics {
                 metrics.getOrCreate(new LongGauge.Config(APP_CATEGORY, latestAckBlockNumMetricName)
                         .withDescription("Latest block number acknowledged for node " + localNodeId));
 
+        final String unknownRespMetricName = "unknownBlockNodeResponse" + nodeLabel;
+        unknownRespCounter = metrics.getOrCreate(new Counter.Config(APP_CATEGORY, unknownRespMetricName)
+                .withDescription("Total number of unexpected responses received from block nodes"));
+
         /*
         Buffer saturation gauge - higher values mean the buffer is nearing saturation. Values over 100 mean the buffer
         is saturated and "overflowing" though this should be minimal since backpressure should be applied to prevent
@@ -130,10 +134,10 @@ public class BlockStreamMetrics {
     /**
      * Increments the counter for a specific EndOfStream response code received.
      *
-     * @param code   The {@link PublishStreamResponseCode} received.
+     * @param code   The {@link EndOfStream.Code} received.
      */
-    public void incrementEndOfStreamCount(@NonNull final PublishStreamResponseCode code) {
-        if (code != PublishStreamResponseCode.STREAM_ITEMS_UNKNOWN) {
+    public void incrementEndOfStreamCount(@NonNull final EndOfStream.Code code) {
+        if (code != Code.UNKNOWN) {
             final var counter = endOfStreamCounters.get(code);
             if (counter != null) {
                 counter.increment();
@@ -171,12 +175,20 @@ public class BlockStreamMetrics {
     /**
      * Increments the counter for Block Acknowledgement responses received.
      */
-    public void incrementBlockAckReceivedCount() {
-        if (blockAckReceivedCounter != null) {
-            blockAckReceivedCounter.increment();
+    public void incrementAcknowledgedBlockCount() {
+        if (acknowledgedBlockCounter != null) {
+            acknowledgedBlockCounter.increment();
         } else {
             // Should not happen if registration was successful
-            logger.warn("blockAckReceivedCounter not found.");
+            logger.warn("acknowledgedBlockCounter not found.");
+        }
+    }
+
+    public void incrementUnknownResponseCount() {
+        if (unknownRespCounter != null) {
+            unknownRespCounter.increment();
+        } else {
+            logger.warn("unknownRespCounter not found");
         }
     }
 
