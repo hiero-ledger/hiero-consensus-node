@@ -178,7 +178,7 @@ class DispatchUsageManagerTest {
     }
 
     @Test
-    void throwsNativeThrottleExceptionIfGasThrottled() {
+    void throwsNativeThrottleExceptionIfThrottled() {
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
         given(dispatch.stack()).willReturn(stack);
@@ -187,6 +187,22 @@ class DispatchUsageManagerTest {
                 .willReturn(true);
 
         Assertions.assertThatThrownBy(() -> subject.screenForCapacity(dispatch))
+                .isInstanceOf(ThrottleException.class)
+                .extracting(ex -> ((ThrottleException) ex).getStatus())
+                .isEqualTo(THROTTLED_AT_CONSENSUS);
+    }
+
+    @Test
+    void throwsNativeThrottleExceptionIfThrottledPostHandle() {
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
+        given(dispatch.throttleStrategy()).willReturn(ON);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
+        given(networkUtilizationManager.shouldThrottlePostHandle(
+                        CRYPTO_TRANSFER_TXN_INFO, recordBuilder, CONSENSUS_NOW))
+                .willReturn(true);
+
+        Assertions.assertThatThrownBy(() -> subject.postHandleScreenForCapacity(dispatch))
                 .isInstanceOf(ThrottleException.class)
                 .extracting(ex -> ((ThrottleException) ex).getStatus())
                 .isEqualTo(THROTTLED_AT_CONSENSUS);

@@ -17,6 +17,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNNECESSARY;
@@ -476,6 +477,32 @@ class DispatchProcessorTest {
 
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
+        assertFinished(IsRootStack.NO);
+    }
+
+    @Test
+    void throttledPostHandleTxIncrementsMetric() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        doThrow(ThrottleException.newNativeThrottleException())
+                .when(dispatchUsageManager)
+                .postHandleScreenForCapacity(dispatch);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.processDispatch(dispatch);
+
+        verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
+        verify(recordBuilder).status(THROTTLED_AT_CONSENSUS);
         verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
         verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
         assertFinished(IsRootStack.NO);
