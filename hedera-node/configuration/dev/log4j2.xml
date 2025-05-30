@@ -230,7 +230,23 @@
       <AppenderRef ref="StateLogs"/>
     </Logger>
 
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockBufferService" level="debug" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
     <Logger name="com.hedera" level="info" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection" level="DEBUG" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" level="TRACE" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
+    <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockState" level="DEBUG" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>

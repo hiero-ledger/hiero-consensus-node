@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -27,6 +28,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
@@ -47,6 +49,7 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
@@ -69,6 +72,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -182,7 +186,7 @@ class HandleWorkflowTest {
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
 
-        givenSubjectWith(RECORDS, emptyList());
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
 
         subject.handleRound(state, round, txns -> {});
 
@@ -200,7 +204,7 @@ class HandleWorkflowTest {
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
         final var builders = List.of(firstBuilder, secondBuilder);
-        givenSubjectWith(BOTH, builders);
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, builders);
 
         subject.handleRound(state, round, txns -> {});
 
@@ -230,7 +234,7 @@ class HandleWorkflowTest {
                 .willReturn(List.<ConsensusTransaction>of().iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -281,7 +285,7 @@ class HandleWorkflowTest {
         given(round.iterator()).willReturn(List.of(event).iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -338,7 +342,7 @@ class HandleWorkflowTest {
         given(round.iterator()).willReturn(List.of(event).iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -404,7 +408,7 @@ class HandleWorkflowTest {
         given(round.iterator()).willReturn(List.of(event).iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -438,9 +442,12 @@ class HandleWorkflowTest {
     }
 
     private void givenSubjectWith(
-            @NonNull final StreamMode mode, @NonNull final List<StateChanges.Builder> migrationStateChanges) {
+            @NonNull final StreamMode mode,
+            @NonNull BlockStreamWriterMode streamWriterMode,
+            @NonNull final List<StateChanges.Builder> migrationStateChanges) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "" + mode)
+                .withValue("blockStream.writerMode", "" + streamWriterMode)
                 .withValue("tss.hintsEnabled", "false")
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
@@ -476,5 +483,33 @@ class HandleWorkflowTest {
                 blockHashSigner,
                 null,
                 nodeRewardManager);
+    }
+
+    @Test
+    void startRoundShouldCallEnsureNewBlocksPermitted() {
+        // Mock the round iterator and event
+        NodeId creatorId = NodeId.of(0);
+        Hash eventHash = CryptoRandomUtils.randomHash();
+        given(event.getHash()).willReturn(eventHash);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64]));
+        given(event.allParentsIterator())
+                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(round.iterator()).willReturn(List.of(event).iterator());
+
+        // Create subject with streamToBlockNodes enabled
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
+
+        // Use a static mock to verify the static method call
+        try (final MockedStatic<BlockBufferService> mockedStatic = mockStatic(BlockBufferService.class)) {
+            // Execute the method
+            subject.handleRound(state, round, txn -> {});
+
+            // Verify that ensureNewBlocksPermitted was called
+            mockedStatic.verify(BlockBufferService::ensureNewBlocksPermitted);
+        }
     }
 }
