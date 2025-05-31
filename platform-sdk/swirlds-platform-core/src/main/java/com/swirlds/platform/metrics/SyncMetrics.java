@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
@@ -10,6 +11,7 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
+import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.SyncResult;
@@ -23,7 +25,9 @@ import com.swirlds.platform.stats.MaxStat;
 import com.swirlds.platform.system.PlatformStatNames;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Interface to update relevant sync statistics
@@ -104,6 +108,25 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because we have fallen behind");
     private final CountPerSecond doNotSyncFallenBehind;
 
+    private static final CountPerSecond.Config DO_NOT_SYNC_REMOTE_FALLEN_BEHIND_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncRemoteFallenBehind")
+            .withUnit("hz")
+            .withDescription("Number of times per second we do not sync because remote node has fallen behind");
+    private final CountPerSecond doNotSyncRemoteFallenBehind;
+
+    private static final CountPerSecond.Config DO_NOT_SYNC_REMOTE_PROCESSING_EVENTS_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncRemoteProcessingEvents")
+            .withUnit("hz")
+            .withDescription(
+                    "Number of times per second we do not sync because remote node is still processing out events");
+    private final CountPerSecond doNotSyncRemoteProcessingEvents;
+
+    private static final CountPerSecond.Config DO_NOT_SYNC_ALREADY_STARTED_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncAlreadyStarted")
+            .withUnit("hz")
+            .withDescription("Number of times per second we do not sync because we have already started sync");
+    private final CountPerSecond doNotSyncAlreadyStarted;
+
     private static final CountPerSecond.Config DO_NOT_SYNC_NO_PERMITS_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "doNotSyncNoPermits")
             .withUnit("hz")
@@ -115,6 +138,18 @@ public class SyncMetrics {
             .withUnit("hz")
             .withDescription("Number of times per second we do not sync because the intake counter is too high");
     private final CountPerSecond doNotSyncIntakeCounter;
+
+    private static final CountPerSecond.Config BROADCAST_EVENTS_SENT_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsSent")
+            .withUnit("hz")
+            .withDescription("Number of times per second event was sent over broadcast to the remote nodes");
+    private final CountPerSecond broadcastEventsSentCounter;
+
+    private static final CountPerSecond.Config BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsReceived")
+            .withUnit("hz")
+            .withDescription("Number of times per second event was received by broadcast from the remote nodes");
+    private final CountPerSecond broadcastEventsReceivedCounter;
 
     private final RunningAverageMetric tipsPerSync;
 
@@ -131,6 +166,9 @@ public class SyncMetrics {
     private final AverageAndMax avgEventsPerSyncRec;
     private final MaxStat multiTipsPerSync;
     private final RunningAverageMetric syncFilterTime;
+    private final ConcurrentHashMap<NodeId, AverageStat> rpcQueueSize = new ConcurrentHashMap<>();
+    private final Metrics metrics;
+    private final AverageAndMax outputQueuePollTime;
 
     /**
      * Constructor of {@code SyncMetrics}
@@ -139,6 +177,7 @@ public class SyncMetrics {
      * @throws IllegalArgumentException if {@code metrics} is {@code null}
      */
     public SyncMetrics(final Metrics metrics) {
+        this.metrics = metrics;
         avgBytesPerSecSync = metrics.getOrCreate(AVG_BYTES_PER_SEC_SYNC_CONFIG);
         callSyncsPerSecond = new CountPerSecond(metrics, CALL_SYNCS_PER_SECOND_CONFIG);
         recSyncsPerSecond = new CountPerSecond(metrics, REC_SYNCS_PER_SECOND_CONFIG);
@@ -155,8 +194,13 @@ public class SyncMetrics {
         doNotSyncCooldown = new CountPerSecond(metrics, DO_NOT_SYNC_COOLDOWN_CONFIG);
         doNotSyncHalted = new CountPerSecond(metrics, DO_NOT_SYNC_HALTED_CONFIG);
         doNotSyncFallenBehind = new CountPerSecond(metrics, DO_NOT_SYNC_FALLEN_BEHIND_CONFIG);
+        doNotSyncRemoteFallenBehind = new CountPerSecond(metrics, DO_NOT_SYNC_REMOTE_FALLEN_BEHIND_CONFIG);
+        doNotSyncRemoteProcessingEvents = new CountPerSecond(metrics, DO_NOT_SYNC_REMOTE_PROCESSING_EVENTS_CONFIG);
+        doNotSyncAlreadyStarted = new CountPerSecond(metrics, DO_NOT_SYNC_ALREADY_STARTED_CONFIG);
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
+        broadcastEventsSentCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_SENT_COUNTER_CONFIG);
+        broadcastEventsReceivedCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -234,6 +278,13 @@ public class SyncMetrics {
                 PlatformStatNames.MULTI_TIPS_PER_SYNC,
                 "the number of creators that have more than one tip at the start of each sync",
                 "%5d");
+
+        this.outputQueuePollTime = new AverageAndMax(
+                metrics,
+                PLATFORM_CATEGORY,
+                "rpc_output_queue_poll_time",
+                "amount of us spent sleeping waiting for poll to happen or timeout",
+                FORMAT_10_0);
     }
 
     /**
@@ -398,6 +449,27 @@ public class SyncMetrics {
     }
 
     /**
+     * Signal that we chose not to sync because they have fallen behind.
+     */
+    public void doNotSyncRemoteFallenBehind() {
+        doNotSyncRemoteFallenBehind.count();
+    }
+
+    /**
+     * Signal that we chose not to sync because they have fallen behind.
+     */
+    public void setDoNotSyncRemoteProcessingEvents() {
+        doNotSyncRemoteProcessingEvents.count();
+    }
+
+    /**
+     * Signal that we chose not to sync because we have already sent initial message
+     */
+    public void setDoNotSyncAlreadyStarted() {
+        doNotSyncAlreadyStarted.count();
+    }
+
+    /**
      * Signal that we chose not to sync because we have no permits.
      */
     public void doNotSyncNoPermits() {
@@ -409,5 +481,43 @@ public class SyncMetrics {
      */
     public void doNotSyncIntakeCounter() {
         doNotSyncIntakeCounter.count();
+    }
+
+    /**
+     * Event was sent over broadcast to remote nodes (as opposed to sending events over sync)
+     */
+    public void broadcastEventSent() {
+        broadcastEventsSentCounter.count();
+    }
+
+    /**
+     * Event was sent over broadcast to remote nodes (as opposed to sending events over sync)
+     */
+    public void broadcastEventReceived() {
+        broadcastEventsReceivedCounter.count();
+    }
+
+    /**
+     * Report size of the outgoing queue
+     *
+     * @param size size of the queue
+     */
+    public void rpcQueueSize(NodeId node, final int size) {
+
+        rpcQueueSize
+                .computeIfAbsent(
+                        node,
+                        nodeId -> new AverageStat(
+                                metrics,
+                                PLATFORM_CATEGORY,
+                                String.format("rpc_queue_size_%02d", nodeId.id()),
+                                String.format("gossip rpc output queue size to node %02d", nodeId.id()),
+                                FloatFormats.FORMAT_10_0,
+                                AverageStat.WEIGHT_VOLATILE))
+                .update(size);
+    }
+
+    public void outputQueuePollTime(final long nanos) {
+        outputQueuePollTime.update(nanos / 1000);
     }
 }

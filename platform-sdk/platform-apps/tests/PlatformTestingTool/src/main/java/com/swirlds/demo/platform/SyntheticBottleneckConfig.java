@@ -138,6 +138,7 @@ public class SyntheticBottleneckConfig {
             millisecondsSlept += millisecondSleepPeriod;
         }
         try {
+            logger.info(DEMO_INFO.getMarker(), "Will sleep for {}ms on throttle", millisecondSleepPeriod);
             Thread.sleep(millisecondSleepPeriod);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
