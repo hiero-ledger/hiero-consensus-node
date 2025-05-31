@@ -2,6 +2,7 @@
 package com.swirlds.state.merkle;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.*;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_UPGRADE_FILE;
 
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.VirtualMapKey;
@@ -259,6 +260,8 @@ public final class StateUtils {
                             yield STATE_ID_UPGRADE_DATA_158.protoOrdinal();
                         } else if (stateKey.matches(UPGRADE_DATA_FILE_FORMAT.apply(159))) {
                             yield STATE_ID_UPGRADE_DATA_159.protoOrdinal();
+                        } else if ("UPGRADE_FILE".equals(stateKey)) {
+                            yield STATE_ID_UPGRADE_FILE.protoOrdinal();
                         } else {
                             yield UNKNOWN_STATE_ID;
                         }
