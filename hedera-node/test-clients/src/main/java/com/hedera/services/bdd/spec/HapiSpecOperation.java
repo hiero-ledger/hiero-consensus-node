@@ -229,7 +229,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
         return Optional.empty();
     }
 
-    private void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
+    protected void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
         if (txnSubmitted != Transaction.getDefaultInstance()) {
             spec.registry().saveBytes(txnName, txnSubmitted.toByteString());
             final TransactionID txnId = extractTxnId(txnSubmitted);
