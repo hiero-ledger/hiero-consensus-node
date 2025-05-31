@@ -26,7 +26,6 @@ public enum AirdropRemovalTranslator implements BlockTransactionPartsTranslator 
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         for (final var stateChange : remainingStateChanges) {
@@ -43,6 +42,7 @@ public enum AirdropRemovalTranslator implements BlockTransactionPartsTranslator 
                         }
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

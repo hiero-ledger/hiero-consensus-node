@@ -22,7 +22,6 @@ public class UtilPrngTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         parts.outputIfPresent(TransactionOutput.TransactionOneOfType.UTIL_PRNG)
@@ -38,6 +37,7 @@ public class UtilPrngTranslator implements BlockTransactionPartsTranslator {
                                 });
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

@@ -35,7 +35,6 @@ public class TokenWipeTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().tokenWipeOrThrow();
@@ -81,6 +80,7 @@ public class TokenWipeTranslator implements BlockTransactionPartsTranslator {
                         }
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

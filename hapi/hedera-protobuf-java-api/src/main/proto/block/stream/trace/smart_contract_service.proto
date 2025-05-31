@@ -77,30 +77,64 @@ message SlotRead {
 }
 
 /**
- * The initcode of a contract, possibly deduplicated if the runtime part
- * is already externalized in state changes.
+ * Information about the initcode of a contract whose creation was attempted
+ * during the EVM transaction.
  */
 message ContractInitcode {
+    oneof code {
+        /**
+         * The initcode used for a failed top-level creation.
+         */
+        bytes failed_initcode = 2;
+
+        /**
+         * The initcode "bookends" around a newly created contract's runtime bytecode.
+         */
+        ExecutedInitcode executed_initcode = 3;
+    }
+}
+
+/**
+  * Information about the initcode executed to create a contract.
+ */
+message ExecutedInitcode {
     /**
-     * The contract created from the initcode.
+     * The id of the contract created by the initcode.
      */
     proto.ContractID contract_id = 1;
 
+    oneof initcode {
+        /**
+         * If the runtime bytecode follows the common convention of appearing as a subsequence
+         * of the initcode, the initcode pieces that surround the runtime bytecode (which is
+         * necessarily in the Hiero transactional unit's state changes).
+         */
+        InitcodeBookends initcode_bookends = 2;
+
+        /**
+         * If the runtime bytecode is not a subsequence of the initcode, the explicit initcode.
+         */
+        bytes explicit_initcode = 3;
+    }
+}
+
+/**
+  * The initcode bookends of a contract, which are the deploy bytecode and metadata
+  * bytecode that surround the runtime bytecode in a contract's deployment.
+  * <p>
+  * The runtime bytecode is not included here, as it is externalized via a state change
+  * with the matching contract id in the Hiero transactional unit.
+ */
+message InitcodeBookends {
     /**
-     * The bytecode that precedes and deploys the runtime bytecode of a contract.
+     * The bytecode that precedes the runtime bytecode of a contract in initcode.
      */
-    bytes deploy_bytecode = 2;
+    bytes deploy_bytecode = 1;
 
     /**
-     * If not externalized in state, the bytecode that defines a deployed
-     * contracts logic.
+     * The bytecode that follows the runtime bytecode of a contract in initcode.
      */
-    google.protobuf.BytesValue runtime_bytecode = 3;
-
-    /**
-     * The bytecode that follows the runtime bytecode in a contracts deployment.
-     */
-    bytes metadata_bytecode = 4;
+    bytes metadata_bytecode = 2;
 }
 
 /**

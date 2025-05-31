@@ -24,7 +24,6 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> parts.outputIfPresent(
                                 TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
                         .map(TransactionOutput::contractCallOrThrow)
@@ -38,6 +37,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                 }
                             }
                         }),
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

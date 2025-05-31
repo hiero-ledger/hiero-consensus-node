@@ -23,7 +23,6 @@ public class CryptoUpdateTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().cryptoUpdateAccountOrThrow();
@@ -49,6 +48,7 @@ public class CryptoUpdateTranslator implements BlockTransactionPartsTranslator {
                         }
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 

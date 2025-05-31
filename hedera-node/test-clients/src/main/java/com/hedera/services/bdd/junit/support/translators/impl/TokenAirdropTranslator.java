@@ -28,7 +28,6 @@ public class TokenAirdropTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         recordBuilder.assessedCustomFees(parts.assessedCustomFees());
@@ -62,6 +61,7 @@ public class TokenAirdropTranslator implements BlockTransactionPartsTranslator {
                         recordBuilder.newPendingAirdrops(pendingAirdrops);
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

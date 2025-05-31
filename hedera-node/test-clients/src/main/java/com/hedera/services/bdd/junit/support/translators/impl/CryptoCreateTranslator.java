@@ -35,7 +35,6 @@ public class CryptoCreateTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS && parts.outputs() != null) {
                         parts.outputs()
@@ -53,6 +52,7 @@ public class CryptoCreateTranslator implements BlockTransactionPartsTranslator {
                         }
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

@@ -25,7 +25,6 @@ public class ContractUpdateTranslator implements BlockTransactionPartsTranslator
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var iter = remainingStateChanges.listIterator();
@@ -55,6 +54,7 @@ public class ContractUpdateTranslator implements BlockTransactionPartsTranslator
                         }
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

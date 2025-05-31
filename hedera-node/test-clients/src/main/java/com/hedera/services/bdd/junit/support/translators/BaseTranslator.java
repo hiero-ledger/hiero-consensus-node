@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -45,6 +46,8 @@ import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractActions;
+import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
@@ -70,7 +73,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -336,15 +338,15 @@ public class BaseTranslator {
      * Given a {@link BlockTransactionParts} and a {@link Spec}, translates the implied {@link SingleTransactionRecord}.
      *
      * @param parts the parts of the transaction
-     * @param remainingStateChanges the remaining state changes for this transactional unit
      * @param spec the specification of the transaction record
+     * @param remainingStateChanges the remaining state changes for this transactional unit
      * @param followingUnitTraces any traces following this transaction in its unit
      * @return the translated record
      */
     public SingleTransactionRecord recordFrom(
             @NonNull final BlockTransactionParts parts,
-            @NonNull final List<StateChange> remainingStateChanges,
             @NonNull final Spec spec,
+            @NonNull final List<StateChange> remainingStateChanges,
             @NonNull final List<TraceData> followingUnitTraces) {
         final var txnId = parts.transactionIdOrThrow();
         final var recordBuilder = TransactionRecord.newBuilder()
@@ -377,29 +379,17 @@ public class BaseTranslator {
         if (parts.transactionIdOrThrow().scheduled()) {
             Optional.ofNullable(scheduleRefs.get(parts.transactionIdOrThrow())).ifPresent(recordBuilder::scheduleRef);
         }
-        if (!explicitSidecarRecords.isEmpty()) {
-            final var sidecarsHere = explicitSidecarRecords.stream()
-                    .filter(s -> s.consensusTimestampOrThrow().equals(parts.consensusTimestamp()))
-                    .toList();
-            if (!sidecarsHere.isEmpty()) {
-                if (!parts.hasTraces()) {
-                    throw new IllegalStateException(
-                            "Expected traces for " + sidecarsHere.size() + " sidecars, but none found in " + parts);
-                }
-                final var rebuiltSidecars = recoveredSidecars(
-                        parts.consensusTimestamp(), parts.tracesOrThrow(), followingUnitTraces, remainingStateChanges);
-                for (final var sidecar : rebuiltSidecars) {
-                    if (!sidecarsHere.contains(sidecar)) {
-                        throw new IllegalStateException(
-                                "Rebuilt sidecar " + sidecar + " not found in explicit sidecars " + sidecarsHere);
-                    }
-                }
-            }
+        final List<TransactionSidecarRecord> rebuiltSidecars;
+        if (parts.hasTraces()) {
+            rebuiltSidecars = recoveredSidecars(
+                    parts.consensusTimestamp(), parts.tracesOrThrow(), followingUnitTraces, remainingStateChanges);
+        } else {
+            rebuiltSidecars = emptyList();
         }
         return new SingleTransactionRecord(
                 parts.transactionParts().wrapper(),
                 recordBuilder.receipt(receiptBuilder.build()).build(),
-                explicitSidecarRecords,
+                rebuiltSidecars,
                 new SingleTransactionRecord.TransactionOutputs(null));
     }
 
@@ -409,20 +399,20 @@ public class BaseTranslator {
             @NonNull final List<TraceData> followingUnitTraces,
             @NonNull final List<StateChange> remainingStateChanges) {
         final List<TransactionSidecarRecord> sidecars = new ArrayList<>();
-        final var sets = remainingStateChanges.stream()
+        final var slotUpdates = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .collect(toMap(
                         c -> c.keyOrThrow().slotKeyKeyOrThrow(),
                         c -> c.valueOrThrow().slotValueValueOrThrow().value()));
-        final Map<SlotKey, Bytes> writtenSlots = new HashMap<>(sets);
-        final var removals = remainingStateChanges.stream()
+        final Map<SlotKey, Bytes> writtenSlots = new HashMap<>(slotUpdates);
+        final var slotRemovals = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal())
                 .filter(StateChange::hasMapDelete)
                 .map(StateChange::mapDeleteOrThrow)
                 .collect(toMap(d -> d.keyOrThrow().slotKeyKeyOrThrow(), d -> Bytes.EMPTY));
-        writtenSlots.putAll(removals);
+        writtenSlots.putAll(slotRemovals);
         final var evmTraces = tracesHere.stream()
                 .filter(TraceData::hasEvmTraceData)
                 .map(TraceData::evmTraceDataOrThrow)
@@ -432,29 +422,11 @@ public class BaseTranslator {
                 .map(TraceData::evmTraceDataOrThrow)
                 .toList();
         for (final var evmTraceData : evmTraces) {
-            final var slotUsages = evmTraceData.contractSlotUsages();
-            if (!slotUsages.isEmpty()) {
-                final var expectedStateChanges = explicitSidecarRecords.stream()
-                        .filter(TransactionSidecarRecord::hasStateChanges)
-                        .findFirst();
-                if (expectedStateChanges.isEmpty()) {
-                    throw new IllegalStateException("Got slot usages " + slotUsages + " with no state changes sidecar");
-                }
-                final var contractStateChanges =
-                        expectedStateChanges.get().stateChangesOrThrow().contractStateChanges().stream()
-                                .collect(toMap(ContractStateChange::contractId, Function.identity()));
+            if (!evmTraceData.contractSlotUsages().isEmpty()) {
+                final var slotUsages = evmTraceData.contractSlotUsages();
                 final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
                 for (final var slotUsage : slotUsages) {
                     final var contractId = slotUsage.contractIdOrThrow();
-                    final var stateChange = contractStateChanges.get(contractId);
-                    if (stateChange == null) {
-                        throw new IllegalStateException("Contract state change " + contractId + " not found");
-                    }
-                    final Map<Bytes, Integer> keyPositions = new HashMap<>();
-                    for (int j = 0, m = stateChange.storageChanges().size(); j < m; j++) {
-                        final var change = stateChange.storageChanges().get(j);
-                        keyPositions.put(change.slot(), j);
-                    }
                     final List<StorageChange> recoveredChanges = new ArrayList<>();
                     final var writes = slotUsage.writtenSlotKeys();
                     slotUsage.slotReads().forEach(read -> {
@@ -497,33 +469,65 @@ public class BaseTranslator {
                         }
                         recoveredChanges.add(builder.build());
                     });
-                    for (final var change : recoveredChanges) {
-                        if (keyPositions.get(change.slot()) == null) {
-                            log.error(
-                                    "Missing position for 0.0.{} change {} relative to {} (slotChanges were {})",
-                                    contractId.contractNum(),
-                                    change,
-                                    stateChange.storageChanges(),
-                                    slotUsage);
-                            log.error(
-                                    "Overall expected state changes were: {}",
-                                    expectedStateChanges
-                                            .get()
-                                            .stateChangesOrThrow()
-                                            .contractStateChanges());
-                            log.error("Overall slot usages were: {}", slotUsages);
-                            log.error("Overall written slots were: {}", writtenSlots);
-                            throw new IllegalStateException(
-                                    "No position found for slot " + change.slot() + " in " + keyPositions);
-                        }
-                    }
-                    recoveredChanges.sort(Comparator.comparingInt(c -> keyPositions.get(c.slot())));
                     recoveredStateChanges.add(new ContractStateChange(contractId, recoveredChanges));
                 }
                 sidecars.add(TransactionSidecarRecord.newBuilder()
                         .consensusTimestamp(now)
                         .stateChanges(new ContractStateChanges(recoveredStateChanges))
                         .build());
+            }
+            if (!evmTraceData.contractActions().isEmpty()) {
+                final var actions = evmTraceData.contractActions();
+                sidecars.add(TransactionSidecarRecord.newBuilder()
+                        .consensusTimestamp(now)
+                        .actions(new ContractActions(actions))
+                        .build());
+            }
+            if (!evmTraceData.initcodes().isEmpty()) {
+                for (final var initcode : evmTraceData.initcodes()) {
+                    if (initcode.hasFailedInitcode()) {
+                        sidecars.add(TransactionSidecarRecord.newBuilder()
+                                .consensusTimestamp(now)
+                                .bytecode(ContractBytecode.newBuilder()
+                                        .initcode(initcode.failedInitcodeOrThrow())
+                                        .build())
+                                .build());
+                    } else {
+                        final var executedInitcode = initcode.executedInitcodeOrThrow();
+                        final var contractId = executedInitcode.contractIdOrThrow();
+                        final var bytecodeBuilder =
+                                ContractBytecode.newBuilder().contractId(contractId);
+                        final var bytecode = remainingStateChanges.stream()
+                                .filter(StateChange::hasMapUpdate)
+                                .filter(update -> update.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
+                                .filter(update -> update.mapUpdateOrThrow()
+                                        .keyOrThrow()
+                                        .contractIdKeyOrThrow()
+                                        .equals(contractId))
+                                .map(update ->
+                                        update.mapUpdateOrThrow().valueOrThrow().bytecodeValueOrThrow())
+                                .findAny();
+                        // Runtime bytecode should always be recoverable from the state changes
+                        if (bytecode.isEmpty()) {
+                            throw new IllegalStateException("No bytecode state change found for contract " + contractId
+                                    + " in " + remainingStateChanges);
+                        }
+                        final var runtimeBytecode = bytecode.get().code();
+                        bytecodeBuilder.runtimeBytecode(runtimeBytecode);
+                        if (executedInitcode.hasExplicitInitcode()) {
+                            bytecodeBuilder.initcode(executedInitcode.explicitInitcodeOrThrow());
+                        } else {
+                            final var bookends = executedInitcode.initcodeBookendsOrThrow();
+                            bytecodeBuilder.initcode(Bytes.merge(
+                                    bookends.deployBytecode(),
+                                    Bytes.merge(runtimeBytecode, bookends.metadataBytecode())));
+                        }
+                        sidecars.add(TransactionSidecarRecord.newBuilder()
+                                .consensusTimestamp(now)
+                                .bytecode(bytecodeBuilder)
+                                .build());
+                    }
+                }
             }
         }
         return sidecars;

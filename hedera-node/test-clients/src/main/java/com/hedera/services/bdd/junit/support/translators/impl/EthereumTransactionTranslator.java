@@ -29,7 +29,6 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.ETHEREUM_CALL)
                             .map(TransactionOutput::ethereumCallOrThrow)
@@ -55,6 +54,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                 }
                             });
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

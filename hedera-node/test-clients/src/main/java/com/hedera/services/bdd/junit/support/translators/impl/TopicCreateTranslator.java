@@ -33,7 +33,6 @@ public class TopicCreateTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var createdNum = baseTranslator.nextCreatedNum(TOPIC);
@@ -61,6 +60,7 @@ public class TopicCreateTranslator implements BlockTransactionPartsTranslator {
                                 parts.transactionIdOrThrow());
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

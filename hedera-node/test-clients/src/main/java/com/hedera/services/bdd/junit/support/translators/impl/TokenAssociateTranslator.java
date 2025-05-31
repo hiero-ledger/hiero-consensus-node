@@ -24,7 +24,6 @@ public class TokenAssociateTranslator implements BlockTransactionPartsTranslator
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().tokenAssociateOrThrow();
@@ -32,6 +31,7 @@ public class TokenAssociateTranslator implements BlockTransactionPartsTranslator
                         op.tokens().forEach(tokenId -> baseTranslator.trackAssociation(tokenId, accountId));
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

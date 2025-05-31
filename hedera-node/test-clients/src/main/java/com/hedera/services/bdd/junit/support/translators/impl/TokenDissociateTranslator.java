@@ -24,7 +24,6 @@ public class TokenDissociateTranslator implements BlockTransactionPartsTranslato
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().tokenDissociateOrThrow();
@@ -32,6 +31,7 @@ public class TokenDissociateTranslator implements BlockTransactionPartsTranslato
                         op.tokens().forEach(tokenId -> baseTranslator.trackDissociation(tokenId, accountId));
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

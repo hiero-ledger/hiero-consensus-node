@@ -33,7 +33,6 @@ public class TokenMintTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().tokenMintOrThrow();
@@ -78,6 +77,7 @@ public class TokenMintTranslator implements BlockTransactionPartsTranslator {
                         }
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

@@ -29,7 +29,6 @@ public class ScheduleSignTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         parts.outputIfPresent(TransactionOutput.TransactionOneOfType.SIGN_SCHEDULE)
@@ -38,6 +37,7 @@ public class ScheduleSignTranslator implements BlockTransactionPartsTranslator {
                                         signScheduleOutput.scheduledTransactionIdOrThrow()));
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

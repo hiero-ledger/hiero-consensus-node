@@ -30,7 +30,6 @@ public class ScheduleDeleteTranslator implements BlockTransactionPartsTranslator
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var iter = remainingStateChanges.listIterator();
@@ -54,6 +53,7 @@ public class ScheduleDeleteTranslator implements BlockTransactionPartsTranslator
                                 parts.transactionIdOrThrow());
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

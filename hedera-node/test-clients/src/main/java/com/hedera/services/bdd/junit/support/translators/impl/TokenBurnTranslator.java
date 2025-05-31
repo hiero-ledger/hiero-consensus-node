@@ -27,7 +27,6 @@ public class TokenBurnTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().tokenBurnOrThrow();
@@ -46,6 +45,7 @@ public class TokenBurnTranslator implements BlockTransactionPartsTranslator {
                         receiptBuilder.newTotalSupply(newTotalSupply);
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

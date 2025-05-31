@@ -25,7 +25,6 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var op = parts.body().tokenUpdateOrThrow();
@@ -59,6 +58,7 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
                         }
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

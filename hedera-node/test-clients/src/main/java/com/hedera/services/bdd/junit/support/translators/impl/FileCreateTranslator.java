@@ -33,7 +33,6 @@ public class FileCreateTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var createdNum = baseTranslator.nextCreatedNum(FILE);
@@ -61,6 +60,7 @@ public class FileCreateTranslator implements BlockTransactionPartsTranslator {
                                 parts.transactionIdOrThrow());
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

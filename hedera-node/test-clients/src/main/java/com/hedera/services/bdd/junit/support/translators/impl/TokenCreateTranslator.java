@@ -33,7 +33,6 @@ public class TokenCreateTranslator implements BlockTransactionPartsTranslator {
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var createdNum = baseTranslator.nextCreatedNum(TOKEN);
@@ -64,6 +63,7 @@ public class TokenCreateTranslator implements BlockTransactionPartsTranslator {
                                 parts.transactionIdOrThrow());
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

@@ -22,8 +22,11 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EVMTraceData;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
+import com.hedera.hapi.block.stream.trace.InitcodeBookends;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -105,6 +108,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -525,10 +529,41 @@ public class BlockStreamBuilder
                 .build());
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
-        if (slotUsages != null) {
+        if (slotUsages != null || !contractActions.isEmpty() || !contractBytecodes.isEmpty()) {
             final var builder = EVMTraceData.newBuilder();
             if (slotUsages != null) {
                 builder.contractSlotUsages(slotUsages);
+            }
+            // This list actually has zero or one entries
+            if (!contractActions.isEmpty()) {
+                builder.contractActions(contractActions.getFirst().getKey().contractActions());
+            }
+            if (!contractBytecodes.isEmpty()) {
+                final List<ContractInitcode> initcodes = new ArrayList<>();
+                for (final var entry : contractBytecodes) {
+                    final var contractBytecode = entry.getKey();
+                    final var codeBuilder = ContractInitcode.newBuilder();
+                    if (!contractBytecode.hasContractId()) {
+                        codeBuilder.failedInitcode(contractBytecode.initcode());
+                    } else {
+                        final var initcode = contractBytecode.initcode();
+                        final var bytecode = contractBytecode.runtimeBytecode();
+                        final int i = indexOf(initcode, bytecode);
+                        final var initcodeBuilder =
+                                ExecutedInitcode.newBuilder().contractId(contractBytecode.contractIdOrThrow());
+                        if (i != -1) {
+                            final var leftBookend = initcode.slice(0, i);
+                            final int rightIndex = i + (int) bytecode.length();
+                            final var rightBookend = initcode.slice(rightIndex, (int) initcode.length() - rightIndex);
+                            initcodeBuilder.initcodeBookends(new InitcodeBookends(leftBookend, rightBookend));
+                        } else {
+                            initcodeBuilder.explicitInitcode(initcode);
+                        }
+                        codeBuilder.executedInitcode(initcodeBuilder);
+                    }
+                    initcodes.add(codeBuilder.build());
+                }
+                builder.initcodes(initcodes);
             }
             blockItems.add(BlockItem.newBuilder()
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
@@ -1302,5 +1337,38 @@ public class BlockStreamBuilder
             default ->
                 new BaseOpContext(memo, translationContextExchangeRates, transactionId, transaction, functionality);
         };
+    }
+
+    /**
+     * Returns the first byte offset of {@code needle} inside {@code haystack},
+     * or –1 if it is not present.
+     * <br>
+     * <i>(FUTURE)</i> Replace with {@code Bytes#indexOf(Bytes, Bytes)} when
+     * <a href="https://github.com/hashgraph/pbj/pull/503">this</a> PBJ PR is merged.
+     */
+    private static int indexOf(@NonNull final Bytes haystackBytes, @NonNull final Bytes needleBytes) {
+        requireNonNull(haystackBytes);
+        requireNonNull(needleBytes);
+        final var haystack = haystackBytes.toByteArray();
+        final var needle = needleBytes.toByteArray();
+        // Empty needle found at index zero in any haystack
+        if (needle.length == 0) {
+            return 0;
+        }
+        // Needle doesn't fit into haystack, so it cannot be found
+        if (needle.length > haystack.length) {
+            return -1;
+        }
+        final byte firstByte = needle[0];
+        for (int i = 0; i <= haystack.length - needle.length; i++) {
+            if (haystack[i] != firstByte) {
+                continue;
+            }
+            // SIMD–accelerated block comparison.
+            if (Arrays.mismatch(haystack, i, i + needle.length, needle, 0, needle.length) < 0) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

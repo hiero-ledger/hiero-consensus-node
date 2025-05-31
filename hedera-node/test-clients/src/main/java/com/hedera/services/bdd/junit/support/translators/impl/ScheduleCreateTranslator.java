@@ -34,7 +34,6 @@ public class ScheduleCreateTranslator implements BlockTransactionPartsTranslator
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
                         final var createdNum = baseTranslator.nextCreatedNum(SCHEDULE);
@@ -70,6 +69,7 @@ public class ScheduleCreateTranslator implements BlockTransactionPartsTranslator
                                 .scheduledTransactionID(output.scheduledTransactionIdOrThrow());
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

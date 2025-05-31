@@ -35,7 +35,6 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
         requireNonNull(remainingStateChanges);
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> {
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                             .map(TransactionOutput::contractCreateOrThrow)
@@ -92,6 +91,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                         receiptBuilder.contractID(selfAdminId);
                     }
                 },
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }

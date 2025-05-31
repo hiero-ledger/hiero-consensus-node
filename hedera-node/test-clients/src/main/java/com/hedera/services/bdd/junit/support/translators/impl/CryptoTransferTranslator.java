@@ -22,8 +22,8 @@ public class CryptoTransferTranslator implements BlockTransactionPartsTranslator
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
-                remainingStateChanges,
                 (receiptBuilder, recordBuilder) -> recordBuilder.assessedCustomFees(parts.assessedCustomFees()),
+                remainingStateChanges,
                 followingUnitTraces);
     }
 }
