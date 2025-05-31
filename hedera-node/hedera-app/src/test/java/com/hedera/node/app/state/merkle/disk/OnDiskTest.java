@@ -103,7 +103,8 @@ class OnDiskTest extends MerkleTestBase {
     @Test
     void populateTheMapAndFlushToDiskAndReadBack() throws IOException {
         // Populate the data set and flush it all to disk
-        final var ws = new OnDiskWritableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+        final var ws = new OnDiskWritableKVState<>(
+                SERVICE_NAME, ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = Account.newBuilder()
@@ -136,7 +137,8 @@ class OnDiskTest extends MerkleTestBase {
 
         // read it back now as our map and validate the data come back fine
         virtualMap = parseTree(serializedBytes, snapshotDir);
-        final var rs = new OnDiskReadableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+        final var rs = new OnDiskReadableKVState<>(
+                SERVICE_NAME, ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = rs.get(id);
@@ -149,7 +151,8 @@ class OnDiskTest extends MerkleTestBase {
 
     @Test
     void populateFlushToDisk() {
-        final var ws = new OnDiskWritableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+        final var ws = new OnDiskWritableKVState<>(
+                SERVICE_NAME, ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = Account.newBuilder()
@@ -162,7 +165,8 @@ class OnDiskTest extends MerkleTestBase {
         ws.commit();
         virtualMap = copyHashAndFlush(virtualMap);
 
-        final var rs = new OnDiskReadableKVState<>(ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+        final var rs = new OnDiskReadableKVState<>(
+                SERVICE_NAME, ACCOUNT_STATE_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = rs.get(id);

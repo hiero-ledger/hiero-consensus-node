@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
 import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static java.util.Objects.requireNonNull;
 import static java.util.Spliterators.spliteratorUnknownSize;
 import static java.util.stream.Collectors.toMap;
@@ -163,7 +164,8 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 (hints, history, configProvider) ->
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
                 metrics,
-                new PlatformStateFacade());
+                new PlatformStateFacade(),
+                CONFIGURATION);
         version = hedera.getSemanticVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));

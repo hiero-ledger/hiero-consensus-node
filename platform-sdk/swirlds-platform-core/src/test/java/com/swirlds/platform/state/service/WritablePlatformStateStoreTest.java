@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
@@ -12,11 +13,17 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
+import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
+import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.virtualmap.VirtualMap;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import org.hiero.base.utility.CommonUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,16 +39,24 @@ class WritablePlatformStateStoreTest {
     private WritablePlatformStateStore store;
 
     private Randotron randotron;
+    private VirtualMap virtualMap;
 
     @BeforeEach
     void setUp() {
         randotron = Randotron.create();
-        SingletonNode<PlatformState> platformSingleton =
-                new SingletonNode<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, 0, PlatformState.PROTOBUF, null);
-        platformSingleton.setValue(toPbjPlatformState(randomPlatformState(randotron)));
+
+        final String virtualMapLabel =
+                "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
+        virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+
+        virtualMap.put(
+                StateUtils.getVirtualMapKey(PlatformStateService.NAME, PLATFORM_STATE_KEY),
+                toPbjPlatformState(randomPlatformState(randotron)),
+                PlatformState.PROTOBUF);
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .thenReturn(new WritableSingletonStateImpl<>(PLATFORM_STATE_KEY, platformSingleton));
+                .thenReturn(new OnDiskWritableSingletonState<>(
+                        PlatformStateService.NAME, PLATFORM_STATE_KEY, PlatformState.PROTOBUF, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }
 
@@ -142,5 +157,15 @@ class WritablePlatformStateStoreTest {
         final var generation = nextInt(1, 100);
         store.setLowestJudgeGenerationBeforeBirthRoundMode(generation);
         assertEquals(generation, store.getLowestJudgeGenerationBeforeBirthRoundMode());
+    }
+
+    @AfterEach
+    void tearDown() {
+        virtualMap.release();
+        assertEventuallyEquals(
+                0L,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "All databases should be closed");
     }
 }
