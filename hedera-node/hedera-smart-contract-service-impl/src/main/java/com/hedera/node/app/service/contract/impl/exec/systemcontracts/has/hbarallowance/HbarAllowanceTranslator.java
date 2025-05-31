@@ -19,7 +19,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Translates {@code hbarApprove()} calls to the HAS system contract.
+ * Translates {@code hbarAllowance()} calls to the HAS system contract.
  */
 @Singleton
 public class HbarAllowanceTranslator extends AbstractCallTranslator<HasCallAttempt> {
