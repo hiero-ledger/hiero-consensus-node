@@ -425,7 +425,6 @@ public class AtomicBatchSecurityV2Test {
 
     @HapiTest
     final Stream<DynamicTest> v2Security010NestedAssociateNftAndNonFungibleTokens() {
-
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
@@ -470,20 +469,6 @@ public class AtomicBatchSecurityV2Test {
                                         .hasRetryPrecheckFrom(BUSY)
                                         .via("nestedAssociateFungibleTxn")
                                         .gas(GAS_TO_OFFER),
-                                // todo remove this test
-                                contractCall(
-                                                NESTED_ASSOCIATE_CONTRACT,
-                                                "associateInternalContractCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID("FUNGIBLE_TOKEN_2"))))
-                                        .signedBy(ACCOUNT)
-                                        .payingWith(ACCOUNT)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .via("test_1")
-                                        .gas(GAS_TO_OFFER),
-
                                 // Test Case 2: Account paying and signing a nested non fungible TOKEN ASSOCIATE
                                 // TRANSACTION,
                                 // when we associate the token to the signer
@@ -507,28 +492,19 @@ public class AtomicBatchSecurityV2Test {
                         .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
                                 .kyc(KycNotApplicable)
                                 .freeze(FreezeNotApplicable)),
-                getTxnRecord("nestedAssociateFungibleTxn").andAllChildRecords().logged(),
-                getTxnRecord("test_1").andAllChildRecords().logged(),
-                getTxnRecord("nestedAssociateNonFungibleTxn")
-                        .andAllChildRecords()
-                        .logged()
-                //                childRecordsCheck(
-                //                        "nestedAssociateFungibleTxn",
-                //                        SUCCESS,
-                //                        recordWith()
-                //                                .status(SUCCESS)
-                //                                .contractCallResult(resultWith()
-                //                                        .contractCallResult(
-                //                                                htsPrecompileResult().withStatus(SUCCESS)))),
-                //                childRecordsCheck(
-                //                        "nestedAssociateNonFungibleTxn",
-                //                        SUCCESS,
-                //                        recordWith()
-                //                                .status(SUCCESS)
-                //                                .contractCallResult(resultWith()
-                //                                        .contractCallResult(
-                //                                                htsPrecompileResult().withStatus(SUCCESS))))
-                );
+                getTxnRecord("nestedAssociateFungibleTxn").andAllChildRecords().hasChildRecords(
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getTxnRecord(
+                        "nestedAssociateNonFungibleTxn").andAllChildRecords().hasChildRecords(
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))));
     }
 
     @HapiTest
@@ -559,34 +535,37 @@ public class AtomicBatchSecurityV2Test {
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_CONTRACT))),
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                        contractCall(
+                        atomicBatchDefaultOperator(
+                                contractCall(
                                         NESTED_ASSOCIATE_CONTRACT,
                                         "associateDelegateCall",
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(ACCOUNT))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                .signedBy(ACCOUNT)
-                                .payingWith(ACCOUNT)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .via("nestedAssociateFungibleTxn")
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS),
+                                        .signedBy(ACCOUNT)
+                                        .payingWith(ACCOUNT)
+                                        .hasRetryPrecheckFrom(BUSY)
+                                        .via("nestedAssociateFungibleTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(SUCCESS),
 
-                        // non fungible token
-                        contractCall(
+                                // non fungible token
+                                contractCall(
                                         NESTED_ASSOCIATE_CONTRACT,
                                         "associateDelegateCall",
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(ACCOUNT))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
-                                .signedBy(ACCOUNT)
-                                .payingWith(ACCOUNT)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .via("nestedAssociateNonFungibleTxn")
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS),
+                                        .signedBy(ACCOUNT)
+                                        .payingWith(ACCOUNT)
+                                        .hasRetryPrecheckFrom(BUSY)
+                                        .via("nestedAssociateNonFungibleTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(SUCCESS)
+                        ).hasKnownStatus(INNER_TRANSACTION_FAILED),
+
                         getAccountInfo(ACCOUNT)
                                 .hasToken(relationshipWith(FUNGIBLE_TOKEN)
                                         .kyc(KycNotApplicable)
@@ -594,22 +573,21 @@ public class AtomicBatchSecurityV2Test {
                                 .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
                                         .kyc(KycNotApplicable)
                                         .freeze(FreezeNotApplicable)),
-                        childRecordsCheck(
-                                "nestedAssociateFungibleTxn",
-                                SUCCESS,
-                                recordWith()
+                        getTxnRecord("nestedAssociateFungibleTxn")
+                                .andAllChildRecords()
+                                .hasChildRecords(recordWith()
                                         .status(SUCCESS)
                                         .contractCallResult(resultWith()
                                                 .contractCallResult(
                                                         htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "nestedAssociateNonFungibleTxn",
-                                SUCCESS,
-                                recordWith()
+                        getTxnRecord("nestedAssociateNonFungibleTxn")
+                                .andAllChildRecords()
+                                .hasChildRecords(recordWith()
                                         .status(SUCCESS)
                                         .contractCallResult(resultWith()
                                                 .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))))));
+                                                        htsPrecompileResult().withStatus(SUCCESS))))))
+        );
     }
 
     @HapiTest
@@ -641,6 +619,7 @@ public class AtomicBatchSecurityV2Test {
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_CONTRACT))),
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                        atomicBatchDefaultOperator(
                         // Test Case 1: Account paying and signing a nested fungible TOKEN ASSOCIATE TRANSACTION,
                         // when we associate the token to the signer
                         // via STATICCALL
@@ -656,12 +635,13 @@ public class AtomicBatchSecurityV2Test {
                                 .hasRetryPrecheckFrom(BUSY)
                                 .via("associateStaticcallFungibleTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)).hasKnownStatus(INNER_TRANSACTION_FAILED),
 
                         // Test Case 2: Account paying and signing a nested fungible TOKEN ASSOCIATE TRANSACTION,
                         // when we associate the token to the signer
                         // via CALLCODE
                         // SIGNER → call → CONTRACT A → callcode → CONTRACT B → call → PRECOMPILE(HTS)
+                        atomicBatchDefaultOperator(
                         contractCall(
                                         CALLCODE_CONTRACT,
                                         "callCodeToContractWithoutAmount",
@@ -685,11 +665,14 @@ public class AtomicBatchSecurityV2Test {
                                 .payingWith(TOKEN_TREASURY)
                                 .hasRetryPrecheckFrom(BUSY)
                                 // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)).hasKnownStatus(INNER_TRANSACTION_FAILED),
                         emptyChildRecordsCheck("associateStaticcallFungibleTxn", CONTRACT_REVERT_EXECUTED),
                         emptyChildRecordsCheck("associateCallcodeFungibleTxn", CONTRACT_REVERT_EXECUTED),
                         getAccountInfo(ACCOUNT).hasNoTokenRelationship(FUNGIBLE_TOKEN))));
     }
+
+
+
 
     private HapiAtomicBatch atomicBatchDefaultOperator(HapiTxnOp<?>... ops) {
         return atomicBatch(Arrays.stream(ops)
