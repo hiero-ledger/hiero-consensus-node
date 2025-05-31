@@ -528,7 +528,6 @@ public class BlockStreamBuilder
             if (slotUsages != null) {
                 builder.contractSlotUsages(slotUsages);
             }
-            // This list actually has zero or one entries
             if (contractActions != null) {
                 builder.contractActions(contractActions);
             }
