@@ -258,7 +258,7 @@ class ContractCallLocalHandlerTest {
 
         final var expectedResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
         final var expectedOutcome =
-                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, opsDuration);
+                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, null, opsDuration);
         given(processor.call()).willReturn(expectedOutcome);
 
         // given(processor.call()).willReturn(responseHeader);

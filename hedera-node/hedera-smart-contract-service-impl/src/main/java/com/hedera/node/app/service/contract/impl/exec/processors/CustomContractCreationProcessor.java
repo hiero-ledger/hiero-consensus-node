@@ -8,12 +8,17 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.pr
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
+import com.hedera.hapi.block.stream.trace.InitcodeBookends;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
@@ -116,13 +121,35 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
             final var recipient = proxyUpdaterFor(frame).getHederaAccount(frame.getRecipientAddress());
             final var recipientId = requireNonNull(recipient).hederaContractId();
             final var pendingCreationMetadata = getAndClearPendingCreationMetadata(frame, recipientId);
-            final var contractBytecode = ContractBytecode.newBuilder()
-                    .contractId(recipientId)
-                    .runtimeBytecode(tuweniToPbjBytes(recipient.getCode()));
-            if (pendingCreationMetadata.externalizeInitcodeOnSuccess()) {
+            final var bytecode = tuweniToPbjBytes(recipient.getCode());
+            final var initcode = pendingCreationMetadata.externalizeInitcodeOnSuccess()
+                    ? tuweniToPbjBytes(frame.getCode().getBytes())
+                    : null;
+            // (FUTURE) Remove after switching to block stream
+            final var contractBytecode =
+                    ContractBytecode.newBuilder().contractId(recipientId).runtimeBytecode(bytecode);
+            if (initcode != null) {
                 contractBytecode.initcode(tuweniToPbjBytes(frame.getCode().getBytes()));
             }
-            pendingCreationMetadata.recordBuilder().addContractBytecode(contractBytecode.build(), false);
+            pendingCreationMetadata.streamBuilder().addContractBytecode(contractBytecode.build(), false);
+            // No-op for the RecordStreamBuilder
+            final var initcodeBuilder = ExecutedInitcode.newBuilder().contractId(recipientId);
+            if (initcode != null) {
+                final int i = indexOf(initcode, bytecode);
+                if (i != -1) {
+                    final var leftBookend = initcode.slice(0, i);
+                    final int rightIndex = i + (int) bytecode.length();
+                    final var rightBookend = initcode.slice(rightIndex, (int) initcode.length() - rightIndex);
+                    initcodeBuilder.initcodeBookends(new InitcodeBookends(leftBookend, rightBookend));
+                } else {
+                    initcodeBuilder.explicitInitcode(initcode);
+                }
+            }
+            pendingCreationMetadata
+                    .streamBuilder()
+                    .addInitcode(ContractInitcode.newBuilder()
+                            .executedInitcode(initcodeBuilder)
+                            .build());
         }
     }
 
@@ -145,5 +172,38 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
             return abstractProxyEvmAccount.isHollow();
         }
         throw new IllegalArgumentException("Creation target not a AbstractProxyEvmAccount - " + account);
+    }
+
+    /**
+     * Returns the first byte offset of {@code needle} inside {@code haystack},
+     * or –1 if it is not present.
+     * <br>
+     * <i>(FUTURE)</i> Replace with {@code Bytes#indexOf(Bytes, Bytes)} when
+     * <a href="https://github.com/hashgraph/pbj/pull/503">this</a> PBJ PR is merged.
+     */
+    private static int indexOf(@NonNull final Bytes haystackBytes, @NonNull final Bytes needleBytes) {
+        requireNonNull(haystackBytes);
+        requireNonNull(needleBytes);
+        final var haystack = haystackBytes.toByteArray();
+        final var needle = needleBytes.toByteArray();
+        // Empty needle found at index zero in any haystack
+        if (needle.length == 0) {
+            return 0;
+        }
+        // Needle doesn't fit into haystack, so it cannot be found
+        if (needle.length > haystack.length) {
+            return -1;
+        }
+        final byte firstByte = needle[0];
+        for (int i = 0; i <= haystack.length - needle.length; i++) {
+            if (haystack[i] != firstByte) {
+                continue;
+            }
+            // SIMD–accelerated block comparison.
+            if (Arrays.mismatch(haystack, i, i + needle.length, needle, 0, needle.length) < 0) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

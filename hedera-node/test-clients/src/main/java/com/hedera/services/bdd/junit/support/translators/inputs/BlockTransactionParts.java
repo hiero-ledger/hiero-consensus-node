@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -26,21 +27,23 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * Groups the block items used to represent a single logical HAPI transaction, which itself may be part of a larger
  * transactional unit with parent/child relationships.
+ *
  * @param transactionParts the parts of the transaction
  * @param transactionResult the result of processing the transaction
  * @param role the role of the transaction in the group
- * @param transactionOutputs the output of processing the transaction
+ * @param traces any traces associated with the transaction
+ * @param outputs the output of processing the transaction
  */
 public record BlockTransactionParts(
         @NonNull TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
         @NonNull TransactionGroupRole role,
-        @Nullable TransactionOutput... transactionOutputs) {
+        @Nullable List<TraceData> traces,
+        @Nullable List<TransactionOutput> outputs) {
 
     /**
      * Returns the status of the transaction.
@@ -154,65 +157,23 @@ public record BlockTransactionParts(
     }
 
     /**
-     * Constructs a new {@link BlockTransactionParts} that includes an output.
-     *
-     * @param transactionParts the parts of the transaction
-     * @param transactionResult the result of processing the transaction
-     * @param role the role of the transaction in the group
-     * @param transactionOutputs the outputs of processing the transaction
-     * @return the constructed object
-     */
-    public static BlockTransactionParts withOutputs(
-            @NonNull final TransactionParts transactionParts,
-            @NonNull final TransactionResult transactionResult,
-            @NonNull final TransactionGroupRole role,
-            @NonNull final TransactionOutput... transactionOutputs) {
-        requireNonNull(transactionParts);
-        requireNonNull(transactionResult);
-        requireNonNull(transactionOutputs);
-        return new BlockTransactionParts(transactionParts, transactionResult, role, transactionOutputs);
-    }
-
-    /**
-     * Constructs a new {@link BlockTransactionParts} that does not include an output.
-     *
-     * @param transactionParts the parts of the transaction
-     * @param transactionResult the result of processing the transaction
-     * @param role the role of the transaction in the group
-     * @return the constructed object
-     */
-    public static BlockTransactionParts sansOutput(
-            @NonNull final TransactionParts transactionParts,
-            @NonNull final TransactionResult transactionResult,
-            @NonNull final TransactionGroupRole role) {
-        requireNonNull(transactionParts);
-        requireNonNull(transactionResult);
-        requireNonNull(role);
-        return new BlockTransactionParts(transactionParts, transactionResult, role);
-    }
-
-    /**
-     * Returns whether the transaction has an output.
-     */
-    public boolean hasOutputs() {
-        return transactionOutputs != null && transactionOutputs.length > 0;
-    }
-
-    /**
      * Returns whether the transaction has an output.
      */
     public boolean hasContractOutput() {
-        return transactionOutputs != null
-                && Stream.of(transactionOutputs)
-                        .anyMatch(com.hedera.hapi.block.stream.output.TransactionOutput::hasContractCall);
+        return outputs != null
+                && outputs.stream().anyMatch(com.hedera.hapi.block.stream.output.TransactionOutput::hasContractCall);
+    }
+
+    public @NonNull List<TraceData> tracesOrThrow() {
+        return requireNonNull(traces);
     }
 
     /**
      * Returns a contract call output or throws if it is not present.
      */
     public CallContractOutput callContractOutputOrThrow() {
-        requireNonNull(transactionOutputs);
-        return Stream.of(transactionOutputs)
+        requireNonNull(outputs);
+        return outputs.stream()
                 .filter(TransactionOutput::hasContractCall)
                 .findAny()
                 .map(TransactionOutput::contractCallOrThrow)
@@ -223,20 +184,24 @@ public record BlockTransactionParts(
      * Returns a contract create output or throws if it is not present.
      */
     public CreateContractOutput createContractOutputOrThrow() {
-        requireNonNull(transactionOutputs);
-        return Stream.of(transactionOutputs)
+        requireNonNull(outputs);
+        return outputs.stream()
                 .filter(TransactionOutput::hasContractCreate)
                 .findAny()
                 .map(TransactionOutput::contractCreateOrThrow)
                 .orElseThrow();
     }
 
+    public boolean hasTraces() {
+        return traces != null && !traces.isEmpty();
+    }
+
     /**
      * Returns a create schedule output or throws if it is not present.
      */
     public CreateScheduleOutput createScheduleOutputOrThrow() {
-        requireNonNull(transactionOutputs);
-        return Stream.of(transactionOutputs)
+        requireNonNull(outputs);
+        return outputs.stream()
                 .filter(TransactionOutput::hasCreateSchedule)
                 .findAny()
                 .map(TransactionOutput::createScheduleOrThrow)
@@ -249,10 +214,10 @@ public record BlockTransactionParts(
      * @return the output if present
      */
     public Optional<TransactionOutput> outputIfPresent(@NonNull final TransactionOutput.TransactionOneOfType kind) {
-        if (transactionOutputs == null) {
+        if (outputs == null) {
             return Optional.empty();
         }
-        return Stream.of(transactionOutputs)
+        return outputs.stream()
                 .filter(output -> output.transaction().kind() == kind)
                 .findAny();
     }

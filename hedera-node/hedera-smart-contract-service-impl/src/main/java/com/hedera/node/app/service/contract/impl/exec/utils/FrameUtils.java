@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
-import static com.hedera.hapi.streams.SidecarType.CONTRACT_ACTION;
-import static com.hedera.hapi.streams.SidecarType.CONTRACT_BYTECODE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -30,6 +28,9 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class FrameUtils {
     public static final String CONFIG_CONTEXT_VARIABLE = "contractsConfig";
     public static final String TRACKER_CONTEXT_VARIABLE = "storageAccessTracker";
+    public static final String ACTION_SIDECARS_VARIABLE = "actionSidecars";
+    public static final String ACTION_SIDECARS_VALIDATION_VARIABLE = "actionSidecarsValidation";
+    public static final String BYTECODE_SIDECARS_VARIABLE = "bytecodeSidecars";
     public static final String TINYBAR_VALUES_CONTEXT_VARIABLE = "tinybarValues";
     public static final String HAPI_RECORD_BUILDER_CONTEXT_VARIABLE = "hapiRecordBuilder";
     public static final String PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE = "propagatedCallFailure";
@@ -56,20 +57,21 @@ public class FrameUtils {
     }
 
     public static boolean hasBytecodeSidecarsEnabled(@NonNull final MessageFrame frame) {
-        return contractsConfigOf(frame).sidecars().contains(CONTRACT_BYTECODE);
+        return initialFrameOf(frame).hasContextVariable(BYTECODE_SIDECARS_VARIABLE);
     }
 
     public static boolean hasActionSidecarsEnabled(@NonNull final MessageFrame frame) {
-        return contractsConfigOf(frame).sidecars().contains(CONTRACT_ACTION);
+        return initialFrameOf(frame).hasContextVariable(ACTION_SIDECARS_VARIABLE);
     }
 
     public static boolean hasActionValidationEnabled(@NonNull final MessageFrame frame) {
-        return contractsConfigOf(frame).sidecarValidationEnabled();
+        return initialFrameOf(frame).hasContextVariable(ACTION_SIDECARS_VALIDATION_VARIABLE);
     }
 
     public static boolean hasValidatedActionSidecarsEnabled(@NonNull final MessageFrame frame) {
-        final var contractsConfig = contractsConfigOf(frame);
-        return contractsConfig.sidecars().contains(CONTRACT_ACTION) && contractsConfig.sidecarValidationEnabled();
+        final var initialFrame = initialFrameOf(frame);
+        return initialFrame.hasContextVariable(ACTION_SIDECARS_VARIABLE)
+                && initialFrame.hasContextVariable(ACTION_SIDECARS_VALIDATION_VARIABLE);
     }
 
     public static @Nullable StorageAccessTracker accessTrackerFor(@NonNull final MessageFrame frame) {

@@ -61,7 +61,10 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -72,6 +75,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchTest {
@@ -184,6 +188,37 @@ public class AtomicBatchTest {
                 getTxnRecord(innerTxnId2).assertingNothingAboutHashes().logged(),
                 getAccountBalance(account1).hasTinyBars(ONE_HBAR),
                 getAccountBalance(account2).hasTinyBars(ONE_HBAR));
+    }
+
+    @HapiTest
+    @Tag(TestTags.ADHOC)
+    public Stream<DynamicTest> settingSameSlotValueInMultipleCallsPassesStreamValidation(
+            @Contract(contract = "Multipurpose", creationGas = 500_000L) SpecContract contract) {
+        return hapiTest(
+                // Eagerly create the contract so we can reference its name below
+                contract.getInfo(),
+                cryptoCreate("batchOperator"),
+                usableTxnIdNamed("aInner").payerId("batchOperator"),
+                usableTxnIdNamed("bInner").payerId("batchOperator"),
+                usableTxnIdNamed("cInner").payerId("batchOperator"),
+                atomicBatch(
+                                contractCall(contract.name(), "believeIn", 8L)
+                                        .txnId("aInner")
+                                        .batchKey("batchOperator")
+                                        .payingWith("batchOperator"),
+                                contractCall(contract.name(), "believeIn", 16L)
+                                        .txnId("bInner")
+                                        .batchKey("batchOperator")
+                                        .payingWith("batchOperator"),
+                                contractCall(contract.name(), "believeIn", 32L)
+                                        .txnId("cInner")
+                                        .batchKey("batchOperator")
+                                        .payingWith("batchOperator"))
+                        .payingWith("batchOperator"),
+                contract.staticCall("pick").andAssert(op -> op.hasResult(32L))
+                // And StreamValidationTest must not fail on the traces of the first two contract
+                // calls just because the same slot they use is overwritten by the third call
+                );
     }
 
     @HapiTest

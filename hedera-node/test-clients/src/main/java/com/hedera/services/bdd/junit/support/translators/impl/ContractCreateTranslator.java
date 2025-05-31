@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -27,51 +28,70 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
     public SingleTransactionRecord translate(
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
-            @NonNull final List<StateChange> remainingStateChanges) {
+            @NonNull final List<StateChange> remainingStateChanges,
+            @NonNull final List<TraceData> followingUnitTraces) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
         requireNonNull(remainingStateChanges);
-        return baseTranslator.recordFrom(parts, (receiptBuilder, recordBuilder) -> {
-            parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
-                    .map(TransactionOutput::contractCreateOrThrow)
-                    .ifPresent(createContractOutput -> {
-                        final var result = createContractOutput.contractCreateResultOrThrow();
-                        recordBuilder.contractCreateResult(result);
-                    });
-            if (parts.status() == SUCCESS) {
-                final var output = parts.createContractOutputOrThrow();
-                final var contractNum =
-                        output.contractCreateResultOrThrow().contractIDOrThrow().contractNumOrThrow();
-                if (baseTranslator.entityCreatedThisUnit(contractNum)) {
-                    final var createdNum = baseTranslator.nextCreatedNum(ACCOUNT);
-                    if (createdNum != contractNum) {
-                        log.error("Expected {} to be the next created account, but got {}", createdNum, contractNum);
-                    }
-                    final var iter = remainingStateChanges.listIterator();
-                    while (iter.hasNext()) {
-                        final var stateChange = iter.next();
-                        if (stateChange.hasMapUpdate()
-                                && stateChange.mapUpdateOrThrow().keyOrThrow().hasAccountIdKey()) {
-                            final var accountId =
-                                    stateChange.mapUpdateOrThrow().keyOrThrow().accountIdKeyOrThrow();
-                            if (accountId.accountNumOrThrow() == createdNum) {
-                                receiptBuilder.contractID(ContractID.newBuilder()
-                                        .shardNum(accountId.shardNum())
-                                        .realmNum(accountId.realmNum())
-                                        .contractNum(createdNum)
-                                        .build());
-                                iter.remove();
-                                return;
+        return baseTranslator.recordFrom(
+                parts,
+                (receiptBuilder, recordBuilder) -> {
+                    parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
+                            .map(TransactionOutput::contractCreateOrThrow)
+                            .ifPresent(createContractOutput -> {
+                                final var result = createContractOutput.contractCreateResultOrThrow();
+                                recordBuilder.contractCreateResult(result);
+                            });
+                    if (parts.status() == SUCCESS) {
+                        final var output = parts.createContractOutputOrThrow();
+                        final var contractNum = output.contractCreateResultOrThrow()
+                                .contractIDOrThrow()
+                                .contractNumOrThrow();
+                        if (baseTranslator.entityCreatedThisUnit(contractNum)) {
+                            long createdNum = baseTranslator.nextCreatedNum(ACCOUNT);
+                            if (contractNum != createdNum) {
+                                if (createdNum > 1000) {
+                                    log.error(
+                                            "Expected {} to be the next created contract, but got {}",
+                                            contractNum,
+                                            createdNum);
+                                } else {
+                                    // Override weird BlockUnitSplit behavior at genesis
+                                    createdNum = contractNum;
+                                }
+                            }
+                            final var iter = remainingStateChanges.listIterator();
+                            while (iter.hasNext()) {
+                                final var stateChange = iter.next();
+                                if (stateChange.hasMapUpdate()
+                                        && stateChange
+                                                .mapUpdateOrThrow()
+                                                .keyOrThrow()
+                                                .hasAccountIdKey()) {
+                                    final var accountId = stateChange
+                                            .mapUpdateOrThrow()
+                                            .keyOrThrow()
+                                            .accountIdKeyOrThrow();
+                                    if (accountId.accountNumOrThrow() == createdNum) {
+                                        receiptBuilder.contractID(ContractID.newBuilder()
+                                                .shardNum(accountId.shardNum())
+                                                .realmNum(accountId.realmNum())
+                                                .contractNum(createdNum)
+                                                .build());
+                                        iter.remove();
+                                        return;
+                                    }
+                                }
                             }
                         }
+                        // If we reach here, we didn't find the created contract in the remaining state changes
+                        // so it must have been an existing hollow account finalized as a contract
+                        final var op = parts.body().contractCreateInstanceOrThrow();
+                        final var selfAdminId = op.adminKeyOrThrow().contractIDOrThrow();
+                        receiptBuilder.contractID(selfAdminId);
                     }
-                }
-                // If we reach here, we didn't find the created contract in the remaining state changes
-                // so it must have been an existing hollow account finalized as a contract
-                final var op = parts.body().contractCreateInstanceOrThrow();
-                final var selfAdminId = op.adminKeyOrThrow().contractIDOrThrow();
-                receiptBuilder.contractID(selfAdminId);
-            }
-        });
+                },
+                remainingStateChanges,
+                followingUnitTraces);
     }
 }
