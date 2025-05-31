@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "CITR Single Day Performance Test"
+on:
+  push:
+    tags:
+      - 'build-*'
+      - 'test-*'
+  workflow_dispatch:
+    inputs:
+      tag-to-run:
+        description: "The tag to run CITR SDPT against"
+        required: true
+        default: 'build-00099'
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  run-citr-performance-test:
+    name: Run Single Day Performance Test
+    runs-on: hiero-network-node-linux-large
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      # Get the `build-XXXXX' tag (latest tag) to run the performance test
+      # use it later as ${{ steps.tag.outputs.tag }}
+      - name: Get Build Tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            # Triggered by tag push
+            tag_name="${GITHUB_REF#refs/tags/}"
+          else
+            # Triggered by workflow_dispatch
+            tag_name="${{ github.event.inputs.tag-to-run }}"
+          fi
+          echo "Using tag: $tag_name"
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+
+      # Call the performance workflow with appropriate input version
+      - name: Call CITR Performance Workflow
+        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
+        with:
+          workflow: .github/workflows/performance-CITR.yml
+          repo: swirldslabs/performance-analysis-automation # ensure we are executing in the perf analysis automation repo
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
+          inputs: '{
+            "namespace": "Latitude3",
+            "hederaversion": "${{ steps.tag.outputs.tag_name }}",
+            "soloversion": "latest_tested_solo-charts0.59",
+            "NLG_Accounts": "100000000",
+            "NLG_Time": "330m",
+            "NLG_Time3": "2h",
+            "AddAppProps": "",
+            "AddSettings": "",
+            "CryptoBenchMerkleDb_javaargs": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
+            "CryptoBenchMerkleDb_testparams": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+          }'
