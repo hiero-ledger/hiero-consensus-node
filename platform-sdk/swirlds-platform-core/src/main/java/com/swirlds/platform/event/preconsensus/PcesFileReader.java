@@ -38,10 +38,31 @@ public class PcesFileReader {
      * @param databaseDirectory the directory to scan for files
      * @param startingRound     the round to start reading from
      * @param permitGaps        if gaps are permitted in sequence number
+     * @return the files read from disk
+     * @throws IOException if there is an error reading the files
+     */
+    public static PcesFileTracker readFilesFromDisk(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Path databaseDirectory,
+            final long startingRound,
+            final boolean permitGaps)
+            throws IOException {
+        return readFilesFromDisk(
+                platformContext, databaseDirectory, startingRound, permitGaps, AncientMode.BIRTH_ROUND_THRESHOLD);
+    }
+
+    /**
+     * Scan the file system for event files and add them to the collection of tracked files.
+     *
+     * @param platformContext   the platform context
+     * @param databaseDirectory the directory to scan for files
+     * @param startingRound     the round to start reading from
+     * @param permitGaps        if gaps are permitted in sequence number
      * @param typeToRead        the type of file to read, files of other types will be ignored
      * @return the files read from disk
      * @throws IOException if there is an error reading the files
      */
+    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
     public static PcesFileTracker readFilesFromDisk(
             @NonNull final PlatformContext platformContext,
             @NonNull final Path databaseDirectory,

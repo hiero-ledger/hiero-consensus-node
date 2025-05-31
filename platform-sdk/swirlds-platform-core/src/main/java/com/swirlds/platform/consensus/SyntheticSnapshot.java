@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.stream.LongStream;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
@@ -70,18 +69,14 @@ public final class SyntheticSnapshot {
      * Create a genesis snapshot. This snapshot is not the result of consensus but is instead generated to be used as a
      * starting point for consensus.
      *
-     * @param ancientMode the ancient mode
      * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
-    public static @NonNull ConsensusSnapshot getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
+    public static @NonNull ConsensusSnapshot getGenesisSnapshot() {
         return ConsensusSnapshot.newBuilder()
                 .round(ConsensusConstants.ROUND_FIRST)
                 .judgeIds(List.of())
-                .minimumJudgeInfoList(List.of(new MinimumJudgeInfo(
-                        ConsensusConstants.ROUND_FIRST,
-                        ancientMode == AncientMode.GENERATION_THRESHOLD
-                                ? EventConstants.FIRST_GENERATION
-                                : ConsensusConstants.ROUND_FIRST)))
+                .minimumJudgeInfoList(
+                        List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, ConsensusConstants.ROUND_FIRST)))
                 .nextConsensusNumber(ConsensusConstants.FIRST_CONSENSUS_NUMBER)
                 .consensusTimestamp(CommonUtils.toPbjTimestamp(Instant.EPOCH))
                 .build();

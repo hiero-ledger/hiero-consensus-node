@@ -39,7 +39,6 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.assertj.core.api.Assertions;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -583,11 +582,7 @@ public final class ConsensusTestDefinitions {
         final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         for (final ConsensusTestNode node : orchestrator.getNodes()) {
-            node.getIntake()
-                    .loadSnapshot(SyntheticSnapshot.getGenesisSnapshot(input.platformContext()
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode()));
+            node.getIntake().loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
         }
 
         final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
