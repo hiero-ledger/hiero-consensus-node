@@ -88,6 +88,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
+    public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
@@ -128,8 +129,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant blockTimestamp;
     private Instant consensusTimeLastRound;
     private BlockItemWriter writer;
+    // stream hashers
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
+    private StreamingTreeHasher consensusHeaderHasher;
+    private StreamingTreeHasher stateChangesHasher;
+    private StreamingTreeHasher traceDataHasher;
+
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
 
@@ -273,8 +279,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             runningHashManager.startBlock(blockStreamInfo);
 
             lifecycle.onOpenBlock(state);
+
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+            consensusHeaderHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+            stateChangesHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+            traceDataHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
@@ -378,7 +389,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
+            final var consensusHeaderHash = consensusHeaderHasher.rootHash().join();
             final var inputHash = inputTreeHasher.rootHash().join();
+            final var traceDataHash = traceDataHasher.rootHash().join();
+            final var outputHash = outputTreeHasher.rootHash().join();
+
             // This block's starting state hash is the end state hash of the last non-empty round
             final var blockStartStateHash = requireNonNull(endRoundStateHashes.get(lastRoundOfPrevBlock))
                     .join();
@@ -388,7 +403,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             // And update the last non-empty round number to this round
             lastRoundOfPrevBlock = roundNum;
-            final var outputTreeStatus = outputTreeHasher.status();
+            final var stateChangesTreeStatus = stateChangesHasher.status();
 
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
@@ -401,22 +416,34 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockHashManager.blockHashes(),
                     inputHash,
                     blockStartStateHash,
-                    outputTreeStatus.numLeaves(),
-                    outputTreeStatus.rightmostHashes(),
+                    stateChangesTreeStatus.numLeaves(),
+                    stateChangesTreeStatus.rightmostHashes(),
                     boundaryTimestamp,
                     pendingWork != POST_UPGRADE_WORK,
                     version,
                     asTimestamp(lastIntervalProcessTime),
-                    asTimestamp(lastHandleTime)));
+                    asTimestamp(lastHandleTime),
+                    consensusHeaderHash,
+                    traceDataHash,
+                    outputHash));
             ((CommittableWritableStates) writableState).commit();
 
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
-            final var outputHash = outputTreeHasher.rootHash().join();
-            final var leftParent = combine(lastBlockHash, inputHash);
-            final var rightParent = combine(outputHash, blockStartStateHash);
+            final var stateChangesHash = stateChangesHasher.rootHash().join();
+
+            // compute level 1 hashes
+            final var level1A = combine(lastBlockHash, blockStartStateHash); // [0,1]
+            final var level1B = combine(consensusHeaderHash, inputHash); // [2,3]
+            final var level1C = combine(outputHash, stateChangesHash); // [4,5]
+            final var level1D = combine(traceDataHash, NULL_HASH); // [6,7]
+            // compute level 2 hashes
+            final var leftParent = combine(level1A, level1B); // [0..3]
+            final var rightParent = combine(level1C, level1D); // [4..7]
+            // compute the block hash
             final var blockHash = combine(leftParent, rightParent);
+
             final var pendingProof = BlockProof.newBuilder()
                     .block(blockNumber)
                     .previousBlockRootHash(lastBlockHash)
@@ -427,7 +454,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockHash,
                     pendingProof,
                     writer,
-                    new MerkleSiblingHash(false, inputHash),
+                    new MerkleSiblingHash(false, blockStartStateHash),
+                    new MerkleSiblingHash(false, level1B),
                     new MerkleSiblingHash(false, rightParent)));
 
             if (streamToBlockNodes) {
@@ -540,7 +568,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             impliesIndirectProof = true;
         }
         if (blockNumber == Long.MIN_VALUE) {
-            log.info("Ignoring signature on already proven block hash '{}'", blockHash);
+            log.debug("Ignoring signature on already proven block hash '{}'", blockHash);
             return;
         }
         // Write proofs for all pending blocks up to and including the signed block number
@@ -669,7 +697,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         TRANSACTION_OUTPUT,
                         STATE_CHANGES,
                         ROUND_HEADER,
-                        BLOCK_HEADER -> {
+                        BLOCK_HEADER,
+                        TRACE_DATA -> {
                     MessageDigest digest = sha384DigestOrThrow();
                     bytes.writeTo(digest);
                     hash = ByteBuffer.wrap(digest.digest());
@@ -695,13 +724,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         protected boolean onExecute() {
             final var kind = item.item().kind();
             switch (kind) {
-                case EVENT_HEADER, EVENT_TRANSACTION, ROUND_HEADER -> inputTreeHasher.addLeaf(hash);
+                case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(hash);
+                case EVENT_TRANSACTION -> inputTreeHasher.addLeaf(hash);
                 case TRANSACTION_RESULT -> {
                     runningHashManager.nextResultHash(hash);
                     hash.rewind();
                     outputTreeHasher.addLeaf(hash);
                 }
-                case TRANSACTION_OUTPUT, STATE_CHANGES, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
+                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
+                case STATE_CHANGES -> stateChangesHasher.addLeaf(hash);
+                case TRACE_DATA -> traceDataHasher.addLeaf(hash);
             }
 
             final BlockHeader header = item.blockHeader();
