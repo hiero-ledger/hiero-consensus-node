@@ -30,7 +30,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     /** Tracks the size of the file in bytes */
     private int fileSize;
     /** Keeps stats of the writing process */
-    private final PcesFileWriterStats stats;
+    private final PcesFileEventStats stats;
 
     /**
      * Create a new writer that writes events to a file using a {@link FileChannel}.
@@ -57,7 +57,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         this.channel = FileChannel.open(filePath, allOpenOptions.toArray(OpenOption[]::new));
         this.buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
         this.writableSequentialData = BufferedData.wrap(buffer);
-        this.stats = new PcesFileWriterStats();
+        this.stats = new PcesFileEventStats();
     }
 
     @Override
@@ -68,21 +68,19 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        long startTime = System.nanoTime();
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
-        boolean bufferExpanded = false;
+        boolean expandBuffer = size > buffer.capacity();
         try {
-            if (size > buffer.capacity()) {
+            if (expandBuffer) {
                 MemoryUtils.closeDirectByteBuffer(buffer);
                 buffer = ByteBuffer.allocateDirect(size);
                 writableSequentialData = BufferedData.wrap(buffer);
-                bufferExpanded = true;
             }
             buffer.putInt(size);
             GossipEvent.PROTOBUF.write(event, writableSequentialData);
             flipWriteClear();
         } finally {
-            stats.updateWriteStats(startTime, System.nanoTime(), size, bufferExpanded);
+            stats.updateEventStats(size, expandBuffer);
         }
     }
 
@@ -94,18 +92,13 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     private void flipWriteClear() throws IOException {
 
         buffer.flip();
-        long writeStart = System.nanoTime();
-        try {
-            final int bytesWritten = channel.write(buffer);
-            fileSize += bytesWritten;
-            if (bytesWritten != buffer.limit()) {
-                throw new IOException(
-                        "Failed to write data to file. Wrote " + bytesWritten + " bytes out of " + buffer.limit());
-            }
-            buffer.clear();
-        } finally {
-            stats.updatePartialWriteStats(writeStart, System.nanoTime());
+        final int bytesWritten = channel.write(buffer);
+        fileSize += bytesWritten;
+        if (bytesWritten != buffer.limit()) {
+            throw new IOException(
+                    "Failed to write data to file. Wrote " + bytesWritten + " bytes out of " + buffer.limit());
         }
+        buffer.clear();
     }
 
     @Override
@@ -115,11 +108,8 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
-        long startTime = System.nanoTime();
         // benchmarks show that this has horrible performance for the channel writer (in mac-os)
         channel.force(false);
-
-        stats.updateSyncStats(startTime, System.nanoTime());
     }
 
     @Override
@@ -132,7 +122,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         return fileSize;
     }
 
-    public PcesFileWriterStats getStats() {
+    public PcesFileEventStats getStats() {
         return stats;
     }
 }

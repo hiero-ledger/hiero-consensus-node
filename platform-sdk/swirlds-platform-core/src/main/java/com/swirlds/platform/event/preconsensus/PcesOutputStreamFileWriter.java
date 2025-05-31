@@ -24,7 +24,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     /** Counts the bytes written to the file */
     private final CountingStreamExtension counter;
     /** Keeps stats of the writing process */
-    private final PcesFileWriterStats stats;
+    private final PcesFileEventStats stats;
 
     /**
      * Create a new file writer.
@@ -36,7 +36,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
         counter = new CountingStreamExtension(false);
         final FileOutputStream fileOutputStream = new FileOutputStream(filePath.toFile());
         fileDescriptor = fileOutputStream.getFD();
-        this.stats = new PcesFileWriterStats();
+        this.stats = new PcesFileEventStats();
         out = new SerializableDataOutputStream(
                 new ExtendableOutputStream(new BufferedOutputStream(fileOutputStream), counter));
     }
@@ -48,11 +48,10 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        long startTime = System.nanoTime();
         try {
             out.writePbjRecord(event, GossipEvent.PROTOBUF);
         } finally {
-            stats.updateWriteStats(startTime, System.nanoTime(), GossipEvent.PROTOBUF.measureRecord(event));
+            stats.updateEventStats(GossipEvent.PROTOBUF.measureRecord(event), false);
         }
     }
 
@@ -63,14 +62,11 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
-        long startTime = System.nanoTime();
         out.flush();
         try {
             fileDescriptor.sync();
         } catch (final SyncFailedException e) {
             throw new IOException("Failed to sync file", e);
-        } finally {
-            stats.updateSyncStats(startTime, System.nanoTime());
         }
     }
 
@@ -85,7 +81,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     }
 
     @Override
-    public PcesFileWriterStats getStats() {
+    public PcesFileEventStats getStats() {
         return stats;
     }
 }

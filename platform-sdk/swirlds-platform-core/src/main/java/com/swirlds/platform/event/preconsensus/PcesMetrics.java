@@ -75,13 +75,13 @@ public class PcesMetrics {
     private static final RunningAverageMetric.Config AVG_EVENT_SIZE = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgEventSize")
             .withDescription("The average size of an event");
-    private static final RunningAverageMetric.Config PCES_AVG_SYNC_DURATION = new RunningAverageMetric.Config(
+    public static final RunningAverageMetric.Config PCES_AVG_SYNC_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgSyncDuration")
             .withDescription("The average duration of the sync method");
-    private static final RunningAverageMetric.Config PCES_AVG_WRITE_DURATION = new RunningAverageMetric.Config(
+    public static final RunningAverageMetric.Config PCES_AVG_WRITE_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgWriteDuration")
             .withDescription("The average duration of the write fs call");
-    private static final RunningAverageMetric.Config PCES_AVG_TOTAL_WRITE_DURATION = new RunningAverageMetric.Config(
+    public static final RunningAverageMetric.Config PCES_AVG_TOTAL_WRITE_DURATION = new RunningAverageMetric.Config(
                     CATEGORY, "pcesAvgTotalWriteDuration")
             .withDescription("The average of the total duration of the write method");
     private static final Counter.Config PCES_BUFFER_EXPANSIONS_COUNTER = new Counter.Config(
@@ -181,11 +181,8 @@ public class PcesMetrics {
     /**
      * Updates the metrics with the stats reported by the writer
      */
-    public void updateMetricsWithPcesFileWritingStats(@NonNull final PcesFileWriterStats stats) {
+    public void updateMetricsWithPcesFileWritingStats(@NonNull final PcesFileEventStats stats) {
         metrics.getOrCreate(PcesMetrics.AVG_EVENT_SIZE).update(stats.averageEventSize());
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_SYNC_DURATION).update(stats.averageSyncDuration());
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_WRITE_DURATION).update(stats.averageWriteDuration());
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_TOTAL_WRITE_DURATION).update(stats.averageTotalWriteDuration());
         if (stats.totalExpansions() > 0)
             metrics.getOrCreate(PcesMetrics.PCES_BUFFER_EXPANSIONS_COUNTER).add(stats.totalExpansions());
     }

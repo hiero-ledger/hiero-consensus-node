@@ -161,7 +161,7 @@ public class PcesMutableFile {
      *
      * @return the stats accumulated by the writer during the writing of this file
      */
-    public PcesFileWriterStats writerStats() {
+    public PcesFileEventStats writerStats() {
         return writer.getStats();
     }
 }
