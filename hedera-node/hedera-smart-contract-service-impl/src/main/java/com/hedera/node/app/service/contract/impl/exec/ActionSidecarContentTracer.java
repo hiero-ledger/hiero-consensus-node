@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
@@ -43,5 +44,5 @@ public interface ActionSidecarContentTracer extends OperationTracer {
      *
      * @return the actions traced by this tracer
      */
-    ContractActions contractActions();
+    List<ContractAction> contractActions();
 }

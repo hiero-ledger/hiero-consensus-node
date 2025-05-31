@@ -24,14 +24,11 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.output.CallContractOutput;
-import com.hedera.hapi.block.stream.output.CreateContractOutput;
-import com.hedera.hapi.block.stream.output.EthereumOutput;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.PendingAirdropValue;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -108,7 +105,6 @@ public class BaseTranslator {
     private long prevHighestKnownEntityNum = 0L;
 
     private Instant userTimestamp;
-    private final List<TransactionSidecarRecord> explicitSidecarRecords = new ArrayList<>();
     private final Map<TokenID, Integer> numMints = new HashMap<>();
     private final Map<TokenID, List<Long>> highestPutSerialNos = new HashMap<>();
     private final Map<EntityType, List<Long>> nextCreatedNums = new EnumMap<>(EntityType.class);
@@ -177,7 +173,6 @@ public class BaseTranslator {
         numMints.clear();
         highestPutSerialNos.clear();
         nextCreatedNums.clear();
-        explicitSidecarRecords.clear();
         purgedScheduleIds.clear();
         scanUnit(unit);
         nextCreatedNums.values().forEach(list -> {
@@ -664,32 +659,15 @@ public class BaseTranslator {
             if (PARENT_ROLES.contains(parts.role())) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }
-            switch (parts.functionality()) {
-                case TOKEN_MINT -> {
-                    if (parts.status() == SUCCESS) {
-                        final var op = parts.body().tokenMintOrThrow();
-                        final var numMetadata = op.metadata().size();
-                        if (numMetadata > 0) {
-                            final var tokenId = op.tokenOrThrow();
-                            numMints.merge(tokenId, numMetadata, Integer::sum);
-                        }
+            if (parts.functionality() == HederaFunctionality.TOKEN_MINT) {
+                if (parts.status() == SUCCESS) {
+                    final var op = parts.body().tokenMintOrThrow();
+                    final var numMetadata = op.metadata().size();
+                    if (numMetadata > 0) {
+                        final var tokenId = op.tokenOrThrow();
+                        numMints.merge(tokenId, numMetadata, Integer::sum);
                     }
                 }
-                case CONTRACT_CALL ->
-                    parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
-                            .map(TransactionOutput::contractCall)
-                            .map(CallContractOutput::sidecars)
-                            .ifPresent(explicitSidecarRecords::addAll);
-                case CONTRACT_CREATE ->
-                    parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
-                            .map(TransactionOutput::contractCreate)
-                            .map(CreateContractOutput::sidecars)
-                            .ifPresent(explicitSidecarRecords::addAll);
-                case ETHEREUM_TRANSACTION ->
-                    parts.outputIfPresent(TransactionOutput.TransactionOneOfType.ETHEREUM_CALL)
-                            .map(TransactionOutput::ethereumCall)
-                            .map(EthereumOutput::sidecars)
-                            .ifPresent(explicitSidecarRecords::addAll);
             }
         });
     }

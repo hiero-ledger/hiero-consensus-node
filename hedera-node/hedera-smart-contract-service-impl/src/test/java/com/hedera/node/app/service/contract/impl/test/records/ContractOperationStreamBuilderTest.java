@@ -41,7 +41,7 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                ContractActions.DEFAULT,
+                List.of(),
                 stateChanges,
                 null,
                 opsDuration);

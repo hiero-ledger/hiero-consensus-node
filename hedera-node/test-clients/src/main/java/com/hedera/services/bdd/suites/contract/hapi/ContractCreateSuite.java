@@ -51,7 +51,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateBlockStream;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CHAIN_ID;
@@ -92,13 +91,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
-import com.hedera.hapi.block.stream.output.TransactionOutput.TransactionOneOfType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -130,7 +123,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.base.utility.CommonUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -882,13 +874,7 @@ public class ContractCreateSuite {
                 withOpContext((spec, opLog) -> {
                     final var record = getRecord(spec, txn, CONTRACT_REVERT_EXECUTED);
                     ts.set(record.getConsensusTimestamp());
-                    asserRecordContractId(record, false);
-                }),
-                // check if CONTRACT_REVERT_EXECUTED block DON`T contains expected contractIds
-                validateBlockStream().withBlockValidation(blocks -> {
-                    // get last TRANSACTION_OUTPUT in all blocks
-                    final var item = getLastContractCreateTx(blocks, ts.get());
-                    asserBlockContractId(item, false);
+                    assertRecordContractId(record, false);
                 }));
     }
 
@@ -903,13 +889,7 @@ public class ContractCreateSuite {
                 withOpContext((spec, opLog) -> {
                     final var record = getRecord(spec, txn, SUCCESS);
                     ts.set(record.getConsensusTimestamp());
-                    asserRecordContractId(record, true);
-                }),
-                // check if block contains expected contractIds
-                validateBlockStream().withBlockValidation(blocks -> {
-                    // get last TRANSACTION_OUTPUT in all blocks
-                    final var item = getLastContractCreateTx(blocks, ts.get());
-                    asserBlockContractId(item, true);
+                    assertRecordContractId(record, true);
                 }));
     }
 
@@ -940,57 +920,11 @@ public class ContractCreateSuite {
         return record;
     }
 
-    private TransactionOutput getLastContractCreateTx(List<Block> blocks, Timestamp timestamp) {
-        return blocks.stream()
-                .flatMap(e -> e.items().stream())
-                .map(BlockItem::item)
-                .filter(e -> ItemOneOfType.TRANSACTION_OUTPUT.equals(e.kind()))
-                .<TransactionOutput>map(OneOf::as)
-                .filter(e -> TransactionOneOfType.CONTRACT_CREATE.equals(
-                        e.transaction().kind()))
-                // match txn by timestamp, because there is other CONTRACT_CREATE txn
-                .filter(e -> e.contractCreateOrThrow().sidecars().stream()
-                        .anyMatch(s -> s.consensusTimestamp().seconds() == timestamp.getSeconds()
-                                && s.consensusTimestamp().nanos() == timestamp.getNanos()))
-                .reduce((f, s) -> s)
-                .orElseGet(() -> Assertions.fail("TRANSACTION_OUTPUT -> CONTRACT_CREATE mot found"));
-    }
-
-    private void asserRecordContractId(TransactionRecord record, boolean shouldContractIdExists) {
+    private void assertRecordContractId(TransactionRecord record, boolean shouldContractIdExists) {
         // check record->receipt->contractId
         assertEquals(shouldContractIdExists, record.getReceipt().hasContractID());
         // check record->contractCreateResult->contractId
         assertEquals(shouldContractIdExists, record.getContractCreateResult().hasContractID());
-    }
-
-    private void asserBlockContractId(TransactionOutput item, boolean shouldContractIdExists) {
-        assertTrue(item.hasContractCreate());
-        // check sidecars->actions->recipient, sidecars->bytecode->contractId
-        item.contractCreateOrThrow().sidecars().forEach(sidecar -> {
-            if (sidecar.hasActions()) {
-                sidecar.actionsOrThrow()
-                        .contractActions()
-                        .forEach(action -> assertEquals(shouldContractIdExists, action.hasRecipientContract()));
-            } else if (sidecar.hasBytecode()) {
-                assertEquals(shouldContractIdExists, sidecar.bytecodeOrThrow().hasContractId());
-            }
-        });
-        // check contractCreate->contractCreateResult->contractId
-        assertTrue(item.contractCreateOrThrow().hasContractCreateResult());
-        assertEquals(
-                shouldContractIdExists,
-                item.contractCreateOrThrow().contractCreateResult().hasContractID());
-        // check contractCreate->contractCreateResult->contractNonces->contractId
-        assertEquals(
-                !shouldContractIdExists,
-                item.contractCreateOrThrow()
-                        .contractCreateResult()
-                        .contractNonces()
-                        .isEmpty());
-        item.contractCreateOrThrow()
-                .contractCreateResult()
-                .contractNonces()
-                .forEach(nonce -> assertEquals(shouldContractIdExists, nonce.hasContractId()));
     }
 
     private EthTxData placeholderEthTx() {

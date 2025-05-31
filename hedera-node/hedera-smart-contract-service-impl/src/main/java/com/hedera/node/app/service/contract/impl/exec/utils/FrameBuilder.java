@@ -136,7 +136,7 @@ public class FrameBuilder {
             contextEntries.put(BYTECODE_SIDECARS_VARIABLE, true);
         }
         if (context.isTransaction()) {
-            contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.recordBuilder());
+            contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.streamBuilder());
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }

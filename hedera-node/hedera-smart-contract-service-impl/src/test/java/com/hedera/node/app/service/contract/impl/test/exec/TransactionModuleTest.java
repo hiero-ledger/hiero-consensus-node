@@ -154,7 +154,7 @@ class TransactionModuleTest {
                 context, tinybarValues, gasCalculator, hederaOperations, blocks, pendingCreationBuilder);
         assertSame(blocks, result.blocks());
         assertSame(123L, result.gasPrice());
-        assertSame(recordBuilder, result.recordBuilder());
+        assertSame(recordBuilder, result.streamBuilder());
         assertSame(pendingCreationBuilder, result.pendingCreationRecordBuilderReference());
     }
 

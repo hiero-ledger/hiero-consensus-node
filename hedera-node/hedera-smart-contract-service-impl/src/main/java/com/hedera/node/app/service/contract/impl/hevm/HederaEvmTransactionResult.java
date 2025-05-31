@@ -29,8 +29,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
@@ -65,7 +65,7 @@ public record HederaEvmTransactionResult(
         @Nullable @Deprecated ContractStateChanges stateChanges,
         @Nullable List<ContractSlotUsage> slotUsages,
         @Nullable ResponseCodeEnum finalStatus,
-        @Nullable ContractActions actions,
+        @Nullable List<ContractAction> actions,
         @Nullable Long signerNonce) {
     public HederaEvmTransactionResult {
         requireNonNull(senderId);
@@ -216,7 +216,7 @@ public record HederaEvmTransactionResult(
             @NonNull final List<Log> logs,
             @Nullable @Deprecated final ContractStateChanges stateChanges,
             @Nullable final List<ContractSlotUsage> slotUsages,
-            @Nullable ContractActions actions) {
+            @Nullable final List<ContractAction> actions) {
         return new HederaEvmTransactionResult(
                 gasUsed,
                 opsDuration,
@@ -361,10 +361,9 @@ public record HederaEvmTransactionResult(
         // checking first action.callType is CREATE to indicate 'create contract' call
         // we are not setting recipientId as contractID for create contract call  because failed block/receipt should
         // not contain contractID
-        if (actions() == null
-                || actions().contractActions().isEmpty()
-                || !ContractActionType.CREATE.equals(
-                        actions().contractActions().getFirst().callType())) {
+        if (actions == null
+                || actions.isEmpty()
+                || !ContractActionType.CREATE.equals(actions.getFirst().callType())) {
             builder.contractID(recipientId);
         }
         return builder;
@@ -411,7 +410,7 @@ public record HederaEvmTransactionResult(
         return storageAccessesFrom(frame, true);
     }
 
-    private static @Nullable ContractActions maybeActionsFrom(
+    private static @Nullable List<ContractAction> maybeActionsFrom(
             @NonNull final MessageFrame frame, @NonNull final ActionSidecarContentTracer tracer) {
         return hasActionSidecarsEnabled(frame) ? tracer.contractActions() : null;
     }

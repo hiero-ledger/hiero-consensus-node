@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.streams.ContractActions;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import java.util.List;
@@ -73,8 +73,9 @@ class AddOnEvmActionTracerTest {
 
     @Test
     void delegatesContractActions() {
-        given(evmActionTracer.contractActions()).willReturn(ContractActions.DEFAULT);
-        assertSame(ContractActions.DEFAULT, subject.contractActions());
+        final var actions = List.of(ContractAction.DEFAULT);
+        given(evmActionTracer.contractActions()).willReturn(actions);
+        assertSame(actions, subject.contractActions());
     }
 
     @Test

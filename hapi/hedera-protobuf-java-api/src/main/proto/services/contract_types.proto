@@ -22,6 +22,60 @@ import "services/basic_types.proto";
 import "google/protobuf/wrappers.proto";
 
 /**
+ * Context of an internal call in an EVM transaction that is not otherwise externalized.<br/>
+ */
+message InternalCallContext {
+    /**
+     * The gas available for the call.<br/>
+     */
+    uint64 gas = 1;
+
+    /**
+     * The value sent with the call.<br/>
+     */
+    uint64 value = 2;
+
+    /**
+     * The call data for the call.<br/>
+     */
+    bytes call_data = 3;
+
+    /**
+     * The Hedera id of the sender.<br/>
+     */
+    AccountID sender_id = 4;
+}
+
+/**
+ * Results of executing EVM transaction.<br/>
+ */
+message EvmTransactionResult {
+    /**
+     * Result data from the function call.
+     * <p>
+     * This SHALL be encoded in RLP bytecode format.
+     */
+    bytes contract_call_result = 1;
+
+    /**
+     * Any error message produced by the contract call. Max size of 100 bytes.
+     * <p>
+     * This SHALL be unset if the contract call succeeded.
+     */
+    string error_message = 2;
+
+    /**
+     * EVM gas used.
+     */
+    uint64 gas_used = 3;
+
+    /**
+     * If not already externalized, the context of the internal call producing this result.
+     */
+    InternalCallContext internal_call_context = 4;
+}
+
+/**
  * A contract "nonce" reference.<br/>
  * This connects a contract and its "nonce" value, and is primarily for use in
  * query responses.  A "nonce" is short for "nonsense" and is usually a value

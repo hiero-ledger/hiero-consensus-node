@@ -8,7 +8,7 @@ import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
-import com.hedera.hapi.streams.ContractActions;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -32,7 +32,7 @@ public record CallOutcome(
         @NonNull ContractFunctionResult result,
         @NonNull ResponseCodeEnum status,
         @Nullable ContractID recipientId,
-        @Nullable ContractActions actions,
+        @Nullable List<ContractAction> actions,
         @Nullable @Deprecated ContractStateChanges stateChanges,
         @Nullable List<ContractSlotUsage> slotUsages,
         long hederaOpsDuration) {

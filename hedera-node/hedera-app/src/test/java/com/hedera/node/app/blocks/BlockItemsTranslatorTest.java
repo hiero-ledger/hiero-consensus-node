@@ -377,7 +377,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCallUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(List.of(), FUNCTION_RESULT))
+                .contractCall(new CallContractOutput(FUNCTION_RESULT))
                 .build();
         final var context = new ContractOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CALL, CONTRACT_ID);
 
@@ -409,7 +409,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCreateUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCreate(new CreateContractOutput(List.of(), FUNCTION_RESULT))
+                .contractCreate(new CreateContractOutput(FUNCTION_RESULT))
                 .build();
         final var context =
                 new ContractOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CREATE, CONTRACT_ID);
@@ -516,7 +516,7 @@ class BlockItemsTranslatorTest {
     @Test
     void cryptoTransferUsesSynthResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(List.of(), FUNCTION_RESULT))
+                .contractCall(new CallContractOutput(FUNCTION_RESULT))
                 .build();
         final var context = new BaseOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CRYPTO_TRANSFER);
 

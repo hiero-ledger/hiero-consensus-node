@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import java.util.Deque;
+import java.util.List;
 import java.util.Optional;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
@@ -49,7 +50,7 @@ class EvmActionTracerTest {
     @Test
     void customInitIsNoopWithoutActionSidecars() {
         givenNoActionSidecars();
-        given(actionStack.asContractActions()).willReturn(ContractActions.DEFAULT);
+        given(actionStack.asContractActions()).willReturn(List.of());
 
         subject.traceOriginAction(frame);
 

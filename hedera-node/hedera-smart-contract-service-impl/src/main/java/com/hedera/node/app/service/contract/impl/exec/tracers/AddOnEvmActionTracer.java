@@ -3,8 +3,8 @@ package com.hedera.node.app.service.contract.impl.exec.tracers;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -53,7 +53,7 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
     }
 
     @Override
-    public @NonNull ContractActions contractActions() {
+    public @NonNull List<ContractAction> contractActions() {
         return evmActionTracer.contractActions();
     }
 
