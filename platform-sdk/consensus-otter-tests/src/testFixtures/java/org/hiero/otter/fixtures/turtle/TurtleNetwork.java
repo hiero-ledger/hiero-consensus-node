@@ -75,8 +75,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron the random generator
-     * @param timeManager the time manager
+     * @param randotron           the random generator
+     * @param timeManager         the time manager
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
      */
     public TurtleNetwork(
@@ -291,7 +291,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     }
 
     /**
-     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given {@link PlatformStatus}.
+     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given
+     * {@link PlatformStatus}.
      *
      * @param status the status to check
      * @return the {@link BooleanSupplier}

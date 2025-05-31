@@ -3,6 +3,7 @@ package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.event.EventUtils.calculateGenFromParents;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
@@ -53,7 +54,13 @@ public final class PcesUtilities {
 
             while (iterator.hasNext()) {
                 final PlatformEvent next = iterator.next();
-                newUpperBound = Math.max(newUpperBound, fileType.selectIndicator(next));
+                final long eventIndicator;
+                if (fileType == AncientMode.GENERATION_THRESHOLD) {
+                    eventIndicator = calculateGenFromParents(next.getAllParents());
+                } else {
+                    eventIndicator = fileType.selectIndicator(next);
+                }
+                newUpperBound = Math.max(newUpperBound, eventIndicator);
             }
 
         } catch (final IOException e) {

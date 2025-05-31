@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -26,8 +27,7 @@ public class RandomEventUtils {
     public static final Instant DEFAULT_FIRST_EVENT_TIME_CREATED = Instant.ofEpochMilli(1588771316678L);
 
     /**
-     * Similar to randomEvent, but the timestamp used for the event's creation timestamp
-     * is provided by an argument.
+     * Similar to randomEvent, but the timestamp used for the event's creation timestamp is provided by an argument.
      */
     public static EventImpl randomEventWithTimestamp(
             final Random random,
@@ -49,8 +49,8 @@ public class RandomEventUtils {
     }
 
     /**
-     * Similar to randomEventHashedData but where the timestamp provided to this
-     * method is the timestamp used as the creation timestamp for the event.
+     * Similar to randomEventHashedData but where the timestamp provided to this method is the timestamp used as the
+     * creation timestamp for the event.
      */
     public static UnsignedEvent randomUnsignedEventWithTimestamp(
             @NonNull final Random random,
@@ -90,7 +90,8 @@ public class RandomEventUtils {
                 otherDescriptor == null ? Collections.emptyList() : Collections.singletonList(otherDescriptor),
                 birthRound,
                 timestamp,
-                convertedTransactions);
+                convertedTransactions,
+                AncientMode.BIRTH_ROUND_THRESHOLD);
 
         if (fakeHash) {
             unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));

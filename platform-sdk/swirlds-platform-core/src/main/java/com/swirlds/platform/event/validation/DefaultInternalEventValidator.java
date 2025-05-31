@@ -163,6 +163,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
 
     /**
      * Checks whether the transaction is null.
+     *
      * @param transaction the transaction to check
      * @return true if the transaction is null, otherwise false
      */
@@ -278,6 +279,11 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the generation of the event is valid, otherwise false
      */
     private boolean isEventGenerationValid(@NonNull final PlatformEvent event) {
+        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
+            // Don't validate generations in birth round mode.
+            return true;
+        }
+
         final long eventGeneration = event.getGeneration();
 
         if (eventGeneration < FIRST_GENERATION) {

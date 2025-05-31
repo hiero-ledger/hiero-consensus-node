@@ -416,7 +416,8 @@ public class TipsetEventCreator implements EventCreator {
                         ? eventWindow.newEventBirthRound()
                         : ConsensusConstants.ROUND_FIRST,
                 timeCreated,
-                transactionSupplier.getTransactions());
+                transactionSupplier.getTransactions(),
+                ancientMode);
         eventHasher.hashUnsignedEvent(event);
 
         return event;

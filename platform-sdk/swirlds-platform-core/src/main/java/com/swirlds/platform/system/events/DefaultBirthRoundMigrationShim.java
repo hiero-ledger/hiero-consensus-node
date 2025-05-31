@@ -2,7 +2,7 @@
 package com.swirlds.platform.system.events;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+import static com.swirlds.platform.event.EventUtils.calculateGenFromParents;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
@@ -93,8 +93,8 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
                 < 0) {
             // The event was created before the birth round mode was enabled.
             // We need to migrate the event's birth round.
-
-            if (event.getGeneration() >= lowestJudgeGenerationBeforeBirthRoundMode) {
+            final long eventGeneration = calculateGenFromParents(event.getAllParents());
+            if (eventGeneration >= lowestJudgeGenerationBeforeBirthRoundMode) {
                 // Any event with a generation greater than or equal to the lowest pre-migration judge generation
                 // is given a birth round that will be non-ancient at migration time.
                 logger.debug(
@@ -102,17 +102,18 @@ public class DefaultBirthRoundMigrationShim implements BirthRoundMigrationShim {
                         "Event migrated to use birth rounds prev={} new={} (non-ancient)",
                         event.getBirthRound(),
                         lastRoundBeforeBirthRoundMode);
-                event.overrideBirthRound(lastRoundBeforeBirthRoundMode, lowestJudgeGenerationBeforeBirthRoundMode);
+                event.overrideBirthRoundAndGeneration(
+                        lastRoundBeforeBirthRoundMode, lowestJudgeGenerationBeforeBirthRoundMode);
                 shimBarelyNonAncientEvents.cycle();
             } else {
                 // All other pre-migration events are given a birth round that will
                 // cause them to be immediately ancient.
-                logger.debug(
-                        STARTUP.getMarker(),
-                        "Event migrated to use birth rounds prev={} new={} (ancient)",
-                        event.getBirthRound(),
-                        ROUND_FIRST);
-                event.overrideBirthRound(ROUND_FIRST, lowestJudgeGenerationBeforeBirthRoundMode);
+                //                logger.debug(
+                //                        STARTUP.getMarker(),
+                //                        "Event migrated to use birth rounds prev={} new={} (ancient)",
+                //                        event.getBirthRound(),
+                //                        ROUND_FIRST);
+                //                event.overrideBirthRound(ROUND_FIRST, lowestJudgeGenerationBeforeBirthRoundMode);
                 shimAncientEvents.cycle();
             }
         }

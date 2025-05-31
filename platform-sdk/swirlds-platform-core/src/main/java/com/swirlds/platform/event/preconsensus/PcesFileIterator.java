@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
+import static com.swirlds.platform.event.EventUtils.calculateGenFromParents;
+
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.io.IOIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,7 +73,10 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
                         switch (fileVersion) {
                             case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF));
                         };
-                if (fileType.selectIndicator(candidate) >= lowerBound) {
+                final long candidateGen = calculateGenFromParents(candidate.getAllParents());
+                if (fileType == AncientMode.GENERATION_THRESHOLD && candidateGen >= lowerBound) {
+                    next = candidate;
+                } else if (fileType.selectIndicator(candidate) >= lowerBound) {
                     next = candidate;
                 }
             } catch (final IOException e) {

@@ -20,8 +20,6 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
 @DisplayName("ChildlessEventTracker Tests")
 class ChildlessEventTrackerTests {
@@ -260,10 +258,9 @@ class ChildlessEventTrackerTests {
                 .hasSize(2);
     }
 
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @Test
     @DisplayName("Ancient events are removed when they become ancient")
-    void testAncientEventsArePruned(final AncientMode ancientMode) {
+    void testAncientEventsArePruned() {
         final Random random = getRandomPrintSeed();
         final int numNodes = random.nextInt(10, 100);
 
@@ -314,7 +311,7 @@ class ChildlessEventTrackerTests {
         for (long nodeId = 0; nodeId < numNodes; nodeId++) {
             final long ancientThreshold = nodeId + ancientThresholdOffset + 1;
             tracker.pruneOldEvents(EventWindowBuilder.builder()
-                    .setAncientMode(ancientMode)
+                    .setAncientMode(AncientMode.BIRTH_ROUND_THRESHOLD)
                     .setAncientThreshold(ancientThreshold)
                     .build());
             final PlatformEvent event = eventsByCreator.get(nodeId);

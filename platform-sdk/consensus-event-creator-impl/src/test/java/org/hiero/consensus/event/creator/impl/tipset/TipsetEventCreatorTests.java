@@ -52,14 +52,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 class TipsetEventCreatorTests {
 
     /**
-     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize = 10).
-     * It iterates 100 times, and within each iteration, it cycles through all nodes in the roster in order.
-     * For each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions, triggers the node to create a new event, distributes this event to other nodes, and then validates the newly created event.
-     * The test asserts that every node is always able to create an event and, if the clock is advancing, that the event's creation time matches the simulated current time.
-     * The ancientMode parameter is used to assign a birthround or a generation at the time the event is being created.
+     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
+     * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in the roster in order. For
+     * each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions,
+     * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
+     * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
+     * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
+     * birthround or a generation at the time the event is being created.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
+     * @param ancientMode    {@link AncientMode#values()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -117,21 +119,23 @@ class TipsetEventCreatorTests {
                 }
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                        events, event, transactionSupplier.get(), nodes.get(nodeId), false, ancientMode);
             }
         }
     }
 
     /**
-     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize = 10).
-     * It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order.
-     * For each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions, triggers the node to create a new event, distributes this event to other nodes, and then validates the newly created event.
-     * The test asserts that every node is always able to create an event and, if the clock is advancing, that the event's creation time matches the simulated current time.
-     * The ancientMode parameter is used to assign a birthround or a generation at the time the event is being created.
+     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
+     * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order. For each
+     * node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions,
+     * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
+     * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
+     * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
+     * birthround or a generation at the time the event is being created.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode    {@link AncientMode#values()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -201,7 +205,7 @@ class TipsetEventCreatorTests {
                     assertEquals(event.getTimeCreated(), time.now());
                 }
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                        events, event, transactionSupplier.get(), nodes.get(nodeId), false, ancientMode);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -209,13 +213,13 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test is very similar to the {@link #randomOrderTest(boolean, AncientMode, Random)}, except that we repeat the test
-     * several times using the same event creator. This fails when we do not clear the event creator in between runs,
-     * but should not fail if we have cleared the vent creator.
+     * This test is very similar to the {@link #randomOrderTest(boolean, AncientMode, Random)}, except that we repeat
+     * the test several times using the same event creator. This fails when we do not clear the event creator in between
+     * runs, but should not fail if we have cleared the vent creator.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode    {@link AncientMode#values()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -286,7 +290,7 @@ class TipsetEventCreatorTests {
                         assertEquals(event.getTimeCreated(), time.now());
                     }
                     validateNewEventAndMaybeAdvanceCreatorScore(
-                            events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                            events, event, transactionSupplier.get(), nodes.get(nodeId), false, ancientMode);
                 }
 
                 assertTrue(atLeastOneEventCreated);
@@ -310,8 +314,8 @@ class TipsetEventCreatorTests {
      * unable to create another event without first receiving an event from another node.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode    {@link AncientMode#values()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -379,7 +383,7 @@ class TipsetEventCreatorTests {
                         assertEquals(event.getTimeCreated(), time.now());
                     }
                     validateNewEventAndMaybeAdvanceCreatorScore(
-                            events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                            events, event, transactionSupplier.get(), nodes.get(nodeId), false, ancientMode);
 
                     // At best, we can create a genesis event and one event per node in the network.
                     // We are unlikely to create this many, but we definitely shouldn't be able to go beyond this.
@@ -488,7 +492,7 @@ class TipsetEventCreatorTests {
                     assertEquals(newEvent.getTimeCreated(), time.now());
                 }
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false);
+                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false, ancientMode);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -507,8 +511,8 @@ class TipsetEventCreatorTests {
      * that they do not get transitive tipset score improvements by using it.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode    {@link AncientMode#values()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -624,7 +628,7 @@ class TipsetEventCreatorTests {
                     assertEquals(newEvent.getTimeCreated(), time.now());
                 }
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true);
+                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true, ancientMode);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -638,12 +642,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     *  This test evaluates the corner case of 1 node network.
-     *  it should be impossible for a node to be unable to create an event.
+     * This test evaluates the corner case of 1 node network. it should be impossible for a node to be unable to create
+     * an event.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode    {@link AncientMode#values()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -710,8 +714,9 @@ class TipsetEventCreatorTests {
      * There was once a bug that could cause event creation to become frozen. This was because we weren't properly
      * including the advancement weight of the self parent when considering the theoretical advancement weight of a new
      * event.
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     *
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -802,8 +807,8 @@ class TipsetEventCreatorTests {
     /**
      * Event from nodes not in the address book should not be used as parents for creating new events.
      *
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -886,8 +891,9 @@ class TipsetEventCreatorTests {
     /**
      * There was once a bug where it was possible to create a self event that was stale at the moment of its creation
      * time. This test verifies that this is no longer possible.
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     *
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -932,9 +938,10 @@ class TipsetEventCreatorTests {
     /**
      * Checks that birth round on events is being set if the setting for using birth round is set.
      * <p>
-     * @param advancingClock  {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param ancientMode    {@link AncientMode#values()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1077,8 +1084,8 @@ class TipsetEventCreatorTests {
      * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
      * self event for the first time from the intake pipeline.
      *
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1127,13 +1134,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test verifies that the event creator assigns the propper creationTime in the following scenario:
-     *   - the parent has no transactions
-     *  - current time (wall clock) is after the parent's creation time
-     * We expect the new event creation time to be the current time.
+     * This test verifies that the event creator assigns the propper creationTime in the following scenario: - the
+     * parent has no transactions - current time (wall clock) is after the parent's creation time We expect the new
+     * event creation time to be the current time.
      *
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1172,13 +1178,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
-     *  - the parent has transactions
-     *  - current time (wall clock) is after the parent's last transaction time
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following
+     * scenario: - the parent has transactions - current time (wall clock) is after the parent's last transaction time
      * We expect the new event creation time to be the current time.
      *
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1216,13 +1221,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
-     * - the parent has transactions
-     * - current time (wall clock) is before the parent's last transaction time
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following
+     * scenario: - the parent has transactions - current time (wall clock) is before the parent's last transaction time
      * We expect the new event creation time to be set to the parent's creation time + number of transactions.
      *
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1262,13 +1266,12 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenarioi:
-     *  - the parent has no transactions
-     *  - current time (wall clock) is the same as the parent's creation time
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following
+     * scenarioi: - the parent has no transactions - current time (wall clock) is the same as the parent's creation time
      * We expect the new event creation time to be set to the parent's creation time + a fixed delta.
      *
-     * @param ancientMode  {@link AncientMode#values()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param ancientMode {@link AncientMode#values()}
+     * @param random      {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
