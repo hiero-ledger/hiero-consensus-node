@@ -22,6 +22,7 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -463,7 +464,7 @@ public class Utils {
     }
 
     public static Address nonMirrorAddrWith(final long seed, final long num) {
-        return Address.wrap(toChecksumAddress(new BigInteger(1, asSolidityAddress((int) seed, seed, num))));
+        return Address.wrap(toChecksumAddress(new BigInteger(1, asSolidityAddressWithSeed((int) seed, num))));
     }
 
     public static Address numAsHeadlongAddress(HapiSpec spec, final long num) {
@@ -503,6 +504,16 @@ public class Utils {
     public static byte[] asSolidityAddress(final int shard, final long realm, final long num) {
         final byte[] solidityAddress = new byte[20];
 
+        arraycopy(Longs.toByteArray(num), 0, solidityAddress, 12, 8);
+
+        return solidityAddress;
+    }
+
+    public static byte[] asSolidityAddressWithSeed(final int seed, final long num) {
+        final byte[] solidityAddress = new byte[20];
+
+        arraycopy(Ints.toByteArray(seed), 0, solidityAddress, 0, 4);
+        arraycopy(Longs.toByteArray(seed), 0, solidityAddress, 4, 8);
         arraycopy(Longs.toByteArray(num), 0, solidityAddress, 12, 8);
 
         return solidityAddress;

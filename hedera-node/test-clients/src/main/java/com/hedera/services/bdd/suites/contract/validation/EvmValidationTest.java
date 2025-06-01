@@ -70,7 +70,7 @@ public class EvmValidationTest {
             @DisplayName("when transferring value to long zero address 00000000000000000000000000000000001117d0 ")
             public Stream<DynamicTest> lazyCreateToLongZeroFails() {
                 final Function<HapiSpec, String> longZeroAddress =
-                        (spec) -> toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "1117d0");
+                        (spec) -> toAddressStringWithShardAndRealm(0, 0, "1117d0");
                 return callContractWithValue(longZeroAddress, CONTRACT_REVERT_EXECUTED);
             }
 
@@ -78,7 +78,7 @@ public class EvmValidationTest {
             @DisplayName("when transferring value to long zero burn address 000000000000000000000000000000000000dEaD ")
             public Stream<DynamicTest> lazyCreateToLongZeroBurnAddressFails() {
                 final Function<HapiSpec, String> longZeroBurnAddress =
-                        (spec) -> toAddressStringWithShardAndRealm((int) spec.shard(), spec.realm(), "dEaD");
+                        (spec) -> toAddressStringWithShardAndRealm(0, 0, "dEaD");
                 return callContractWithValue(longZeroBurnAddress, CONTRACT_REVERT_EXECUTED);
             }
 

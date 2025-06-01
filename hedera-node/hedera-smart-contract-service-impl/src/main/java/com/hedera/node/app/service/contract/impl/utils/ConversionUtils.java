@@ -116,7 +116,8 @@ public class ConversionUtils {
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final com.esaulpaugh.headlong.abi.Address address) {
         final var explicit = explicitFromHeadlong(address);
-        return entityIdFactory.newTokenId(numberOfLongZero(explicit));
+        final var tokenNum = numberOfLongZero(explicit);
+        return tokenNum == 0 ? TokenID.DEFAULT : entityIdFactory.newTokenId(tokenNum);
     }
 
     /**

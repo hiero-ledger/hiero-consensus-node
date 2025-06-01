@@ -193,14 +193,20 @@ public class UpdateTokenCustomFeesDecoder {
     private @Nullable TokenID getDenominationTokenIdOrNull(
             @NonNull final HtsCallAttempt attempt, @NonNull final Address address, final boolean useHbarsForPayment) {
         final var tokenId = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), address);
-        return useHbarsForPayment || tokenId.equals(TokenID.DEFAULT) ? null : tokenId;
+        return useHbarsForPayment
+                        || tokenId.equals(
+                                attempt.nativeOperations().entityIdFactory().newTokenId(0))
+                ? null
+                : tokenId;
     }
 
     private @Nullable FixedFee getFallbackFee(@NonNull final HtsCallAttempt attempt, @NonNull Tuple fee) {
         final Address tokenAddress = fee.get(ROYALTY_FALLBACK_FEE_TOKEN_ID);
         final long amount = fee.get(ROYALTY_FALLBACK_FEE_AMOUNT);
         return ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress)
-                                .equals(TokenID.DEFAULT)
+                                .equals(attempt.nativeOperations()
+                                        .entityIdFactory()
+                                        .newTokenId(0))
                         && amount == 0
                 ? null
                 : FixedFee.newBuilder()
