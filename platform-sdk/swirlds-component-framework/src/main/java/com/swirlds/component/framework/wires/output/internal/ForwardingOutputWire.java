@@ -4,6 +4,7 @@ package com.swirlds.component.framework.wires.output.internal;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 
 /**
  * An output wire that will take data and forward it to its outputs.
@@ -19,8 +20,9 @@ public abstract class ForwardingOutputWire<IN, OUT> extends OutputWire<OUT> {
      * @param model the wiring model containing this output wire
      * @param name  the name of the output wire
      */
-    protected ForwardingOutputWire(@NonNull final TraceableWiringModel model, final @NonNull String name) {
-        super(model, name);
+    protected ForwardingOutputWire(@NonNull final TraceableWiringModel model, final @NonNull String name,
+            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
+        super(model, name, uncaughtExceptionHandler);
     }
 
     /**

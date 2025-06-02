@@ -15,6 +15,7 @@ import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.internal.TransformingOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -30,6 +31,7 @@ public abstract class OutputWire<OUT> {
 
     private final TraceableWiringModel model;
     private final String name;
+    private final UncaughtExceptionHandler uncaughtExceptionHandler;
 
     /**
      * Constructor.
@@ -37,9 +39,10 @@ public abstract class OutputWire<OUT> {
      * @param model the wiring model containing this output wire
      * @param name  the name of the output wire
      */
-    public OutputWire(@NonNull final TraceableWiringModel model, @NonNull final String name) {
+    public OutputWire(@NonNull final TraceableWiringModel model, @NonNull final String name, @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
         this.model = Objects.requireNonNull(model);
         this.name = Objects.requireNonNull(name);
+        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
     }
 
     /**
@@ -61,6 +64,10 @@ public abstract class OutputWire<OUT> {
     @NonNull
     protected TraceableWiringModel getModel() {
         return model;
+    }
+
+    protected UncaughtExceptionHandler getUncaughtExceptionHandler() {
+        return uncaughtExceptionHandler;
     }
 
     /**

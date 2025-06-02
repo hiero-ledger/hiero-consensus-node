@@ -81,6 +81,7 @@ public class TransformingOutputWire<IN, OUT> extends ForwardingOutputWire<IN, OU
                 }
                 destination.accept(transformed);
             } catch (final Exception e) {
+                //TODO here as well
                 logger.error(
                         EXCEPTION.getMarker(),
                         "Exception thrown on output wire {} while forwarding data {}",
