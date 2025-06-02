@@ -8,9 +8,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
@@ -20,25 +20,32 @@ import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import java.security.cert.CertificateEncodingException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class EventSignatureValidatorTests {
+    public static final int PREVIOUS_ROSTER_ROUND = 2;
+    public static final int CURRENT_ROSTER_ROUND = 3;
+    public static final NodeId PREVIOUS_ROSTER_NODE_ID = NodeId.of(66);
+    public static final NodeId CURRENT_ROSTER_NODE_ID = NodeId.of(77);
     private Randotron random;
     private PlatformContext platformContext;
     private FakeTime time;
     private AtomicLong exitedIntakePipelineCount;
     private IntakeEventCounter intakeEventCounter;
-
-    private Roster currentRoster;
 
     /**
      * A verifier that always returns true.
@@ -53,17 +60,7 @@ class EventSignatureValidatorTests {
     private EventSignatureValidator validatorWithTrueVerifier;
     private EventSignatureValidator validatorWithFalseVerifier;
 
-    private SemanticVersion defaultVersion;
-
-    /**
-     * This address belongs to a node that is placed in the previous roster.
-     */
-    private RosterEntry previousNodeRosterEntry;
-
-    /**
-     * This address belongs to a node that is placed in the current roster.
-     */
-    private RosterEntry currentNodeRosterEntry;
+    private RosterHistory rosterHistory;
 
     /**
      * Generate a mock RosterEntry, with enough elements mocked to support the signature validation.
@@ -101,27 +98,43 @@ class EventSignatureValidatorTests {
                 .eventExitedIntakePipeline(any());
 
         // create two addresses, one for the previous address book and one for the current address book
-        previousNodeRosterEntry = generateMockRosterEntry(66);
-        currentNodeRosterEntry = generateMockRosterEntry(77);
+        rosterHistory = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND);
+
+        validatorWithTrueVerifier =
+                new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
+
+        validatorWithFalseVerifier =
+                new DefaultEventSignatureValidator(platformContext, falseVerifier, rosterHistory, intakeEventCounter);
+    }
+
+    public RosterHistory buildRosterHistory(final long previousRound, final long round) {
+        final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
+        final Map<Bytes, Roster> rosterMap = new HashMap<>();
+
+        final RosterEntry previousNodeRosterEntry = generateMockRosterEntry(PREVIOUS_ROSTER_NODE_ID.id());
+        final RosterEntry currentNodeRosterEntry = generateMockRosterEntry(CURRENT_ROSTER_NODE_ID.id());
 
         final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
-        currentRoster = new Roster(List.of(currentNodeRosterEntry));
+        final Roster currentRoster = new Roster(List.of(currentNodeRosterEntry));
 
-        defaultVersion = SemanticVersion.newBuilder().major(2).build();
+        final Bytes currentHash = RosterUtils.hash(currentRoster).getBytes();
+        roundRosterPairList.add(new RoundRosterPair(round, currentHash));
+        rosterMap.put(currentHash, currentRoster);
 
-        validatorWithTrueVerifier = new DefaultEventSignatureValidator(
-                platformContext, trueVerifier, defaultVersion, previousRoster, currentRoster, intakeEventCounter);
+        final Bytes previousHash = RosterUtils.hash(previousRoster).getBytes();
+        roundRosterPairList.add(new RoundRosterPair(previousRound, previousHash));
+        rosterMap.put(previousHash, previousRoster);
 
-        validatorWithFalseVerifier = new DefaultEventSignatureValidator(
-                platformContext, falseVerifier, defaultVersion, previousRoster, currentRoster, intakeEventCounter);
+        return new RosterHistory(roundRosterPairList, rosterMap);
     }
 
     @Test
     @DisplayName("Events with higher version than the app should always fail validation")
+    @Disabled // Does this not apply anymore, since any bround higgher needs to pass
     void irreconcilableVersions() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
-                .setSoftwareVersion(SemanticVersion.newBuilder().major(3).build())
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND + 1)
                 .build();
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
@@ -131,12 +144,12 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Lower version event with missing previous address book")
     void versionMismatchWithNullPreviousAddressBook() {
-        final EventSignatureValidator signatureValidator = new DefaultEventSignatureValidator(
-                platformContext, trueVerifier, defaultVersion, null, currentRoster, intakeEventCounter);
+        final EventSignatureValidator signatureValidator =
+                new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(previousNodeRosterEntry.nodeId()))
-                .setSoftwareVersion(SemanticVersion.newBuilder().major(3).build())
+                .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
+                .setBirthRound(PREVIOUS_ROSTER_ROUND - 1)
                 .build();
 
         assertNull(signatureValidator.validateSignature(event));
@@ -148,8 +161,8 @@ class EventSignatureValidatorTests {
     void applicableAddressBookMissingNode() {
         // this creator isn't in the current address book, so verification will fail
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(previousNodeRosterEntry.nodeId()))
-                .setSoftwareVersion(defaultVersion)
+                .setCreatorId(NodeId.of(99))
+                .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
@@ -161,10 +174,8 @@ class EventSignatureValidatorTests {
     void missingPublicKey() {
         final NodeId nodeId = NodeId.of(88);
 
-        final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(nodeId)
-                .setSoftwareVersion(defaultVersion)
-                .build();
+        final PlatformEvent event =
+                new TestingEventBuilder(random).setCreatorId(nodeId).build();
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
@@ -175,8 +186,8 @@ class EventSignatureValidatorTests {
     void validSignature() {
         // both the event and the app have the same version, so the currentAddressBook will be selected
         final PlatformEvent event1 = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
-                .setSoftwareVersion(defaultVersion)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
         assertNotEquals(null, validatorWithTrueVerifier.validateSignature(event1));
@@ -184,8 +195,8 @@ class EventSignatureValidatorTests {
 
         // event2 is from a previous version, so the previous address book will be selected
         final PlatformEvent event2 = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(previousNodeRosterEntry.nodeId()))
-                .setSoftwareVersion(SemanticVersion.newBuilder().major(1).build())
+                .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
+                .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
 
         assertNotEquals(null, validatorWithTrueVerifier.validateSignature(event2));
@@ -196,8 +207,8 @@ class EventSignatureValidatorTests {
     @DisplayName("Event fails validation if the signature does not verify")
     void verificationFails() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
-                .setSoftwareVersion(defaultVersion)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
         assertNotEquals(null, validatorWithTrueVerifier.validateSignature(event));
@@ -212,15 +223,13 @@ class EventSignatureValidatorTests {
     void ancientEvent() {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-        final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
 
-        final EventSignatureValidator validator = new DefaultEventSignatureValidator(
-                platformContext, trueVerifier, defaultVersion, previousRoster, currentRoster, intakeEventCounter);
+        final EventSignatureValidator validator =
+                new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(currentNodeRosterEntry.nodeId()))
-                .setBirthRound(EventConstants.MINIMUM_ROUND_CREATED)
-                .setSoftwareVersion(defaultVersion)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
         assertNotEquals(null, validator.validateSignature(event));

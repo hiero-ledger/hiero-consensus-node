@@ -317,6 +317,13 @@ public final class RosterUtils {
         return new RosterHistory(roundRosterPairList, rosterMap);
     }
 
+    @NonNull
+    public static RosterHistory createRosterHistory(@NonNull final State state) {
+        final ReadableRosterStore rosterStore =
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.NAME));
+        return createRosterHistory(rosterStore);
+    }
+
     /**
      * Creates the Roster History to be used by Platform.
      *
