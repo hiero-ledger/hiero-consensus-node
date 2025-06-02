@@ -7,9 +7,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
-import com.hedera.hapi.block.protoc.PublishStreamRequest;
-import com.hedera.hapi.block.protoc.PublishStreamResponse;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
@@ -26,6 +23,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
+import org.hiero.block.api.protoc.PublishStreamRequest;
+import org.hiero.block.api.protoc.PublishStreamResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,7 +77,7 @@ class BlockNodeConnectionManagerTest {
     @Test
     void testNewBlockNodeConnectionManager() {
         final var expectedGrpcEndpoint =
-                BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
+                BlockStreamPublishServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
         assertEquals(expectedGrpcEndpoint, blockNodeConnectionManager.getGrpcEndPoint());
     }
 
@@ -135,7 +135,8 @@ class BlockNodeConnectionManagerTest {
         return logs;
     }
 
-    private static class BlockStreamServiceTestImpl extends BlockStreamServiceGrpc.BlockStreamServiceImplBase {
+    private static class BlockStreamServiceTestImpl
+            extends BlockStreamPublishServiceGrpc.BlockStreamPublishServiceImplBase {
         private static final Logger logger = LogManager.getLogger(BlockStreamServiceTestImpl.class);
 
         @Override

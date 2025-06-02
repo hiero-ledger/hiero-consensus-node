@@ -83,6 +83,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -199,6 +200,11 @@ class IngestCheckerTest extends AppTestBase {
                 opWorkflowMetrics,
                 SemanticVersion.DEFAULT,
                 null);
+    }
+
+    @AfterEach
+    void tearDown() {
+        state.release();
     }
 
     @Nested

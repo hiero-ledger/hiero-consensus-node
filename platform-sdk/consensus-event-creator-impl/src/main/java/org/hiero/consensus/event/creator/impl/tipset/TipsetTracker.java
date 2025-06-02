@@ -52,6 +52,17 @@ public class TipsetTracker {
     private final RateLimitedLogger ancientEventLogger;
 
     /**
+     * Create a new tipset tracker. Uses the only ancient mode supported
+     *
+     * @param time        provides wall clock time
+     * @param selfId      the id of this node
+     * @param roster      the current roster
+     */
+    public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final Roster roster) {
+        this(time, selfId, roster, AncientMode.BIRTH_ROUND_THRESHOLD);
+    }
+
+    /**
      * Create a new tipset tracker.
      *
      * @param time        provides wall clock time
@@ -59,6 +70,7 @@ public class TipsetTracker {
      * @param roster      the current roster
      * @param ancientMode the {@link AncientMode} to use
      */
+    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
     public TipsetTracker(
             @NonNull final Time time,
             @NonNull final NodeId selfId,

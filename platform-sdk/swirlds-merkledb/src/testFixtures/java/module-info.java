@@ -12,6 +12,7 @@ module com.swirlds.merkledb.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.apache.logging.log4j.core;
     requires com.swirlds.base;
+    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb;
     requires org.hiero.consensus.model;
