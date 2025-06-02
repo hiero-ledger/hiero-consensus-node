@@ -511,7 +511,7 @@ public class BaseTranslator {
                         bytecodeBuilder.runtimeBytecode(runtimeBytecode);
                         if (executedInitcode.hasExplicitInitcode()) {
                             bytecodeBuilder.initcode(executedInitcode.explicitInitcodeOrThrow());
-                        } else {
+                        } else if (executedInitcode.hasInitcodeBookends()) {
                             final var bookends = executedInitcode.initcodeBookendsOrThrow();
                             bytecodeBuilder.initcode(Bytes.merge(
                                     bookends.deployBytecode(),
