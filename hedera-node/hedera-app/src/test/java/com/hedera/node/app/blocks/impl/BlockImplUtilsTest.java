@@ -73,7 +73,8 @@ class BlockImplUtilsTest {
     private static String nameOf(@NonNull final StateIdentifier stateId) {
         return switch (stateId) {
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
-            case STATE_ID_VIRTUAL_MAP_STATE ->throw new IllegalArgumentException("No mapping for STATE_ID_VIRTUAL_MAP_STATE");
+            case STATE_ID_VIRTUAL_MAP_STATE ->
+                throw new IllegalArgumentException("No mapping for STATE_ID_VIRTUAL_MAP_STATE");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
