@@ -51,7 +51,8 @@ public class BirthRoundMigrationAndFreezeTest {
         for (final Node node : network.getNodes()) {
             node.getConfiguration()
                     .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)
-                    .set(SOFTWARE_VERSION, OLD_VERSION);
+                    .set(SOFTWARE_VERSION, OLD_VERSION)
+                    .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
         }
         network.start(ONE_MINUTE);
         env.transactionGenerator().start();
@@ -66,8 +67,7 @@ public class BirthRoundMigrationAndFreezeTest {
         for (final Node node : network.getNodes()) {
             node.getConfiguration()
                     .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                    .set(SOFTWARE_VERSION, NEW_VERSION)
-                    .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+                    .set(SOFTWARE_VERSION, NEW_VERSION);
         }
 
         // Restart the network and perform birth round migration
