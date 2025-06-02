@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -44,11 +45,18 @@ public class SynchronizedThrottleAccumulator {
      *
      * @param txnInfo the transaction to update the throttle requirements for
      * @param state the current state of the node
+     * @param throttleUsages the throttle usages to be used for the transaction
      * @return whether the transaction should be throttled
      */
-    public synchronized boolean shouldThrottle(@NonNull TransactionInfo txnInfo, State state) {
+    public synchronized boolean shouldThrottle(
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final State state,
+            @NonNull final List<ThrottleUsage> throttleUsages) {
+        requireNonNull(txnInfo);
+        requireNonNull(state);
+        requireNonNull(throttleUsages);
         setDecisionTime(instantSource.instant());
-        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state);
+        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state, throttleUsages);
     }
 
     /**

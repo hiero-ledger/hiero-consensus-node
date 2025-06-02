@@ -47,6 +47,7 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
     private Optional<String> initialTransactionPayer = Optional.empty();
     private Optional<TransactionID> initialTransactionID = Optional.empty();
     private boolean clearMessage = false;
+    private boolean omitTopicId = false;
     private final List<Function<HapiSpec, FixedCustomFee>> maxCustomFeeList = new ArrayList<>();
 
     public HapiMessageSubmit(final String topic) {
@@ -77,6 +78,11 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
 
     public HapiMessageSubmit message(final ByteString s) {
         message = Optional.of(s);
+        return this;
+    }
+
+    public HapiMessageSubmit omittingTopicId() {
+        omitTopicId = true;
         return this;
     }
 
@@ -119,7 +125,9 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
         final ConsensusSubmitMessageTransactionBody opBody = spec.txns()
                 .<ConsensusSubmitMessageTransactionBody, ConsensusSubmitMessageTransactionBody.Builder>body(
                         ConsensusSubmitMessageTransactionBody.class, b -> {
-                            b.setTopicID(id);
+                            if (!omitTopicId) {
+                                b.setTopicID(id);
+                            }
                             message.ifPresent(m -> b.setMessage(m));
                             if (clearMessage) {
                                 b.clearMessage();

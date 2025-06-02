@@ -133,6 +133,13 @@ public class BucketThrottle {
         return true;
     }
 
+    void leakInstantaneous(final int numReqs) {
+        if (productWouldOverflow(numReqs, CAPACITY_UNITS_PER_TXN)) {
+            return;
+        }
+        bucket.leak(numReqs * CAPACITY_UNITS_PER_TXN);
+    }
+
     /**
      * Returns the percent of the throttle bucket's capacity that is used, given some number of
      * nanoseconds have elapsed since the last capacity test.

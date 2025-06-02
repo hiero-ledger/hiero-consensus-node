@@ -9,15 +9,18 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.withoutAutoRestoring;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
@@ -27,6 +30,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -166,9 +170,23 @@ public class SteadyStateThrottlingTest {
         final var baseSpec =
                 custom.isEmpty() ? defaultHapiSpec(name) : customHapiSpec(name).withProperties(custom);
         return baseSpec.given()
-                .when(runWithProvider(provider)
-                        .lasting(duration::get, unit::get)
-                        .maxOpsPerSec(maxOpsPerSec::get))
+                .when(inParallel(
+                        runWithProvider(provider)
+                                .lasting(duration::get, unit::get)
+                                .maxOpsPerSec(maxOpsPerSec::get),
+                        blockingOrder(
+                                createTopic("ntb"),
+                                cryptoCreate(CIVILIAN).balance(ONE_MILLION_HBARS),
+                                runWithProvider(spec -> () -> Optional.of(submitMessageTo("ntb")
+                                                .omittingTopicId()
+                                                .fee(ONE_HBAR)
+                                                .deferStatusResolution()
+                                                .hasPrecheckFrom(INVALID_TOPIC_ID, BUSY, OK)
+                                                .payingWith(CIVILIAN)
+                                                .hasKnownStatusFrom(PERMITTED_STATUSES)
+                                                .noLogging()))
+                                        .lasting(duration::get, unit::get)
+                                        .maxOpsPerSec(maxOpsPerSec::get))))
                 .then(withOpContext((spec, opLog) -> {
                     var actualTps = 1.0 * spec.finalAdhoc() / duration.get();
                     var percentDeviation = Math.abs(actualTps / expectedTps - 1.0) * 100.0;
