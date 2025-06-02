@@ -7,6 +7,7 @@ import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -33,12 +34,13 @@ public class HeartbeatTask extends TimerTask {
             @NonNull final TraceableWiringModel model,
             @NonNull final String name,
             @NonNull final Time time,
-            @NonNull final Duration period) {
+            @NonNull final Duration period,
+            @NonNull final UncaughtExceptionHandler exceptionHandler) {
         this.time = Objects.requireNonNull(time);
         this.period = Objects.requireNonNull(period);
         Objects.requireNonNull(name);
 
-        this.outputWire = new StandardOutputWire<>(model, name, ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);//TODO
+        this.outputWire = new StandardOutputWire<>(model, name, exceptionHandler);
     }
 
     /**

@@ -8,6 +8,7 @@ import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -53,7 +54,7 @@ public abstract class AbstractHeartbeatScheduler {
      * @throws IllegalStateException if start has already been called
      */
     @NonNull
-    public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
+    public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period, @NonNull final UncaughtExceptionHandler exceptionHandler) {
         if (started) {
             throw new IllegalStateException("Cannot create heartbeat wires after the heartbeat has started");
         }
@@ -68,7 +69,7 @@ public abstract class AbstractHeartbeatScheduler {
                             + "Requested period: " + period);
         }
 
-        final HeartbeatTask task = new HeartbeatTask(model, name, time, period);
+        final HeartbeatTask task = new HeartbeatTask(model, name, time, period, exceptionHandler);
         tasks.add(task);
 
         return task.getOutputWire();
@@ -83,12 +84,12 @@ public abstract class AbstractHeartbeatScheduler {
      *                  and so frequencies greater than 1000hz are not supported.
      * @return the output wire
      */
-    public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
+    public OutputWire<Instant> buildHeartbeatWire(final double frequency, @NonNull final UncaughtExceptionHandler exceptionHandler) {
         if (frequency <= 0) {
             throw new IllegalArgumentException("Frequency must be positive");
         }
         final Duration period = Duration.ofMillis((long) (1000.0 / frequency));
-        return buildHeartbeatWire(period);
+        return buildHeartbeatWire(period, exceptionHandler);
     }
 
     /**
