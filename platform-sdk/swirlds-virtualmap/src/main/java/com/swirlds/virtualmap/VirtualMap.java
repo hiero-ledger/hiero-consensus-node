@@ -502,7 +502,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     private void persistNonEmptyState() {
-        if(state.getSize() == 0) {
+        if (state.getSize() == 0) {
             // If the state is empty, we do not persist it.
             return;
         }
@@ -713,7 +713,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
-            if(path == INVALID_PATH) {
+            if (path == INVALID_PATH) {
                 persistNonEmptyState();
             }
         }
