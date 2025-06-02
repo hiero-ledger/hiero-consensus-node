@@ -630,14 +630,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             .append("    </Logger>\n");
 
                     newLoggers
-                            .append(
-                                    "    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager\" ")
-                            .append("level=\"DEBUG\" additivity=\"false\">\n")
-                            .append("      <AppenderRef ref=\"Console\"/>\n")
-                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
-                            .append("    </Logger>\n\n");
-
-                    newLoggers
                             .append("    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockState\" ")
                             .append("level=\"DEBUG\" additivity=\"false\">\n")
                             .append("      <AppenderRef ref=\"Console\"/>\n")
