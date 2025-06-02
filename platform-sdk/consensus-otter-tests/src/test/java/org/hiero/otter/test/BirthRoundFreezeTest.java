@@ -53,13 +53,13 @@ public class BirthRoundFreezeTest {
             node.getConfiguration().set(SOFTWARE_VERSION, OLD_VERSION);
         }
         network.start(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.generator().stop();
+        env.transactionGenerator().stop();
         network.prepareUpgrade(ONE_MINUTE);
 
         // Events with a created time before this time should have a maximum birth round of
@@ -75,7 +75,7 @@ public class BirthRoundFreezeTest {
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.resume(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
@@ -84,8 +84,8 @@ public class BirthRoundFreezeTest {
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResults())
-                .hasAdvancedSince(freezeRound)
-                .hasEqualRoundsIgnoringLast(withPercentage(5));
+                .haveAdvancedSinceRound(freezeRound)
+                .haveEqualRoundsIgnoringLast(withPercentage(5));
 
         assertBirthRoundsBeforeAndAfterFreeze(
                 network.getNodes().getFirst().getConsensusResult().consensusRounds(),
