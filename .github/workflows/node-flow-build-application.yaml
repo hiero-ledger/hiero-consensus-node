@@ -207,7 +207,7 @@ jobs:
     if: ${{ (needs.code.result != 'success' ||
       needs.dependency-check.result != 'success' ||
       needs.spotless.result != 'success' ||
-      needs.mats-unit-test.result != 'success' ||
+      needs.mats-unit-tests.result != 'success' ||
       needs.mats-gradle-determinism.result != 'success' ||
       needs.mats-docker-determinism.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
