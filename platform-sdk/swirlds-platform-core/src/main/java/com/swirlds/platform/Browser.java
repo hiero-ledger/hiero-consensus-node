@@ -292,7 +292,7 @@ public class Browser {
                     consensusStateEventHandler,
                     nodeId,
                     AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
-                    RosterUtils.buildRosterHistory(state, round),
+                    RosterUtils.createRosterHistory(state),
                     platformStateFacade);
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
