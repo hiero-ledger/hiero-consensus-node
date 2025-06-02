@@ -22,7 +22,7 @@ It manages connection state, handles communication, and reports errors to the `B
 <dd>A connection instance managing communication and state with a block node.</dd>
 
 <dt>ConnectionState</dt>
-<dd>Represents current connection status: UNINITIALIZED, PENDING, ACTIVE.</dd>
+<dd>Represents current connection status: UNINITIALIZED, PENDING, ACTIVE, CONNECTING.</dd>
 </dl>
 
 ## Component Responsibilities
@@ -31,12 +31,12 @@ It manages connection state, handles communication, and reports errors to the `B
 - Handle incoming and outgoing message flow.
 - Report connection errors promptly.
 - Coordinate with `BlockNodeConnectionManager` on lifecycle events.
-- Notify the state manager when a block has been acknowledged and therefore eligible to be pruned from the buffer.
+- Notify the block buffer (via connection manager) when a block has been acknowledged and therefore eligible to be
+  pruned.
 
 ## Component Interaction
 
 - Communicates bi-directionally with `BlockNodeConnectionManager`.
-- Updates stream status via `BlockBufferService`.
 
 ## State Management
 
@@ -71,14 +71,14 @@ sequenceDiagram
 
 ### Consensus Node Behavior on EndOfStream Response Codes
 
-| Code                                   | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                         EndOfStream limit within timespan                          |
-|:---------------------------------------|-----------------------|:----------------------------|---------------------|-----------------|------------------------------------------------------------------------------------|
-| `STREAM_ITEMS_SUCCESS`                 | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `STREAM_ITEMS_BEHIND` with block state | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `STREAM_ITEMS_BEHIND` with block state | Yes                   | 1 second                    | Yes                 | 10 seconds      | CN sends EndStream to indicate the BN to look for the block from other Block Nodes |
-| `STREAM_ITEMS_INTERNAL_ERROR`          | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `STREAM_ITEMS_PERSISTENCE_FAILED`      | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `STREAM_ITEMS_TIMEOUT`                 | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `STREAM_ITEMS_OUT_OF_ORDER`            | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `STREAM_ITEMS_BAD_STATE_PROOF`         | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `STREAM_ITEMS_UNKOWN`                  | Only log statement    |                             |                     |                 |                                                                                    |
+| Code                      | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                         EndOfStream limit within timespan                          |
+|:--------------------------|-----------------------|:----------------------------|---------------------|-----------------|------------------------------------------------------------------------------------|
+| `SUCCESS`                 | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
+| `BEHIND` with block state | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `BEHIND` with block state | Yes                   | 1 second                    | Yes                 | 10 seconds      | CN sends EndStream to indicate the BN to look for the block from other Block Nodes |
+| `INTERNAL_ERROR`          | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
+| `PERSISTENCE_FAILED`      | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
+| `TIMEOUT`                 | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `OUT_OF_ORDER`            | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `BAD_STATE_PROOF`         | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `UNKOWN`                  | Only log statement    |                             |                     |                 |                                                                                    |

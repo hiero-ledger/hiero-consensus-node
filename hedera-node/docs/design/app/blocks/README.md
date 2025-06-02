@@ -64,9 +64,11 @@ The initialization flow includes:
      - Wait up to timeout duration for at least one connection to a `Block Node`.
      - Use `blockNodeConnectionManager().waitForConnection(timeout)` to determine success.
 4. Failure Handling
-   - If no connection is established within the given timeout and the configuration is set to `true`, then:
-     - `Hedera` class will log an error message indicating the failure to establish a connection
-     - The node will shut down immediately.
+   - If no valid block node configurations exists (e.g. they are missing) then if `blockNode.shutdownNodeOnNoBlockNodes`
+     is `true` then startup will halt and the node will be shut down. If the configuration is set to `false` then a
+     warning will be logged and startup will continue.
+   - Asynchronously, one or more attempts to connect to valid block nodes will be performed. If none of the block nodes
+     are successfully connected to, then back pressure will eventually engage since no blocks can be acknowledged.
 
 ### Initialization Flow Sequence Diagram
 

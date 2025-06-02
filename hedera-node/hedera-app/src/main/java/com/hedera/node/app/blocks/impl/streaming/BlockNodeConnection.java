@@ -109,12 +109,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final String grpcEndpoint;
 
     /**
-     * Represents the possible states of a Block Node connection:
-     * <ul>
-     *   <li>UNINITIALIZED - Initial state before stream establishment</li>
-     *   <li>PENDING - Stream established but not selected as active</li>
-     *   <li>ACTIVE - Connection is actively streaming blocks</li>
-     * </ul>
+     * Represents the possible states of a Block Node connection.
      */
     public enum ConnectionState {
         /**

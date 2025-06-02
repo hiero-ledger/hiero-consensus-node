@@ -126,7 +126,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     }
 
     @AfterEach
-    void shutdown() throws Exception {
+    void tearDown() throws Exception {
         fs.close();
     }
 
@@ -409,6 +409,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(CONSENSUS_TIME));
+        state.release();
     }
 
     @Test
@@ -420,6 +421,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(EPOCH));
+        state.release();
     }
 
     private static State simpleBlockInfoState(final BlockInfo blockInfo) {

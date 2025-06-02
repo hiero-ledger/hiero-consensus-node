@@ -78,6 +78,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.time.InstantSource;
 import java.util.function.Function;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -211,6 +212,11 @@ class QueryWorkflowImplTest extends AppTestBase {
                 opWorkflowMetrics,
                 true,
                 softwareVersionFactory);
+    }
+
+    @AfterEach
+    void tearDown() {
+        state.release();
     }
 
     @SuppressWarnings("ConstantConditions")

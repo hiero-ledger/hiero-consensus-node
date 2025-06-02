@@ -35,6 +35,8 @@ import org.junit.jupiter.api.Test;
 
 final class MapTest {
 
+    private static final long INITIAL_MAP_SIZE = 1_000_000;
+
     private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(MerkleDbConfig.class)
@@ -43,10 +45,7 @@ final class MapTest {
             .build();
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
     private static final MerkleDbTableConfig TABLE_CONFIG = new MerkleDbTableConfig(
-            (short) 1,
-            DigestType.SHA_384,
-            MERKLE_DB_CONFIG.maxNumOfKeys(),
-            MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
+            (short) 1, DigestType.SHA_384, INITIAL_MAP_SIZE, MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
 
     VirtualDataSourceBuilder createLongBuilder() {
         return new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);

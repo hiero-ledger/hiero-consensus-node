@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -24,6 +25,7 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,6 +38,8 @@ import java.nio.LongBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Random;
@@ -340,5 +344,25 @@ public class MerkleDbTestUtils {
         }
 
         return metric.orElse(null);
+    }
+
+    /**
+     * Asserts that all databases are closed within a certain time frame.
+     */
+    public static void assertAllDatabasesClosed() {
+        assertSomeDatabasesStillOpen(0L);
+    }
+
+    /**
+     * Asserts that the number of open databases matches the expected count within a specified time frame.
+     *
+     * @param expectedOpenCount The expected number of open databases to validate.
+     */
+    public static void assertSomeDatabasesStillOpen(@NonNull final Long expectedOpenCount) {
+        assertEventuallyEquals(
+                expectedOpenCount,
+                MerkleDbDataSource::getCountOfOpenDatabases,
+                Duration.of(5, ChronoUnit.SECONDS),
+                "Expected " + expectedOpenCount + " open databases.");
     }
 }

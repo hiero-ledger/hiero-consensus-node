@@ -41,25 +41,25 @@ public class TrieSigMapGenerator implements SigMapGenerator {
         this.fullPrefixKeys = fullPrefixKeys;
     }
 
+    private static final TrieSigMapGenerator fullInstance;
     private static final TrieSigMapGenerator uniqueInstance;
     private static final TrieSigMapGenerator ambiguousInstance;
     private static final TrieSigMapGenerator confusedInstance;
 
     static {
+        fullInstance = new TrieSigMapGenerator(Nature.FULL_PREFIXES);
         uniqueInstance = new TrieSigMapGenerator(Nature.UNIQUE_PREFIXES);
         ambiguousInstance = new TrieSigMapGenerator(Nature.AMBIGUOUS_PREFIXES);
         confusedInstance = new TrieSigMapGenerator(Nature.CONFUSED_PREFIXES);
     }
 
     public static SigMapGenerator withNature(Nature nature) {
-        switch (nature) {
-            default:
-                return uniqueInstance;
-            case AMBIGUOUS_PREFIXES:
-                return ambiguousInstance;
-            case CONFUSED_PREFIXES:
-                return confusedInstance;
-        }
+        return switch (nature) {
+            case AMBIGUOUS_PREFIXES -> ambiguousInstance;
+            case CONFUSED_PREFIXES -> confusedInstance;
+            case FULL_PREFIXES -> fullInstance;
+            case UNIQUE_PREFIXES, UNIQUE_WITH_SOME_FULL_PREFIXES -> uniqueInstance;
+        };
     }
 
     public static SigMapGenerator uniqueWithFullPrefixesFor(String... fullPrefixKeys) {
@@ -89,7 +89,7 @@ public class TrieSigMapGenerator implements SigMapGenerator {
                 .map(keySig -> {
                     final var key = keySig.getKey();
                     final var wrappedKey = ByteString.copyFrom(key);
-                    final var effPrefix = alwaysFullPrefixes.contains(wrappedKey)
+                    final var effPrefix = (nature == Nature.FULL_PREFIXES || alwaysFullPrefixes.contains(wrappedKey))
                             ? wrappedKey
                             : ByteString.copyFrom(prefixCalc.apply(key));
                     if (key.length == 32) {

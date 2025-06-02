@@ -318,17 +318,23 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
                 ZERO_BLOCK_HASH,
-                4,
+                2,
                 List.of(
                         Bytes.EMPTY,
-                        Bytes.EMPTY,
                         Bytes.fromHex(
-                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
+                                "a02721663224af22a28e784ed41ac694a60b03a7f9eebb644d9766a93b8a39de0a9bdb378b98f4aaa487cc1d9eec660c")),
                 Timestamp.DEFAULT,
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                CONSENSUS_THEN);
+                CONSENSUS_THEN,
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "f8fe87ef851b795cd957b8f344aca46e872887b81231fb24d2ab46a6c5cafcf8be7eaa643a89557002ae5a40c5c1d6d8"));
+
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -542,17 +548,22 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
                 ZERO_BLOCK_HASH,
-                4,
+                2,
                 List.of(
                         Bytes.EMPTY,
-                        Bytes.EMPTY,
                         Bytes.fromHex(
-                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
+                                "a02721663224af22a28e784ed41ac694a60b03a7f9eebb644d9766a93b8a39de0a9bdb378b98f4aaa487cc1d9eec660c")),
                 Timestamp.DEFAULT,
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                CONSENSUS_THEN);
+                CONSENSUS_THEN,
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "f8fe87ef851b795cd957b8f344aca46e872887b81231fb24d2ab46a6c5cafcf8be7eaa643a89557002ae5a40c5c1d6d8"));
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -636,7 +647,7 @@ class BlockStreamManagerImplTest {
         final var aProof = aItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, aProof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, aProof.blockSignature());
-        assertEquals(2, aProof.siblingHashes().size());
+        assertEquals(3, aProof.siblingHashes().size());
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);

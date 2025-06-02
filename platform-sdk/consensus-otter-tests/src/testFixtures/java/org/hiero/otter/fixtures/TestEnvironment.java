@@ -33,7 +33,7 @@ public interface TestEnvironment {
      * @return the transaction generator
      */
     @NonNull
-    TransactionGenerator generator();
+    TransactionGenerator transactionGenerator();
 
     /**
      * Destroys the test environment. Once this method is called, the test environment and all its

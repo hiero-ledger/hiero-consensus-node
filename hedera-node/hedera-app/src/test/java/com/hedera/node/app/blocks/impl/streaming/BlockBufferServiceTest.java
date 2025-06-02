@@ -53,6 +53,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle isStreamingEnabledHandle;
     private static final VarHandle blockStreamItemQueueHandle;
     private static final VarHandle backPressureFutureRefHandle;
+    private static final VarHandle isBufferSaturatedHandle;
     private static final MethodHandle checkBufferHandle;
 
     static {
@@ -66,6 +67,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                     .findStaticVarHandle(BlockBufferService.class, "isStreamingEnabled", AtomicBoolean.class);
             blockStreamItemQueueHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "blockStreamItemQueue", Queue.class);
+            isBufferSaturatedHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
+                    .findVarHandle(BlockBufferService.class, "isBufferSaturated", AtomicBoolean.class);
             backPressureFutureRefHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findStaticVarHandle(
                             BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
@@ -359,6 +362,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(connectionManager);
         final Queue<BlockState> buffer = bufferQueue(blockBufferService);
+        final AtomicBoolean isBufferSaturated = isBufferSaturated(blockBufferService);
 
         // IdealMaxBufferSize = BlockTtl (5s) / BlockPeriod (1s) = 5
 
@@ -376,7 +380,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         Thread.sleep(blockTtl.plusMillis(250));
         // prune the buffer, nothing should be removed since nothing is acked and we are not yet saturated
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(blockBufferService.isBufferSaturated()).isFalse();
+        assertThat(isBufferSaturated).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(80.0); // the buffer is 80% saturated
         long oldestUnackedMillis =
                 blockBufferService.getBlockState(1L).completionTimestamp().toEpochMilli();
@@ -391,7 +395,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.closeBlock(5L);
         checkBufferHandle.invoke(blockBufferService);
         // the buffer is now marked as saturated because multiple blocks have not been acked yet and they are expired
-        assertThat(blockBufferService.isBufferSaturated()).isTrue();
+        assertThat(isBufferSaturated).isTrue();
         verify(blockStreamMetrics).updateBlockBufferSaturation(100.0); // the buffer is 100% saturated
         oldestUnackedMillis =
                 blockBufferService.getBlockState(1L).completionTimestamp().toEpochMilli();
@@ -406,7 +410,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(6L);
         blockBufferService.closeBlock(6L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(blockBufferService.isBufferSaturated()).isTrue();
+        assertThat(isBufferSaturated).isTrue();
         verify(blockStreamMetrics).updateBlockBufferSaturation(120.0); // the buffer is 120% saturated
         oldestUnackedMillis =
                 blockBufferService.getBlockState(1L).completionTimestamp().toEpochMilli();
@@ -425,7 +429,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // now that multiple blocks are acked, run pruning again and verify we are no longer saturated
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(blockBufferService.isBufferSaturated()).isFalse();
+        assertThat(isBufferSaturated).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(60.0); // the buffer is 60% saturated
         oldestUnackedMillis =
                 blockBufferService.getBlockState(4L).completionTimestamp().toEpochMilli();
@@ -437,7 +441,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.setLatestAcknowledgedBlock(6L);
         Thread.sleep(blockTtl.plusMillis(250));
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(blockBufferService.isBufferSaturated()).isFalse();
+        assertThat(isBufferSaturated).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(0.0); // the buffer is 0% saturated
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(-1); // there is no unacked block
         reset(blockStreamMetrics);
@@ -447,7 +451,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(7L);
         blockBufferService.closeBlock(7L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(blockBufferService.isBufferSaturated()).isFalse();
+        assertThat(isBufferSaturated).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(20.0); // the buffer is 20% saturated
         oldestUnackedMillis =
                 blockBufferService.getBlockState(7L).completionTimestamp().toEpochMilli();
@@ -740,6 +744,10 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     // Utilities
+
+    private AtomicBoolean isBufferSaturated(final BlockBufferService stateManager) {
+        return (AtomicBoolean) isBufferSaturatedHandle.get(stateManager);
+    }
 
     private Queue<BlockStreamQueueItem> blockStreamItemQueue(final BlockBufferService stateManager) {
         return (Queue<BlockStreamQueueItem>) blockStreamItemQueueHandle.get(stateManager);

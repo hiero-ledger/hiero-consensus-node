@@ -68,7 +68,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
         boolean bufferExpanded = false;
         try {
@@ -82,7 +82,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
             GossipEvent.PROTOBUF.write(event, writableSequentialData);
             flipWriteClear();
         } finally {
-            stats.updateWriteStats(startTime, System.currentTimeMillis(), size, bufferExpanded);
+            stats.updateWriteStats(startTime, System.nanoTime(), size, bufferExpanded);
         }
     }
 
@@ -94,7 +94,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     private void flipWriteClear() throws IOException {
 
         buffer.flip();
-        long writeStart = System.currentTimeMillis();
+        long writeStart = System.nanoTime();
         try {
             final int bytesWritten = channel.write(buffer);
             fileSize += bytesWritten;
@@ -104,7 +104,7 @@ public class PcesFileChannelWriter implements PcesFileWriter {
             }
             buffer.clear();
         } finally {
-            stats.updatePartialWriteStats(writeStart, System.currentTimeMillis());
+            stats.updatePartialWriteStats(writeStart, System.nanoTime());
         }
     }
 
@@ -115,11 +115,11 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         // benchmarks show that this has horrible performance for the channel writer (in mac-os)
         channel.force(false);
 
-        stats.updateSyncStats(startTime, System.currentTimeMillis());
+        stats.updateSyncStats(startTime, System.nanoTime());
     }
 
     @Override

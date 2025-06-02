@@ -5,8 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import com.swirlds.virtualmap.VirtualMap;
+import java.io.IOException;
 import java.util.Spliterators;
 import java.util.stream.StreamSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -61,6 +64,15 @@ class OnDiskWritableStateTest extends MerkleTestBase {
                     STRING_CODEC,
                     fruitVirtualMap);
             assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
+        }
+
+        @AfterEach
+        void tearDown() throws IOException {
+            if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
+                fruitVirtualMap.release();
+            }
+
+            fruitVirtualMap.getDataSource().close();
         }
     }
 
@@ -117,6 +129,15 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             final var actual = StreamSupport.stream(Spliterators.spliterator(state.keys(), 3, 0), false)
                     .toList();
             assertThat(actual).containsExactlyInAnyOrder(A_KEY, B_KEY, C_KEY);
+        }
+
+        @AfterEach
+        void tearDown() throws IOException {
+            if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
+                fruitVirtualMap.release();
+            }
+
+            fruitVirtualMap.getDataSource().close();
         }
     }
 
@@ -252,6 +273,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             // Now let's make a fast copy and create a new state and make some more
             // modifications and reads. And then let's throw them all away and make
             // sure the virtual map hasn't changed.
+            final VirtualMap oldVirtualMap = fruitVirtualMap;
             fruitVirtualMap = fruitVirtualMap.copy();
             state = new OnDiskWritableKVState<>(
                     FRUIT_STATE_KEY,
@@ -260,6 +282,7 @@ class OnDiskWritableStateTest extends MerkleTestBase {
                     onDiskValueClassId(),
                     STRING_CODEC,
                     fruitVirtualMap);
+            oldVirtualMap.release();
             assertThat(state.get(A_KEY)).isEqualTo(APPLE);
             state.remove(B_KEY);
             assertThat(state.get(C_KEY)).isEqualTo(CHERRY);
@@ -289,5 +312,10 @@ class OnDiskWritableStateTest extends MerkleTestBase {
             assertThat(readValueFromMerkleMap(D_KEY)).isEqualTo(DATE);
             assertThat(readValueFromMerkleMap(E_KEY)).isEqualTo(ELDERBERRY);
         }
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        fruitVirtualMap.getDataSource().close();
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-module com.hedera.node.app.test.fixtures {
+open module com.hedera.node.app.test.fixtures {
     exports com.hedera.node.app.fixtures;
     exports com.hedera.node.app.fixtures.signature;
     exports com.hedera.node.app.fixtures.state;
@@ -24,10 +24,12 @@ module com.hedera.node.app.test.fixtures {
     requires com.hedera.node.app.spi;
     requires com.hedera.node.config.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
+    requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.impl.test.fixtures;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires org.assertj.core;
+    requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
 }
