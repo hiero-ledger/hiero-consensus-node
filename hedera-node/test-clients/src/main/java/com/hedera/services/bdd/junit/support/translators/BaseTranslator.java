@@ -377,7 +377,11 @@ public class BaseTranslator {
         final List<TransactionSidecarRecord> rebuiltSidecars;
         if (parts.hasTraces()) {
             rebuiltSidecars = recoveredSidecars(
-                    parts.consensusTimestamp(), parts.tracesOrThrow(), followingUnitTraces, remainingStateChanges);
+                    parts.consensusTimestamp(),
+                    parts.tracesOrThrow(),
+                    followingUnitTraces,
+                    remainingStateChanges,
+                    parts);
         } else {
             rebuiltSidecars = emptyList();
         }
@@ -392,7 +396,8 @@ public class BaseTranslator {
             @NonNull final Timestamp now,
             @NonNull final List<TraceData> tracesHere,
             @NonNull final List<TraceData> followingUnitTraces,
-            @NonNull final List<StateChange> remainingStateChanges) {
+            @NonNull final List<StateChange> remainingStateChanges,
+            @NonNull final BlockTransactionParts parts) {
         final List<TransactionSidecarRecord> sidecars = new ArrayList<>();
         final var slotUpdates = remainingStateChanges.stream()
                 .filter(change -> change.stateId() == StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal())
@@ -505,7 +510,7 @@ public class BaseTranslator {
                         // Runtime bytecode should always be recoverable from the state changes
                         if (bytecode.isEmpty()) {
                             throw new IllegalStateException("No bytecode state change found for contract " + contractId
-                                    + " in " + remainingStateChanges);
+                                    + " in " + remainingStateChanges + " (parts were " + parts + ")");
                         }
                         final var runtimeBytecode = bytecode.get().code();
                         bytecodeBuilder.runtimeBytecode(runtimeBytecode);

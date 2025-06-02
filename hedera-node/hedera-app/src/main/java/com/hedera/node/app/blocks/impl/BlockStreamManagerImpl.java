@@ -433,16 +433,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var stateChangesHash = stateChangesHasher.rootHash().join();
 
-            // compute level 1 hashes
-            final var level1A = combine(lastBlockHash, blockStartStateHash); // [0,1]
-            final var level1B = combine(consensusHeaderHash, inputHash); // [2,3]
-            final var level1C = combine(outputHash, stateChangesHash); // [4,5]
-            final var level1D = combine(traceDataHash, NULL_HASH); // [6,7]
-            // compute level 2 hashes
-            final var leftParent = combine(level1A, level1B); // [0..3]
-            final var rightParent = combine(level1C, level1D); // [4..7]
-            // compute the block hash
-            final var blockHash = combine(leftParent, rightParent);
+            // Compute depth two hashes
+            final var depth2Node0 = combine(lastBlockHash, blockStartStateHash);
+            final var depth2Node1 = combine(consensusHeaderHash, inputHash);
+            final var depth2Node2 = combine(outputHash, stateChangesHash);
+            final var depth2Node3 = combine(traceDataHash, NULL_HASH);
+
+            // Compute depth one hashes
+            final var depth1Node0 = combine(depth2Node0, depth2Node1);
+            final var depth1Node1 = combine(depth2Node2, depth2Node3);
+
+            // Compute the block hash
+            final var blockHash = combine(depth1Node0, depth1Node1);
 
             final var pendingProof = BlockProof.newBuilder()
                     .block(blockNumber)
@@ -455,8 +457,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     pendingProof,
                     writer,
                     new MerkleSiblingHash(false, blockStartStateHash),
-                    new MerkleSiblingHash(false, level1B),
-                    new MerkleSiblingHash(false, rightParent)));
+                    new MerkleSiblingHash(false, depth2Node1),
+                    new MerkleSiblingHash(false, depth1Node1)));
 
             if (streamToBlockNodes) {
                 // Write any pre-block proof block items

@@ -257,12 +257,16 @@ public class HandleWorkflow {
 
         configureTssCallbacks(state);
         try {
+            reconcileTssState(state, round.getConsensusTimestamp());
+        } catch (Exception e) {
+            logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+        }
+        try {
             transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
             try {
                 // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
                 // Dispatch rewards for active nodes after at least one user transaction is handled
-                final var timeStamp = boundaryStateChangeListener.lastConsensusTime();
-                if (timeStamp != null) {
+                if (boundaryStateChangeListener.lastConsensusTime() != null) {
                     transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
                             state,
                             boundaryStateChangeListener
@@ -284,11 +288,6 @@ public class HandleWorkflow {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
-        }
-        try {
-            reconcileTssState(state, round.getConsensusTimestamp());
-        } catch (Exception e) {
-            logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
     }
 
@@ -963,22 +962,22 @@ public class HandleWorkflow {
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var crsWorkTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
+                final var workTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
                 doStreamingKVChanges(
                         crsWritableStates,
                         null,
-                        crsWorkTime,
+                        workTime,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), crsWorkTime, isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
-                        boundaryTimestamp,
+                        workTime,
                         () -> hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
-                                boundaryTimestamp,
+                                workTime,
                                 tssConfig,
                                 isActive));
             }
