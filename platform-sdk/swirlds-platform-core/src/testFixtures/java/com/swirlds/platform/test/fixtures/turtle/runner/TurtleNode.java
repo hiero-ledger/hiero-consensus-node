@@ -156,7 +156,7 @@ public class TurtleNode {
         final var initialState = reservedState.state();
 
         final State state = initialState.get().getState();
-        final long round = platformStateFacade.roundOf(state);
+        // final long round = platformStateFacade.roundOf(state);
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         "foo",
                         "bar",
@@ -165,7 +165,7 @@ public class TurtleNode {
                         TURTLE_CONSENSUS_STATE_EVENT_HANDLER,
                         nodeId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
-                        RosterUtils.buildRosterHistory(initialState.get().getState(), round),
+                        RosterUtils.createRosterHistory(initialState.get().getState()),
                         platformStateFacade)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
