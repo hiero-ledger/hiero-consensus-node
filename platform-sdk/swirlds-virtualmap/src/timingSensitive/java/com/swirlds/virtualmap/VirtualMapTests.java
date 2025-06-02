@@ -407,9 +407,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         vm.remove(A_KEY, TestValueCodec.INSTANCE);
 
-        assertEquals(1, vm.size()); // only VM state left
-        assertNotNull(vm.getBytes(VirtualMapState.VM_STATE_KEY));
-        assertFalse(vm.isEmpty());
+        assertEquals(0, vm.size());
 
         vm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
         assertFalse(vm.isEmpty());
@@ -1070,8 +1068,7 @@ class VirtualMapTests extends VirtualTestBase {
                 map.remove(TestKey.longToKey(i));
             }
 
-            assertEquals(1, map.size(), "All elements VirtualMapState should have been removed");
-            assertNotNull(map.getBytes(VirtualMapState.VM_STATE_KEY));
+            assertEquals(0, map.size(), "All elements should have been removed");
 
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
@@ -1378,8 +1375,7 @@ class VirtualMapTests extends VirtualTestBase {
             root1.remove(key, null);
         }
 
-        assertEquals(1, root1.size(), "All elements but VirtualMapSate should have been removed");
-        assertNotNull(root1.getBytes(VirtualMapState.VM_STATE_KEY));
+        assertEquals(0, root1.size(), "All elements should have been removed");
         root1.release();
         TimeUnit.MILLISECONDS.sleep(100);
         System.gc();

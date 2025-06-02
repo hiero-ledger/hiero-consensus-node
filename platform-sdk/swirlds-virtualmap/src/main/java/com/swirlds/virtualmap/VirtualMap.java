@@ -501,6 +501,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         pipeline.registerCopy(this);
     }
 
+    /**
+     * Adds {@link VirtualMapState} to the map if the state is not empty.
+     */
     private void persistNonEmptyState() {
         if (state.getSize() == 0) {
             // If the state is empty, we do not persist it.
@@ -729,10 +732,14 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * @return The removed value. May return null if there was no value to remove or if the value was null.
      */
     public <V> V remove(@NonNull final Bytes key, @Nullable final Codec<V> valueCodec) {
+        return remove(key, valueCodec, false);
+    }
+
+    private  <V> V remove(@NonNull final Bytes key, @Nullable final Codec<V> valueCodec, final boolean allowStateRemoval) {
         throwIfImmutable();
         requireNonNull(key);
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
-        if (key.equals(VM_STATE_KEY)) {
+        if (!allowStateRemoval && key.equals(VM_STATE_KEY)) {
             throw new IllegalArgumentException("Cannot remove the virtual map state key");
         }
         try {
@@ -801,6 +808,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             return valueCodec != null ? leafToDelete.value(valueCodec) : null;
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
+            // In this case the only leaf we have left is the VM_STATE_KEY leaf.
+            if(size() == 1) {
+                remove(VM_STATE_KEY, null, true);
+            }
         }
     }
 
