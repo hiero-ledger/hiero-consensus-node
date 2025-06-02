@@ -11,19 +11,15 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -80,95 +76,32 @@ class MerkleDbCompactionCoordinator {
     public static final String HASH_STORE_DISK_SUFFIX = "HashStoreDisk";
     public static final String OBJECT_KEY_TO_PATH_SUFFIX = "ObjectKeyToPath";
     public static final String PATH_TO_KEY_VALUE_SUFFIX = "PathToKeyValue";
-    private final AtomicBoolean compactionEnabled = new AtomicBoolean();
-    // we need a map of exactly three elements, one per storage
-    final ConcurrentMap<String, Future<Boolean>> compactionFuturesByName = new ConcurrentHashMap<>(3);
-    private final CompactionTask objectKeyToPathTask;
-    private final CompactionTask hashesStoreDiskTask;
-    private final CompactionTask pathToKeyValueTask;
 
-    @Nullable
-    private final DataFileCompactor objectKeyToPath;
+    // Synchronized on this
+    private boolean compactionEnabled = false;
 
-    @Nullable
-    private final DataFileCompactor hashesStoreDisk;
-
-    @NonNull
-    private final DataFileCompactor pathToKeyValue;
+    // A map of compactors by task names. Synchronized on this
+    final Map<String, DataFileCompactor> compactorsByName = new HashMap<>(16);
 
     @NonNull
     private final MerkleDbConfig merkleDbConfig;
 
-    // Number of compaction tasks currently running. Checked during shutdown to make sure all
-    // tasks are stopped
-    private final AtomicInteger tasksRunning = new AtomicInteger(0);
-
     /**
      * Creates a new instance of {@link MerkleDbCompactionCoordinator}.
      * @param tableName the name of the table
-     * @param objectKeyToPath an object key to path store
-     * @param hashesStoreDisk a hash store
-     * @param pathToKeyValue a path to key-value store
      * @param merkleDbConfig platform config for MerkleDbDataSource
      */
-    public MerkleDbCompactionCoordinator(
-            @NonNull String tableName,
-            @Nullable DataFileCompactor objectKeyToPath,
-            @Nullable DataFileCompactor hashesStoreDisk,
-            @NonNull DataFileCompactor pathToKeyValue,
-            @NonNull MerkleDbConfig merkleDbConfig) {
+    public MerkleDbCompactionCoordinator(@NonNull String tableName, @NonNull MerkleDbConfig merkleDbConfig) {
         requireNonNull(tableName);
-        requireNonNull(pathToKeyValue);
         requireNonNull(merkleDbConfig);
-        this.objectKeyToPath = objectKeyToPath;
-        this.hashesStoreDisk = hashesStoreDisk;
-        this.pathToKeyValue = pathToKeyValue;
         this.merkleDbConfig = merkleDbConfig;
-        if (objectKeyToPath != null) {
-            objectKeyToPathTask = new CompactionTask(tableName + OBJECT_KEY_TO_PATH_SUFFIX, objectKeyToPath);
-        } else {
-            objectKeyToPathTask = null;
-        }
-        if (hashesStoreDisk != null) {
-            hashesStoreDiskTask = new CompactionTask(tableName + HASH_STORE_DISK_SUFFIX, hashesStoreDisk);
-        } else {
-            hashesStoreDiskTask = null;
-        }
-        this.pathToKeyValueTask = new CompactionTask(tableName + PATH_TO_KEY_VALUE_SUFFIX, pathToKeyValue);
-    }
-
-    /**
-     * Compacts the object key to path store asynchronously if it's present.
-     */
-    void compactDiskStoreForKeyToPathAsync() {
-        if (objectKeyToPathTask == null) {
-            return;
-        }
-        submitCompactionTaskForExecution(objectKeyToPathTask);
-    }
-
-    /**
-     * Compacts the hash store asynchronously if it's present.
-     */
-    void compactDiskStoreForHashesAsync() {
-        if (hashesStoreDiskTask == null) {
-            return;
-        }
-        submitCompactionTaskForExecution(hashesStoreDiskTask);
-    }
-
-    /**
-     * Compacts the path to key-value store asynchronously.
-     */
-    void compactPathToKeyValueAsync() {
-        submitCompactionTaskForExecution(pathToKeyValueTask);
     }
 
     /**
      * Enables background compaction.
      */
-    void enableBackgroundCompaction() {
-        compactionEnabled.set(true);
+    synchronized void enableBackgroundCompaction() {
+        compactionEnabled = true;
     }
 
     /**
@@ -177,27 +110,16 @@ class MerkleDbCompactionCoordinator {
      * critical for snapshots (e.g. update an index), it will be stopped until {@link
      * #resumeCompaction()}} is called.
      */
-    public void pauseCompaction() throws IOException {
-        if (hashesStoreDisk != null) {
-            hashesStoreDisk.pauseCompaction();
-        }
-
-        pathToKeyValue.pauseCompaction();
-
-        if (objectKeyToPath != null) {
-            objectKeyToPath.pauseCompaction();
+    synchronized void pauseCompaction() throws IOException {
+        for (final DataFileCompactor compactor : compactorsByName.values()) {
+            compactor.pauseCompaction();
         }
     }
+
     /** Resumes previously stopped data file collection compaction. */
-    public void resumeCompaction() throws IOException {
-        if (hashesStoreDisk != null) {
-            hashesStoreDisk.resumeCompaction();
-        }
-
-        pathToKeyValue.resumeCompaction();
-
-        if (objectKeyToPath != null) {
-            objectKeyToPath.resumeCompaction();
+    synchronized void resumeCompaction() throws IOException {
+        for (final DataFileCompactor compactor : compactorsByName.values()) {
+            compactor.resumeCompaction();
         }
     }
 
@@ -205,56 +127,49 @@ class MerkleDbCompactionCoordinator {
      * Stops all compactions in progress and disables background compaction.
      * All subsequent calls to compacting methods will be ignored until {@link #enableBackgroundCompaction()} is called.
      */
-    void stopAndDisableBackgroundCompaction() {
-        compactionEnabled.set(false);
+    synchronized void stopAndDisableBackgroundCompaction() {
+        compactionEnabled = false;
         // Interrupt all running compaction tasks, if any
-        synchronized (compactionFuturesByName) {
-            for (var futureEntry : compactionFuturesByName.values()) {
-                futureEntry.cancel(true);
-            }
-            compactionFuturesByName.clear();
+        for (final DataFileCompactor compactor : compactorsByName.values()) {
+            compactor.interruptCompaction();
         }
         // Wait till all the tasks are stopped
-        final long now = System.currentTimeMillis();
         try {
-            while ((tasksRunning.get() != 0) && (System.currentTimeMillis() - now < SHUTDOWN_TIMEOUT_MILLIS)) {
-                Thread.sleep(1);
+            while (!compactorsByName.isEmpty()) {
+                wait(SHUTDOWN_TIMEOUT_MILLIS);
             }
         } catch (final InterruptedException e) {
             logger.warn(MERKLE_DB.getMarker(), "Interrupted while waiting for compaction tasks to complete", e);
         }
         // If some tasks are still running, there is nothing else to than to log it
-        if (tasksRunning.get() != 0) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to stop all compactions tasks");
+        if (!compactorsByName.isEmpty()) {
+            logger.warn(MERKLE_DB.getMarker(), "Timed out waiting to stop all compactions tasks");
         }
     }
 
     /**
      * Submits a compaction task for execution. If a compaction task for the same storage type is already in progress,
      * the call is effectively no op.
-     * @param task a compaction task to execute
+     *
+     * @param key Compaction task name
+     * @param compactor Compactor to run
      */
-    private void submitCompactionTaskForExecution(CompactionTask task) {
-        synchronized (compactionFuturesByName) {
-            if (!compactionEnabled.get()) {
-                return;
-            }
-            if (compactionFuturesByName.containsKey(task.id)) {
-                Future<?> future = compactionFuturesByName.get(task.id);
-                if (future.isDone()) {
-                    compactionFuturesByName.remove(task.id);
-                } else {
-                    logger.debug(MERKLE_DB.getMarker(), "Compaction for {} is already in progress", task.id);
-                    return;
-                }
-            }
-            final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
-            compactionFuturesByName.put(task.id, executor.submit(task));
+    public synchronized void compactIfNotRunningYet(final String key, final DataFileCompactor compactor) {
+        if (!compactionEnabled) {
+            return;
         }
+        if (compactorsByName.containsKey(key)) {
+            logger.debug(MERKLE_DB.getMarker(), "Compaction for {} is already in progress", key);
+            return;
+        }
+        compactorsByName.put(key, compactor);
+        final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
+        final CompactionTask task = new CompactionTask(key, compactor);
+        executor.submit(task);
     }
 
-    boolean isCompactionEnabled() {
-        return compactionEnabled.get();
+    synchronized boolean isCompactionEnabled() {
+        return compactionEnabled;
     }
 
     /**
@@ -275,7 +190,6 @@ class MerkleDbCompactionCoordinator {
 
         @Override
         public Boolean call() {
-            tasksRunning.incrementAndGet();
             try {
                 return compactor.compact();
             } catch (final InterruptedException | ClosedByInterruptException e) {
@@ -285,7 +199,10 @@ class MerkleDbCompactionCoordinator {
                 // will stop all  future merges from happening.
                 logger.error(EXCEPTION.getMarker(), "[{}] Compaction failed", id, e);
             } finally {
-                tasksRunning.decrementAndGet();
+                synchronized (MerkleDbCompactionCoordinator.this) {
+                    compactorsByName.remove(id);
+                    MerkleDbCompactionCoordinator.this.notifyAll();
+                }
             }
             return false;
         }

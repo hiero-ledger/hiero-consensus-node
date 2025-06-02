@@ -45,19 +45,14 @@ class MerkleDbCompactionCoordinatorTest {
     private DataFileCompactor hashStoreDisk;
 
     @Mock
-    private DataFileCompactor pathToHashKeyValue;
+    private DataFileCompactor pathToKeyValue;
 
     private MerkleDbCompactionCoordinator coordinator;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-        coordinator = new MerkleDbCompactionCoordinator(
-                "test",
-                objectKeyToPath,
-                hashStoreDisk,
-                pathToHashKeyValue,
-                CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator = new MerkleDbCompactionCoordinator("test", CONFIGURATION.getConfigData(MerkleDbConfig.class));
         coordinator.enableBackgroundCompaction();
     }
 
@@ -85,7 +80,7 @@ class MerkleDbCompactionCoordinatorTest {
     void testCompactDiskStoreForKeyToPathAsync(boolean compactionPassed) throws IOException, InterruptedException {
         testCompaction(
                 objectKeyToPath,
-                coordinator::compactDiskStoreForKeyToPathAsync,
+                () -> coordinator.compactIfNotRunningYet("keyToPath", objectKeyToPath),
                 // expect compaction to be started
                 true,
                 compactionPassed);
@@ -93,7 +88,7 @@ class MerkleDbCompactionCoordinatorTest {
 
     @Test
     void testCompactDiskStoreForKeyToPathAsync_failed() throws IOException, InterruptedException {
-        testCompactionFailed(objectKeyToPath, coordinator::compactDiskStoreForKeyToPathAsync);
+        testCompactionFailed(objectKeyToPath, () -> coordinator.compactIfNotRunningYet("keyToPath", objectKeyToPath));
     }
 
     @ParameterizedTest
@@ -101,7 +96,7 @@ class MerkleDbCompactionCoordinatorTest {
     void testCompactDiskStoreForHashesAsync(boolean compactionPassed) throws IOException, InterruptedException {
         testCompaction(
                 hashStoreDisk,
-                coordinator::compactDiskStoreForHashesAsync,
+                () -> coordinator.compactIfNotRunningYet("hashStoreDisk", hashStoreDisk),
                 // expect compaction to be started
                 true,
                 compactionPassed);
@@ -109,15 +104,15 @@ class MerkleDbCompactionCoordinatorTest {
 
     @Test
     void testCompactDiskStoreForHashesAsync_failed() throws IOException, InterruptedException {
-        testCompactionFailed(hashStoreDisk, coordinator::compactDiskStoreForHashesAsync);
+        testCompactionFailed(hashStoreDisk, () -> coordinator.compactIfNotRunningYet("hashStoreDisk", hashStoreDisk));
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void testCompactPathToKeyValueAsync(boolean compactionPassed) throws IOException, InterruptedException {
         testCompaction(
-                pathToHashKeyValue,
-                coordinator::compactPathToKeyValueAsync,
+                pathToKeyValue,
+                () -> coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValue),
                 // expect compaction to be started
                 true,
                 compactionPassed);
@@ -125,7 +120,8 @@ class MerkleDbCompactionCoordinatorTest {
 
     @Test
     void testCompactPathToKeyValueAsync_failed() throws IOException, InterruptedException {
-        testCompactionFailed(pathToHashKeyValue, coordinator::compactPathToKeyValueAsync);
+        testCompactionFailed(
+                pathToKeyValue, () -> coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValue));
     }
 
     @Test
@@ -133,7 +129,7 @@ class MerkleDbCompactionCoordinatorTest {
         stopAndDisableCompaction();
         testCompaction(
                 objectKeyToPath,
-                coordinator::compactDiskStoreForKeyToPathAsync,
+                () -> coordinator.compactIfNotRunningYet("keyToPath", objectKeyToPath),
                 // compaction shouldn't be started
                 false,
                 nextBoolean());
@@ -144,7 +140,7 @@ class MerkleDbCompactionCoordinatorTest {
         stopAndDisableCompaction();
         testCompaction(
                 hashStoreDisk,
-                coordinator::compactDiskStoreForHashesAsync,
+                () -> coordinator.compactIfNotRunningYet("hashStoreDisk", hashStoreDisk),
                 // compaction shouldn't be started
                 false,
                 nextBoolean());
@@ -154,8 +150,8 @@ class MerkleDbCompactionCoordinatorTest {
     void testCompactPathToKeyValueAsync_compactionDisabled() throws IOException, InterruptedException {
         stopAndDisableCompaction();
         testCompaction(
-                pathToHashKeyValue,
-                coordinator::compactPathToKeyValueAsync,
+                pathToKeyValue,
+                () -> coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValue),
                 // compaction shouldn't be started
                 false,
                 nextBoolean());
@@ -166,12 +162,12 @@ class MerkleDbCompactionCoordinatorTest {
         CountDownLatch compactLatch = new CountDownLatch(1);
         CountDownLatch testLatch = new CountDownLatch(3);
         initCompactorMock(objectKeyToPath, nextBoolean(), testLatch, compactLatch, new AtomicBoolean());
-        initCompactorMock(pathToHashKeyValue, nextBoolean(), testLatch, compactLatch, new AtomicBoolean());
+        initCompactorMock(pathToKeyValue, nextBoolean(), testLatch, compactLatch, new AtomicBoolean());
         initCompactorMock(hashStoreDisk, nextBoolean(), testLatch, compactLatch, new AtomicBoolean());
 
-        coordinator.compactDiskStoreForKeyToPathAsync();
-        coordinator.compactDiskStoreForHashesAsync();
-        coordinator.compactPathToKeyValueAsync();
+        coordinator.compactIfNotRunningYet("keyToPath", objectKeyToPath);
+        coordinator.compactIfNotRunningYet("hashStoreDisk", hashStoreDisk);
+        coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValue);
 
         // let all compactions get to the latch
         assertTrue(await(testLatch), "Test latch wasn't released");
@@ -183,7 +179,7 @@ class MerkleDbCompactionCoordinatorTest {
                 () -> {
                     try {
                         verify(objectKeyToPath).compact();
-                        verify(pathToHashKeyValue).compact();
+                        verify(pathToKeyValue).compact();
                         verify(hashStoreDisk).compact();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
@@ -197,25 +193,24 @@ class MerkleDbCompactionCoordinatorTest {
     @Test
     void testCompactionWithNullNullables() throws IOException, InterruptedException {
         String table = randomAlphabetic(7);
-        coordinator = new MerkleDbCompactionCoordinator(
-                table, null, null, pathToHashKeyValue, CONFIGURATION.getConfigData(MerkleDbConfig.class));
+        coordinator = new MerkleDbCompactionCoordinator(table, CONFIGURATION.getConfigData(MerkleDbConfig.class));
         coordinator.enableBackgroundCompaction();
 
         testCompaction(
-                pathToHashKeyValue,
-                coordinator::compactPathToKeyValueAsync,
+                pathToKeyValue,
+                () -> coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValue),
                 // expect compaction to be started
                 true,
                 true);
 
-        reset(pathToHashKeyValue);
+        reset(pathToKeyValue);
 
         CountDownLatch compactLatch = new CountDownLatch(1);
         CountDownLatch testLatch = new CountDownLatch(1);
         AtomicBoolean compactLatchAwaitResult = new AtomicBoolean(false);
-        initCompactorMock(pathToHashKeyValue, nextBoolean(), testLatch, compactLatch, compactLatchAwaitResult);
+        initCompactorMock(pathToKeyValue, nextBoolean(), testLatch, compactLatch, compactLatchAwaitResult);
 
-        coordinator.compactPathToKeyValueAsync();
+        coordinator.compactIfNotRunningYet("pathToKeyValue", pathToKeyValue);
 
         // let all compactions get to the latch
         assertTrue(await(testLatch), "Test latch wasn't released");
@@ -228,7 +223,7 @@ class MerkleDbCompactionCoordinatorTest {
         assertEventuallyDoesNotThrow(
                 () -> {
                     try {
-                        verify(pathToHashKeyValue).compact();
+                        verify(pathToKeyValue).compact();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -269,7 +264,7 @@ class MerkleDbCompactionCoordinatorTest {
 
         assertCompactable(compactorToTest, expectCompactionStarted);
 
-        reset(objectKeyToPath, pathToHashKeyValue, hashStoreDisk, statisticsUpdater);
+        reset(objectKeyToPath, pathToKeyValue, hashStoreDisk, statisticsUpdater);
         initCompactorMock(compactorToTest, compactionPassed, testLatch, compactLatch, new AtomicBoolean());
 
         // the second time it should succeed as well
