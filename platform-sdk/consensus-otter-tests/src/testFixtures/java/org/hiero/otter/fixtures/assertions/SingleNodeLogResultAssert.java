@@ -20,6 +20,7 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
  *
  * <p>Provides custom assertions for validating log results of a single node.
  */
+@SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResultAssert, SingleNodeLogResult> {
 
     /**
@@ -47,8 +48,11 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      *
      * @param first the first marker to check
      * @param rest additional markers to check
+     * @return this assertion object for method chaining
      */
-    public void noMessageWithMarkers(@NonNull final LogMarker first, @Nullable final LogMarker... rest) {
+    @NonNull
+    public SingleNodeLogResultAssert noMessageWithMarkers(
+            @NonNull final LogMarker first, @Nullable final LogMarker... rest) {
         isNotNull();
 
         final Stream<LogMarker> restStream = rest == null ? Stream.empty() : Arrays.stream(rest);
@@ -58,7 +62,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
 
         final List<StructuredLog> foundLogs = actual.logs().stream()
                 .filter(log -> markers.contains(log.marker()))
-                .collect(Collectors.toList());
+                .toList();
         final Set<Marker> foundMarkers =
                 foundLogs.stream().map(StructuredLog::marker).collect(Collectors.toSet());
 
@@ -72,14 +76,18 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
         message.deleteCharAt(message.length() - 1);
         message.append(" but found:");
         failWithMessage(message.toString(), foundLogs);
+
+        return this;
     }
 
     /**
      * Verifies that no log messages with a level higher than the specified level exist.
      *
      * @param level the maximum log level to allow
+     * @return this assertion object for method chaining
      */
-    public void noMessageWithLevelHigherThan(@NonNull final Level level) {
+    @NonNull
+    public SingleNodeLogResultAssert noMessageWithLevelHigherThan(@NonNull final Level level) {
         isNotNull();
         final List<StructuredLog> logs = actual.logs().stream()
                 .filter(log -> log.level().intLevel() < level.intLevel())
@@ -88,6 +96,16 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
             final String message = String.format("Expected to find no message with lever higher than '%s'", level);
             failWithMessage(message, logs);
         }
+        return this;
+    }
+
+    /**
+     * Verifies that no log messages with an error log level exist.
+     *
+     * @return this assertion object for method chaining
+     */
+    public SingleNodeLogResultAssert hasNoErrorLevelMessages() {
+        return noMessageWithLevelHigherThan(Level.WARN);
     }
 
     /**

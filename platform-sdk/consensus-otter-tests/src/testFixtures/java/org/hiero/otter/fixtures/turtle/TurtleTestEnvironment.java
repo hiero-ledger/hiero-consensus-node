@@ -107,7 +107,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
-    public TransactionGenerator generator() {
+    public TransactionGenerator transactionGenerator() {
         return generator;
     }
 

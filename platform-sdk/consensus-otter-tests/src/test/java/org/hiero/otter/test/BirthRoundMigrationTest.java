@@ -40,13 +40,13 @@ class BirthRoundMigrationTest {
             node.getConfiguration().set(SOFTWARE_VERSION, OLD_VERSION);
         }
         network.start(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.generator().stop();
+        env.transactionGenerator().stop();
         network.prepareUpgrade(ONE_MINUTE);
 
         // Before migrating to birth round, all events should have a birth round of 1L
@@ -57,7 +57,7 @@ class BirthRoundMigrationTest {
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
         // check that all nodes froze at the same round
-        assertThat(network.getConsensusResults()).hasLastRoundNum(freezeRound);
+        assertThat(network.getConsensusResults()).haveLastRoundNum(freezeRound);
 
         // update the configuration
         for (final Node node : network.getNodes()) {
@@ -68,7 +68,7 @@ class BirthRoundMigrationTest {
 
         // restart the network
         network.resume(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
@@ -76,8 +76,8 @@ class BirthRoundMigrationTest {
         // Assert the results
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
         assertThat(network.getConsensusResults())
-                .hasAdvancedSince(freezeRound)
-                .hasEqualRoundsIgnoringLast(withPercentage(5));
+                .haveAdvancedSinceRound(freezeRound)
+                .haveEqualRoundsIgnoringLast(withPercentage(5));
 
         assertThat(network.getStatusProgression())
                 .hasSteps(
