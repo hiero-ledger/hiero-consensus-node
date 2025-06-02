@@ -735,7 +735,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return remove(key, valueCodec, false);
     }
 
-    private  <V> V remove(@NonNull final Bytes key, @Nullable final Codec<V> valueCodec, final boolean allowStateRemoval) {
+    private <V> V remove(
+            @NonNull final Bytes key, @Nullable final Codec<V> valueCodec, final boolean allowStateRemoval) {
         throwIfImmutable();
         requireNonNull(key);
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
@@ -809,7 +810,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
             // In this case the only leaf we have left is the VM_STATE_KEY leaf.
-            if(size() == 1) {
+            if (size() == 1) {
                 remove(VM_STATE_KEY, null, true);
             }
         }
