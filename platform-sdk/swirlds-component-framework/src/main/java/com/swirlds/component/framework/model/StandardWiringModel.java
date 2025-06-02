@@ -151,7 +151,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
         throwIfStarted();
-        return getHeartbeatScheduler().buildHeartbeatWire(period, taskSchedulerExceptionHandler);//TODO may be null
+        return getHeartbeatScheduler().buildHeartbeatWire(period, taskSchedulerExceptionHandler); // TODO may be null
     }
 
     /**
@@ -180,7 +180,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
         throwIfStarted();
-        return getHeartbeatScheduler().buildHeartbeatWire(frequency, taskSchedulerExceptionHandler);//TODO may be null
+        return getHeartbeatScheduler().buildHeartbeatWire(frequency, taskSchedulerExceptionHandler); // TODO may be null
     }
 
     /**

@@ -50,7 +50,14 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
 
-        super(model, name, TaskSchedulerType.CONCURRENT, uncaughtExceptionHandler, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                TaskSchedulerType.CONCURRENT,
+                uncaughtExceptionHandler,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
         this.pool = Objects.requireNonNull(pool);
         this.onRamp = Objects.requireNonNull(onRamp);

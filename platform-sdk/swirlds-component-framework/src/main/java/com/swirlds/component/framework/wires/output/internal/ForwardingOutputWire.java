@@ -20,7 +20,9 @@ public abstract class ForwardingOutputWire<IN, OUT> extends OutputWire<OUT> {
      * @param model the wiring model containing this output wire
      * @param name  the name of the output wire
      */
-    protected ForwardingOutputWire(@NonNull final TraceableWiringModel model, final @NonNull String name,
+    protected ForwardingOutputWire(
+            @NonNull final TraceableWiringModel model,
+            final @NonNull String name,
             @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
         super(model, name, uncaughtExceptionHandler);
     }

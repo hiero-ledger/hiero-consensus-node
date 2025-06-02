@@ -12,7 +12,6 @@ import com.swirlds.component.framework.wires.input.NoOpInputWire;
 import com.swirlds.component.framework.wires.output.NoOpOutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
 

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.wires.output.internal;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.wires.SolderType;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -15,8 +13,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * An output wire that transforms data that flows across it. For advanced use cases where
@@ -97,11 +93,12 @@ public class TransformingOutputWire<IN, OUT> extends ForwardingOutputWire<IN, OU
         switch (solderType) {
             case PUT -> addForwardingDestination(inputWire::put);
             case INJECT -> addForwardingDestination(inputWire::inject);
-            case OFFER -> addForwardingDestination(x -> {
-                if (!inputWire.offer(x)) {
-                    outputCleanup.accept(x);
-                }
-            });
+            case OFFER ->
+                addForwardingDestination(x -> {
+                    if (!inputWire.offer(x)) {
+                        outputCleanup.accept(x);
+                    }
+                });
             default -> throw new IllegalArgumentException("Unknown solder type: " + solderType);
         }
     }

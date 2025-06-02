@@ -3,7 +3,6 @@ package com.swirlds.component.framework.model.internal.standard;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.TraceableWiringModel;
-import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;

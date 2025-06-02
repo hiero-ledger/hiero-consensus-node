@@ -76,7 +76,14 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
             final boolean flushEnabled,
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
-        super(model, name, TaskSchedulerType.SEQUENTIAL_THREAD, uncaughtExceptionHandler, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                TaskSchedulerType.SEQUENTIAL_THREAD,
+                uncaughtExceptionHandler,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);

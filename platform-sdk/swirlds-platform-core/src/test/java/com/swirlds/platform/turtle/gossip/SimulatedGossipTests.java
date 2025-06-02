@@ -92,9 +92,8 @@ class SimulatedGossipTests {
 
             final List<PlatformEvent> receivedEventsForNode = new ArrayList<>();
             receivedEvents.put(nodeId, receivedEventsForNode);
-            final StandardOutputWire<PlatformEvent> eventOutputWire =
-                    new StandardOutputWire<>((TraceableWiringModel) model, "eventOutputWire",
-                            ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
+            final StandardOutputWire<PlatformEvent> eventOutputWire = new StandardOutputWire<>(
+                    (TraceableWiringModel) model, "eventOutputWire", ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
             eventOutputWire.solderTo("handleOutputEvent", "event", receivedEventsForNode::add);
 
             final BindableInputWire<PlatformEvent, Void> eventInputWire =

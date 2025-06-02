@@ -3,8 +3,8 @@ package com.swirlds.component.framework.model.internal.deterministic;
 
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.ExceptionHandlers;
+import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -48,7 +48,14 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking,
             @NonNull final Consumer<Runnable> submitWork) {
-        super(model, name, type, ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                type,
+                ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);

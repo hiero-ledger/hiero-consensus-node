@@ -54,7 +54,8 @@ public abstract class AbstractHeartbeatScheduler {
      * @throws IllegalStateException if start has already been called
      */
     @NonNull
-    public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period, @NonNull final UncaughtExceptionHandler exceptionHandler) {
+    public OutputWire<Instant> buildHeartbeatWire(
+            @NonNull final Duration period, @NonNull final UncaughtExceptionHandler exceptionHandler) {
         if (started) {
             throw new IllegalStateException("Cannot create heartbeat wires after the heartbeat has started");
         }
@@ -84,7 +85,8 @@ public abstract class AbstractHeartbeatScheduler {
      *                  and so frequencies greater than 1000hz are not supported.
      * @return the output wire
      */
-    public OutputWire<Instant> buildHeartbeatWire(final double frequency, @NonNull final UncaughtExceptionHandler exceptionHandler) {
+    public OutputWire<Instant> buildHeartbeatWire(
+            final double frequency, @NonNull final UncaughtExceptionHandler exceptionHandler) {
         if (frequency <= 0) {
             throw new IllegalArgumentException("Frequency must be positive");
         }

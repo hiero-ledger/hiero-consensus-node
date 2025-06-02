@@ -24,7 +24,10 @@ public class StandardOutputWire<OUT> extends ForwardingOutputWire<OUT, OUT> {
      * @param model the wiring model containing this output wire
      * @param name  the name of the output wire
      */
-    public StandardOutputWire(@NonNull final TraceableWiringModel model, @NonNull final String name, @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
+    public StandardOutputWire(
+            @NonNull final TraceableWiringModel model,
+            @NonNull final String name,
+            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
         super(model, name, uncaughtExceptionHandler);
     }
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers;
 
 import java.lang.Thread.UncaughtExceptionHandler;

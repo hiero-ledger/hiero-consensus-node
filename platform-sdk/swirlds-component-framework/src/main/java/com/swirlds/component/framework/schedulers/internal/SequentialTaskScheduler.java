@@ -62,7 +62,14 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
 
-        super(model, name, TaskSchedulerType.SEQUENTIAL, uncaughtExceptionHandler, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                TaskSchedulerType.SEQUENTIAL,
+                uncaughtExceptionHandler,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
         this.pool = Objects.requireNonNull(pool);
         this.onRamp = Objects.requireNonNull(onRamp);
@@ -115,7 +122,8 @@ public class SequentialTaskScheduler<OUT> extends TaskScheduler<OUT> {
         // organizes tasks into a linked list. Tasks in this linked list are executed one at a time in order.
         // When execution of one task is completed, execution of the next task is scheduled on the pool.
 
-        final SequentialTask nextTask = new SequentialTask(pool, offRamp, busyTimer, getUncaughtExceptionHandler(), false);
+        final SequentialTask nextTask =
+                new SequentialTask(pool, offRamp, busyTimer, getUncaughtExceptionHandler(), false);
         SequentialTask currentTask;
         do {
             currentTask = nextTaskPlaceholder.get();

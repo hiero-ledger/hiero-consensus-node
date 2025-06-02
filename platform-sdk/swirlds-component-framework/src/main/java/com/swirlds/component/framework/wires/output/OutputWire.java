@@ -39,7 +39,10 @@ public abstract class OutputWire<OUT> {
      * @param model the wiring model containing this output wire
      * @param name  the name of the output wire
      */
-    public OutputWire(@NonNull final TraceableWiringModel model, @NonNull final String name, @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
+    public OutputWire(
+            @NonNull final TraceableWiringModel model,
+            @NonNull final String name,
+            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
         this.model = Objects.requireNonNull(model);
         this.name = Objects.requireNonNull(name);
         this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
