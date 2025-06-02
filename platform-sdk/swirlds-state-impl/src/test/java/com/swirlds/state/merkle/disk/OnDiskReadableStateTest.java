@@ -7,6 +7,8 @@ import static org.mockito.Mockito.verify;
 
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.virtualmap.VirtualMap;
+import java.io.IOException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -98,5 +100,10 @@ class OnDiskReadableStateTest extends MerkleTestBase {
                 new OnDiskReadableKVState<>(FRUIT_STATE_KEY, onDiskKeyClassId(), STRING_CODEC, virtualMapMock);
         state.warm(A_KEY);
         verify(virtualMapMock).warm(new OnDiskKey<>(onDiskKeyClassId(), STRING_CODEC, A_KEY));
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        fruitVirtualMap.getDataSource().close();
     }
 }

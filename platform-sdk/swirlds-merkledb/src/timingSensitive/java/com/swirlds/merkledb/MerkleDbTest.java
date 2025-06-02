@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -13,10 +12,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.UUID;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.DigestType;
@@ -39,8 +38,7 @@ public class MerkleDbTest {
     @AfterEach
     public void shutdownTest() {
         // check db count
-        assertEventuallyEquals(
-                0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(2), "Expected no open dbs");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     private static MerkleDbTableConfig fixedConfig() {
