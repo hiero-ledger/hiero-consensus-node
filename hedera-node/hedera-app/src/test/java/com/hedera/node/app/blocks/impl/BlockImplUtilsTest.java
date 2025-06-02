@@ -66,13 +66,15 @@ class BlockImplUtilsTest {
 
     public static Stream<Arguments> stateIdsByName() {
         return Arrays.stream(StateIdentifier.values())
-                .filter(v -> v != StateIdentifier.UNKNOWN)
+                .filter(v -> v != StateIdentifier.UNKNOWN && v != StateIdentifier.STATE_ID_VIRTUAL_MAP_STATE)
                 .map(stateId -> Arguments.of(nameOf(stateId), stateId));
     }
 
     private static String nameOf(@NonNull final StateIdentifier stateId) {
         return switch (stateId) {
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
+            case STATE_ID_VIRTUAL_MAP_STATE ->
+                throw new IllegalArgumentException("No mapping for STATE_ID_VIRTUAL_MAP_STATE");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
