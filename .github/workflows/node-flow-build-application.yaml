@@ -143,8 +143,8 @@ jobs:
     if: ${{ github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true' }}
     with:
       ref: ${{ github.event.inputs.ref || '' }}
-      java-distribution: temurin
-      java-version: 21.0.6
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
     secrets:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
@@ -158,8 +158,8 @@ jobs:
     if: ${{ github.event_name == 'push' || github.event.inputs.enable-docker-determinism == 'true' }}
     with:
       ref: ${{ github.event.inputs.ref || '' }}
-      java-distribution: temurin
-      java-version: 21.0.6
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
     secrets:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
