@@ -135,7 +135,6 @@ jobs:
           #- macos-12
           #- macos-11
           - windows-2022
-          - windows-2019
           - hiero-network-node-linux-medium
           - hiero-network-node-linux-large
     steps:
