@@ -33,7 +33,7 @@ public record NodesConfig(
         @ConfigProperty(defaultValue = "253") @NetworkProperty int maxFqdnSize,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean updateAccountIdAllowed,
         /* Node rewards HIP-1064 configurations */
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean nodeRewardsEnabled,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean nodeRewardsEnabled,
         @ConfigProperty(defaultValue = "0") @NetworkProperty long minPerPeriodNodeRewardUsd,
         @ConfigProperty(defaultValue = "25000") @NetworkProperty long targetYearlyNodeRewardsUsd,
         @ConfigProperty(defaultValue = "365") @NetworkProperty long numPeriodsToTargetUsd,

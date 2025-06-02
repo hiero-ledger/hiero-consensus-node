@@ -109,6 +109,7 @@ class NodeRewardManagerTest {
                 withSettings().extraInterfaces(CommittableWritableStates.class).strictness(Strictness.LENIENT));
         final var config = HederaTestConfigBuilder.create()
                 .withValue("staking.periodMins", 1)
+                .withValue("nodes.nodeRewardsEnabled", true)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         nodeRewardManager = new NodeRewardManager(
