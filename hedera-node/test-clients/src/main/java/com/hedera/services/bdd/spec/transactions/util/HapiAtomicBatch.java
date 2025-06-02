@@ -38,6 +38,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     private static final Logger log = LogManager.getLogger(HapiAtomicBatch.class);
     private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
     private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
+    private final Map<TransactionID, Transaction> innerTransactions = new HashMap<>();
     private final Map<TransactionID, HapiTxnOp<?>> operationsMap = new HashMap<>();
     private final List<String> txnIdsForOrderValidation = new ArrayList<>();
 
@@ -92,6 +93,8 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                                     // save transaction id
                                     final var txnId = extractTxnId(transaction);
                                     operationsMap.put(txnId, op);
+                                    innerTransactions.put(txnId, transaction);
+
                                     // add the transaction to the batch
                                     b.addTransactions(transaction.getSignedTransactionBytes());
                                 } catch (Throwable e) {
@@ -100,6 +103,16 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                             }
                         });
         return b -> b.setAtomicBatch(opBody);
+    }
+
+    @Override
+    public void setTransactionSubmitted(final Transaction txn) {
+        // Set the outer (batch) transaction
+        this.txnSubmitted = txn;
+
+        // For each of the included operations, also set the submitted transaction
+        this.operationsMap.forEach(
+                (transactionID, hapiTxnOp) -> hapiTxnOp.setTransactionSubmitted(innerTransactions.get(transactionID)));
     }
 
     @Override
