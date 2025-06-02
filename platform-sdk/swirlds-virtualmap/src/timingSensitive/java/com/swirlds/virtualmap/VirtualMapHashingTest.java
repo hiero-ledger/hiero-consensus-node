@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -21,6 +22,7 @@ import java.util.concurrent.Future;
 import java.util.stream.IntStream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -427,5 +429,10 @@ class VirtualMapHashingTest {
         root.enableFlush();
         // shouldn't throw any exceptions
         assertDoesNotThrow(() -> doFullRehash(root));
+    }
+
+    @AfterEach
+    void tearDown() {
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

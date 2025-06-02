@@ -36,6 +36,7 @@ import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.source.ConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
@@ -63,6 +64,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.junit.jupiter.api.AfterEach;
 
 /**
  * Most of the components in this module have rich and interesting dependencies. While we can (and at times must) mock
@@ -496,5 +498,10 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             }
             return nodeInfos;
         }
+    }
+
+    @AfterEach
+    void cleanUp() {
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

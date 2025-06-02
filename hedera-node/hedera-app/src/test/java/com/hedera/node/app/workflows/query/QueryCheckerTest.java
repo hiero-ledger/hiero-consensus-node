@@ -50,6 +50,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -99,6 +100,13 @@ class QueryCheckerTest extends AppTestBase {
                 feeManager,
                 dispatcher,
                 transactionChecker);
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (state != null) {
+            state.release();
+        }
     }
 
     @SuppressWarnings("ConstantConditions")
