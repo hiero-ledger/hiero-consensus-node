@@ -57,6 +57,14 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
 jobs:
   code:
     name: Code
