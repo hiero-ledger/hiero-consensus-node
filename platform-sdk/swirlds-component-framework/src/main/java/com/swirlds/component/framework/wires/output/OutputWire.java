@@ -262,6 +262,7 @@ public abstract class OutputWire<OUT> {
         final TransformingOutputWire<OUT, NEW_OUT> outputWire = new TransformingOutputWire<>(
                 model,
                 transformer.getTransformerName(),
+                getUncaughtExceptionHandler(),
                 transformer::transform,
                 transformer::inputCleanup,
                 transformer::outputCleanup);

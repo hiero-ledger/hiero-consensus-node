@@ -3,6 +3,7 @@ package com.swirlds.component.framework.model.internal.standard;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,7 +38,7 @@ public class HeartbeatTask extends TimerTask {
         this.period = Objects.requireNonNull(period);
         Objects.requireNonNull(name);
 
-        this.outputWire = new StandardOutputWire<>(model, name);
+        this.outputWire = new StandardOutputWire<>(model, name, ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);//TODO
     }
 
     /**

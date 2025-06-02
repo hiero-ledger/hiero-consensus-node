@@ -4,9 +4,9 @@ package com.swirlds.component.framework.model.internal.deterministic;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -16,10 +16,6 @@ import java.util.function.Consumer;
  * @param <OUT> the output type of the scheduler (use {@link Void} for a task scheduler with no output type)
  */
 public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
-    private static final UncaughtExceptionHandler RETHROW_UNCAUGHT_EXCEPTION = (thread, exception) -> {
-        throw new RuntimeException("Uncaught exception in deterministic task scheduler", exception);
-    };
-
     private final Consumer<Runnable> submitWork;
 
     private final ObjectCounter onRamp;
@@ -52,7 +48,7 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking,
             @NonNull final Consumer<Runnable> submitWork) {
-        super(model, name, type, RETHROW_UNCAUGHT_EXCEPTION, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(model, name, type, ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION, flushEnabled, squelchingEnabled, insertionIsBlocking);
 
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);

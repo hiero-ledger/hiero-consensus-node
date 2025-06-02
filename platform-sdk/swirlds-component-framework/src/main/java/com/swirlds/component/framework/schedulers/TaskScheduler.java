@@ -110,7 +110,7 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     @NonNull
     protected StandardOutputWire<OUT> buildPrimaryOutputWire(
             @NonNull final TraceableWiringModel model, @NonNull final String name) {
-        return new StandardOutputWire<>(model, name);
+        return new StandardOutputWire<>(model, name, getUncaughtExceptionHandler());
     }
 
     /**
@@ -141,7 +141,7 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     public <T> StandardOutputWire<T> buildSecondaryOutputWire() {
         // Intentionally do not register this with the model. Connections using this output wire will be represented
         // in the model in the same way as connections to the primary output wire.
-        return new StandardOutputWire<>(model, name);
+        return new StandardOutputWire<>(model, name, getUncaughtExceptionHandler());
     }
 
     /**
