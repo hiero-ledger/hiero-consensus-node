@@ -6,6 +6,9 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCancelAirdrop;
@@ -17,15 +20,19 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.max
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenClaimAirdrop.pendingAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -74,10 +81,10 @@ public class AtomicBatchMiscSignatureTest {
                     // Verify the airdrop is pending
                     getAccountBalance("receiver").hasTokenBalance("FT", 0L),
                     atomicBatch(
-                            // Payer is not the receiver
-                            tokenClaimAirdrop(pendingAirdrop("owner", "receiver", "FT"))
-                                    .payingWith("fakeReceiver")
-                                    .batchKey("batchOperator"))
+                                    // Payer is not the receiver
+                                    tokenClaimAirdrop(pendingAirdrop("owner", "receiver", "FT"))
+                                            .payingWith("fakeReceiver")
+                                            .batchKey("batchOperator"))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // Verify the receiver did not receive the airdrop
@@ -97,39 +104,93 @@ public class AtomicBatchMiscSignatureTest {
                     // Verify the airdrop is pending
                     getAccountBalance("receiver").hasTokenBalance("FT", 0L),
                     atomicBatch(
-                            // Payer is not the owner
-                            tokenCancelAirdrop(pendingAirdrop("owner", "receiver", "FT"))
-                                    .signedBy("receiver")
-                                    .batchKey("batchOperator"))
+                                    // Payer is not the owner
+                                    tokenCancelAirdrop(pendingAirdrop("owner", "receiver", "FT"))
+                                            .signedBy("receiver")
+                                            .batchKey("batchOperator"))
                             .payingWith("batchOperator")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
     }
 
-//    @Nested
-//    @DisplayName("Topics With Custom Fees")
-//    class TopicsWithCustomFees {
-//        @HapiTest
-//        @DisplayName("Submit message to a private no submit key")
-//        final Stream<DynamicTest> submitMessageToPrivateNoSubmitKey() {
-//            final var collector = "collector";
-//            final var fee = fixedConsensusHbarFee(ONE_HBAR, collector);
-//            final var feeLimit = maxCustomFee("submitter", hbarLimit(1));
-//            return hapiTest(
-//                    cryptoCreate(collector).balance(ONE_HBAR),
-//                    newKeyNamed(SUBMIT_KEY),
-//                    newKeyNamed("key"),
-//                    cryptoCreate("submitter").balance(ONE_HUNDRED_HBARS).key("key"),
-//                    createTopic(TOPIC)
-//                            .feeExemptKeys("key")
-//                            .submitKeyName(SUBMIT_KEY)
-//                            .withConsensusCustomFee(fee),
-//                    submitMessageTo(TOPIC)
-//                            .maxCustomFee(feeLimit)
-//                            .message("TEST")
-//                            .payingWith("submitter")
-//                            .signedBy("submitter")
-//                            .hasKnownStatus(INVALID_SIGNATURE));
-//        }
-//    }
+    @Nested
+    @DisplayName("Address Book Updates")
+    class AddressBookUpdates {
+        private static List<X509Certificate> gossipCertificates;
+
+        @BeforeAll
+        static void beforeAll() {
+            gossipCertificates = generateX509Certificates(1);
+        }
+
+        @HapiTest
+        @DisplayName("Node delete inside of a batch can be executed only with privileged account")
+        final Stream<DynamicTest> nodeDeleteCanBeExecutedOnlyWithPrivilegedAccount()
+                throws CertificateEncodingException {
+            return hapiTest(
+                    cryptoCreate("payer"),
+                    cryptoCreate("batchOperator"),
+                    nodeCreate("node100")
+                            .description("desc")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                    // The inner txn is not signed by system account, so the transaction will fail
+                    atomicBatch(nodeDelete("node100").payingWith("payer").batchKey("batchOperator"))
+                            .payingWith("batchOperator")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    // Paying with a privileged account should succeed
+                    atomicBatch(nodeDelete("node100").payingWith(DEFAULT_PAYER).batchKey("batchOperator"))
+                            .payingWith("batchOperator"));
+        }
+
+        @HapiTest
+        @DisplayName("Node update inside of a batch can be executed only with privileged account")
+        final Stream<DynamicTest> nodeUpdateCanBeExecutedOnlyWithPrivilegedAccount()
+                throws CertificateEncodingException {
+            return hapiTest(
+                    newKeyNamed("adminKey"),
+                    cryptoCreate("payer"),
+                    cryptoCreate("batchOperator"),
+                    nodeCreate("node100")
+                            .adminKey("adminKey")
+                            .description("desc")
+                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                    // The inner txn is not signed by system account, so the transaction will fail
+                    atomicBatch(nodeUpdate("node100").payingWith("payer").batchKey("batchOperator"))
+                            .payingWith("batchOperator")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    // Paying with a privileged account should succeed
+                    atomicBatch(nodeUpdate("node100")
+                                    .payingWith(DEFAULT_PAYER)
+                                    .signedByPayerAnd("adminKey")
+                                    .batchKey("batchOperator"))
+                            .payingWith("batchOperator"));
+        }
+    }
+
+    @HapiTest
+    @DisplayName("Submit message to a private no submit key")
+    final Stream<DynamicTest> submitMessageToPrivateNoSubmitKey() {
+        final var collector = "collector";
+        final var fee = fixedConsensusHbarFee(ONE_HBAR, collector);
+        final var feeLimit = maxCustomFee("submitter", hbarLimit(1));
+        return hapiTest(
+                newKeyNamed("key"),
+                newKeyNamed("submitKey"),
+                cryptoCreate("batchOperator"),
+                cryptoCreate(collector).balance(ONE_HBAR),
+                cryptoCreate("submitter").balance(ONE_HUNDRED_HBARS).key("key"),
+                createTopic("topic")
+                        .feeExemptKeys("key")
+                        .submitKeyName("submitKey")
+                        .withConsensusCustomFee(fee),
+                atomicBatch(submitMessageTo("topic")
+                                .batchKey("batchOperator")
+                                .maxCustomFee(feeLimit)
+                                .message("TEST")
+                                .payingWith("submitter")
+                                // not signing with the submit key, so the transaction will fail
+                                .signedBy("submitter"))
+                        .payingWith("batchOperator")
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
 }
