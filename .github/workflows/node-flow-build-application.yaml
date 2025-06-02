@@ -33,6 +33,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable-ci-trigger:
+        description: "Trigger CI Flows Enabled"
+        type: boolean
+        required: false
+        default: false
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -158,7 +163,11 @@ jobs:
       - mats-unit-tests
       - mats-gradle-determinism
       - mats-docker-determinism
-    if: ${{ needs.code.result == 'success' && needs.gradle-determinism.result == 'success' && needs.docker-determinism.result == 'success' }}
+    if:
+      ${{ (github.event_name == 'push' || github.event.inputs.enable-ci-trigger == 'true') &&
+      needs.mats-unit-tests.result == 'success' &&
+      needs.mats-gradle-determinism.result == 'success' &&
+      needs.mats-docker-determinism.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
