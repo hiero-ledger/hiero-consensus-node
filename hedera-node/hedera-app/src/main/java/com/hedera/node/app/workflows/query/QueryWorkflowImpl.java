@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.QueryHandler;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.util.ProtobufUtils;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
@@ -196,51 +197,63 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     final var configuration = configProvider.getConfiguration();
                     final var paymentBytes = ProtobufUtils.extractPaymentBytes(requestBuffer);
 
-                    // 3.i Ingest checks
-                    final var transactionInfo = ingestChecker.runAllChecks(state, paymentBytes, configuration);
-                    txBody = transactionInfo.txBody();
+                    // Track any throttle capacity used so we can reclaim it if we don't actually submit to consensus
+                    final var checkerResult = new IngestChecker.Result();
+                    try {
+                        // 3.i Ingest checks
+                        ingestChecker.runAllChecks(state, paymentBytes, configuration, checkerResult);
+                        txBody = checkerResult.txnInfoOrThrow().txBody();
 
-                    // get payer
-                    payerID = requireNonNull(transactionInfo.payerID());
-                    context = new QueryContextImpl(
-                            state,
-                            storeFactory,
-                            query,
-                            configuration,
-                            recordCache,
-                            exchangeRateManager,
-                            feeCalculator,
-                            payerID);
+                        // get payer
+                        payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
+                        context = new QueryContextImpl(
+                                state,
+                                storeFactory,
+                                query,
+                                configuration,
+                                recordCache,
+                                exchangeRateManager,
+                                feeCalculator,
+                                payerID);
 
-                    // A super-user does not have to pay for a query and has all permissions
-                    if (!authorizer.isSuperUser(payerID)) {
-                        // But if payment is required, we must be able to submit a transaction
-                        ingestChecker.verifyReadyForTransactions();
+                        // A super-user does not have to pay for a query and has all permissions
+                        if (!authorizer.isSuperUser(payerID)) {
+                            // But if payment is required, we must be able to submit a transaction
+                            ingestChecker.verifyReadyForTransactions();
 
-                        // 3.ii Validate CryptoTransfer
-                        queryChecker.validateCryptoTransfer(transactionInfo);
+                            // 3.ii Validate CryptoTransfer
+                            queryChecker.validateCryptoTransfer(checkerResult.txnInfoOrThrow());
 
-                        // 3.iii Check permissions
-                        queryChecker.checkPermissions(payerID, function);
+                            // 3.iii Check permissions
+                            queryChecker.checkPermissions(payerID, function);
 
-                        // Get the payer
-                        final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
-                        final var payer = accountStore.getAccountById(payerID);
-                        if (payer == null) {
-                            // This should never happen, because the account is checked in the pure checks
-                            throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+                            // Get the payer
+                            final var accountStore = storeFactory.getStore(ReadableAccountStore.class);
+                            final var payer = accountStore.getAccountById(payerID);
+                            if (payer == null) {
+                                // This should never happen, because the account is checked in the pure checks
+                                throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
+                            }
+
+                            // 3.iv Calculate costs
+                            final var queryFees = handler.computeFees(context).totalFee();
+                            final var txFees = queryChecker.estimateTxFees(
+                                    storeFactory,
+                                    consensusTime,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer.keyOrThrow(),
+                                    configuration);
+
+                            // 3.v Check account balances
+                            queryChecker.validateAccountBalances(
+                                    accountStore, checkerResult.txnInfoOrThrow(), payer, queryFees, txFees);
+
+                            // 3.vi Submit payment to platform
+                            submissionManager.submit(txBody, paymentBytes);
                         }
-
-                        // 3.iv Calculate costs
-                        final var queryFees = handler.computeFees(context).totalFee();
-                        final var txFees = queryChecker.estimateTxFees(
-                                storeFactory, consensusTime, transactionInfo, payer.keyOrThrow(), configuration);
-
-                        // 3.v Check account balances
-                        queryChecker.validateAccountBalances(accountStore, transactionInfo, payer, queryFees, txFees);
-
-                        // 3.vi Submit payment to platform
-                        submissionManager.submit(txBody, paymentBytes);
+                    } catch (Exception e) {
+                        checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
+                        throw e;
                     }
                 } else {
                     if (RESTRICTED_FUNCTIONALITIES.contains(function)) {
