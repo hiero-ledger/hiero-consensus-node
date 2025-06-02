@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.tracers;
 
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -55,7 +54,7 @@ class EvmActionTracerTest {
         subject.traceOriginAction(frame);
 
         verifyNoInteractions(actionStack);
-        assertSame(ContractActions.DEFAULT, subject.contractActions());
+        assertTrue(subject.contractActions().isEmpty());
     }
 
     @Test

@@ -124,7 +124,6 @@ public class BlockStreamBuilderTest {
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
                 .contractCallResult(contractCallResult)
-                .addContractStateChanges(contractStateChanges, false)
                 .addContractSlotUsages(usages);
 
         List<BlockItem> blockItems = itemsBuilder.build().blockItems();
