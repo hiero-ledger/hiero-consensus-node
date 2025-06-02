@@ -70,7 +70,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
 @HapiTestLifecycle
-public class AtomicBatchContractsServiceSignituresValidationTest {
+public class AtomicBatchContractSignatureValidationTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
     private static final String RECEIVER_SIG_REQUIRED = "receiverSigRequired";
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
