@@ -60,6 +60,12 @@ public class EventMetadata extends AbstractHashable {
     private Long birthRoundOverride = null;
 
     /**
+     * If this event was created before generations were set to zero, then the generation will be calculated to match
+     * the original value.
+     */
+    private Long calculatedGeneration = null;
+
+    /**
      * The birth round that was initialized to the event. This may be overridden at a later time via
      * {@link #setBirthRoundOverride(long, long)}.
      */
@@ -90,7 +96,7 @@ public class EventMetadata extends AbstractHashable {
         this.allParents = selfParent == null
                 ? this.otherParents
                 : Stream.concat(Stream.of(selfParent), otherParents.stream()).toList();
-        this.generation = calculateGeneration(allParents);
+        this.generation = 0;
         this.timeCreated = Objects.requireNonNull(timeCreated, "The timeCreated must not be null");
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
                 .map(TransactionWrapper::new)
@@ -117,7 +123,7 @@ public class EventMetadata extends AbstractHashable {
             this.selfParent = null;
             this.otherParents = allParents;
         }
-        this.generation = calculateGeneration(allParents);
+        this.generation = 0;
         this.timeCreated = HapiUtils.asInstant(
                 Objects.requireNonNull(gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null"));
         this.transactions =
@@ -128,9 +134,9 @@ public class EventMetadata extends AbstractHashable {
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
         return 1
                 + Objects.requireNonNull(allParents).stream()
-                        .mapToLong(d -> d.eventDescriptor().generation())
-                        .max()
-                        .orElse(EventConstants.GENERATION_UNDEFINED);
+                .mapToLong(d -> d.eventDescriptor().generation())
+                .max()
+                .orElse(EventConstants.GENERATION_UNDEFINED);
     }
 
     /**
@@ -215,7 +221,7 @@ public class EventMetadata extends AbstractHashable {
     }
 
     public long getGeneration() {
-        return generation;
+        return calculatedGeneration == null ? generation : calculatedGeneration;
     }
 
     /**
@@ -281,5 +287,12 @@ public class EventMetadata extends AbstractHashable {
         allParents = selfParent == null
                 ? this.otherParents
                 : Stream.concat(Stream.of(selfParent), otherParents.stream()).toList();
+    }
+
+    /**
+     * TODO
+     */
+    public void calculateGeneration() {
+        this.calculatedGeneration = calculateGeneration(allParents);
     }
 }

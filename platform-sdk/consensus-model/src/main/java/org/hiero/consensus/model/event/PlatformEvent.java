@@ -365,6 +365,10 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
     }
 
+    public void calculateGeneration() {
+        metadata.calculateGeneration();
+    }
+
     /**
      * Wait until all transactions have been prehandled for this event.
      */

@@ -231,27 +231,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
         // If a parent is not missing, then the generation and birth round must be valid.
         final EventDescriptorWrapper selfParent = event.getSelfParent();
-        if (selfParent != null) {
-            if (selfParent.eventDescriptor().generation() < FIRST_GENERATION) {
-                invalidParentsLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Event %s has self parent with generation less than the FIRST_GENERATION. self-parent generation: %s"
-                                .formatted(event, selfParent.eventDescriptor().generation()));
-                invalidParentsAccumulator.update(1);
-                return false;
-            }
-        }
-
-        for (final EventDescriptorWrapper otherParent : event.getOtherParents()) {
-            if (otherParent.eventDescriptor().generation() < FIRST_GENERATION) {
-                invalidParentsLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Event %s has other parent with generation less than the FIRST_GENERATION. other-parent: %s"
-                                .formatted(event, otherParent));
-                invalidParentsAccumulator.update(1);
-                return false;
-            }
-        }
 
         // only single node networks are allowed to have identical self-parent and other-parent hashes
         if (!singleNodeNetwork && selfParent != null) {
@@ -351,7 +330,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
                 && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
                 && areParentsInternallyConsistent(event)
-                && isEventGenerationValid(event)
                 && isEventBirthRoundValid(event)) {
             return event;
         } else {

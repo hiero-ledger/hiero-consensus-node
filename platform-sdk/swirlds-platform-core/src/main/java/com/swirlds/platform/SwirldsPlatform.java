@@ -58,8 +58,8 @@ import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.events.BirthRoundMigrationShim;
-import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
+import com.swirlds.platform.system.events.DefaultGenerationCalculator;
+import com.swirlds.platform.system.events.GenerationCalculator;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -82,6 +82,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -287,8 +288,8 @@ public class SwirldsPlatform implements Platform {
 
         blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
 
-        final BirthRoundMigrationShim birthRoundMigrationShim =
-                buildBirthRoundMigrationShim(initialState, ancientMode, platformStateFacade);
+        final GenerationCalculator generationMigrationShim = buildGenerationMigrationShim(initialState,
+                platformStateFacade);
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
@@ -299,7 +300,7 @@ public class SwirldsPlatform implements Platform {
                 pcesReplayer,
                 stateSignatureCollector,
                 eventWindowManager,
-                birthRoundMigrationShim,
+                generationMigrationShim,
                 inlinePcesWriter,
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,
@@ -398,33 +399,21 @@ public class SwirldsPlatform implements Platform {
     }
 
     /**
-     * Builds the birth round migration shim if necessary.
+     * Builds the generation calculator.
      *
      * @param initialState the initial state
-     * @param ancientMode  the ancient mode
-     * @return the birth round migration shim, or null if it is not needed
+     * @param platformStateFacade a facade for accessing platform state
+     * @return the generation calculator
      */
-    @Nullable
-    private BirthRoundMigrationShim buildBirthRoundMigrationShim(
+    @NonNull
+    private GenerationCalculator buildGenerationMigrationShim(
             @NonNull final SignedState initialState,
-            @NonNull final AncientMode ancientMode,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
-        if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
-            // We don't need the shim if we haven't migrated to birth round mode.
-            return null;
-        }
-        if (initialState.isGenesisState()) {
-            // We don't need the shim if we are starting from genesis.
-            return null;
-        }
-
         final State state = initialState.getState();
-        return new DefaultBirthRoundMigrationShim(
-                platformContext,
-                platformStateFacade.firstVersionInBirthRoundModeOf(state),
-                platformStateFacade.lastRoundBeforeBirthRoundModeOf(state),
-                platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(state));
+        final long firstBirthRoundWithoutGenerations = initialState.isGenesisState() ? ConsensusConstants.ROUND_FIRST
+                : platformStateFacade.consensusSnapshotOf(state).round() + 1;
+        return new DefaultGenerationCalculator(platformContext, firstBirthRoundWithoutGenerations);
     }
 
     /**

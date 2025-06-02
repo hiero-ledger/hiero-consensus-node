@@ -43,7 +43,7 @@ import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.events.BirthRoundMigrationShim;
+import com.swirlds.platform.system.events.GenerationCalculator;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
@@ -150,7 +150,7 @@ class PlatformWiringTests {
                 mock(PcesReplayer.class),
                 mock(StateSignatureCollector.class),
                 mock(EventWindowManager.class),
-                mock(BirthRoundMigrationShim.class),
+                mock(GenerationCalculator.class),
                 mock(InlinePcesWriter.class),
                 mock(SignedStateNexus.class),
                 mock(LatestCompleteStateNexus.class),
