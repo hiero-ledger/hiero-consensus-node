@@ -132,7 +132,7 @@ jobs:
     needs:
       - dependency-check
       - spotless
-    if: ${{ github.event_name == 'push'|| github.event.inputs.enable-gradle-determinism == 'true' }}
+    if: ${{ github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true' }}
     with:
       ref: ${{ github.event.inputs.ref || '' }}
       java-distribution: temurin
