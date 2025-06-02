@@ -5,6 +5,7 @@
 - Snyk Scan / Standard - :x:
 - Gradle Determinism / Generate Baseline - :x:
 - Gradle Determinism / Verify Artifacts (windows-2022) - :x:
+- Gradle Determinism / Verify Artifacts (windows-2025) - :x:
 - Gradle Determinism / Verify Artifacts (ubuntu-22.04) - :x:
 - Gradle Determinism / Verify Artifacts (hiero-network-node-linux-large) - :x:
 - Gradle Determinism / Verify Artifacts (hiero-network-node-linux-medium) - :x:
