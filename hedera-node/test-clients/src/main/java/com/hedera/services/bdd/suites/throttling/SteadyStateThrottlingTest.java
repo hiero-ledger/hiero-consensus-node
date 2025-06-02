@@ -29,7 +29,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
+import static com.hedera.services.bdd.suites.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
@@ -47,6 +49,7 @@ import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +76,7 @@ public class SteadyStateThrottlingTest {
 
     private static final double PRIORITY_RESERVATIONS_CONTRACT_CALL_NETWORK_TPS = 2.0;
     private static final double CREATION_LIMITS_CRYPTO_CREATE_NETWORK_TPS = 1.0;
-    private static final double BALANCE_QUERY_LIMITS_QPS = 10.0;
+    private static final double BALANCE_QUERY_LIMITS_QPS = 100.0;
 
     private static final int NETWORK_SIZE = REGRESSION_NETWORK_SIZE;
 
@@ -169,26 +172,23 @@ public class SteadyStateThrottlingTest {
         final var name = "Throttles" + txn + "AsExpected";
         final var baseSpec =
                 custom.isEmpty() ? defaultHapiSpec(name) : customHapiSpec(name).withProperties(custom);
+        final var competingClient = competingClientFor(txn);
+        final AtomicInteger numProviderSetupOps = new AtomicInteger(0);
+        final Function<HapiSpec, OpProvider> wrappedProvider = spec -> {
+            final var opProvider = provider.apply(spec);
+            numProviderSetupOps.set(opProvider.suggestedInitializers().size());
+            return opProvider;
+        };
         return baseSpec.given()
                 .when(inParallel(
-                        runWithProvider(provider)
+                        runWithProvider(wrappedProvider)
                                 .lasting(duration::get, unit::get)
                                 .maxOpsPerSec(maxOpsPerSec::get),
-                        blockingOrder(
-                                createTopic("ntb"),
-                                cryptoCreate(CIVILIAN).balance(ONE_MILLION_HBARS),
-                                runWithProvider(spec -> () -> Optional.of(submitMessageTo("ntb")
-                                                .omittingTopicId()
-                                                .fee(ONE_HBAR)
-                                                .deferStatusResolution()
-                                                .hasPrecheckFrom(INVALID_TOPIC_ID, BUSY, OK)
-                                                .payingWith(CIVILIAN)
-                                                .hasKnownStatusFrom(PERMITTED_STATUSES)
-                                                .noLogging()))
-                                        .lasting(duration::get, unit::get)
-                                        .maxOpsPerSec(maxOpsPerSec::get))))
+                        competingClient.op()))
                 .then(withOpContext((spec, opLog) -> {
-                    var actualTps = 1.0 * spec.finalAdhoc() / duration.get();
+                    final int numRelevantSuccesses =
+                            spec.finalAdhoc() - competingClient.numSetupOps() - numProviderSetupOps.get();
+                    var actualTps = 1.0 * numRelevantSuccesses / duration.get();
                     var percentDeviation = Math.abs(actualTps / expectedTps - 1.0) * 100.0;
                     opLog.info(
                             "Total ops accepted in {} {} = {} ==> {}tps vs {}tps" + " expected ({}% deviation)",
@@ -200,6 +200,47 @@ public class SteadyStateThrottlingTest {
                             String.format("%.3f", percentDeviation));
                     Assertions.assertEquals(0.0, percentDeviation, TOLERATED_PERCENT_DEVIATION);
                 }));
+    }
+
+    private record CompetingClient(int numSetupOps, SpecOperation op) {}
+
+    private CompetingClient competingClientFor(String txn) {
+        return switch (txn) {
+            case "ContractCalls" ->
+                new CompetingClient(
+                        3,
+                        blockingOrder(
+                                uploadInitCode(PAYABLE_CONTRACT),
+                                contractCreate(PAYABLE_CONTRACT),
+                                cryptoCreate(CIVILIAN).balance(ONE_MILLION_HBARS),
+                                runWithProvider(spec -> () -> Optional.of(
+                                                contractCall(PAYABLE_CONTRACT, "deposit", BigInteger.valueOf(1_000L))
+                                                        .fee(10 * ONE_HBAR)
+                                                        .deferStatusResolution()
+                                                        .hasPrecheckFrom(INVALID_SIGNATURE, BUSY, OK)
+                                                        .payingWith(CIVILIAN)
+                                                        .signedBy(GENESIS)
+                                                        .hasKnownStatusFrom(PERMITTED_STATUSES)
+                                                        .noLogging()))
+                                        .lasting(duration::get, unit::get)
+                                        .maxOpsPerSec(maxOpsPerSec::get)));
+            default ->
+                new CompetingClient(
+                        2,
+                        blockingOrder(
+                                createTopic("ntb"),
+                                cryptoCreate(CIVILIAN).balance(ONE_MILLION_HBARS),
+                                runWithProvider(spec -> () -> Optional.of(submitMessageTo("ntb")
+                                                .omittingTopicId()
+                                                .fee(ONE_HBAR)
+                                                .deferStatusResolution()
+                                                .hasPrecheckFrom(INVALID_TOPIC_ID, BUSY)
+                                                .payingWith(CIVILIAN)
+                                                .hasKnownStatusFrom(PERMITTED_STATUSES)
+                                                .noLogging()))
+                                        .lasting(duration::get, unit::get)
+                                        .maxOpsPerSec(maxOpsPerSec::get)));
+        };
     }
 
     final Stream<DynamicTest> checkBalanceQps(int burstSize, double expectedQps) {
