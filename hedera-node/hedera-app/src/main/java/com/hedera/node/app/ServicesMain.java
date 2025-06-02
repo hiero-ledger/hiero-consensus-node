@@ -321,7 +321,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
         // --- Create the platform context and initialize the cryptography ---
         final var rosterHistory = RosterUtils.createRosterHistory(state);
-        // final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
         final var currentRoster = rosterHistory.getCurrentRoster();
         // For now we convert to a legacy representation of the roster for convenience
         final var addressBook = requireNonNull(buildAddressBook(currentRoster));
