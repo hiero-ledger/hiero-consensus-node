@@ -131,7 +131,7 @@ class VirtualMapTests extends VirtualTestBase {
     void freshMapHasBothChildren() {
         final VirtualMap vm = createMap();
         assertEquals(2, vm.getNumberOfChildren(), "VirtualMap size is wrong");
-        assertNotNull(vm.getChild(0), "Unexpected null at index 0");
+        assertNull(vm.getChild(0), "Unexpected null at index 0");
         assertNull(vm.getChild(1), "Unexpected non-null at index 1");
         vm.release();
     }
@@ -148,15 +148,14 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Fresh")})
     @DisplayName("The root node of an empty tree has no children")
-    void emptyTreeRootHasOnlyStateAsChild() {
+    void vmStateAddedWithThefFirstChild() {
         final VirtualMap vm = createMap();
-        assertEquals(2, vm.getNumberOfChildren(), "Unexpected number of children");
-        VirtualLeafNode child = vm.getChild(0);
-        VirtualMapState virtualMapState = new VirtualMapState(child.getValue());
-        assertEquals(-1, virtualMapState.getFirstLeafPath());
-        assertEquals(-1, virtualMapState.getLastLeafPath());
+        assertTrue(vm.isEmpty());
 
-        assertNull(vm.getChild(1), "Unexpected child of empty root");
+        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        assertFalse(vm.isEmpty());
+        assertEquals(2, vm.size(), "Unexpected size");
+
         vm.release();
     }
 
@@ -408,8 +407,9 @@ class VirtualMapTests extends VirtualTestBase {
 
         vm.remove(A_KEY, TestValueCodec.INSTANCE);
 
-        assertEquals(0, vm.size()); // VM state is hidden
-        assertTrue(vm.isEmpty());
+        assertEquals(1, vm.size()); // only VM state left
+        assertNotNull(vm.getBytes(VirtualMapState.VM_STATE_KEY));
+        assertFalse(vm.isEmpty());
 
         vm.put(D_KEY, DATE, TestValueCodec.INSTANCE);
         assertFalse(vm.isEmpty());
@@ -1070,7 +1070,8 @@ class VirtualMapTests extends VirtualTestBase {
                 map.remove(TestKey.longToKey(i));
             }
 
-            assertEquals(0, map.size(), "All elements should have been removed");
+            assertEquals(1, map.size(), "All elements VirtualMapState should have been removed");
+            assertNotNull(map.getBytes(VirtualMapState.VM_STATE_KEY));
 
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
@@ -1377,7 +1378,8 @@ class VirtualMapTests extends VirtualTestBase {
             root1.remove(key, null);
         }
 
-        assertEquals(0, root1.size(), "All elements should have been removed");
+        assertEquals(1, root1.size(), "All elements but VirtualMapSate should have been removed");
+        assertNotNull(root1.getBytes(VirtualMapState.VM_STATE_KEY));
         root1.release();
         TimeUnit.MILLISECONDS.sleep(100);
         System.gc();
@@ -1531,8 +1533,7 @@ class VirtualMapTests extends VirtualTestBase {
                 .getOrCreateConfig();
 
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
-        VirtualMap map = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
-        ;
+        VirtualMap map = new VirtualMap(VM_LABEL, builder, configuration);
         assertEquals(0, map.getFlushCandidateThreshold());
         final int flushInterval =
                 configuration.getConfigData(VirtualMapConfig.class).flushInterval();

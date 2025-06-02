@@ -488,7 +488,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             statistics = new VirtualMapStatistics(state.getLabel());
         }
 
-        persistState();
+        persistNonEmptyState();
 
         // VM size metric value is updated in add() and remove(). However, if no elements are added or
         // removed, the metric may have a stale value for a long time. Update it explicitly here
@@ -501,7 +501,12 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         pipeline.registerCopy(this);
     }
 
-    private void persistState() {
+    private void persistNonEmptyState() {
+        if(state.getSize() == 0) {
+            // If the state is empty, we do not persist it.
+            return;
+        }
+
         if (!isHashed()) {
             putBytes(VM_STATE_KEY, state.toBytes());
         } else {
@@ -689,10 +694,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         throwIfImmutable();
         assert !isHashed() : "Cannot modify already hashed node";
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
+        final long path = records.findKey(key);
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-
-            final long path = records.findKey(key);
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
@@ -709,6 +713,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
+            if(path == INVALID_PATH) {
+                persistNonEmptyState();
+            }
         }
     }
 
@@ -1591,7 +1598,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     public VirtualMap copy() {
         throwIfImmutable();
         throwIfDestroyed();
-        persistState();
+        persistNonEmptyState();
 
         final VirtualMap copy = new VirtualMap(this);
         setImmutable(true);
@@ -1736,11 +1743,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * @return The number of key/value pairs in the map.
      */
     public long size() {
-        if (state.getSize() == 1) {
-            // meaning that the map has the state element only
-            return 0;
-        }
-
         return state.getSize();
     }
 
