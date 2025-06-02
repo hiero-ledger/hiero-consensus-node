@@ -95,6 +95,7 @@ class BlockImplUtilsTest {
             case STATE_ID_UPGRADE_DATA_157 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=157]]";
             case STATE_ID_UPGRADE_DATA_158 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=158]]";
             case STATE_ID_UPGRADE_DATA_159 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=159]]";
+            case STATE_ID_UPGRADE_FILE -> "FileService.UPGRADE_FILE";
             case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
             case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
             case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";

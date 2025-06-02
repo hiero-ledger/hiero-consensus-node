@@ -34,6 +34,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.state.StateChangeListener;
@@ -262,11 +263,7 @@ class MerkleStateRootTest extends MerkleTestBase {
 
         @AfterEach
         void tearDown() {
-            assertEventuallyEquals(
-                    0L,
-                    MerkleDbDataSource::getCountOfOpenDatabases,
-                    Duration.of(5, ChronoUnit.SECONDS),
-                    "All databases should be closed");
+            MerkleDbTestUtils.assertAllDatabasesClosed();
         }
     }
 
@@ -832,11 +829,7 @@ class MerkleStateRootTest extends MerkleTestBase {
         @AfterEach
         void tearDown() {
             fruitVirtualMap.release();
-            assertEventuallyEquals(
-                    0L,
-                    MerkleDbDataSource::getCountOfOpenDatabases,
-                    Duration.of(5, ChronoUnit.SECONDS),
-                    "All databases should be closed");
+            MerkleDbTestUtils.assertAllDatabasesClosed();
         }
     }
 

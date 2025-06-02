@@ -51,6 +51,8 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.junit.jupiter.api.AfterEach;
@@ -64,6 +66,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SerializationTest extends MerkleTestBase {
+
+    private static final Logger logger = LogManager.getLogger(RandomSignedStateGenerator.class);
 
     private Path dir;
     private Configuration config;
@@ -192,7 +196,7 @@ class SerializationTest extends MerkleTestBase {
         try {
             originalTree.release();
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Exception while releasing state", e);
         }
         copy.release();
         loadedTree.release();
@@ -276,7 +280,7 @@ class SerializationTest extends MerkleTestBase {
         try {
             originalTree.release();
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.error("Exception while releasing state", e);
         }
         loadedTree.release();
         loadedTreeWithCache.release();

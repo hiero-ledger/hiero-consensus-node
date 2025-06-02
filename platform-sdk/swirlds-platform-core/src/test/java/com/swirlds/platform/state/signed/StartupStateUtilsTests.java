@@ -140,7 +140,6 @@ public class StartupStateUtilsTests {
 
         // make the state immutable
         signedState.getState().copy().release();
-
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
 
