@@ -61,7 +61,7 @@ public class SingleNodeConsensusResultAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeConsensusResultAssert hasAdvancedSince(final long expected) {
+    public SingleNodeConsensusResultAssert hasAdvancedSinceRound(final long expected) {
         isNotNull();
         if (actual.lastRoundNum() <= expected) {
             failWithMessage(
