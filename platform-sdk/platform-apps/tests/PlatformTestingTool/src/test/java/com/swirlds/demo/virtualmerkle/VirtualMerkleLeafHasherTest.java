@@ -2,6 +2,7 @@
 package com.swirlds.demo.virtualmerkle;
 
 import static com.swirlds.demo.virtualmerkle.VirtualMerkleLeafHasher.hashOf;
+import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -19,7 +20,6 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -57,7 +57,8 @@ class VirtualMerkleLeafHasherTest {
 
     @Test
     void checkSimpleHashing2() throws IOException, InterruptedException {
-        VirtualMap virtualMap = new VirtualMap("test2", dataSourceBuilder, CONFIGURATION);
+        final String vmLabel = "test2";
+        VirtualMap virtualMap = new VirtualMap(vmLabel, dataSourceBuilder, CONFIGURATION);
 
         final VirtualMerkleLeafHasher hasher = new VirtualMerkleLeafHasher(virtualMap);
 
@@ -69,8 +70,8 @@ class VirtualMerkleLeafHasherTest {
 
         virtualMap.put(key1.toBytes(), value1, SmartContractByteCodeMapValueCodec.INSTANCE);
 
-        Hash virtualMapStateHash = computeVmStateHash(null, virtualMap);
-        Hash before = computeNextHash(virtualMapStateHash, key1.toBytes(), value1.toBytes());
+        Hash firstElement = computeNextHash(null, key1.toBytes(), value1.toBytes());
+        Hash before = computeVmStateHash(firstElement, virtualMap);
 
         assertEquals(before, hasher.validate(), "Should have been equal");
 
@@ -86,8 +87,8 @@ class VirtualMerkleLeafHasherTest {
         // include previous hash first
         Hash hash = null;
 
-        hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
         hash = computeVmStateHash(hash, virtualMap);
+        hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
         hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
 
         assertEquals(hash, hasher.validate(), "Should have been equal");
@@ -125,9 +126,9 @@ class VirtualMerkleLeafHasherTest {
         // include previous hash first
         Hash hash = null;
 
-        hash = computeVmStateHash(hash, virtualMap);
-        hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
         hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
+        hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
+        hash = computeVmStateHash(hash, virtualMap);
         hash = computeNextHash(hash, key3.toBytes(), value3.toBytes());
 
         assertEquals(hash, hasher.validate(), "Should have been equal");
@@ -174,9 +175,9 @@ class VirtualMerkleLeafHasherTest {
 
         // this is the order for the leafs from first to last
         hash = computeNextHash(hash, key2.toBytes(), value2.toBytes());
-        hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
-        hash = computeNextHash(hash, key3.toBytes(), value3.toBytes());
         hash = computeVmStateHash(hash, virtualMap);
+        hash = computeNextHash(hash, key3.toBytes(), value3.toBytes());
+        hash = computeNextHash(hash, key1.toBytes(), value1.toBytes());
         hash = computeNextHash(hash, key4.toBytes(), value4.toBytes());
 
         assertEquals(hash, hasher.validate(), "Should have been equal");
@@ -203,8 +204,7 @@ class VirtualMerkleLeafHasherTest {
     }
 
     private Hash computeVmStateHash(Hash previousHash, VirtualMap virtualMap) throws IOException {
-        return computeNextHash(
-                previousHash, VirtualMapState.VM_STATE_KEY, virtualMap.getBytes(VirtualMapState.VM_STATE_KEY));
+        return computeNextHash(previousHash, VM_STATE_KEY, virtualMap.getBytes(VM_STATE_KEY));
     }
 
     @AfterEach
