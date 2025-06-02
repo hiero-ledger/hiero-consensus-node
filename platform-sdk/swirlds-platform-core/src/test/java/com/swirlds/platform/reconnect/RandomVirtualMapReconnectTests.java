@@ -68,7 +68,10 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1, DigestType.SHA_384, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1,
+                DigestType.SHA_384,
+                merkleDbConfig.maxNumOfKeys(),
+                merkleDbConfig.hashesRamToDiskThreshold());
         return new MerkleDbDataSourceBuilder(defaultVirtualMapPath, tableConfig, CONFIGURATION);
     }
 

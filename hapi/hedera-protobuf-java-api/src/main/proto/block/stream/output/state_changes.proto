@@ -311,9 +311,9 @@ enum StateIdentifier {
     STATE_ID_NODES = 20;
 
     /**
-    * A state identifier for the Topics state. Key/value state.
-    */
-    STATE_ID_TOPICS = 21;
+     * A state identifier for the next "upgrade" file.
+     */
+    STATE_ID_UPGRADE_FILE = 21;
 
     /**
      * A state identifier for the hash of the next "upgrade" file. Singleton state.
@@ -460,6 +460,12 @@ enum StateIdentifier {
      * A state identifier for the node rewards. Singleton state.
      */
     STATE_ID_NODE_REWARDS = 50;
+
+    /**
+    * A state identifier for the Topics state. Key/value state.
+    */
+    STATE_ID_TOPICS = 52;
+
     /**
      * A state identifier for the round receipts queue. Queue state.
      */
