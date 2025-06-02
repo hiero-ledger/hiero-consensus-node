@@ -209,7 +209,6 @@ public final class IngestChecker {
      * @param serializedTransaction the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
      * @param result the {@link Result} to populate with the results of the checks
-     * @return the {@link TransactionInfo} with the extracted information
      * @throws PreCheckException if a check fails
      */
     public void runAllChecks(
