@@ -310,6 +310,43 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         }
     }
 
+    // Chunk ranks. Every chunk has a starting rank and an input rank. The starting rank is the rank
+    // of the top-most path in the chunk. For example, the root chunk has starting rank 0. The input
+    // rank is the rank of all chunk inputs (hashes). For example, the root chunk has input rank
+    // defaultChunkHeight (if the virtual tree is large enough).
+
+    // Chunk heights. Chunks starting at ranks 0, defaultChunkHeight, defaultChunkHeight * 2, and so on
+    // have height == defaultChunkHeight. There may be no chunks starting at ranks, which are not multipliers
+    // of defaultChunkHeight. Exceptions are chunks closer to the leaf ranks, their heights are aligned
+    // with the first leaf rank. For example, if defaultChunkHeight == 3, and firstLeafRank == 5, chunks
+    // at rank 3 are of height 2. When the first and the last leaf ranks are different, chunks at the first
+    // leaf rank are of height 1.
+
+    // Given a rank, return chunk height, where the rank is the chunk input rank
+    private int getChunkHeightForInputRank(
+            final int rank, final int firstLeafRank, final int lastLeafRank, final int defaultChunkHeight) {
+        if ((rank == lastLeafRank) && (firstLeafRank != lastLeafRank)) {
+            return 1;
+        } else if (rank == firstLeafRank) {
+            return ((rank - 1) % defaultChunkHeight) + 1;
+        } else {
+            assert (rank % defaultChunkHeight == 0);
+            return defaultChunkHeight;
+        }
+    }
+
+    // Given a rank, return chunk height, where the chunk starts at the rank
+    private int getChunkHeightForStartingRank(
+            final int rank, final int firstLeafRank, final int lastLeafRank, final int defaultChunkHeight) {
+        if ((rank == firstLeafRank) && (firstLeafRank != lastLeafRank)) {
+            return 1;
+        } else {
+            assert rank % defaultChunkHeight == 0;
+            assert rank < firstLeafRank;
+            return Math.min(defaultChunkHeight, firstLeafRank - rank);
+        }
+    }
+
     /**
      * Hash the given dirty leaves and the minimal subset of the tree necessary to produce a
      * single root hash. The root hash is returned.
@@ -417,23 +454,6 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
         final long[] stack = new long[lastLeafRank + 1];
         Arrays.fill(stack, INVALID_PATH);
 
-        // Tasks may have different heights. The root task has a default height. If the whole
-        // virtual tree has fewer ranks than the default height, the root task will cover all
-        // the tree (almost all, see comments below about leaf task heights)
-        final int[] parentRankHeights = new int[lastLeafRank + 1];
-        parentRankHeights[0] = 1;
-        for (int i = 1; i <= firstLeafRank; i++) {
-            parentRankHeights[i] = (i - 1) % chunkHeight + 1;
-        }
-        // Leaf tasks are different. All of them are of height 1, which means 3 dependencies:
-        // output (parent task to set the leaf hash to) and two inputs (both are null, both are
-        // met when a task is given a leaf). Besides that, if last leaf rank is not the same as
-        // the first leaf rank, then all parent tasks for last leaf rank leaf tasks also are
-        // of height 1
-        if (firstLeafRank != lastLeafRank) {
-            parentRankHeights[lastLeafRank] = 1;
-        }
-
         // Iterate over all dirty leaves one by one. For every leaf, create a new task, if not
         // created. Then look up for a parent task. If it's created, it must not be executed yet,
         // as one of the inputs is this dirty leaf task. If the parent task is not created,
@@ -461,7 +481,9 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
             HashProducingTask curTask = leafTask;
             while (true) {
                 final int curRank = Path.getRank(curPath);
-                final int chunkWidth = 1 << parentRankHeights[curRank];
+                final int parentChunkHeight =
+                        getChunkHeightForInputRank(curRank, firstLeafRank, lastLeafRank, chunkHeight);
+                final int chunkWidth = 1 << parentChunkHeight;
                 // If some tasks have been created at this rank, they can now be marked as
                 // clean. No dirty leaves in the remaining stream may affect these tasks
                 long curStackPath = stack[curRank];
@@ -497,10 +519,10 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                     break;
                 }
 
-                final long parentPath = Path.getGrandParentPath(curPath, parentRankHeights[curRank]);
+                final long parentPath = Path.getGrandParentPath(curPath, parentChunkHeight);
                 ChunkHashTask parentTask = chunkTasks.remove(parentPath);
                 if (parentTask == null) {
-                    parentTask = new ChunkHashTask(hashingPool, parentPath, parentRankHeights[curRank]);
+                    parentTask = new ChunkHashTask(hashingPool, parentPath, parentChunkHeight);
                 }
                 curTask.setOut(parentTask);
 
@@ -532,22 +554,14 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
                     } else {
                         // Get or create a sibling task
                         final HashProducingTask siblingTask;
-                        if (curRank >= firstLeafRank) {
-                            if (siblingPath < firstLeafPath) {
-                                // First leaf rank, but the sibling is a chunk task of height 1 with two input
-                                // leaf tasks on the last leaf rank
-                                assert !chunkTasks.containsKey(siblingPath);
-                                siblingTask = chunkTasks.computeIfAbsent(
-                                        siblingPath, p -> new ChunkHashTask(hashingPool, p, 1));
-                            } else {
-                                // Leaf sibling
-                                assert !leafTasks.containsKey(siblingPath);
-                                siblingTask =
-                                        leafTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(hashingPool, p));
-                            }
+                        if (siblingPath >= firstLeafPath) {
+                            // Leaf sibling
+                            assert !leafTasks.containsKey(siblingPath);
+                            siblingTask = leafTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(hashingPool, p));
                         } else {
                             // Chunk sibling
-                            final int taskChunkHeight = Math.min(chunkHeight, firstLeafRank - curRank);
+                            final int taskChunkHeight =
+                                    getChunkHeightForStartingRank(curRank, firstLeafRank, lastLeafRank, chunkHeight);
                             siblingTask = chunkTasks.computeIfAbsent(
                                     siblingPath, path -> new ChunkHashTask(hashingPool, path, taskChunkHeight));
                         }
