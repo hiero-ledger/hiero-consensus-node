@@ -204,9 +204,7 @@ public class UpdateTokenCustomFeesDecoder {
         final Address tokenAddress = fee.get(ROYALTY_FALLBACK_FEE_TOKEN_ID);
         final long amount = fee.get(ROYALTY_FALLBACK_FEE_AMOUNT);
         return ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress)
-                                .equals(attempt.nativeOperations()
-                                        .entityIdFactory()
-                                        .newTokenId(0))
+                                .equals(TokenID.DEFAULT)
                         && amount == 0
                 ? null
                 : FixedFee.newBuilder()
