@@ -7,7 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
 import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Percentage;
@@ -44,16 +43,6 @@ public class MultipleNodeConsensusResultsAssert
         return new MultipleNodeConsensusResultsAssert(actual);
     }
 
-    @NonNull
-    private MultipleNodeConsensusResultsAssert checkAll(
-            @NonNull final Consumer<SingleNodeConsensusResultAssert> check) {
-        isNotNull();
-        for (final SingleNodeConsensusResult result : actual.results()) {
-            check.accept(OtterAssertions.assertThat(result));
-        }
-        return this;
-    }
-
     /**
      * Verifies that all nodes reached consensus on the same, provided round.
      * Naturally, this check only makes sense while the nodes are halted.
@@ -62,8 +51,14 @@ public class MultipleNodeConsensusResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert hasLastRoundNum(final long expected) {
-        return checkAll(singleNodeResult -> singleNodeResult.hasLastRoundNum(expected));
+    public MultipleNodeConsensusResultsAssert haveLastRoundNum(final long expected) {
+        isNotNull();
+
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasLastRoundNum(expected);
+        }
+
+        return this;
     }
 
     /**
@@ -73,8 +68,14 @@ public class MultipleNodeConsensusResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert hasAdvancedSince(final long expected) {
-        return checkAll(singleNodeResult -> singleNodeResult.hasAdvancedSince(expected));
+    public MultipleNodeConsensusResultsAssert haveAdvancedSinceRound(final long expected) {
+        isNotNull();
+
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasAdvancedSinceRound(expected);
+        }
+
+        return this;
     }
 
     /**
@@ -85,7 +86,8 @@ public class MultipleNodeConsensusResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert hasEqualRoundsIgnoringLast(@NonNull final Percentage expectedDifference) {
+    public MultipleNodeConsensusResultsAssert haveEqualRoundsIgnoringLast(
+            @NonNull final Percentage expectedDifference) {
         isNotNull();
 
         // create list of current rounds
