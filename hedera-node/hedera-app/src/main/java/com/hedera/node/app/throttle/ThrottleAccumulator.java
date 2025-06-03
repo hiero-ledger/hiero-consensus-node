@@ -206,7 +206,7 @@ public class ThrottleAccumulator {
 
         final boolean shouldThrottleByOpsDuration =
                 configSupplier.get().getConfigData(ContractsConfig.class).throttleThrottleByOpsDuration();
-        if (shouldThrottleByOpsDuration && opsDurationThrottle.allow(now, currentOpsDuration)) {
+        if (shouldThrottleByOpsDuration && !opsDurationThrottle.allow(now, currentOpsDuration)) {
             opsDurationThrottle.reclaimLastAllowedUse();
             return true;
         }
