@@ -80,18 +80,13 @@ public class SimpleLinker {
             return null;
         }
 
-        if (parentDescriptor.getAncientIndicator(AncientMode.GENERATION_THRESHOLD) < nonAncientThreshold) {
+        if (parentDescriptor.eventDescriptor().birthRound() < nonAncientThreshold) {
             // ancient parents don't need to be linked
             return null;
         }
 
         final EventImpl candidateParent = parentHashMap.get(parentDescriptor.hash());
         if (candidateParent == null) {
-            return null;
-        }
-
-        if (candidateParent.getGeneration()
-                != parentDescriptor.eventDescriptor().generation()) {
             return null;
         }
 
