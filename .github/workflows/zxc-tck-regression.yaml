@@ -139,9 +139,9 @@ jobs:
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
 
           nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-monitor -n ${{ env.SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:8084 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/mirror-monitor -n ${{ env.SOLO_NAMESPACE }} 5600:80 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:80 > /dev/null 2>&1 &
+          nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:80 > /dev/null 2>&1 &
 
       # Start the TCK client
       - name: Start tck-client
