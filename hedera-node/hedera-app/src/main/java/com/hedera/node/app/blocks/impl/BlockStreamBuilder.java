@@ -1062,7 +1062,11 @@ public class BlockStreamBuilder
         transactionFee = 0L;
 
         accountId = null;
-        contractId = null;
+        // null out contractId only if aborted (used gas is 0)
+        if (contractFunctionResult != null && getGasUsedForContractTxn() == 0) {
+            contractId = null;
+        }
+
         fileId = null;
         tokenId = null;
         topicId = null;

@@ -313,10 +313,14 @@ public class RecordStreamBuilder
 
         newTotalSupply = 0L;
         transactionFee = 0L;
-        contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-        transactionReceiptBuilder.contractID((ContractID) null);
+
+        // null out contractId only if aborted (used gas is 0)
+        if (contractFunctionResult != null && contractFunctionResult.gasUsed() == 0) {
+            transactionReceiptBuilder.contractID((ContractID) null);
+        }
+        contractFunctionResult = null;
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
