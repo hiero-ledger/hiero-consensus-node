@@ -143,6 +143,8 @@ jobs:
           nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:80 > /dev/null 2>&1 &
           nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:80 > /dev/null 2>&1 &
 
+          nohup kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+
       # Start the TCK client
       - name: Start tck-client
         env:
