@@ -103,9 +103,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
-        return heartbeatScheduler.buildHeartbeatWire(
-                period,
-                getUncaughtExceptionHandler());
+        return heartbeatScheduler.buildHeartbeatWire(period, getUncaughtExceptionHandler());
     }
 
     /**
@@ -132,9 +130,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
-        return heartbeatScheduler.buildHeartbeatWire(
-                frequency,
-                getUncaughtExceptionHandler());
+        return heartbeatScheduler.buildHeartbeatWire(frequency, getUncaughtExceptionHandler());
     }
 
     /**
@@ -144,8 +140,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
      */
     @NonNull
     private UncaughtExceptionHandler getUncaughtExceptionHandler() {
-        return Optional.ofNullable(taskSchedulerExceptionHandler)
-                .orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
+        return Optional.ofNullable(taskSchedulerExceptionHandler).orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
     }
 
     /**
