@@ -40,6 +40,7 @@ import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -523,5 +524,11 @@ public class HandleHederaOperations implements HederaOperations {
 
     private boolean needsStandardization(@NonNull final ContractCreateTransactionBody op) {
         return op.hasInitcode() || op.gas() > 0L || op.initialBalance() > 0L;
+    }
+
+    @Override
+    @Nullable
+    public ThrottleAdviser getThrottleAdviser() {
+        return context.throttleAdviser();
     }
 }

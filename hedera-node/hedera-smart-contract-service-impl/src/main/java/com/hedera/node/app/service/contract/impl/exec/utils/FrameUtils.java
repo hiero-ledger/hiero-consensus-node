@@ -388,6 +388,7 @@ public class FrameUtils {
         final HederaOpsDurationCounter opsDurationCounter =
                 initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
         opsDurationCounter.incrementOpsDuration(opsDuration);
+        checkHederaOpsDuration(frame, opsDuration);
     }
 
     /**
@@ -400,5 +401,9 @@ public class FrameUtils {
         final HederaOpsDurationCounter opsDurationCounter =
                 initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
         return opsDurationCounter.getOpsDurationCounter();
+    }
+
+    public static void checkHederaOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
+        proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
     }
 }

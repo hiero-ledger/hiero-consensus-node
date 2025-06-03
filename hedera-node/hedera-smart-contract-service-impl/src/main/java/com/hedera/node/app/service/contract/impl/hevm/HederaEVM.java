@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.checkHederaOpsDuration;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaOpsDuration;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
 
@@ -99,6 +101,7 @@ public class HederaEVM extends EVM {
         byte[] code = frame.getCode().getBytes().toArrayUnsafe();
         Operation[] operationArray = this.operations.getOperations();
         long usedOpsDuration = 0;
+        final long currentOpsDuration = getHederaOpsDuration(frame);
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -216,6 +219,7 @@ public class HederaEVM extends EVM {
                         .getOrDefault(
                                 opcode,
                                 result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR);
+                checkHederaOpsDuration(frame, currentOpsDuration + usedOpsDuration);
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {

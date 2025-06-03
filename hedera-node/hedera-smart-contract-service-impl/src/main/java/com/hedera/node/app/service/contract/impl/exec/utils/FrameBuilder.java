@@ -124,7 +124,7 @@ public class FrameBuilder {
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
-        contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(intrinsicGas));
+        contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(0L));
         return contextEntries;
     }
 
