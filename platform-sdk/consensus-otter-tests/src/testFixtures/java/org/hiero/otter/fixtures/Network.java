@@ -65,7 +65,8 @@ public interface Network {
     void freeze(@NonNull Duration timeout) throws InterruptedException;
 
     /**
-     * Shuts down the network. Once shutdown, it is possible to change the configuration etc. before resuming the
+     * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks
+     * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
      * network with {@link #resume(Duration)}.
      *
      * @param timeout the duration to wait before considering the shutdown operation as failed
