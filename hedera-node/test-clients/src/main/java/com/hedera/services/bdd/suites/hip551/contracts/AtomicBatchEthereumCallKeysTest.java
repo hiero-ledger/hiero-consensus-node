@@ -164,26 +164,26 @@ public class AtomicBatchEthereumCallKeysTest {
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
         final String fungibleToken = "token";
         final String mintTxn = "mintTxn";
-        final String AUTO_ACCOUNT_TRANSACTION_NAME = "autoAccountTransaction";
-        final String MULTI_KEY = "MULTI_KEY";
-        final String HELLO_WORLD_MINT_CONTRACT = "HelloWorldMint";
+        final String autoAccountTransaction = "autoAccountTransaction";
+        final String multiKey = "multiKey";
+        final String helloWorldMint = "HelloWorldMint";
         return hapiTest(
-                newKeyNamed(MULTI_KEY),
+                newKeyNamed(multiKey),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
-                        .via(AUTO_ACCOUNT_TRANSACTION_NAME),
+                        .via(autoAccountTransaction),
                 withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
-                getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
-                uploadInitCode(HELLO_WORLD_MINT_CONTRACT),
+                getTxnRecord(autoAccountTransaction).andAllChildRecords(),
+                uploadInitCode(helloWorldMint),
                 tokenCreate(fungibleToken)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(0)
-                        .adminKey(MULTI_KEY)
-                        .supplyKey(MULTI_KEY)
+                        .adminKey(multiKey)
+                        .supplyKey(multiKey)
                         .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                sourcing(() -> contractCreate(HELLO_WORLD_MINT_CONTRACT, asHeadlongAddress(asAddress(fungible.get())))),
-                atomicBatchDefaultOperator(ethereumCall(HELLO_WORLD_MINT_CONTRACT, "brrr", BigInteger.valueOf(5))
+                sourcing(() -> contractCreate(helloWorldMint, asHeadlongAddress(asAddress(fungible.get())))),
+                atomicBatchDefaultOperator(ethereumCall(helloWorldMint, "brrr", BigInteger.valueOf(5))
                                 .type(EthTxData.EthTransactionType.EIP1559)
                                 .nonce(0)
                                 .via(mintTxn)

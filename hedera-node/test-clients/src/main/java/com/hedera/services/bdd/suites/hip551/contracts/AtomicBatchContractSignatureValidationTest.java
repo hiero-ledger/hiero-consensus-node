@@ -357,9 +357,9 @@ public class AtomicBatchContractSignatureValidationTest {
         final var suffix = "Clone";
         final var newExpiry = Instant.now().getEpochSecond() + DEFAULT_PROPS.defaultExpirationSecs() + 200;
         final var betterExpiry = Instant.now().getEpochSecond() + DEFAULT_PROPS.defaultExpirationSecs() + 300;
-        final var INITIAL_MEMO = "This is a memo string with only Ascii characters";
-        final var NEW_MEMO = "Turning and turning in the widening gyre, the falcon cannot hear the falconer...";
-        final var BETTER_MEMO = "This was Mr. Bleaney's room...";
+        final var initialMemo = "This is a memo string with only Ascii characters";
+        final var newMemo = "Turning and turning in the widening gyre, the falcon cannot hear the falconer...";
+        final var betterMemo = "This was Mr. Bleaney's room...";
         final var initialKeyShape = KeyShape.SIMPLE;
         final var newKeyShape = listOf(3);
         final var payer = "payer";
@@ -373,11 +373,11 @@ public class AtomicBatchContractSignatureValidationTest {
                 atomicBatchDefaultOperator(contractCustomCreate(contract, suffix)
                         .payingWith(payer)
                         .adminKey("INITIAL_ADMIN_KEY")
-                        .entityMemo(INITIAL_MEMO)),
+                        .entityMemo(initialMemo)),
                 getContractInfo(contract + suffix)
                         .payingWith(payer)
                         .logged()
-                        .has(contractWith().memo(INITIAL_MEMO).adminKey("INITIAL_ADMIN_KEY")),
+                        .has(contractWith().memo(initialMemo).adminKey("INITIAL_ADMIN_KEY")),
                 atomicBatchDefaultOperator(contractUpdate(contract + suffix)
                                 .payingWith(payer)
                                 .newKey("NEW_ADMIN_KEY")
@@ -389,34 +389,34 @@ public class AtomicBatchContractSignatureValidationTest {
                                 .payingWith(payer)
                                 .newKey("NEW_ADMIN_KEY")
                                 .signedBy(payer, "NEW_ADMIN_KEY")
-                                .via("updateTxn_2"))
+                                .via("contractUpdateKeyTxn"))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTxnRecord("updateTxn_2").hasPriority(recordWith().status(INVALID_SIGNATURE)),
+                getTxnRecord("contractUpdateKeyTxn").hasPriority(recordWith().status(INVALID_SIGNATURE)),
                 atomicBatchDefaultOperator(
                         contractUpdate(contract + suffix).payingWith(payer).newKey("NEW_ADMIN_KEY")),
                 atomicBatchDefaultOperator(contractUpdate(contract + suffix)
                         .payingWith(payer)
                         .newExpirySecs(newExpiry)
-                        .newMemo(NEW_MEMO)),
+                        .newMemo(newMemo)),
                 getContractInfo(contract + suffix)
                         .payingWith(payer)
                         .logged()
                         .has(contractWith()
                                 .solidityAddress(contract + suffix)
-                                .memo(NEW_MEMO)
+                                .memo(newMemo)
                                 .expiry(newExpiry)),
                 atomicBatchDefaultOperator(
-                        contractUpdate(contract + suffix).payingWith(payer).newMemo(BETTER_MEMO)),
+                        contractUpdate(contract + suffix).payingWith(payer).newMemo(betterMemo)),
                 getContractInfo(contract + suffix)
                         .payingWith(payer)
                         .logged()
-                        .has(contractWith().memo(BETTER_MEMO).expiry(newExpiry)),
+                        .has(contractWith().memo(betterMemo).expiry(newExpiry)),
                 atomicBatchDefaultOperator(
                         contractUpdate(contract + suffix).payingWith(payer).newExpirySecs(betterExpiry)),
                 getContractInfo(contract + suffix)
                         .payingWith(payer)
                         .logged()
-                        .has(contractWith().memo(BETTER_MEMO).expiry(betterExpiry)),
+                        .has(contractWith().memo(betterMemo).expiry(betterExpiry)),
                 atomicBatchDefaultOperator(contractUpdate(contract + suffix)
                                 .payingWith(payer)
                                 .signedBy(payer)
@@ -427,13 +427,13 @@ public class AtomicBatchContractSignatureValidationTest {
                 atomicBatchDefaultOperator(contractUpdate(contract + suffix)
                                 .payingWith(payer)
                                 .signedBy(payer)
-                                .newMemo(NEW_MEMO)
+                                .newMemo(newMemo)
                                 .via("updateTxn_4"))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTxnRecord("updateTxn_4").hasPriority(recordWith().status(INVALID_SIGNATURE)),
                 atomicBatchDefaultOperator(contractUpdate(contract)
                                 .payingWith(payer)
-                                .newMemo(BETTER_MEMO)
+                                .newMemo(betterMemo)
                                 .via("updateTxn_5"))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTxnRecord("updateTxn_5").hasPriority(recordWith().status(MODIFYING_IMMUTABLE_CONTRACT)),

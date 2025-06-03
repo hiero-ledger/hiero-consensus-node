@@ -85,17 +85,15 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
+/**
+ * This class tests the behavior of atomic batch operations
+ * involving contract keys and token operations.
+ * It includes various scenarios for minting, burning, associating,
+ * and dissociating tokens using contract and delegate keys.
+ */
 @HapiTestLifecycle
-public class AtomicBatchContractKeysHTSTest {
+public class AtomicBatchContractKeysHtsTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-    }
-
     private static final long GAS_TO_OFFER = 1_500_000L;
 
     private static final String TOKEN_TREASURY = "treasury";
@@ -145,6 +143,13 @@ public class AtomicBatchContractKeysHTSTest {
     private static final String FIRST_STRING_FOR_MINT = "First!";
     private static final String ACCOUNT_NAME = "anybody";
     private static final String TYPE_OF_TOKEN = "fungibleToken";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(
+                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
@@ -1169,7 +1174,7 @@ public class AtomicBatchContractKeysHTSTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKYC() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
@@ -1630,7 +1635,7 @@ public class AtomicBatchContractKeysHTSTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKYC() {
+    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
@@ -1846,7 +1851,7 @@ public class AtomicBatchContractKeysHTSTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKYC() {
+    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
