@@ -187,11 +187,11 @@ public class BlockNodeConnectionManager {
             logger.info("Block node configuration: {}", availableBlockNodes);
 
             workerThread = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
+            blockStreamMetrics.registerMetrics();
         } else {
             logger.info("Block node streaming is disabled; will not setup connections to block nodes");
             availableBlockNodes = new ArrayList<>();
-            // Create a dummy thread that does nothing to avoid null checks later
-            workerThread = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(() -> {});
+            workerThread = null;
         }
 
         blockStreamWorkerThreadRef = new AtomicReference<>(workerThread);
@@ -356,12 +356,14 @@ public class BlockNodeConnectionManager {
         // Stop the block stream worker loop thread
         isConnectionManagerActive.set(false);
         final Thread workerThread = blockStreamWorkerThreadRef.get();
-        workerThread.interrupt();
-        try {
-            workerThread.join();
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.error("Interrupted while waiting for block stream worker thread to terminate", e);
+        if (workerThread != null) {
+            workerThread.interrupt();
+            try {
+                workerThread.join();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error("Interrupted while waiting for block stream worker thread to terminate", e);
+            }
         }
 
         // Close all of the connections
@@ -404,8 +406,6 @@ public class BlockNodeConnectionManager {
      * Selects the next highest priority available block node and schedules a connection attempt.
      * @return true if a connection attempt will be made to a node, else false (i.e. no available nodes to connect)
      */
-    // Note: This is made public for future use when the block buffer is partially saturated, until then only tests call
-    // it
     public boolean selectNewBlockNodeForStreaming() {
         if (!isStreamingEnabled.get()) {
             return false;

@@ -107,7 +107,7 @@ class PlatformTestingToolStateTest {
         roster = new Roster(Collections.EMPTY_LIST);
         transaction = mock(TransactionWrapper.class);
         platformEvent = mock(PlatformEvent.class);
-        eventWindow = EventWindowBuilder.birthRoundMode()
+        eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(10)
                 .setAncientThreshold(5)
                 .setExpiredThreshold(20)
