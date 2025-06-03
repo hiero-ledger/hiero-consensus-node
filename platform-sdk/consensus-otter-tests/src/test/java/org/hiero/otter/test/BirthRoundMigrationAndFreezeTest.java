@@ -62,7 +62,8 @@ public class BirthRoundMigrationAndFreezeTest {
 
         // Initiate the migration
         env.transactionGenerator().stop();
-        network.prepareUpgrade(ONE_MINUTE);
+        network.freeze(ONE_MINUTE);
+        network.shutdown(ONE_MINUTE);
 
         for (final Node node : network.getNodes()) {
             node.getConfiguration()
@@ -79,7 +80,8 @@ public class BirthRoundMigrationAndFreezeTest {
 
         // Initiate the migration
         env.transactionGenerator().stop();
-        network.prepareUpgrade(ONE_MINUTE);
+        network.freeze(ONE_MINUTE);
+        network.shutdown(ONE_MINUTE);
 
         // Events with a created time before this time should have a maximum birth round of
         // the freeze round. Events created after this time should have a birth round greater

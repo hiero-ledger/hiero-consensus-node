@@ -53,14 +53,21 @@ public interface Network {
     List<Node> getNodes();
 
     /**
-     * Prepares the network for an upgrade. All required preparations steps are executed and the network
-     * is shutdown. Once shutdown, it is possible to change the configuration etc. before resuming the
-     * network with {@link #resume(Duration)}.
+     * Freezes the network.
      *
-     * @param timeout the duration to wait before considering the preparation operation as failed
+     * @param timeout the duration to wait before considering the freeze operation as failed
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException;
+    void freeze(@NonNull Duration timeout) throws InterruptedException;
+
+    /**
+     * Shuts down the network. Once shutdown, it is possible to change the configuration etc. before resuming the
+     * network with {@link #resume(Duration)}.
+     *
+     * @param timeout the duration to wait before considering the shutdown operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    void shutdown(@NonNull Duration timeout) throws InterruptedException;
 
     /**
      * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.

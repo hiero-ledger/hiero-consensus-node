@@ -77,6 +77,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      *
      * @param randotron the random generator
      * @param timeManager the time manager
+     * @param logging the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
      */
     public TurtleNetwork(
@@ -174,11 +175,11 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void prepareUpgrade(@NonNull final Duration timeout) throws InterruptedException {
+    public void freeze(@NonNull final Duration timeout) {
         if (state != State.RUNNING) {
-            throw new IllegalStateException("Cannot prepare upgrade when the network is not running.");
+            throw new IllegalStateException("Can only freeze when the network is running.");
         }
-        log.info("Preparing upgrade...");
+        log.info("Preparing freeze...");
 
         log.debug("Sending TurtleFreezeTransaction transaction...");
         final TurtleTransaction freezeTransaction =
@@ -189,8 +190,18 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         if (!timeManager.waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {
             fail("Timeout while waiting for all nodes to freeze.");
         }
+    }
 
-        log.debug("Shutting down nodes gracefully...");
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void shutdown(@NonNull final Duration timeout) throws InterruptedException {
+        if (state != State.RUNNING) {
+            throw new IllegalStateException("Can only shutdown when the network is running.");
+        }
+
+        log.info("Shutting down nodes gracefully...");
         for (final TurtleNode node : nodes) {
             node.shutdownGracefully(timeout);
         }

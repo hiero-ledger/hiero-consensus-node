@@ -52,7 +52,8 @@ class BirthRoundMigrationTest {
 
         // Initiate the migration
         env.transactionGenerator().stop();
-        network.prepareUpgrade(ONE_MINUTE);
+        network.freeze(ONE_MINUTE);
+        network.shutdown(ONE_MINUTE);
 
         // Before migrating to birth round, all events should have a birth round of 1L
         assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1L);
