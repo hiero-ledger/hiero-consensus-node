@@ -21,8 +21,10 @@ public class StandardOutputWire<OUT> extends ForwardingOutputWire<OUT, OUT> {
     /**
      * Constructor.
      *
-     * @param model the wiring model containing this output wire
-     * @param name  the name of the output wire
+     * @param model                    the wiring model containing this output wire
+     * @param name                     the name of the output wire
+     * @param uncaughtExceptionHandler handler for uncaught exceptions that occur while processing data on this output
+     *                                 wire
      */
     public StandardOutputWire(
             @NonNull final TraceableWiringModel model,

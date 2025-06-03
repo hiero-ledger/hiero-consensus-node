@@ -19,6 +19,7 @@ import java.util.Objects;
  * A scheduler that produces heartbeats at a specified rate.
  */
 public abstract class AbstractHeartbeatScheduler {
+    /** Name used by the heartbeat task scheduler */
     public static final String HEARTBEAT_SCHEDULER_NAME = "Heartbeat";
 
     private final TraceableWiringModel model;
@@ -47,9 +48,10 @@ public abstract class AbstractHeartbeatScheduler {
      * of heartbeats may vary. This is a best effort algorithm, and actual rates may vary depending on a variety of
      * factors.
      *
-     * @param period the period of the heartbeat. For example, setting a period of 100ms will cause the heartbeat to be
-     *               sent at 10 hertz. Note that time is measured at millisecond precision, and so periods less than 1ms
-     *               are not supported.
+     * @param period           the period of the heartbeat. For example, setting a period of 100ms will cause the
+     *                         heartbeat to be sent at 10 hertz. Note that time is measured at millisecond precision,
+     *                         and so periods less than 1ms are not supported.
+     * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
      * @return the output wire
      * @throws IllegalStateException if start has already been called
      */
@@ -81,8 +83,9 @@ public abstract class AbstractHeartbeatScheduler {
      * of heartbeats may vary. This is a best effort algorithm, and actual rates may vary depending on a variety of
      * factors.
      *
-     * @param frequency the frequency of the heartbeat in hertz. Note that time is measured at millisecond precision,
-     *                  and so frequencies greater than 1000hz are not supported.
+     * @param frequency        the frequency of the heartbeat in hertz. Note that time is measured at millisecond
+     *                         precision, and so frequencies greater than 1000hz are not supported.
+     * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
      * @return the output wire
      */
     public OutputWire<Instant> buildHeartbeatWire(

@@ -157,9 +157,7 @@ public class StandardWiringModel extends TraceableWiringModel {
         return getHeartbeatScheduler()
                 .buildHeartbeatWire(
                         period,
-                        Optional.ofNullable(taskSchedulerExceptionHandler)
-                                .orElse(ExceptionHandlers.defaultExceptionHandler(
-                                        AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME)));
+                        getHeartbeatExceptionHandler());
     }
 
     /**
@@ -191,7 +189,7 @@ public class StandardWiringModel extends TraceableWiringModel {
         return getHeartbeatScheduler()
                 .buildHeartbeatWire(
                         frequency,
-                        ExceptionHandlers.defaultExceptionHandler(AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME));
+                        getHeartbeatExceptionHandler());
     }
 
     /**
@@ -203,6 +201,18 @@ public class StandardWiringModel extends TraceableWiringModel {
         if (scheduler.getType() == SEQUENTIAL_THREAD) {
             threadSchedulers.add((SequentialThreadTaskScheduler<?>) scheduler);
         }
+    }
+
+    /**
+     * Get the uncaught exception handler for the heartbeat scheduler if it has been set, otherwise return a default
+     *
+     * @return the uncaught exception handler
+     */
+    @NonNull
+    private UncaughtExceptionHandler getHeartbeatExceptionHandler() {
+        return Optional.ofNullable(taskSchedulerExceptionHandler)
+                .orElse(ExceptionHandlers.defaultExceptionHandler(
+                        AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME));
     }
 
     /**

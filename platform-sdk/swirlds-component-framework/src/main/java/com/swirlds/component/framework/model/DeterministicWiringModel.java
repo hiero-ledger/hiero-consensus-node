@@ -93,9 +93,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     public <O> TaskSchedulerBuilder<O> schedulerBuilder(@NonNull final String name) {
         final DeterministicTaskSchedulerBuilder<O> builder =
                 new DeterministicTaskSchedulerBuilder<>(metrics, this, name, this::submitWork);
-        if (taskSchedulerExceptionHandler != null) {
-            builder.withUncaughtExceptionHandler(taskSchedulerExceptionHandler);
-        }
+        builder.withUncaughtExceptionHandler(getUncaughtExceptionHandler());
         return builder;
     }
 
@@ -107,8 +105,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
         return heartbeatScheduler.buildHeartbeatWire(
                 period,
-                Optional.ofNullable(taskSchedulerExceptionHandler)
-                        .orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION));
+                getUncaughtExceptionHandler());
     }
 
     /**
@@ -137,8 +134,18 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
         return heartbeatScheduler.buildHeartbeatWire(
                 frequency,
-                Optional.ofNullable(taskSchedulerExceptionHandler)
-                        .orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION));
+                getUncaughtExceptionHandler());
+    }
+
+    /**
+     * Get the uncaught exception handler for task schedulers if it has been set, otherwise return a default
+     *
+     * @return the uncaught exception handler
+     */
+    @NonNull
+    private UncaughtExceptionHandler getUncaughtExceptionHandler() {
+        return Optional.ofNullable(taskSchedulerExceptionHandler)
+                .orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
     }
 
     /**

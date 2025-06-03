@@ -36,8 +36,10 @@ public abstract class OutputWire<OUT> {
     /**
      * Constructor.
      *
-     * @param model the wiring model containing this output wire
-     * @param name  the name of the output wire
+     * @param model                    the wiring model containing this output wire
+     * @param name                     the name of the output wire
+     * @param uncaughtExceptionHandler handler for uncaught exceptions that occur while processing data on this output
+     *                                 wire
      */
     public OutputWire(
             @NonNull final TraceableWiringModel model,
@@ -69,6 +71,13 @@ public abstract class OutputWire<OUT> {
         return model;
     }
 
+    /**
+     * Get the uncaught exception handler for this output wire. This handler is called when an uncaught exception
+     * occurs while processing data on this output wire.
+     *
+     * @return the uncaught exception handler
+     */
+    @NonNull
     protected UncaughtExceptionHandler getUncaughtExceptionHandler() {
         return uncaughtExceptionHandler;
     }

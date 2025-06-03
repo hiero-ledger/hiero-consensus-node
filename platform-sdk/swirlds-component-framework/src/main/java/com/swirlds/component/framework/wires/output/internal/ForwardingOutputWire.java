@@ -17,8 +17,10 @@ public abstract class ForwardingOutputWire<IN, OUT> extends OutputWire<OUT> {
     /**
      * Constructor.
      *
-     * @param model the wiring model containing this output wire
-     * @param name  the name of the output wire
+     * @param model                    the wiring model containing this output wire
+     * @param name                     the name of the output wire
+     * @param uncaughtExceptionHandler handler for uncaught exceptions that occur while processing data on this output
+     *                                 wire
      */
     protected ForwardingOutputWire(
             @NonNull final TraceableWiringModel model,
