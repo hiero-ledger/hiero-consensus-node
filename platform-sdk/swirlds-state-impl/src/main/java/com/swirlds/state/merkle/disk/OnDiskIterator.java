@@ -2,7 +2,6 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
-import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.VirtualMapKey;
@@ -18,14 +17,13 @@ import java.util.NoSuchElementException;
 
 public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
 
-    private final int fieldNumber;
+    private final int stateId;
     private final MerkleIterator<MerkleNode> itr;
     private K next = null;
 
-    public OnDiskIterator(
-            @NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec, final int fieldNumber) {
+    public OnDiskIterator(@NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec, final int stateId) {
         super(virtualMap, keyCodec);
-        this.fieldNumber = fieldNumber;
+        this.stateId = stateId;
         itr = requireNonNull(virtualMap).treeIterator();
     }
 
@@ -38,12 +36,10 @@ public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
             final MerkleNode merkleNode = itr.next();
             if (merkleNode instanceof VirtualLeafNode leaf) {
                 final Bytes k = leaf.getKey();
-                // VirtualMap metadata should not be considered as a possible result of the iterator
-                if (k.equals(VM_STATE_KEY)) {
-                    continue;
-                }
-                int nextFieldNumber = readNextFieldNumber(k.toReadableSequentialData());
-                if (fieldNumber == nextFieldNumber) {
+                // Here we rely on the fact that `VirtualMapKey` has a single `OneOf` field.
+                // So, tge next field number is the key type
+                int nextNextStateId = readNextFieldNumber(k.toReadableSequentialData());
+                if (stateId == nextNextStateId) {
                     try {
                         VirtualMapKey parse = VirtualMapKey.PROTOBUF.parse(k);
                         this.next = parse.key().as();
