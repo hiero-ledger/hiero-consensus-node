@@ -15,6 +15,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -60,6 +61,13 @@ class SwirldsStateManagerTests {
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        if (!initialState.isDestroyed()) {
+            initialState.release();
+        }
+        if (!swirldStateManager.getConsensusState().isDestroyed()) {
+            swirldStateManager.getConsensusState().release();
+        }
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
@@ -96,19 +104,17 @@ class SwirldsStateManagerTests {
                 state1.getReservationCount(),
                 "Loading from signed state should increment the reference count, because it is now referenced by the "
                         + "signed state and the previous immutable state in SwirldStateManager.");
-        final Reservable consensusState1 =
-                swirldStateManager.getConsensusState().getRoot();
+        final MerkleNodeState consensusState1 = swirldStateManager.getConsensusState();
         assertEquals(
                 1,
-                consensusState1.getReservationCount(),
+                consensusState1.getRoot().getReservationCount(),
                 "The current consensus state should have a single reference count.");
 
         MerkleDb.resetDefaultInstancePath();
         final SignedState ss2 = newSignedState();
         MerkleDb.resetDefaultInstancePath();
         swirldStateManager.loadFromSignedState(ss2);
-        final Reservable consensusState2 =
-                swirldStateManager.getConsensusState().getRoot();
+        final MerkleNodeState consensusState2 = swirldStateManager.getConsensusState();
 
         Reservable state2 = ss2.getState().getRoot();
         assertEquals(
@@ -118,13 +124,17 @@ class SwirldsStateManagerTests {
                         + "signed state and the previous immutable state in SwirldStateManager.");
         assertEquals(
                 1,
-                consensusState2.getReservationCount(),
+                consensusState2.getRoot().getReservationCount(),
                 "The current consensus state should have a single reference count.");
         assertEquals(
                 1,
                 state1.getReservationCount(),
                 "The previous immutable state was replaced, so the old state's reference count should have been "
                         + "decremented.");
+        state1.release();
+        state2.release();
+        state2.release();
+        consensusState2.release();
     }
 
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {

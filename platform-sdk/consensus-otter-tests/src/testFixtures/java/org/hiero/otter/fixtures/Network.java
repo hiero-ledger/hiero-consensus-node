@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
 
 /**
@@ -70,17 +71,12 @@ public interface Network {
     void resume(@NonNull Duration duration) throws InterruptedException;
 
     /**
-     * Gets the consensus rounds of multiple nodes.
+     * Gets the consensus rounds of all nodes.
      *
-     * <p>It is possible to request only the results of a subset of nodes by providing filters.
-     * The filters are applied to the nodes and only the nodes that match the filters are included
-     * in the result. If no filters are provided, all nodes are included in the result.
-     *
-     * @param filters the filters to apply to the nodes
      * @return the consensus rounds of the filtered nodes
      */
     @NonNull
-    MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters);
+    MultipleNodeConsensusResults getConsensusResults();
 
     /**
      * Gets the log results of all nodes.
@@ -97,4 +93,12 @@ public interface Network {
      */
     @NonNull
     MultipleNodeStatusProgression getStatusProgression();
+
+    /**
+     * Gets the results related to PCES files.
+     *
+     * @return the PCES files created by the nodes
+     */
+    @NonNull
+    MultipleNodePcesResults getPcesResults();
 }

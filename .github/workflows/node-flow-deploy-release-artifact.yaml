@@ -144,7 +144,7 @@ jobs:
 
       - name: Trigger ZXF Prepare Extended Test Suite
         if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
-        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
@@ -165,7 +165,7 @@ jobs:
 
       - name: Trigger ZXF Deploy Integration
         if: ${{ needs.release-branch.result == 'success' && steps.check-integration-job.outputs.enabled == 'true' && !cancelled() }}
-        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/node-zxf-deploy-integration.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
@@ -186,7 +186,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Hedera Services Code
+      - name: Checkout Hiero Consensus Node Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}

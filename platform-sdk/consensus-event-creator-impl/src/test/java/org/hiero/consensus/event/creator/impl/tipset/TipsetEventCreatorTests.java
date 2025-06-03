@@ -2,15 +2,15 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.calculateNewEventCreationTime;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithParent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEventAndMaybeAdvanceCreatorScore;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -22,7 +22,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,31 +31,45 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.junit.extensions.ParamName;
+import org.hiero.junit.extensions.ParamSource;
+import org.hiero.junit.extensions.ParameterCombinationExtension;
+import org.hiero.junit.extensions.UseParameterSources;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 @DisplayName("TipsetEventCreatorImpl Tests")
 class TipsetEventCreatorTests {
 
     /**
-     * Nodes take turns creating events in a round-robin fashion.
+     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize = 10).
+     * It iterates 100 times, and within each iteration, it cycles through all nodes in the roster in order.
+     * For each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions, triggers the node to create a new event, distributes this event to other nodes, and then validates the newly created event.
+     * The test asserts that every node is always able to create an event and, if the clock is advancing, that the event's creation time matches the simulated current time.
+     * The ancientMode parameter is used to assign a birthround or a generation at the time the event is being created.
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
      */
-    @ParameterizedTest
-    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues")
+    })
     @DisplayName("Round Robin Test")
-    void roundRobinTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
+    public void roundRobinTest(@ParamName("advancingClock") final boolean advancingClock) {
+
         final Random random = getRandomPrintSeed();
 
         final int networkSize = 10;
@@ -68,12 +81,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -99,19 +107,37 @@ class TipsetEventCreatorTests {
                     assertEquals(event.getTimeCreated(), time.now());
                 }
 
-                validateNewEvent(events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                validateNewEventAndMaybeAdvanceCreatorScore(
+                        events, event, transactionSupplier.get(), nodes.get(nodeId), false);
             }
         }
     }
 
     /**
-     * Each cycle, randomize the order in which nodes are asked to create events.
+     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize = 10).
+     * It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order.
+     * For each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions, triggers the node to create a new event, distributes this event to other nodes, and then validates the newly created event.
+     * The test asserts that every node is always able to create an event and, if the clock is advancing, that the event's creation time matches the simulated current time.
+     * The ancientMode parameter is used to assign a birthround or a generation at the time the event is being created.
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @ParameterizedTest
-    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Random Order Test")
-    void randomOrderTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed();
+    void randomOrderTest(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -122,12 +148,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -162,7 +183,8 @@ class TipsetEventCreatorTests {
                 if (advancingClock) {
                     assertEquals(event.getTimeCreated(), time.now());
                 }
-                validateNewEvent(events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                validateNewEventAndMaybeAdvanceCreatorScore(
+                        events, event, transactionSupplier.get(), nodes.get(nodeId), false);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -170,15 +192,28 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test is very similar to the {@link #randomOrderTest(boolean, boolean)}, except that we repeat the test
+     * This test is very similar to the {@link #randomOrderTest(boolean, Random)}, except that we repeat the test
      * several times using the same event creator. This fails when we do not clear the event creator in between runs,
      * but should not fail if we have cleared the vent creator.
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Clear Test")
-    void clearTest(final boolean advancingClock) {
-        final Random random = getRandomPrintSeed();
+    void clearTest(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -189,8 +224,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes =
-                buildSimulatedNodes(random, time, roster, transactionSupplier::get, AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         for (int i = 0; i < 5; i++) {
             final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
@@ -226,7 +260,8 @@ class TipsetEventCreatorTests {
                     if (advancingClock) {
                         assertEquals(event.getTimeCreated(), time.now());
                     }
-                    validateNewEvent(events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                    validateNewEventAndMaybeAdvanceCreatorScore(
+                            events, event, transactionSupplier.get(), nodes.get(nodeId), false);
                 }
 
                 assertTrue(atLeastOneEventCreated);
@@ -248,12 +283,25 @@ class TipsetEventCreatorTests {
     /**
      * Each node creates many events in a row without allowing others to take a turn. Eventually, a node should be
      * unable to create another event without first receiving an event from another node.
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @ParameterizedTest
-    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Create Many Events In A Row Test")
-    void createManyEventsInARowTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed();
+    void createManyEventsInARowTest(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -264,12 +312,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -302,7 +345,8 @@ class TipsetEventCreatorTests {
                     if (advancingClock) {
                         assertEquals(event.getTimeCreated(), time.now());
                     }
-                    validateNewEvent(events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                    validateNewEventAndMaybeAdvanceCreatorScore(
+                            events, event, transactionSupplier.get(), nodes.get(nodeId), false);
 
                     // At best, we can create a genesis event and one event per node in the network.
                     // We are unlikely to create this many, but we definitely shouldn't be able to go beyond this.
@@ -317,17 +361,27 @@ class TipsetEventCreatorTests {
      * The tipset algorithm must still build on top of zero weight nodes, even though they don't help consensus to
      * advance.
      */
-    @ParameterizedTest
-    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Zero Weight Node Test")
-    void zeroWeightNodeTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed();
-
+    void zeroWeightNodeTest(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
         Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
 
-        final NodeId zeroWeightNode = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId zeroWeightNode =
+                NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         roster = Roster.newBuilder()
                 .rosterEntries(roster.rosterEntries().stream()
@@ -345,12 +399,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> allEvents = new HashMap<>();
 
@@ -398,7 +447,8 @@ class TipsetEventCreatorTests {
                 if (advancingClock) {
                     assertEquals(newEvent.getTimeCreated(), time.now());
                 }
-                validateNewEvent(allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false);
+                validateNewEventAndMaybeAdvanceCreatorScore(
+                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -415,18 +465,31 @@ class TipsetEventCreatorTests {
      * The tipset algorithm must still build on top of zero weight nodes, even though they don't help consensus to
      * advance. Further disadvantage the zero weight node by delaying the propagation of its events, so that others find
      * that they do not get transitive tipset score improvements by using it.
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @ParameterizedTest
-    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Zero Weight Slow Node Test")
-    void zeroWeightSlowNodeTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed();
-
+    void zeroWeightSlowNodeTest(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
         Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
 
-        final NodeId zeroWeightNode = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId zeroWeightNode =
+                NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
         roster = Roster.newBuilder()
                 .rosterEntries(roster.rosterEntries().stream()
@@ -444,12 +507,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> allEvents = new HashMap<>();
         final List<PlatformEvent> slowNodeEvents = new ArrayList<>();
@@ -517,7 +575,8 @@ class TipsetEventCreatorTests {
                 if (advancingClock) {
                     assertEquals(newEvent.getTimeCreated(), time.now());
                 }
-                validateNewEvent(allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true);
+                validateNewEventAndMaybeAdvanceCreatorScore(
+                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -530,11 +589,28 @@ class TipsetEventCreatorTests {
         assertTrue(zeroWeightNodeOtherParentCount > 1);
     }
 
-    @ParameterizedTest
-    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    /**
+     *  This test evaluates the corner case of 1 node network.
+     *  it should be impossible for a node to be unable to create an event.
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Size One Network Test")
-    void sizeOneNetworkTest(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed();
+    void sizeOneNetworkTest(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 1;
 
@@ -545,16 +621,11 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
-        final RosterEntry address = roster.rosterEntries().get(0);
+        final RosterEntry address = roster.rosterEntries().getFirst();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
             if (advancingClock) {
@@ -583,11 +654,18 @@ class TipsetEventCreatorTests {
      * There was once a bug that could cause event creation to become frozen. This was because we weren't properly
      * including the advancement weight of the self parent when considering the theoretical advancement weight of a new
      * event.
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @Test
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Frozen Event Creation Bug")
-    void frozenEventCreationBug() {
-        final Random random = getRandomPrintSeed();
+    void frozenEventCreationBug(@ParamName("random") final Random random) {
 
         final int networkSize = 4;
 
@@ -605,19 +683,18 @@ class TipsetEventCreatorTests {
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
         // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
-        final EventCreator eventCreator = buildEventCreator(
-                random, time, roster, nodeA, Collections::emptyList, AncientMode.GENERATION_THRESHOLD);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
 
         // Create some genesis events
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
         final PlatformEvent eventB1 =
-                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventC1 =
-                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventD1 =
-                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -651,7 +728,7 @@ class TipsetEventCreatorTests {
             otherParentId = null;
         }
 
-        final PlatformEvent legalOtherParent = createTestEvent(random, otherParentId, 2, ROUND_FIRST);
+        final PlatformEvent legalOtherParent = createTestEventWithParent(random, otherParentId, 2, ROUND_FIRST);
 
         eventCreator.registerEvent(legalOtherParent);
 
@@ -661,12 +738,19 @@ class TipsetEventCreatorTests {
 
     /**
      * Event from nodes not in the address book should not be used as parents for creating new events.
+     *
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Not Registering Events From NodeIds Not In AddressBook")
-    void notRegisteringEventsFromNodesNotInAddressBook(@NonNull final AncientMode ancientMode) {
-        final Random random = getRandomPrintSeed();
+    void notRegisteringEventsFromNodesNotInAddressBook(@ParamName("random") final Random random) {
 
         final int networkSize = 4;
 
@@ -686,23 +770,22 @@ class TipsetEventCreatorTests {
         final NodeId nodeE = NodeId.of(nodeD.id() + 1);
 
         // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, nodeA, Collections::emptyList, ancientMode);
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         // Create some genesis events
         final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
         assertNotNull(eventA1);
 
         final PlatformEvent eventB1 =
-                createTestEvent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeB, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventC1 =
-                createTestEvent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeC, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventD1 =
-                createTestEvent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeD, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         final PlatformEvent eventE1 =
-                createTestEvent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, nodeE, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
 
         eventCreator.registerEvent(eventB1);
         eventCreator.registerEvent(eventC1);
@@ -733,13 +816,18 @@ class TipsetEventCreatorTests {
     /**
      * There was once a bug where it was possible to create a self event that was stale at the moment of its creation
      * time. This test verifies that this is no longer possible.
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("No Stale Events At Creation Time Test")
-    void noStaleEventsAtCreationTimeTest(@NonNull final AncientMode ancientMode) {
-        final Random random = getRandomPrintSeed();
-
+    void noStaleEventsAtCreationTimeTest(@ParamName("random") final Random random) {
         final int networkSize = 4;
 
         final Roster roster = RandomRosterBuilder.create(random)
@@ -750,11 +838,11 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().getFirst().nodeId()); // self
 
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, nodeA, Collections::emptyList, ancientMode);
-        eventCreator.setEventWindow(new EventWindow(1, 100, 1 /* ignored in this context */, ancientMode));
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList);
+        eventCreator.setEventWindow(
+                EventWindowBuilder.builder().setAncientThreshold(100).build());
 
         // Since there are no other parents available, the next event created would have a generation of 0
         // (if event creation were permitted). Since the current minimum generation non ancient is 100,
@@ -765,12 +853,24 @@ class TipsetEventCreatorTests {
     /**
      * Checks that birth round on events is being set if the setting for using birth round is set.
      * <p>
+     * @param advancingClock  {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @ParameterizedTest
-    @CsvSource({"true, true", "true, false", "false, true", "false, false"})
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Check setting of birthRound on new events.")
-    void checkSettingEventBirthRound(final boolean advancingClock, final boolean useBirthRoundForAncient) {
-        final Random random = getRandomPrintSeed();
+    void checkSettingEventBirthRound(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -781,12 +881,7 @@ class TipsetEventCreatorTests {
 
         final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
 
-        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(
-                random,
-                time,
-                roster,
-                transactionSupplier::get,
-                useBirthRoundForAncient ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD);
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -803,22 +898,12 @@ class TipsetEventCreatorTests {
 
                 final long pendingConsensusRound = eventIndex + 2;
                 if (eventIndex > 0) {
-
-                    final long ancientThreshold;
-                    if (useBirthRoundForAncient) {
-                        ancientThreshold = Math.max(EventConstants.MINIMUM_ROUND_CREATED, eventIndex - 26);
-                    } else {
-                        ancientThreshold = Math.max(EventConstants.FIRST_GENERATION, eventIndex - 26);
-                    }
-
                     // Set non-ancientEventWindow after creating genesis event from each node.
-                    eventCreator.setEventWindow(new EventWindow(
-                            pendingConsensusRound - 1,
-                            ancientThreshold,
-                            1 /* ignored in this context */,
-                            useBirthRoundForAncient
-                                    ? AncientMode.BIRTH_ROUND_THRESHOLD
-                                    : AncientMode.GENERATION_THRESHOLD));
+                    eventCreator.setEventWindow(EventWindowBuilder.builder()
+                            .setLatestConsensusRound(pendingConsensusRound - 1)
+                            .setNewEventBirthRound(pendingConsensusRound)
+                            .setAncientThresholdOrGenesis(eventIndex - 26)
+                            .build());
                 }
 
                 final PlatformEvent event = eventCreator.maybeCreateEvent();
@@ -837,11 +922,7 @@ class TipsetEventCreatorTests {
                     assertEquals(ROUND_FIRST, birthRound);
                 } else {
                     final long birthRound = event.getEventCore().birthRound();
-                    if (useBirthRoundForAncient) {
-                        assertEquals(pendingConsensusRound, birthRound);
-                    } else {
-                        assertEquals(ROUND_FIRST, birthRound);
-                    }
+                    assertEquals(pendingConsensusRound, birthRound);
                 }
             }
         }
@@ -852,25 +933,31 @@ class TipsetEventCreatorTests {
      * network, sends the event creator self events (with nGen values assigned), then creates a new event. The new event
      * should have the proper self parent.
      */
-    @Test
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Self event with highest nGen is used as latest self event on startup")
-    void lastSelfEventUpdatedDuringPCESReplay() {
-        final Random random = getRandomPrintSeed();
+    void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final int numEvents = 100;
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final EventCreator eventCreator = buildEventCreator(
-                random, new FakeTime(), roster, selfId, Collections::emptyList, AncientMode.GENERATION_THRESHOLD);
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList);
 
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD));
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         final List<PlatformEvent> pcesEvents = new ArrayList<>();
         PlatformEvent eventWithHighestNGen = null;
         for (int i = 0; i < numEvents; i++) {
-            final PlatformEvent event = createTestEvent(random, selfId, i + 1, ROUND_FIRST);
+            final PlatformEvent event = createTestEventWithParent(random, selfId, i + 1, ROUND_FIRST);
             if (eventWithHighestNGen == null || event.getNGen() > eventWithHighestNGen.getNGen()) {
                 eventWithHighestNGen = event;
             }
@@ -892,20 +979,29 @@ class TipsetEventCreatorTests {
     /**
      * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
      * self event for the first time from the intake pipeline.
+     *
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
-    @Test
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("Last Self Event just created is not overwritten")
-    void lastSelfEventNotOverwritten() {
-        final Random random = getRandomPrintSeed();
+    void lastSelfEventNotOverwritten(@ParamName("random") final Random random) {
+
         final int networkSize = 1;
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final EventCreator eventCreator = buildEventCreator(
-                random, new FakeTime(), roster, selfId, Collections::emptyList, AncientMode.GENERATION_THRESHOLD);
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList);
 
         // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
-        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD));
+        eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
         final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
         assertNotNull(newEvent);
@@ -917,7 +1013,7 @@ class TipsetEventCreatorTests {
         // because we want to favor any self event last created by the event creator even though it does not have an
         // nGen set.
         final PlatformEvent oldSelfEvent =
-                createTestEvent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
+                createTestEventWithParent(random, selfId, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
         eventCreator.registerEvent(oldSelfEvent);
 
         // Now create another event and check that the self parent is the expected event.
@@ -927,34 +1023,155 @@ class TipsetEventCreatorTests {
         assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
     }
 
-    @Test
+    /**
+     * This test verifies that the event creator assigns the propper creationTime in the following scenario:
+     *   - the parent has no transactions
+     *  - current time (wall clock) is after the parent's creation time
+     * We expect the new event creation time to be the current time.
+     *
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
     @DisplayName("calculateNewEventCreationTime Test()")
-    void calculateNewEventCreationTimeTest() {
-        final Instant parentTime = Instant.now();
+    void eventCreationTime_testCurrentTimeAfterParentCreationTimeParentHasNoTransactions(
+            @ParamName("random") final Random random) {
 
-        // now is after minimum time, no transactions
-        final Instant now1 = parentTime.plusNanos(10);
-        final Instant calculatedTime1 = calculateNewEventCreationTime(now1, parentTime, 0);
-        assertEquals(now1, calculatedTime1);
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
 
-        // now is after minimum time with transactions
-        final Instant now2 = parentTime.plusNanos(10);
-        final Instant calculatedTime2 = calculateNewEventCreationTime(now2, parentTime, 5);
-        assertEquals(now2, calculatedTime2);
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final FakeTime time = new FakeTime();
 
-        // now is before minimum time, no transactions
-        final Instant now3 = parentTime.minusNanos(10);
-        final Instant calculatedTime3 = calculateNewEventCreationTime(now3, parentTime, 0);
-        assertEquals(parentTime.plusNanos(1), calculatedTime3);
+        final EventCreator eventCreator =
+                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
 
-        // now is before minimum time because of transactions
-        final Instant now4 = parentTime.plusNanos(10);
-        final Instant calculatedTime4 = calculateNewEventCreationTime(now4, parentTime, 20);
-        assertEquals(parentTime.plusNanos(20), calculatedTime4);
+        var lastEvent = eventCreator.maybeCreateEvent();
+        // Move the time forward
+        time.tick(100);
+        lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        Instant present = time.now();
+        assertEquals(present, lastEvent.getTimeCreated());
+    }
 
-        // exact time no transactions
-        final Instant now5 = parentTime;
-        final Instant calculatedTime5 = calculateNewEventCreationTime(now5, parentTime, 0);
-        assertEquals(parentTime.plusNanos(1), calculatedTime5);
+    /**
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
+     *  - the parent has transactions
+     *  - current time (wall clock) is after the parent's last transaction time
+     * We expect the new event creation time to be the current time.
+     *
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("calculateNewEventCreationTime Test()")
+    void eventCreationTimeTest_currentTimeIsAfterParentLatestTransaction(@ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final FakeTime time = new FakeTime();
+        final EventCreator eventCreator =
+                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
+
+        transactionSupplier.set(generateTransactions(random, 10));
+        var lastEvent = eventCreator.maybeCreateEvent();
+        time.tick(100); // Move the time forward
+        lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        Instant present = time.now();
+        assertEquals(present, lastEvent.getTimeCreated());
+    }
+
+    /**
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
+     * - the parent has transactions
+     * - current time (wall clock) is before the parent's last transaction time
+     * We expect the new event creation time to be set to the parent's creation time + number of transactions.
+     *
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("calculateNewEventCreationTime Test()")
+    void eventCreationTimeTestCurrenTimeIsBeforeParentLatestTransaction(@ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final FakeTime time = new FakeTime();
+        final EventCreator eventCreator =
+                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
+
+        transactionSupplier.set(generateTransactions(random, 100));
+        // the self-parent
+        var parentEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(parentEvent);
+        // Move the time forward but just not enough to reach the parent's last transaction time
+        time.tick(59);
+        var lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        assertEquals(parentEvent.getTimeCreated().plusNanos(100), lastEvent.getTimeCreated());
+    }
+
+    /**
+     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenarioi:
+     *  - the parent has no transactions
+     *  - current time (wall clock) is the same as the parent's creation time
+     * We expect the new event creation time to be set to the parent's creation time + a fixed delta.
+     *
+     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("calculateNewEventCreationTime Test()")
+    void eventCreationTimeTest(@ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = 1;
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), transactionSupplier::get);
+
+        var parentEvent = eventCreator.maybeCreateEvent(); // the self-parent
+        assertNotNull(parentEvent);
+        var lastEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(lastEvent);
+        assertEquals(parentEvent.getTimeCreated().plusNanos(1), lastEvent.getTimeCreated());
     }
 }

@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -51,6 +50,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.isLongZeroAddress;
 import static com.hedera.services.bdd.suites.crypto.CryptoTransferSuite.sdec;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
@@ -318,21 +318,6 @@ public class UtilVerbs {
     public static SpecOperation doWithStartupConfig(
             @NonNull final String property, @NonNull final Function<String, SpecOperation> factory) {
         return doSeveralWithStartupConfig(property, startupValue -> new SpecOperation[] {factory.apply(startupValue)});
-    }
-
-    /**
-     * Returns an operation that, when executed, will compute a delegate operation by calling the given factory
-     * with the startup value of the given property on the target network; and execute its delegate.
-     *
-     * @param factory the factory for the delegate operation
-     * @return the operation that will execute the delegate created from the target network's startup value
-     */
-    public static SpecOperation doWithShardAndRealm(@NonNull final BiFunction<Long, Long, SpecOperation> factory) {
-        return withOpContext((spec, opLog) -> {
-            final long shard = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.shard");
-            final long realm = spec.targetNetworkOrThrow().startupProperties().getLong("hedera.realm");
-            allRunFor(spec, factory.apply(shard, realm));
-        });
     }
 
     /**
@@ -1552,10 +1537,7 @@ public class UtilVerbs {
             long tinyBarMaxNetworkFee,
             long tinyBarMaxServiceFee) {
         return withOpContext((spec, opLog) -> {
-            var shard = spec.startupProperties().getLong("hedera.shard");
-            var realm = spec.startupProperties().getLong("hedera.realm");
-
-            if (!spec.setup().defaultNode().equals(asAccount(String.format("%d.%d.3", shard, realm)))) {
+            if (!spec.setup().defaultNode().equals(asAccount(spec, 3))) {
                 opLog.info("Sleeping to wait for fee reduction...");
                 Thread.sleep(20000);
                 return;
@@ -2145,8 +2127,6 @@ public class UtilVerbs {
     }
 
     public static HapiSpecOperation validateRecordTransactionFees(HapiSpec spec, String txn) {
-        var shard = spec.startupProperties().getLong("hedera.shard");
-        var realm = spec.startupProperties().getLong("hedera.realm");
         var fundingAccount = spec.startupProperties().getLong("ledger.fundingAccount");
         var stakingRewardAccount = spec.startupProperties().getLong("accounts.stakingRewardAccount");
         var nodeRewardAccount = spec.startupProperties().getLong("accounts.nodeRewardAccount");
@@ -2154,10 +2134,10 @@ public class UtilVerbs {
         return validateRecordTransactionFees(
                 txn,
                 Set.of(
-                        asAccount(String.format("%s.%s.3", shard, realm)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, fundingAccount)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, stakingRewardAccount)),
-                        asAccount(String.format("%s.%s.%s", shard, realm, nodeRewardAccount))));
+                        asAccount(spec, 3),
+                        asAccount(spec, fundingAccount),
+                        asAccount(spec, stakingRewardAccount),
+                        asAccount(spec, nodeRewardAccount)));
     }
 
     /**

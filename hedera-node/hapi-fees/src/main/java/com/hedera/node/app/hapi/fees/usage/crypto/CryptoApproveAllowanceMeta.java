@@ -22,6 +22,7 @@ public class CryptoApproveAllowanceMeta {
     private final long effectiveNow;
     private final long msgBytesUsed;
     private final Map<Long, Long> cryptoAllowances;
+    private final int cryptoAllowancesCount;
     private final Map<AllowanceId, Long> tokenAllowances;
     private final Set<AllowanceId> nftAllowances;
 
@@ -29,6 +30,7 @@ public class CryptoApproveAllowanceMeta {
         effectiveNow = builder.effectiveNow;
         msgBytesUsed = builder.msgBytesUsed;
         cryptoAllowances = builder.cryptoAllowances;
+        cryptoAllowancesCount = cryptoAllowances.size();
         tokenAllowances = builder.tokenAllowances;
         nftAllowances = builder.nftAllowances;
     }
@@ -38,8 +40,13 @@ public class CryptoApproveAllowanceMeta {
         effectiveNow = transactionValidStartSecs;
         msgBytesUsed = bytesUsedInTxn(cryptoApproveTxnBody);
         cryptoAllowances = convertToCryptoMap(cryptoApproveTxnBody.getCryptoAllowancesList());
+        cryptoAllowancesCount = cryptoApproveTxnBody.getCryptoAllowancesCount();
         tokenAllowances = convertToTokenMap(cryptoApproveTxnBody.getTokenAllowancesList());
         nftAllowances = convertToNftMap(cryptoApproveTxnBody.getNftAllowancesList());
+    }
+
+    public int getCryptoAllowancesCount() {
+        return cryptoAllowancesCount;
     }
 
     private int bytesUsedInTxn(final CryptoApproveAllowanceTransactionBody op) {

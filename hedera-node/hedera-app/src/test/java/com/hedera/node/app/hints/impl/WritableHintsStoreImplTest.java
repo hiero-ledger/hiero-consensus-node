@@ -290,18 +290,19 @@ class WritableHintsStoreImplTest {
         final var verificationKey = Bytes.wrap("VK");
         final var keys = new PreprocessedKeys(Bytes.EMPTY, verificationKey);
         final var nodePartyIds = Map.of(1L, 2, 3L, 6);
+        final var nodeWeights = Map.of(1L, 100L, 3L, 300L);
         assertNull(subject.getActiveVerificationKey());
 
-        subject.setHintsScheme(456L, keys, nodePartyIds);
+        subject.setHintsScheme(456L, keys, nodePartyIds, nodeWeights);
 
         final var construction = constructionNow(NEXT_HINT_CONSTRUCTION_KEY);
         assertEquals(keys, construction.hintsSchemeOrThrow().preprocessedKeysOrThrow());
         assertEquals(
-                List.of(new NodePartyId(1L, 2), new NodePartyId(3L, 6)),
+                List.of(new NodePartyId(1L, 2, 100L), new NodePartyId(3L, 6, 300L)),
                 construction.hintsSchemeOrThrow().nodePartyIds());
         assertNull(subject.getActiveVerificationKey());
 
-        subject.setHintsScheme(123L, keys, nodePartyIds);
+        subject.setHintsScheme(123L, keys, nodePartyIds, nodeWeights);
         assertEquals(verificationKey, subject.getActiveVerificationKey());
     }
 

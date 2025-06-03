@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -49,7 +50,6 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -87,8 +87,9 @@ public class CryptoDeleteSuite {
                 cryptoTransfer(tinyBarsFromTo(beneficiaryAccount, GENESIS, 1))
                         .payingWith(ACCOUNT_TO_BE_DELETED)
                         .hasKnownStatus(PAYER_ACCOUNT_DELETED),
+                // since the account is already deleted, we have less signatures to verify
                 getAccountBalance(submittingNodeAccount)
-                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -100000, 50000))
+                        .hasTinyBars(approxChangeFromSnapshot(submittingNodeAfterBalanceLoad, -30000, 15000))
                         .logged());
     }
 
@@ -193,17 +194,11 @@ public class CryptoDeleteSuite {
                         ACCOUNT_TO_BE_DELETED,
                         address -> cryptoTransfer((spec, builder) -> builder.setTransfers(TransferList.newBuilder()
                                 .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(AccountID.newBuilder()
-                                                .setShardNum(spec.shard())
-                                                .setRealmNum(spec.realm())
-                                                .setAccountNum(2))
+                                        .setAccountID(asAccount(spec, 2))
                                         .setAmount(-ONE_HUNDRED_HBARS)
                                         .build())
                                 .addAccountAmounts(AccountAmount.newBuilder()
-                                        .setAccountID(AccountID.newBuilder()
-                                                .setShardNum(spec.shard())
-                                                .setRealmNum(spec.realm())
-                                                .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                        .setAccountID(asAccount(spec, ByteString.copyFrom(explicitBytesOf(address))))
                                         .setAmount(ONE_HUNDRED_HBARS)
                                         .build())
                                 .build()))),
@@ -215,17 +210,12 @@ public class CryptoDeleteSuite {
                 withAddressOfKey(ACCOUNT_TO_BE_DELETED, address -> cryptoTransfer(
                                 (spec, builder) -> builder.setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(AccountAmount.newBuilder()
-                                                .setAccountID(AccountID.newBuilder()
-                                                        .setShardNum(spec.shard())
-                                                        .setRealmNum(spec.realm())
-                                                        .setAccountNum(2))
+                                                .setAccountID(asAccount(spec, 2))
                                                 .setAmount(-ONE_HUNDRED_HBARS)
                                                 .build())
                                         .addAccountAmounts(AccountAmount.newBuilder()
-                                                .setAccountID(AccountID.newBuilder()
-                                                        .setShardNum(spec.shard())
-                                                        .setRealmNum(spec.realm())
-                                                        .setAlias(ByteString.copyFrom(explicitBytesOf(address))))
+                                                .setAccountID(
+                                                        asAccount(spec, ByteString.copyFrom(explicitBytesOf(address))))
                                                 .setAmount(ONE_HUNDRED_HBARS)
                                                 .build())
                                         .build()))

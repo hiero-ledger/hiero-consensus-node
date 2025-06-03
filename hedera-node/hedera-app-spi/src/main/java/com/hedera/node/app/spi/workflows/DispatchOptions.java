@@ -40,7 +40,15 @@ public record DispatchOptions<T extends StreamBuilder>(
         @NonNull StreamBuilder.TransactionCustomizer transactionCustomizer,
         @NonNull DispatchMetadata dispatchMetadata,
         @Nullable FeeCharging customFeeCharging) {
+    /**
+     * The set of keys that are authorized to sign the transaction. This should be used only for the dispatches
+     * that don't have any signatures to verify.
+     */
     private static final Predicate<Key> PREAUTHORIZED_KEYS = k -> true;
+    /**
+     * The set of keys that are authorized to sign the transaction. If none of the keys sign
+     * for atomic batch inner transaction dispatches, the transaction will fail.
+     */
     private static final Predicate<Key> NO_AUTHORIZED_KEYS = k -> false;
 
     /**

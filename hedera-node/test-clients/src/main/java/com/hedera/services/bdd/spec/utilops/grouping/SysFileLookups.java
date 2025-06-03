@@ -44,14 +44,11 @@ public class SysFileLookups extends UtilOp {
      */
     public static Map<FileID, Bytes> getSystemFileContents(
             @NonNull final HapiSpec spec, @NonNull final LongPredicate test) {
-        var shard = spec.startupProperties().getLong("hedera.shard");
-        var realm = spec.startupProperties().getLong("hedera.realm");
         return allSystemFileNums(spec)
                 .filter(test)
                 .boxed()
-                .collect(Collectors.toMap(fileNum -> new FileID(shard, realm, fileNum), fileNum -> {
-                    final var query = getFileContents(String.format("%s.%s.%s", shard, realm, fileNum))
-                            .noLogging();
+                .collect(Collectors.toMap(fileNum -> new FileID(spec.shard(), spec.realm(), fileNum), fileNum -> {
+                    final var query = getFileContents(String.valueOf(fileNum)).noLogging();
                     allRunFor(spec, query);
                     final var contents = query.getResponse()
                             .getFileGetContents()

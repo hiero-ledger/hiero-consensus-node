@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.junit.extensions;
 
+import com.google.common.base.Strings;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,7 +37,7 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
  * {@link ParamSource} annotations and requires test parameters to be annotated
  * with {@link ParamName}.
  * <p>
- * Each source method must be static, take no parameters, and return a {@code Stream<?>}.
+ * Each source method must be static and take no parameters.
  */
 public class ParameterCombinationExtension implements TestTemplateInvocationContextProvider {
 
@@ -58,7 +60,7 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
         final List<List<Object>> valueLists = new ArrayList<>();
         for (final String name : paramNames) {
             final ParamSource source = getParamSource(name, useSources, testMethod);
-            valueLists.add(invokeSourceMethod(context, source.method()));
+            valueLists.add(invokeSourceMethod(context, source.fullyQualifiedClass(), source.method()));
         }
 
         final List<List<Object>> combinations = com.google.common.collect.Lists.cartesianProduct(valueLists);
@@ -84,10 +86,21 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
     }
 
     @SuppressWarnings("unchecked")
-    private List<Object> invokeSourceMethod(final @NonNull ExtensionContext context, final @NonNull String methodName) {
+    private List<Object> invokeSourceMethod(
+            final @NonNull ExtensionContext context,
+            final @NonNull String className,
+            final @NonNull String methodName) {
         final Method testMethod = context.getRequiredTestMethod();
         try {
-            final Method source = testMethod.getDeclaringClass().getDeclaredMethod(methodName);
+            final Class<?> theClazz =
+                    (Strings.isNullOrEmpty(className)) ? testMethod.getDeclaringClass() : Class.forName(className);
+            final Method source = theClazz.getDeclaredMethod(methodName);
+            final int staticModifiers = source.getModifiers();
+            final boolean isStatic = Modifier.isStatic(staticModifiers);
+            if (!isStatic) {
+                throw new IllegalStateException("Source method: " + className + "#" + methodName + " must be static");
+            }
+
             source.setAccessible(true);
             final Object result = source.invoke(null);
             if (result instanceof final Stream stream) {
@@ -97,7 +110,11 @@ public class ParameterCombinationExtension implements TestTemplateInvocationCont
             } else if (result instanceof final Iterable iterable) {
                 return StreamSupport.stream(iterable.spliterator(), false).toList();
             }
-            throw new IllegalStateException("Source method must return Stream, Collection or Iterable");
+            if (result instanceof final Object[] array) {
+                return Arrays.stream(array).toList();
+            } else {
+                return List.of(result);
+            }
         } catch (NoSuchMethodException e) {
             throw new IllegalStateException(
                     "method: " + methodName + " does not exist on " + context.getTestClass(), e);

@@ -41,11 +41,22 @@ public class TurtleTimeManager implements TimeManager {
     }
 
     /**
+     * Returns the time source for this simulation.
+     *
+     * @return the time source
+     */
+    @NonNull
+    public Time time() {
+        return time;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
-    public Time time() {
-        return time;
+    @NonNull
+    public Instant now() {
+        return time.now();
     }
 
     /**
