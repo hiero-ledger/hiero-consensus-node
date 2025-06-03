@@ -43,8 +43,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -76,7 +74,6 @@ import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
-    private static final Logger log = LogManager.getLogger(TurtleNode.class);
 
     private enum LifeCycle {
         INIT,
@@ -121,6 +118,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * @param roster the initial roster
      * @param keysAndCerts the keys and certificates of the node
      * @param network the simulated network
+     * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      */
     public TurtleNode(
@@ -198,7 +196,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-            platformWiring.flushIntakePipeline();
+            if (platformWiring != null) {
+                platformWiring.flushIntakePipeline();
+            }
             doShutdownNode();
 
         } finally {
@@ -236,7 +236,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             checkLifeCycle(LifeCycle.INIT, "Node has not been started yet.");
             checkLifeCycle(LifeCycle.SHUTDOWN, "Node has been shut down.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has been destroyed.");
-            assert platform != null;
+            assert platform != null; // platform must be initialized if lifeCycle is STARTED
 
             platform.createTransaction(transaction);
 
@@ -297,7 +297,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @Override
     public void tick(@NonNull final Instant now) {
         if (lifeCycle == LifeCycle.STARTED) {
-            assert model != null;
+            assert model != null; // model must be initialized if lifeCycle is STARTED
             try {
                 ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
                 model.tick();
@@ -336,8 +336,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private void doShutdownNode() throws InterruptedException {
         if (lifeCycle == LifeCycle.STARTED) {
-            assert platform != null;
-            assert platformWiring != null;
+            assert platform != null; // platform must be initialized if lifeCycle is STARTED
+            assert platformWiring != null; // platformWiring must be initialized if lifeCycle is STARTED
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
             platformWiring.stop();
             platform.getNotificationEngine().unregisterAll();
