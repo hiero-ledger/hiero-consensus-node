@@ -98,12 +98,19 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private final PlatformStatusChangeListener platformStatusChangeListener;
 
-    private DeterministicWiringModel model;
     private PlatformContext platformContext;
-    private Platform platform;
-    private PlatformWiring platformWiring;
     private LifeCycle lifeCycle = LifeCycle.INIT;
 
+    @Nullable
+    private DeterministicWiringModel model;
+
+    @Nullable
+    private Platform platform;
+
+    @Nullable
+    private PlatformWiring platformWiring;
+
+    @Nullable
     private PlatformStatus platformStatus;
 
     /**
@@ -203,11 +210,10 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void revive(@NonNull final Duration timeout) {
+    public void start(@NonNull final Duration timeout) {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-            checkLifeCycle(LifeCycle.INIT, "Node has not been started previously.");
             checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
@@ -230,6 +236,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             checkLifeCycle(LifeCycle.INIT, "Node has not been started yet.");
             checkLifeCycle(LifeCycle.SHUTDOWN, "Node has been shut down.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has been destroyed.");
+            assert platform != null;
 
             platform.createTransaction(transaction);
 
@@ -290,29 +297,13 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @Override
     public void tick(@NonNull final Instant now) {
         if (lifeCycle == LifeCycle.STARTED) {
+            assert model != null;
             try {
                 ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
                 model.tick();
             } finally {
                 ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
             }
-        }
-    }
-
-    /**
-     * Start the node
-     */
-    public void start() {
-        try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
-
-            checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
-            checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
-
-            doStartNode();
-
-        } finally {
-            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
     }
 
@@ -345,7 +336,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private void doShutdownNode() throws InterruptedException {
         if (lifeCycle == LifeCycle.STARTED) {
-            // TODO: Release all resources
+            assert platform != null;
+            assert platformWiring != null;
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
             platformWiring.stop();
             platform.getNotificationEngine().unregisterAll();

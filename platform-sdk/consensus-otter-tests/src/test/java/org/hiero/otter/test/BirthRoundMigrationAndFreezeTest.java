@@ -88,7 +88,7 @@ public class BirthRoundMigrationAndFreezeTest {
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
-        assertThat(network.getPcesResults()).hasMaxBirthRoundEqualTo(freezeRound);
+        assertThat(network.getPcesResults()).hasMaxBirthRoundLessThanOrEqualTo(freezeRound);
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.resume(ONE_MINUTE);

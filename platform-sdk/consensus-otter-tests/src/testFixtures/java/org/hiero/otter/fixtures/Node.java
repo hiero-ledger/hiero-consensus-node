@@ -23,8 +23,8 @@ public interface Node {
      * preserve the current state, or any other similar operation is made. To simulate a graceful
      * shutdown, use {@link #shutdownGracefully(Duration)} instead.
      *
-     *
      * @param timeout the duration to wait before considering the kill operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
     void failUnexpectedly(@NonNull Duration timeout) throws InterruptedException;
 
@@ -35,15 +35,19 @@ public interface Node {
      * ongoing work, preserve the current state, and perform any other necessary cleanup operations
      * before shutting down. If the simulation of a sudden failure is desired, use
      * {@link #failUnexpectedly(Duration)} instead.
+     *
+     * @param timeout the duration to wait before considering the shutdown operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
     void shutdownGracefully(@NonNull Duration timeout) throws InterruptedException;
 
     /**
-     * Revive the node.
+     * Start the node.
      *
-     * @param timeout the duration to wait before considering the revive operation as failed
+     * @param timeout the duration to wait before considering the start operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void revive(@NonNull Duration timeout) throws InterruptedException;
+    void start(@NonNull Duration timeout) throws InterruptedException;
 
     /**
      * Submit a transaction to the node.
