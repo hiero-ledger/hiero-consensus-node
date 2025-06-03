@@ -701,6 +701,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
             if (size() == 0 && !key.equals(VM_STATE_KEY)) {
+                // Currently, state is (-1, -1) and it's going to be stored as such.
+                // However, it's not a problem because it's going to be updated at the end of the round
                 add(VM_STATE_KEY, state, null, state.toBytes());
             }
 
