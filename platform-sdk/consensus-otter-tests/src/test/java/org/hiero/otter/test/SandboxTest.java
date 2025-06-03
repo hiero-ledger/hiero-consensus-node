@@ -38,13 +38,13 @@ public class SandboxTest {
 
         // Kill node
         final Node node = nodes.getFirst();
-        node.failUnexpectedly(ONE_MINUTE);
+        node.killImmediately(ONE_MINUTE);
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
 
         // Revive node
-        node.revive(ONE_MINUTE);
+        node.start(ONE_MINUTE);
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
