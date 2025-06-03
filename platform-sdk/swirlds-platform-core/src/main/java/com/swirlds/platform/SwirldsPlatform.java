@@ -58,8 +58,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.events.DefaultGenerationCalculator;
-import com.swirlds.platform.system.events.GenerationCalculator;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
@@ -287,9 +285,6 @@ public class SwirldsPlatform implements Platform {
 
         blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
 
-        final GenerationCalculator generationMigrationShim =
-                buildGenerationMigrationShim(initialState, platformStateFacade);
-
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final PlatformPublisher publisher = new DefaultPlatformPublisher(blocks.applicationCallbacks());
@@ -299,7 +294,6 @@ public class SwirldsPlatform implements Platform {
                 pcesReplayer,
                 stateSignatureCollector,
                 eventWindowManager,
-                generationMigrationShim,
                 inlinePcesWriter,
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,
@@ -395,24 +389,6 @@ public class SwirldsPlatform implements Platform {
         } else {
             pcesReplayLowerBound = 0;
         }
-    }
-
-    /**
-     * Builds the generation calculator.
-     *
-     * @param initialState the initial state
-     * @param platformStateFacade a facade for accessing platform state
-     * @return the generation calculator
-     */
-    @NonNull
-    private GenerationCalculator buildGenerationMigrationShim(
-            @NonNull final SignedState initialState, @NonNull final PlatformStateFacade platformStateFacade) {
-
-        final State state = initialState.getState();
-        final long firstBirthRoundWithoutGenerations = initialState.isGenesisState()
-                ? ConsensusConstants.ROUND_FIRST
-                : platformStateFacade.consensusSnapshotOf(state).round() + 1;
-        return new DefaultGenerationCalculator(platformContext, firstBirthRoundWithoutGenerations);
     }
 
     /**

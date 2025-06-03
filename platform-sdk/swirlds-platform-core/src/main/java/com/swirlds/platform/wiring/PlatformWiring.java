@@ -60,7 +60,6 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.events.GenerationCalculator;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -128,7 +127,6 @@ public class PlatformWiring {
     private final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring;
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
     private final PlatformCoordinator platformCoordinator;
-    private final ComponentWiring<GenerationCalculator, PlatformEvent> generationCalculatorWiring;
     private final ComponentWiring<AppNotifier, Void> notifierWiring;
     private final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring;
     private final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring;
@@ -163,9 +161,6 @@ public class PlatformWiring {
         this.model = Objects.requireNonNull(model);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-
-        generationCalculatorWiring =
-                new ComponentWiring<>(model, GenerationCalculator.class, DIRECT_THREADSAFE_CONFIGURATION);
 
         eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, config.eventHasher());
 
@@ -333,29 +328,13 @@ public class PlatformWiring {
      * Wire the components together.
      */
     private void wire() {
-        /*
-         * When the generation calculator is active, the path should be:
-         *   -> EventHasher -> GenerationCalculator -> InternalEventValidator ->
-         * When the calculator is not active, the path should be:
-         *   -> EventHasher -> InternalEventValidator ->
-         */
-
         final InputWire<PlatformEvent> hasherInputWire =
                 eventHasherWiring.getInputWire(EventHasher::hashEvent, "unhashed event");
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
 
-        if (generationCalculatorWiring != null) {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(generationCalculatorWiring.getInputWire(GenerationCalculator::maybeCalculateGeneration));
-            generationCalculatorWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        } else {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        }
+        eventHasherWiring
+                .getOutputWire()
+                .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
 
         internalEventValidatorWiring
                 .getOutputWire()
@@ -502,11 +481,11 @@ public class PlatformWiring {
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 transactionHandlerSysTxnsOutputWire = transactionHandlerWiring
-                        .getOutputWire()
-                        .buildTransformer(
-                                "getSystemTransactions",
-                                "transaction handler result",
-                                TransactionHandlerResult::systemTransactions);
+                .getOutputWire()
+                .buildTransformer(
+                        "getSystemTransactions",
+                        "transaction handler result",
+                        TransactionHandlerResult::systemTransactions);
         transactionHandlerSysTxnsOutputWire.solderTo(
                 stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
         transactionHandlerSysTxnsOutputWire.solderTo(
@@ -652,8 +631,6 @@ public class PlatformWiring {
      * @param pcesReplayer              the PCES replayer to bind
      * @param stateSignatureCollector   the signed state manager to bind
      * @param eventWindowManager        the event window manager to bind
-     * @param generationMigrationShim   the generation migration shim to bind, ignored if generation migration has
-     *                                  already occurred
      * @param latestImmutableStateNexus the latest immutable state nexus to bind
      * @param latestCompleteStateNexus  the latest complete state nexus to bind
      * @param savedStateController      the saved state controller to bind
@@ -665,7 +642,6 @@ public class PlatformWiring {
             @NonNull final PcesReplayer pcesReplayer,
             @NonNull final StateSignatureCollector stateSignatureCollector,
             @NonNull final EventWindowManager eventWindowManager,
-            @Nullable final GenerationCalculator generationMigrationShim,
             @Nullable final InlinePcesWriter inlinePcesWriter,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
@@ -696,9 +672,6 @@ public class PlatformWiring {
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        if (generationCalculatorWiring != null) {
-            generationCalculatorWiring.bind(Objects.requireNonNull(generationMigrationShim));
-        }
         latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);

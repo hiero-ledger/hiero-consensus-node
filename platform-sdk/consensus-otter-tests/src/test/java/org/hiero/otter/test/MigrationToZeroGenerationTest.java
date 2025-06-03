@@ -16,7 +16,7 @@ import org.hiero.otter.fixtures.TimeManager;
  * Test class for verifying the behavior of birth round migration when loading a freeze state from disk that did not use
  * birth round ancient mode.
  */
-public class BirthRoundFreezeFromStateTest {
+public class MigrationToZeroGenerationTest {
 
     private static final String STATE_NAME = "v64_freezeState_populatedGenerations";
 
@@ -37,7 +37,7 @@ public class BirthRoundFreezeFromStateTest {
      * @throws InterruptedException if an operation times out
      */
     @OtterTest
-    void testBirthRoundMigrationFromFreezeState(final TestEnvironment env) throws InterruptedException {
+    void testMigrationToZeroGenerationFromFreezeState(final TestEnvironment env) throws InterruptedException {
 
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
