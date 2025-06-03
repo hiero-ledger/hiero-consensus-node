@@ -481,11 +481,11 @@ public class PlatformWiring {
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 transactionHandlerSysTxnsOutputWire = transactionHandlerWiring
-                .getOutputWire()
-                .buildTransformer(
-                        "getSystemTransactions",
-                        "transaction handler result",
-                        TransactionHandlerResult::systemTransactions);
+                        .getOutputWire()
+                        .buildTransformer(
+                                "getSystemTransactions",
+                                "transaction handler result",
+                                TransactionHandlerResult::systemTransactions);
         transactionHandlerSysTxnsOutputWire.solderTo(
                 stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
         transactionHandlerSysTxnsOutputWire.solderTo(

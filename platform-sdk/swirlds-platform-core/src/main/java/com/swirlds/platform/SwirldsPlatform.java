@@ -79,7 +79,6 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
