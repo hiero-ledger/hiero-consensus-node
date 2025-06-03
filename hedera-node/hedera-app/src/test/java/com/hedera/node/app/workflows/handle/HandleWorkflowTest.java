@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
-import static com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.backPressureCompletableFutureRef;
-import static com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.ensureNewBlocksPermitted;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
@@ -15,7 +13,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -31,7 +28,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
-import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
@@ -489,7 +486,7 @@ class HandleWorkflowTest {
     }
 
     @Test
-    void startRoundShouldCallEnsureNewBlocksPermittedWhenStreamingToBlockNodesEnabled() {
+    void startRoundShouldCallEnsureNewBlocksPermitted() {
         // Mock the round iterator and event
         NodeId creatorId = NodeId.of(0);
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -507,40 +504,12 @@ class HandleWorkflowTest {
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
 
         // Use a static mock to verify the static method call
-        try (MockedStatic<BlockStreamStateManager> mockedStatic = mockStatic(BlockStreamStateManager.class)) {
+        try (final MockedStatic<BlockBufferService> mockedStatic = mockStatic(BlockBufferService.class)) {
             // Execute the method
             subject.handleRound(state, round, txn -> {});
 
             // Verify that ensureNewBlocksPermitted was called
-            mockedStatic.verify(() -> ensureNewBlocksPermitted());
-        }
-    }
-
-    @Test
-    void startRoundShouldNotCallEnsureNewBlocksPermittedWhenStreamingToBlockNodesDisabled() {
-        // Mock the round iterator and event
-        NodeId creatorId = NodeId.of(0);
-        Hash eventHash = CryptoRandomUtils.randomHash();
-        given(event.getHash()).willReturn(eventHash);
-        given(event.getCreatorId()).willReturn(creatorId);
-        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64]));
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
-        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willReturn(List.of(event).iterator());
-
-        // Create subject with streamToBlockNodes disabled
-        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
-
-        // Use a static mock to verify the static method call
-        try (MockedStatic<BlockStreamStateManager> mockedStatic = mockStatic(BlockStreamStateManager.class)) {
-            // Execute the method
-            subject.handleRound(state, round, txn -> {});
-
-            // Verify that ensureNewBlocksPermitted was a NO-OP call
-            mockedStatic.verify(() -> backPressureCompletableFutureRef(), never());
+            mockedStatic.verify(BlockBufferService::ensureNewBlocksPermitted);
         }
     }
 }

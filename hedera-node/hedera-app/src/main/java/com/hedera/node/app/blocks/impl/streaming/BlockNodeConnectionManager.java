@@ -8,9 +8,9 @@ import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItem;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItemType;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
-import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.BlockStreamQueueItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.BlockStreamQueueItemType;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
 
 /**
@@ -95,7 +96,7 @@ public class BlockNodeConnectionManager {
     /**
      * Manager that maintains the block stream on this consensus node.
      */
-    private final BlockStreamStateManager blockStreamStateManager;
+    private final BlockBufferService blockBufferService;
     /**
      * Scheduled executor service that is used to scheduled asynchronous tasks such as reconnecting to block nodes.
      */
@@ -156,18 +157,17 @@ public class BlockNodeConnectionManager {
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
      * @param configProvider the configuration to use
-     * @param blockStreamStateManager the block stream state manager
+     * @param blockBufferService the block stream state manager
      * @param blockStreamMetrics the block stream metrics to track
      * @param executorService the scheduled executor service used to perform async connection operations (e.g. reconnect)
      */
     public BlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final BlockStreamStateManager blockStreamStateManager,
+            @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final ScheduledExecutorService executorService) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
-        this.blockStreamStateManager =
-                requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
+        this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.executorService = requireNonNull(executorService);
@@ -274,8 +274,8 @@ public class BlockNodeConnectionManager {
                         grpcEndpoint,
                         GrpcClientMethodDescriptor.bidirectional(
                                         BlockStreamPublishServiceGrpc.SERVICE_NAME, grpcEndpoint)
-                                .requestType(org.hiero.block.api.protoc.PublishStreamRequest.class)
-                                .responseType(org.hiero.block.api.protoc.PublishStreamResponse.class)
+                                .requestType(PublishStreamRequest.class)
+                                .responseType(PublishStreamResponse.class)
                                 .marshallerSupplier(new RequestResponseMarshaller.Supplier())
                                 .build())
                 .build());
@@ -300,7 +300,7 @@ public class BlockNodeConnectionManager {
         logger.warn("[{}] Rescheduling connection for reconnect attempt", connection);
 
         // Schedule retry for the failed connection after a delay (initialDelay)
-        scheduleRetry(connection, initialDelay, null);
+        scheduleConnectionAttempt(connection, initialDelay, null);
         // Immediately try to find and connect to the next available node
         selectNewBlockNodeForStreaming();
     }
@@ -313,7 +313,7 @@ public class BlockNodeConnectionManager {
      * @param initialDelay the delay before the first attempt in this sequence executes
      * @param blockNumber the block number to use once reconnected
      */
-    public void scheduleRetry(
+    public void scheduleConnectionAttempt(
             @NonNull final BlockNodeConnection connection,
             @NonNull final Duration initialDelay,
             @Nullable final Long blockNumber) {
@@ -492,17 +492,11 @@ public class BlockNodeConnectionManager {
         // Create the connection object
         final GrpcServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
-                configProvider,
-                nodeConfig,
-                this,
-                blockStreamStateManager,
-                grpcClient,
-                blockStreamMetrics,
-                grpcEndpoint);
+                configProvider, nodeConfig, this, blockBufferService, grpcClient, blockStreamMetrics, grpcEndpoint);
 
         connections.put(nodeConfig, connection);
         // Immediately schedule the FIRST connection attempt.
-        scheduleRetry(connection, Duration.ZERO, null);
+        scheduleConnectionAttempt(connection, Duration.ZERO, null);
     }
 
     /**
@@ -544,7 +538,7 @@ public class BlockNodeConnectionManager {
                 blockNodeConfig,
                 (cfg, lastVerifiedBlockNumber) ->
                         lastVerifiedBlockNumber == null ? blockNumber : Math.max(lastVerifiedBlockNumber, blockNumber));
-        blockStreamStateManager.setLatestAcknowledgedBlock(blockNumber);
+        blockBufferService.setLatestAcknowledgedBlock(blockNumber);
     }
 
     private void blockStreamWorkerLoop() {
@@ -561,8 +555,7 @@ public class BlockNodeConnectionManager {
 
                 shouldSleep = processStreamingToBlockNode();
 
-                if (shouldSleep
-                        && !blockStreamStateManager.getBlockStreamItemQueue().isEmpty()) {
+                if (shouldSleep && !blockBufferService.getBlockStreamItemQueue().isEmpty()) {
                     shouldSleep = false; // Don't sleep if there are items in the queue
                 }
 
@@ -593,8 +586,8 @@ public class BlockNodeConnectionManager {
         }
 
         final long currentStreamingBlockNumber = streamingBlockNumber.get();
-        final BlockState blockState = blockStreamStateManager.getBlockState(currentStreamingBlockNumber);
-        final long latestBlockNumber = blockStreamStateManager.getBlockNumber();
+        final BlockState blockState = blockBufferService.getBlockState(currentStreamingBlockNumber);
+        final long latestBlockNumber = blockBufferService.getBlockNumber();
 
         if (blockState == null && latestBlockNumber > currentStreamingBlockNumber) {
             logger.debug(
@@ -638,11 +631,11 @@ public class BlockNodeConnectionManager {
             return false; // Don't sleep if there are more requests to process
         }
 
-        return blockStreamStateManager.getBlockStreamItemQueue().isEmpty();
+        return blockBufferService.getBlockStreamItemQueue().isEmpty();
     }
 
     private void processBlockStreamQueue() {
-        final Queue<BlockStreamQueueItem> itemQueue = blockStreamStateManager.getBlockStreamItemQueue();
+        final Queue<BlockStreamQueueItem> itemQueue = blockBufferService.getBlockStreamItemQueue();
         final int batchSize = blockItemBatchSize();
 
         for (int i = 0; i < batchSize && !itemQueue.isEmpty(); ++i) {
@@ -656,7 +649,7 @@ public class BlockNodeConnectionManager {
 
             final long blockNumber = blockStreamQueueItem.blockNumber();
             final BlockItem blockItem = blockStreamQueueItem.blockItem();
-            final BlockState blockState = blockStreamStateManager.getBlockState(blockNumber);
+            final BlockState blockState = blockBufferService.getBlockState(blockNumber);
 
             if (blockState == null) {
                 continue;
@@ -788,7 +781,7 @@ public class BlockNodeConnectionManager {
                     // we were able to elevate this connection to the new active one
                     connection.updateConnectionState(ConnectionState.ACTIVE);
                     final long blockToJumpTo =
-                            blockNumber != null ? blockNumber : blockStreamStateManager.getLowestUnackedBlockNumber();
+                            blockNumber != null ? blockNumber : blockBufferService.getLowestUnackedBlockNumber();
                     jumpTargetBlock.set(blockToJumpTo);
                 } else {
                     // Another connection task has preempted this task... reschedule and try again

@@ -6,12 +6,12 @@ class or component and its role, including interactions with other components.
 
 ## Contents
 
-| Document                                                       |         Component          | Description                                                                                                 |
-|:---------------------------------------------------------------|----------------------------|:------------------------------------------------------------------------------------------------------------|
-| [BlockNodeConnectionManager.md](BlockNodeConnectionManager.md) | BlockNodeConnectionManager | Internal design and behavior of the BlockNodeConnectionManager class, managing node connections.            |
-| [BlockNodeConnection.md](BlockNodeConnection.md)               | BlockNodeConnection        | Internal design and behavior of the BlockNodeConnection class, representing an individual connection.       |
-| [BlockState.md](BlockState.md)                                 | BlockState                 | Internal design of the BlockState component, managing state information for blocks.                         |
-| [BlockStreamStateManager.md](BlockStreamStateManager.md)       | BlockStreamStateManager    | Internal design and responsibilities of BlockStreamStateManager, handling stream state and synchronization. |
+| Document                                                       |         Component          | Description                                                                                            |
+|:---------------------------------------------------------------|----------------------------|:-------------------------------------------------------------------------------------------------------|
+| [BlockNodeConnectionManager.md](BlockNodeConnectionManager.md) | BlockNodeConnectionManager | Internal design and behavior of the BlockNodeConnectionManager class, managing node connections.       |
+| [BlockNodeConnection.md](BlockNodeConnection.md)               | BlockNodeConnection        | Internal design and behavior of the BlockNodeConnection class, representing an individual connection.  |
+| [BlockState.md](BlockState.md)                                 | BlockState                 | Internal design of the BlockState component, managing state information for blocks.                    |
+| [BlockBufferService.md](BlockBufferService.md)                 | BlockBufferService         | Internal design and responsibilities of BlockBufferService, handling stream state and synchronization. |
 
 ## Components Interaction Flow
 
@@ -21,7 +21,7 @@ The following diagram illustrates the main flow and interactions between these c
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
     participant Connection as BlockNodeConnection
-    participant StateMgr as BlockStreamStateManager
+    participant StateMgr as BlockBufferService
     participant BlockState as BlockState
 
     Manager->>Connection: Initiate connection
@@ -64,9 +64,11 @@ The initialization flow includes:
      - Wait up to timeout duration for at least one connection to a `Block Node`.
      - Use `blockNodeConnectionManager().waitForConnection(timeout)` to determine success.
 4. Failure Handling
-   - If no connection is established within the given timeout and the configuration is set to `true`, then:
-     - `Hedera` class will log an error message indicating the failure to establish a connection
-     - The node will shut down immediately.
+   - If no valid block node configurations exists (e.g. they are missing) then if `blockNode.shutdownNodeOnNoBlockNodes`
+     is `true` then startup will halt and the node will be shut down. If the configuration is set to `false` then a
+     warning will be logged and startup will continue.
+   - Asynchronously, one or more attempts to connect to valid block nodes will be performed. If none of the block nodes
+     are successfully connected to, then back pressure will eventually engage since no blocks can be acknowledged.
 
 ### Initialization Flow Sequence Diagram
 
@@ -107,7 +109,7 @@ These configurations ensure scalable, resilient, and tunable block node communic
 
 These settings control how the Consensus Node discovers and connects to Block Nodes, and define fallback behavior if connections fail.
 - Connection File Path & Name: The node loads block node definitions from a file (e.g., `block-nodes.json`) located in a specified directory.
-- Connection Management: Parameters like `waitPeriodForActiveConnection` and `maxEndOfStreamsAllowed` manage retries and limits.
+- Connection Management: Parameters like `maxEndOfStreamsAllowed` and `endOfStreamTimeFrame` manage retries and limits.
 - Shutdown Behavior: If no connections are made and `shutdownNodeOnNoBlockNodes` is true, the node will shut down to avoid running in a degraded state.
 
 ## Block Stream Configurations

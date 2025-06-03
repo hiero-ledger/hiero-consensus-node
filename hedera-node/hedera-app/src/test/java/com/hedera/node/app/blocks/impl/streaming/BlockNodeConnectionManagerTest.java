@@ -21,10 +21,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItem;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItemType;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
-import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.BlockStreamQueueItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.BlockStreamQueueItemType;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
@@ -129,7 +129,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private BlockNodeConnectionManager connectionManager;
 
-    private BlockStreamStateManager stateManager;
+    private BlockBufferService stateManager;
     private BlockStreamMetrics metrics;
     private ScheduledExecutorService executorService;
     private Queue<BlockStreamQueueItem> blockStreamItemQueue;
@@ -137,7 +137,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @BeforeEach
     void beforeEach() {
         final ConfigProvider configProvider = createConfigProvider();
-        stateManager = mock(BlockStreamStateManager.class);
+        stateManager = mock(BlockBufferService.class);
         metrics = mock(BlockStreamMetrics.class);
         executorService = mock(ScheduledExecutorService.class);
         blockStreamItemQueue = new ConcurrentLinkedQueue<>();
@@ -170,10 +170,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testScheduleRetry() {
+    void testScheduleConnectionAttempt() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
-        connectionManager.scheduleRetry(connection, Duration.ofSeconds(2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(2), 100L);
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
         verify(connection).updateConnectionState(ConnectionState.CONNECTING);
@@ -184,10 +184,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testScheduleRetry_negativeDelay() {
+    void testScheduleConnectionAttempt_negativeDelay() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
-        connectionManager.scheduleRetry(connection, Duration.ofSeconds(-2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(-2), 100L);
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
         verify(connection).updateConnectionState(ConnectionState.CONNECTING);
@@ -198,13 +198,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testScheduleRetry_failure() {
+    void testScheduleConnectionAttempt_failure() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         doThrow(new RuntimeException("what the..."))
                 .when(executorService)
                 .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
-        connectionManager.scheduleRetry(connection, Duration.ofSeconds(2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(2), 100L);
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
         verify(connection).updateConnectionState(ConnectionState.CONNECTING);
@@ -1356,12 +1356,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testScheduleRetry_streamingDisabled() {
+    void testScheduleConnectionAttempt_streamingDisabled() {
         final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
         isStreamingEnabled.set(false);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
-        connectionManager.scheduleRetry(connection, Duration.ZERO, 10L);
+        connectionManager.scheduleConnectionAttempt(connection, Duration.ZERO, 10L);
 
         verifyNoInteractions(connection);
         verifyNoInteractions(stateManager);

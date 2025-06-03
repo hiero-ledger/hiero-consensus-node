@@ -59,7 +59,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockNodeConnection connection;
 
     private BlockNodeConnectionManager connectionManager;
-    private BlockStreamStateManager stateManager;
+    private BlockBufferService stateManager;
     private GrpcServiceClient grpcServiceClient;
     private BlockStreamMetrics metrics;
     private final String grpcEndpoint = "foo";
@@ -70,7 +70,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final ConfigProvider configProvider = createConfigProvider();
         final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
         connectionManager = mock(BlockNodeConnectionManager.class);
-        stateManager = mock(BlockStreamStateManager.class);
+        stateManager = mock(BlockBufferService.class);
         grpcServiceClient = mock(GrpcServiceClient.class);
         metrics = mock(BlockStreamMetrics.class);
         requestObserver = mock(StreamObserver.class);
@@ -269,7 +269,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).incrementEndOfStreamCount(responseCode);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).scheduleRetry(connection, Duration.ofSeconds(1), 11L);
+        verify(connectionManager).scheduleConnectionAttempt(connection, Duration.ofSeconds(1), 11L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestObserver);
         verifyNoMoreInteractions(connectionManager);
@@ -305,7 +305,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).scheduleRetry(connection, Duration.ofSeconds(1), 11L);
+        verify(connectionManager).scheduleConnectionAttempt(connection, Duration.ofSeconds(1), 11L);
         verify(stateManager).getBlockState(11L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestObserver);

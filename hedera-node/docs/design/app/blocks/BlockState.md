@@ -42,7 +42,7 @@ managing the generation of PublishStreamRequests, and indicating when a block is
 
 ```mermaid
 sequenceDiagram
-    participant StateMgr as BlockStreamStateManager
+    participant StateMgr as BlockBufferService
     participant BlockState as BlockState
 
     StateMgr->>BlockState: Add BlockItem
@@ -59,7 +59,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant BlockState as BlockState
-    participant StateMgr as BlockStreamStateManager
+    participant StateMgr as BlockBufferService
 
     BlockState->>BlockState: Detect invalid block
     BlockState-->>StateMgr: Report block validation error

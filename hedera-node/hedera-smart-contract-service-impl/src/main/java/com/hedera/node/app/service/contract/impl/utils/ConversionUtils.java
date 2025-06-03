@@ -767,7 +767,7 @@ public class ConversionUtils {
      * @return its long value
      */
     public static long numberOfLongZero(@NonNull final byte[] explicit) {
-        final var number = longFrom(
+        return longFrom(
                 explicit[12],
                 explicit[13],
                 explicit[14],
@@ -776,10 +776,6 @@ public class ConversionUtils {
                 explicit[17],
                 explicit[18],
                 explicit[19]);
-        if (number < 0) {
-            throw new IllegalArgumentException("Number is negative");
-        }
-        return number;
     }
 
     /**
@@ -789,7 +785,7 @@ public class ConversionUtils {
      * @return its realm value
      */
     public static long realmOfLongZero(@NonNull final byte[] explicit) {
-        final var realm = longFrom(
+        return longFrom(
                 explicit[4],
                 explicit[5],
                 explicit[6],
@@ -798,10 +794,6 @@ public class ConversionUtils {
                 explicit[9],
                 explicit[10],
                 explicit[11]);
-        if (realm < 0) {
-            throw new IllegalArgumentException("Realm is negative");
-        }
-        return realm;
     }
 
     /**
@@ -811,11 +803,7 @@ public class ConversionUtils {
      * @return its shard value
      */
     public static int shardOfLongZero(@NonNull final byte[] explicit) {
-        final var shard = longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
-        if (shard < 0) {
-            throw new IllegalArgumentException("Shard is negative");
-        }
-        return shard;
+        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
     }
 
     // too many arguments

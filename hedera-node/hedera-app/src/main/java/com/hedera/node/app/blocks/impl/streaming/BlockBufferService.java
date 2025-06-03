@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.node.app.blocks.impl.streaming.BlockStreamStateManager.BlockStreamQueueItemType.BLOCK_ITEM;
+import static com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItemType.BLOCK_ITEM;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,23 +33,20 @@ import org.apache.logging.log4j.Logger;
  * Manages the state and lifecycle of blocks being streamed to block nodes.
  * This class is responsible for:
  * <ul>
- *     <li>Providing methods for adding items to blocks and creating requests</li>
  *     <li>Maintaining the block states in a buffer</li>
  *     <li>Handling backpressure when the buffer is saturated</li>
  *     <li>Pruning the buffer based on TTL and saturation</li>
- *     <li>Coordinating block node connections</li>
  * </ul>
  */
-public class BlockStreamStateManager {
-    private static final Logger logger = LogManager.getLogger(BlockStreamStateManager.class);
+public class BlockBufferService {
+    private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
 
     /**
      * Buffer that stores recent blocks. This buffer is unbounded, however when opening a new block the buffer will be
      * pruned. Generally speaking, the buffer should contain only blocks that are recent (that is within the configured
      * {@link BlockStreamConfig#blockBufferTtl() TTL}) and have yet to be acknowledged. There may be cases where older
      * blocks still exist in the buffer if they are unacknowledged, but once they are acknowledged they will be pruned
-     * the next time {@link #openBlock(long)} is invoked. {@link #isBufferSaturated()} can be used to check if the
-     * buffer contains unacknowledged old blocks.
+     * the next time {@link #openBlock(long)} is invoked.
      */
     private final Queue<BlockState> blockBuffer = new ConcurrentLinkedQueue<>();
     /**
@@ -108,12 +104,12 @@ public class BlockStreamStateManager {
     private static final AtomicBoolean isStreamingEnabled = new AtomicBoolean(false);
 
     /**
-     * Creates a new BlockStreamStateManager with the given configuration.
+     * Creates a new BlockBufferService with the given configuration.
      *
      * @param configProvider the configuration provider
      * @param blockStreamMetrics metrics factory for monitoring block streaming
      */
-    public BlockStreamStateManager(
+    public BlockBufferService(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
@@ -207,22 +203,6 @@ public class BlockStreamStateManager {
     }
 
     /**
-     * @return true if the block buffer has blocks that are expired but unacknowledged, else false
-     */
-    @VisibleForTesting
-    public boolean isBufferSaturated() {
-        return isBufferSaturated.get();
-    }
-
-    /**
-     * @return the current CompletableFuture reference used for backpressure
-     */
-    @VisibleForTesting
-    public static CompletableFuture<Boolean> backPressureCompletableFutureRef() {
-        return backpressureCompletableFutureRef.get();
-    }
-
-    /**
      * Sets the block node connection manager for notifications.
      *
      * @param blockNodeConnectionManager the block node connection manager
@@ -281,7 +261,7 @@ public class BlockStreamStateManager {
         if (blockState == null) {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
-        blockStreamItemQueue.add(new BlockStreamStateManager.BlockStreamQueueItem(blockNumber, blockItem));
+        blockStreamItemQueue.add(new BlockBufferService.BlockStreamQueueItem(blockNumber, blockItem));
     }
 
     /**
@@ -375,7 +355,7 @@ public class BlockStreamStateManager {
             return;
         }
 
-        final CompletableFuture<Boolean> cf = backPressureCompletableFutureRef();
+        final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
         if (cf != null && !cf.isDone()) {
             try {
                 logger.error("!!! Block buffer is saturated; blocking thread until buffer is no longer saturated");
@@ -488,7 +468,7 @@ public class BlockStreamStateManager {
         }
 
         final boolean isSaturatedBeforePrune = isBufferSaturated.get();
-        final BlockStreamStateManager.PruneResult result = pruneBuffer();
+        final BlockBufferService.PruneResult result = pruneBuffer();
         final boolean isSaturatedAfterPrune = result.isSaturated();
         isBufferSaturated.set(isSaturatedAfterPrune);
         final double saturationPercent = result.calculateSaturationPercent();
@@ -522,7 +502,7 @@ public class BlockStreamStateManager {
             CompletableFuture<Boolean> oldCf;
             CompletableFuture<Boolean> newCf;
             do {
-                oldCf = backPressureCompletableFutureRef();
+                oldCf = backpressureCompletableFutureRef.get();
                 if (oldCf != null) {
                     /**
                      * If everything is behaving as expected, then this condition should never be encountered. At any
@@ -546,7 +526,7 @@ public class BlockStreamStateManager {
             CompletableFuture<Boolean> newCf;
 
             do {
-                oldCf = backPressureCompletableFutureRef();
+                oldCf = backpressureCompletableFutureRef.get();
                 if (oldCf != null) {
                     /**
                      * If everything is behaving as expected, then this condition should never be encountered. At any

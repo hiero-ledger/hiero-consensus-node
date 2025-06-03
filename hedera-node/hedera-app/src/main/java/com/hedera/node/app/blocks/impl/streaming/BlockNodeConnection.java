@@ -65,7 +65,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * Manager that maintains the system-wide state as it pertains to block streaming. Access here is used to retrieve
      * blocks for streaming and indicating which blocks have been acknowledged by the block node.
      */
-    private final BlockStreamStateManager blockStreamStateManager;
+    private final BlockBufferService blockBufferService;
     /**
      * Metrics API for block stream-specific metrics.
      */
@@ -110,12 +110,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     private final String grpcEndpoint;
 
     /**
-     * Represents the possible states of a Block Node connection:
-     * <ul>
-     *   <li>UNINITIALIZED - Initial state before stream establishment</li>
-     *   <li>PENDING - Stream established but not selected as active</li>
-     *   <li>ACTIVE - Connection is actively streaming blocks</li>
-     * </ul>
+     * Represents the possible states of a Block Node connection.
      */
     public enum ConnectionState {
         /**
@@ -142,7 +137,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param configProvider the configuration to use
      * @param nodeConfig the configuration for the block node
      * @param blockNodeConnectionManager the connection manager coordinating block node connections
-     * @param blockStreamStateManager the block stream state manager for block node connections
+     * @param blockBufferService the block stream state manager for block node connections
      * @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
      */
@@ -150,7 +145,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
-            @NonNull final BlockStreamStateManager blockStreamStateManager,
+            @NonNull final BlockBufferService blockBufferService,
             @NonNull final GrpcServiceClient grpcServiceClient,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final String grpcEndpoint) {
@@ -158,8 +153,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
-        this.blockStreamStateManager =
-                requireNonNull(blockStreamStateManager, "blockStreamStateManager must not be null");
+        this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
@@ -210,7 +204,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
         final boolean blockAlreadyExists = acknowledgement.blockAlreadyExists();
         final long currentBlockStreaming = blockNodeConnectionManager.currentStreamingBlockNumber();
-        final long currentBlockProducing = blockStreamStateManager.getBlockNumber();
+        final long currentBlockProducing = blockBufferService.getBlockNumber();
 
         // Update the last verified block by the current connection
         blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
@@ -316,7 +310,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 // The block node is behind us, check if we have the last verified block still available in order to
                 // restart the stream from there
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-                if (blockStreamStateManager.getBlockState(restartBlockNumber) != null) {
+                if (blockBufferService.getBlockState(restartBlockNumber) != null) {
                     logger.warn(
                             "[{}] Block node reported it is behind. Will restart stream at block {}.",
                             this,
@@ -391,7 +385,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         final long resendBlockNumber = resendBlock.blockNumber();
         logger.debug("[{}] Received ResendBlock response for block {}", this, resendBlockNumber);
 
-        if (blockStreamStateManager.getBlockState(resendBlockNumber) != null) {
+        if (blockBufferService.getBlockState(resendBlockNumber) != null) {
             jumpToBlock(resendBlockNumber);
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
@@ -495,7 +489,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     private void restartStreamAtBlock(final long blockNumber) {
         logger.debug("[{}] Scheduling stream restart at block {}}", this, blockNumber);
-        blockNodeConnectionManager.scheduleRetry(this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY, blockNumber);
+        blockNodeConnectionManager.scheduleConnectionAttempt(
+                this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY, blockNumber);
     }
 
     /**
