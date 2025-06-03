@@ -65,8 +65,8 @@ public class Tipset {
             return new Tipset(roster);
         }
 
-        final int length = tipsets.getFirst().tips.length;
-        final Tipset newTipset = buildEmptyTipset(tipsets.getFirst());
+        final int length = this.tips.length;
+        final Tipset newTipset = buildEmptyTipset(this);
 
         for (int index = 0; index < length; index++) {
             long max = this.tips[index];
