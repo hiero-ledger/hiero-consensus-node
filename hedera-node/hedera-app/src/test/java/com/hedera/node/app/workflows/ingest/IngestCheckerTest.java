@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -51,12 +48,9 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoAddLiveHashTransactionBody;
-import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
-import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
-import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
@@ -83,7 +77,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
 import java.time.InstantSource;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -863,82 +856,5 @@ class IngestCheckerTest extends AppTestBase {
                     .hasMessageContaining("checkPayerSignature exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
-    }
-
-    private TransactionInfo mockBatchTxn() throws PreCheckException {
-        final var innerCryptoTransfer = mockInnerCryptoTransfer();
-        final var innerCryptoCreate = mockInnerCryptoCreate();
-        final TransactionBody batchTxnBody = TransactionBody.newBuilder()
-                .atomicBatch(AtomicBatchTransactionBody.newBuilder()
-                        .transactions(List.of(
-                                innerCryptoCreate.serializedTransaction(), innerCryptoTransfer.serializedTransaction()))
-                        .build())
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(ALICE.accountID())
-                        .transactionValidStart(
-                                Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
-                .nodeAccountID(nodeSelfAccountId)
-                .build();
-        final var batchTxn = Transaction.newBuilder()
-                .bodyBytes(asBytes(TransactionBody.PROTOBUF, batchTxnBody))
-                .build();
-        final var serializedBatchTxn = Transaction.PROTOBUF.toBytes(batchTxn);
-        final var batchTxnInfo = new TransactionInfo(
-                batchTxn,
-                batchTxnBody,
-                MOCK_SIGNATURE_MAP,
-                batchTxn.signedTransactionBytes(),
-                ATOMIC_BATCH,
-                serializedBatchTxn);
-        when(transactionChecker.parseAndCheck(serializedBatchTxn, maxBytes)).thenReturn(batchTxnInfo);
-        return batchTxnInfo;
-    }
-
-    private TransactionInfo mockInnerCryptoTransfer() throws PreCheckException {
-        final var mockTxnBody = TransactionBody.newBuilder()
-                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(ALICE.accountID())
-                        .transactionValidStart(
-                                Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
-                .nodeAccountID(nodeSelfAccountId)
-                .build();
-        final var mockTxn = SignedTransaction.newBuilder()
-                .bodyBytes(asBytes(TransactionBody.PROTOBUF, mockTxnBody))
-                .build();
-        final var serializedTxn = SignedTransaction.PROTOBUF.toBytes(mockTxn);
-        final var txnInfo = new TransactionInfo(
-                Transaction.newBuilder().bodyBytes(mockTxn.bodyBytes()).build(),
-                mockTxnBody,
-                MOCK_SIGNATURE_MAP,
-                serializedTxn,
-                CRYPTO_TRANSFER,
-                serializedTxn);
-        when(transactionChecker.parseSignedAndCheck(serializedTxn, maxBytes)).thenReturn(txnInfo);
-        return txnInfo;
-    }
-
-    private TransactionInfo mockInnerCryptoCreate() throws PreCheckException {
-        final var mockTxnBody = TransactionBody.newBuilder()
-                .cryptoCreateAccount(CryptoCreateTransactionBody.DEFAULT)
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(ALICE.accountID())
-                        .transactionValidStart(
-                                Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
-                .nodeAccountID(nodeSelfAccountId)
-                .build();
-        final var mockTxn = SignedTransaction.newBuilder()
-                .bodyBytes(asBytes(TransactionBody.PROTOBUF, mockTxnBody))
-                .build();
-        final var serializedTxn = SignedTransaction.PROTOBUF.toBytes(mockTxn);
-        final var txnInfo = new TransactionInfo(
-                Transaction.newBuilder().bodyBytes(mockTxn.bodyBytes()).build(),
-                mockTxnBody,
-                MOCK_SIGNATURE_MAP,
-                serializedTxn,
-                CRYPTO_CREATE,
-                serializedTxn);
-        when(transactionChecker.parseSignedAndCheck(serializedTxn, maxBytes)).thenReturn(txnInfo);
-        return txnInfo;
     }
 }
