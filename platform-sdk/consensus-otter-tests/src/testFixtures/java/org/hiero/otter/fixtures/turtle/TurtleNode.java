@@ -97,6 +97,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private PlatformContext platformContext;
     private LifeCycle lifeCycle = LifeCycle.INIT;
+    private SemanticVersion version = Node.DEFAULT_VERSION;
 
     @Nullable
     private DeterministicWiringModel model;
@@ -167,10 +168,36 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
+    @NonNull
     public NodeId getSelfId() {
         return selfId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SemanticVersion getVersion() {
+        return version;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setVersion(@NonNull final SemanticVersion version) {
+        this.version = requireNonNull(version);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void bumpVersion() {
+        this.version =
+                this.version.copyBuilder().patch(this.version.patch() + 1).build();
     }
 
     /**
@@ -354,10 +381,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final Configuration currentConfiguration = nodeConfiguration.createConfiguration();
 
         setupGlobalMetrics(currentConfiguration);
-
-        final SemanticVersion version =
-                currentConfiguration.getValue(TurtleNodeConfiguration.SOFTWARE_VERSION, SemanticVersion.class);
-        assert version != null; // avoids a warning, not really needed as there is always a default
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();

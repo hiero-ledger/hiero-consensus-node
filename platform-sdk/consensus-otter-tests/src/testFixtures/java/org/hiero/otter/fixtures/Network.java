@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -69,6 +70,30 @@ public interface Network {
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     void resume(@NonNull Duration duration) throws InterruptedException;
+
+    /**
+     * Sets the version of the network.
+     *
+     * <p>This method sets the version of all nodes currently added to the network. Please note that the new version
+     * will become effective only after a node is (re-)started.
+     *
+     * @see Node#setVersion(SemanticVersion)
+     *
+     * @param version the semantic version to set for the network
+     */
+    void setVersion(@NonNull SemanticVersion version);
+
+    /**
+     * Bumps the version of the network.
+     *
+     * <p>This method increments the patch version of the current software version for all nodes in the network.
+     * If no version is set, {@link Node#DEFAULT_VERSION} will be used.
+     *
+     * <p>Please note that the new version will become effective only after a node is (re-)started.
+     *
+     * @see Node#bumpVersion()
+     */
+    void bumpVersion();
 
     /**
      * Gets the consensus rounds of all nodes.

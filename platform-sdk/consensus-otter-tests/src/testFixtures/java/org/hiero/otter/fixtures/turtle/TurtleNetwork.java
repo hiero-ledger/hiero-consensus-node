@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -209,6 +210,26 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         log.debug("Waiting for nodes to become active again...");
         if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
             fail("Timeout while waiting for nodes to become active.");
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setVersion(@NonNull final SemanticVersion version) {
+        for (final TurtleNode node : nodes) {
+            node.setVersion(version);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void bumpVersion() {
+        for (final TurtleNode node : nodes) {
+            node.bumpVersion();
         }
     }
 

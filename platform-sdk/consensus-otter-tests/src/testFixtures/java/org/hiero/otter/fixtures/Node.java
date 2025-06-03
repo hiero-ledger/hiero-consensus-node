@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
@@ -15,6 +16,11 @@ import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
  * <p>This interface provides methods to control the state of the node, such as killing and reviving it.
  */
 public interface Node {
+
+    /**
+     * The default software version of the node when no specific version is set for the node.
+     */
+    SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
 
     /**
      * Kill the node without prior cleanup.
@@ -72,6 +78,35 @@ public interface Node {
      */
     @NonNull
     NodeId getSelfId();
+
+    /**
+     * Gets the software version of the node.
+     *
+     * @return the software version of the node
+     */
+    @NonNull
+    SemanticVersion getVersion();
+
+    /**
+     * Sets the software version of the node.
+     *
+     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used.
+     *
+     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     *
+     * @param version the software version to set for the node
+     */
+    void setVersion(@NonNull SemanticVersion version);
+
+    /**
+     * Bumps the software version of the node.
+     *
+     * <p>This method increments the patch version of the current software version. If the current
+     * version is {@code 1.2.3}, after calling this method, it will become {@code 1.2.4}.
+     *
+     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     */
+    void bumpVersion();
 
     /**
      * Gets the consensus rounds of the node.
