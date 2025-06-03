@@ -18,8 +18,6 @@ import org.hiero.otter.fixtures.TimeManager;
  */
 public class MigrationToZeroGenerationTest {
 
-    private static final String STATE_NAME = "v64_freezeState_populatedGenerations";
-
     private static final Duration THIRTY_SECONDS = Duration.ofSeconds(30L);
     private static final Duration ONE_MINUTE = Duration.ofMinutes(1L);
 
@@ -48,7 +46,7 @@ public class MigrationToZeroGenerationTest {
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
             node.getConfiguration().set(SOFTWARE_VERSION, NEW_VERSION);
-            node.copyInitialState(STATE_NAME);
+            node.copyInitialState(OtterInitialStates.V64_FREEZE_STATE);
         }
 
         // Start the network. Load the freeze state from disk that did not use birth round ancient mode.
