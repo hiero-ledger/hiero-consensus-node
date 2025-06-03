@@ -36,6 +36,8 @@ public class AtomicFileServiceFeesSuite {
     private static final double BASE_FEE_FILE_UPDATE = 0.05;
     private static final double BASE_FEE_FILE_DELETE = 0.007;
     private static final double BASE_FEE_FILE_APPEND = 0.05;
+    private static final String BATCH_OPERATOR = "batchOperator";
+    private static final String ATOMIC_BATCH = "atomicBatch";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -48,10 +50,8 @@ public class AtomicFileServiceFeesSuite {
     final Stream<DynamicTest> fileCreateBaseUSDFee() {
         // 90 days considered for base fee
         var contents = "0".repeat(1000).getBytes();
-        final var batchOperator = "batchOperator";
-
         return hapiTest(
-                cryptoCreate(batchOperator),
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed(KEY).shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key(KEY).balance(ONE_HUNDRED_HBARS),
                 newKeyListNamed("WACL", List.of(CIVILIAN)),
@@ -61,20 +61,19 @@ public class AtomicFileServiceFeesSuite {
                                 .contents(contents)
                                 .payingWith(CIVILIAN)
                                 .via("fileCreateBasic")
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd("fileCreateBasic", "atomicBatch", BASE_FEE_FILE_CREATE, 5));
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("fileCreateBasic", ATOMIC_BATCH, BASE_FEE_FILE_CREATE, 5));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file update transaction")
     final Stream<DynamicTest> fileUpdateBaseUSDFee() {
         var contents = "0".repeat(1000).getBytes();
-        final var batchOperator = "batchOperator";
-
         return hapiTest(
-                cryptoCreate(batchOperator),
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed("key").shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
                 newKeyListNamed("key", List.of(CIVILIAN)),
@@ -84,18 +83,18 @@ public class AtomicFileServiceFeesSuite {
                                 .memo(MEMO)
                                 .payingWith(CIVILIAN)
                                 .via("fileUpdateBasic")
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd("fileUpdateBasic", "atomicBatch", BASE_FEE_FILE_UPDATE, 5));
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("fileUpdateBasic", ATOMIC_BATCH, BASE_FEE_FILE_UPDATE, 5));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file delete transaction")
     final Stream<DynamicTest> fileDeleteBaseUSDFee() {
-        final var batchOperator = "batchOperator";
         return hapiTest(
-                cryptoCreate(batchOperator),
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed("key").shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
                 newKeyListNamed("WACL", List.of(CIVILIAN)),
@@ -104,17 +103,17 @@ public class AtomicFileServiceFeesSuite {
                                 .blankMemo()
                                 .payingWith(CIVILIAN)
                                 .via("fileDeleteBasic")
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd("fileDeleteBasic", "atomicBatch", BASE_FEE_FILE_DELETE, 10));
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, BASE_FEE_FILE_DELETE, 10));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file append transaction")
     final Stream<DynamicTest> fileAppendBaseUSDFee() {
         final var civilian = "NonExemptPayer";
-        final var batchOperator = "batchOperator";
 
         final var baseAppend = "baseAppend";
         final var targetFile = "targetFile";
@@ -126,7 +125,7 @@ public class AtomicFileServiceFeesSuite {
         final var magicWacl = "magicWacl";
 
         return hapiTest(
-                cryptoCreate(batchOperator),
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed(magicKey),
                 newKeyListNamed(magicWacl, List.of(magicKey)),
                 cryptoCreate(civilian).balance(ONE_HUNDRED_HBARS).key(magicKey),
@@ -140,9 +139,10 @@ public class AtomicFileServiceFeesSuite {
                                 .content(contentBuilder.toString())
                                 .payingWith(civilian)
                                 .via(baseAppend)
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd(baseAppend, "atomicBatch", BASE_FEE_FILE_APPEND, 5));
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd(baseAppend, ATOMIC_BATCH, BASE_FEE_FILE_APPEND, 5));
     }
 }
