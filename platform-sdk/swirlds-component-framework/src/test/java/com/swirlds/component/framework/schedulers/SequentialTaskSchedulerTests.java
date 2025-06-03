@@ -112,7 +112,7 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, i);
         }
 
-        handler.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         assertEquals(
                 value, wireValue.get(), "Wire sum did not match expected sum: " + value + " vs " + wireValue.get());
         model.stop();
@@ -157,7 +157,7 @@ class SequentialTaskSchedulerTests {
 
         expectedArguments.stream().parallel().forEach(i -> channel.put(i.longValue()));
 
-        handler.completionControl().await(ops, AWAIT_MAX_DURATION);
+        handler.executionControl().await(ops, AWAIT_MAX_DURATION);
         assertEquals(expectedValue, wireValue.get(), "Wire sum did not match expected sum");
         assertTrue(nonProcessedInput.isEmpty(), "We should have process all arguments");
         model.stop();
@@ -205,7 +205,7 @@ class SequentialTaskSchedulerTests {
         // Release the gate and allow the wire to finish
         gate.open();
 
-        handler.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
 
         model.stop();
@@ -252,17 +252,17 @@ class SequentialTaskSchedulerTests {
 
         assertUnprocessedTasksValueIs(taskScheduler, 100L);
 
-        handler.completionControl().unblock();
-        handler.completionControl().await(50, AWAIT_MAX_DURATION);
+        handler.executionControl().unblock();
+        handler.executionControl().await(50, AWAIT_MAX_DURATION);
 
         assertUnprocessedTasksValueIs(taskScheduler, 50L);
 
         gate50.open();
-        handler.completionControl().await(48, AWAIT_MAX_DURATION);
+        handler.executionControl().await(48, AWAIT_MAX_DURATION);
         assertUnprocessedTasksValueIs(taskScheduler, 2L);
 
         gate98.open();
-        handler.completionControl().await(2, AWAIT_MAX_DURATION);
+        handler.executionControl().await(2, AWAIT_MAX_DURATION);
 
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
         assertUnprocessedTasksValueIs(taskScheduler, 0L);
@@ -342,9 +342,9 @@ class SequentialTaskSchedulerTests {
         thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
 
         // Release the lock
-        handler.completionControl().unblock();
+        handler.executionControl().unblock();
         secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
-        handler.completionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
@@ -420,9 +420,9 @@ class SequentialTaskSchedulerTests {
         producerThread.interrupt();
 
         // Release the gate, all work should now be added
-        handler.completionControl().unblock();
+        handler.executionControl().unblock();
         restOfProducers.waitIsFinished(AWAIT_MAX_DURATION);
-        handler.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
         assertUnprocessedTasksValueIs(taskScheduler, 0L);
@@ -461,7 +461,7 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, i);
         }
 
-        handler.completionControl().await(totalWork, AWAIT_MAX_DURATION);
+        handler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
         model.stop();
     }
@@ -649,9 +649,9 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, string.hashCode());
         }
 
-        integerHandler.completionControl().await(totalWork, AWAIT_MAX_DURATION);
-        booleanHandler.completionControl().await(totalWork, AWAIT_MAX_DURATION);
-        stringHandler.completionControl().await(totalWork, AWAIT_MAX_DURATION);
+        integerHandler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
+        booleanHandler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
+        stringHandler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
         assertEquals(value, wireValue.get(), "Wire value did not match expected value");
 
         model.stop();
@@ -734,10 +734,10 @@ class SequentialTaskSchedulerTests {
         thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
 
         // Release the gate, all work should now be added
-        handler1.completionControl().unblock();
+        handler1.executionControl().unblock();
         secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
-        handler1.completionControl().await(capacity + 1, AWAIT_MAX_DURATION);
-        handler2.completionControl().await(DEFAULT_OPERATIONS - capacity, AWAIT_MAX_DURATION);
+        handler1.executionControl().await(capacity + 1, AWAIT_MAX_DURATION);
+        handler2.executionControl().await(DEFAULT_OPERATIONS - capacity, AWAIT_MAX_DURATION);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertTrue(unprocessedArguments.isEmpty(), "Wire did not process all work:" + unprocessedArguments);
@@ -843,10 +843,10 @@ class SequentialTaskSchedulerTests {
         thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
 
         // Release the gate, all work should now be added
-        handlerB.completionControl().unblock();
+        handlerB.executionControl().unblock();
         secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
         handlerA.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
-        handlerB.completionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertEventuallyEquals(0L, backpressure::getCount, "Wire unprocessed task count did not match expected value");
         assertEquals(valueA.get(), wireValueA.get(), "Wire sum did not match expected sum");
@@ -940,13 +940,13 @@ class SequentialTaskSchedulerTests {
         thirdProducer.start();
         thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
         // Release the gate, all work should now be added
-        handler.completionControl().unblock();
+        handler.executionControl().unblock();
         secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
         flusher.waitIsFinished(AWAIT_MAX_DURATION);
 
         assertTrue(allWorkAdded.get(), "unable to add all work");
         assertTrue(flushed.get(), "unable to flush wire");
-        handler.completionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
         assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
         assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
@@ -1014,7 +1014,7 @@ class SequentialTaskSchedulerTests {
             }
         }
 
-        handler.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
         // Exception will not be processed right after the task that threw the exception.
         // So we check
@@ -1079,7 +1079,7 @@ class SequentialTaskSchedulerTests {
 
         RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
             // release the task that should allow all tasks to complete
-            objectConsumer.completionControl().unblock();
+            objectConsumer.executionControl().unblock();
             // if tasks are completing, none of the wires should block
             channelA.put(Object.class);
             channelB.put(Object.class);
@@ -1143,7 +1143,7 @@ class SequentialTaskSchedulerTests {
 
         final RunnableCompletionControl runnable = RunnableCompletionControl.unblocked(() -> {
             // Unblock the handler. It should allow all tasks to complete
-            handlerC.completionControl().unblock();
+            handlerC.executionControl().unblock();
             // If tasks are completing, none of the wires should block
             channelA.put(Object.class);
             channelB.put(Object.class);
@@ -1151,7 +1151,7 @@ class SequentialTaskSchedulerTests {
         });
         runnable.start();
         runnable.waitIsFinished(AWAIT_MAX_DURATION);
-        handlerC.completionControl().await(1, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(1, AWAIT_MAX_DURATION);
         pool.shutdown();
         model.stop();
     }
@@ -1223,7 +1223,7 @@ class SequentialTaskSchedulerTests {
         handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerB.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerC.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
-        handlerD.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
 
         assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
@@ -1305,7 +1305,7 @@ class SequentialTaskSchedulerTests {
         handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerB.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerC.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
-        handlerD.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
@@ -1423,7 +1423,7 @@ class SequentialTaskSchedulerTests {
         handlerX.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerY.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerZ.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
-        handlerB.completionControl().await(DEFAULT_OPERATIONS * 3, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(DEFAULT_OPERATIONS * 3, AWAIT_MAX_DURATION);
 
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countX.get());
@@ -1543,9 +1543,9 @@ class SequentialTaskSchedulerTests {
         assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2 + 2);
 
         // Releasing the signal should allow data to flow through C.
-        handlerC.completionControl().unblock();
+        handlerC.executionControl().unblock();
         handlerA.executionControl().await(1, AWAIT_MAX_DURATION);
-        handlerC.completionControl().await(partialWork * 2 + 2 + 2, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(partialWork * 2 + 2 + 2, AWAIT_MAX_DURATION);
         assertEquals(expectedSum, sumC.get());
         assertEquals(expectedCountAfterHandling6, countA.get());
 
@@ -1651,7 +1651,7 @@ class SequentialTaskSchedulerTests {
         handlerA.executionControl().await(timesA, AWAIT_MAX_DURATION);
         handlerB.executionControl().await(timesA - timesB, AWAIT_MAX_DURATION);
         handlerC.executionControl().await(timesA - timesB - timesC, AWAIT_MAX_DURATION);
-        handlerD.completionControl().await(timesA - timesB - timesC - timesD, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(timesA - timesB - timesC - timesD, AWAIT_MAX_DURATION);
         assertEquals(expectedCountA, countA.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCountB, countB.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCountC, countC.get(), "Wire sum did not match expected sum");
@@ -1740,7 +1740,7 @@ class SequentialTaskSchedulerTests {
         handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerB.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
         handlerC.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
-        handlerD.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
 
         assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
@@ -1816,9 +1816,9 @@ class SequentialTaskSchedulerTests {
         }
 
         handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
-        handlerBInt.completionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
-        handlerBString.completionControl().await(stringTimes, AWAIT_MAX_DURATION);
-        handlerBBool.completionControl().await(booleanTimes, AWAIT_MAX_DURATION);
+        handlerBInt.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerBString.executionControl().await(stringTimes, AWAIT_MAX_DURATION);
+        handlerBBool.executionControl().await(booleanTimes, AWAIT_MAX_DURATION);
         assertEquals(expectedCount, count.get(), "Wire count did not match expected");
 
         model.stop();
@@ -1923,10 +1923,10 @@ class SequentialTaskSchedulerTests {
         assertFalse(moreWorkInserted.get());
 
         // Unblock (C). For pending work
-        handlerC.completionControl().unblock();
+        handlerC.executionControl().unblock();
 
         producer.waitIsFinished(AWAIT_MAX_DURATION);
-        handlerC.completionControl().await(11, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(11, AWAIT_MAX_DURATION);
         assertEventuallyEquals(0L, counter::getCount, "Counter should be empty");
         assertEquals(expectedCount, countA.get(), "A should have processed task");
         assertEquals(expectedCount, countB.get(), "B should have processed task");
@@ -2033,13 +2033,13 @@ class SequentialTaskSchedulerTests {
         assertEquals(10, counter.getCount());
 
         // Unblock (C). The entire pipeline is now unblocked, and new things will be added.
-        handlerC.completionControl().unblock();
+        handlerC.executionControl().unblock();
 
         producer.waitIsFinished(AWAIT_MAX_DURATION);
         assertTrue(allWorkInserted.get(), "All work should have been inserted");
         handlerA.executionControl().await(11, AWAIT_MAX_DURATION);
         handlerB.executionControl().await(11, AWAIT_MAX_DURATION);
-        handlerC.completionControl().await(11, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(11, AWAIT_MAX_DURATION);
         assertEventuallyEquals(0L, counter::getCount, "Counter should be empty");
         assertEquals(expectedCount, countA.get(), "A should have processed task");
         assertEquals(expectedCount, countB.get(), "B should have processed task");
@@ -2113,8 +2113,8 @@ class SequentialTaskSchedulerTests {
         assertEquals(0, countB.get());
 
         // Release the signal and allow B to process tasks.
-        handlerB.completionControl().unblock();
-        handlerB.completionControl().await(10, AWAIT_MAX_DURATION);
+        handlerB.executionControl().unblock();
+        handlerB.executionControl().await(10, AWAIT_MAX_DURATION);
         assertUnprocessedTasksValueIs(schedulerB, 0L);
         assertEquals(expectedCountB, countB.get());
 
@@ -2126,7 +2126,7 @@ class SequentialTaskSchedulerTests {
         }
 
         handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
-        handlerB.completionControl().await(10, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(10, AWAIT_MAX_DURATION);
         assertUnprocessedTasksValueIs(schedulerA, 0L);
         assertUnprocessedTasksValueIs(schedulerB, 0L);
 
@@ -2176,12 +2176,12 @@ class SequentialTaskSchedulerTests {
             }
         });
 
-        taskHandler.completionControl().unblock();
+        taskHandler.executionControl().unblock();
         // add tasks
         producer.run();
         // allow them to run
         producer.waitIsFinished(AWAIT_MAX_DURATION);
-        taskHandler.completionControl().await(totalTasks, AWAIT_MAX_DURATION);
+        taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
         // check there are no unprocessed tasks, according to the framework
         assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
         // check there are no unprocessed tasks, according to the test counter
@@ -2207,7 +2207,7 @@ class SequentialTaskSchedulerTests {
         assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
         // Remove all permissions to start tasks.
-        taskHandler.completionControl().block();
+        taskHandler.executionControl().block();
 
         // Enable the scheduler to start processing tasks again.
         taskScheduler.stopSquelching();
@@ -2215,8 +2215,8 @@ class SequentialTaskSchedulerTests {
         producer.run();
         producer.waitIsFinished(AWAIT_MAX_DURATION);
         assertUnprocessedTasksValueIs(taskScheduler, unprocessedTasks.get());
-        taskHandler.completionControl().unblock();
-        taskHandler.completionControl().await(totalTasks, AWAIT_MAX_DURATION);
+        taskHandler.executionControl().unblock();
+        taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
         assertEquals(0, unprocessedTasks.get());
         assertUnprocessedTasksValueIs(taskScheduler, 0);
 

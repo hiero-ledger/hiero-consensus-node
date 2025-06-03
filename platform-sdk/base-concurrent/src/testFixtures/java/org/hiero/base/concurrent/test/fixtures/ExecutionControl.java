@@ -13,10 +13,10 @@ import java.util.concurrent.TimeUnit;
  * marks. Includes a Gate allowing the initial execution of tasks to be blocked until the gate is released.
  */
 public class ExecutionControl {
-    protected final Semaphore semaphore;
-    protected final Gate gate;
+    private final Semaphore semaphore;
+    private final Gate gate;
 
-    protected ExecutionControl(@NonNull final Gate gate) {
+    ExecutionControl(@NonNull final Gate gate) {
         this.semaphore = new Semaphore(0);
         this.gate = gate;
     }
@@ -53,6 +53,14 @@ public class ExecutionControl {
      */
     public void block() {
         gate.close();
+    }
+
+    /**
+     * If the gate that is guarding the handler is open it will return immediatelly.
+     * If the gate is closed, it will block the calling thread.
+     */
+    public void nock() {
+        gate.nock();
     }
 
     @Override

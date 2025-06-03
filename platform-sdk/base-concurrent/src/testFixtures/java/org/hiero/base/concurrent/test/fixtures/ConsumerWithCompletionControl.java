@@ -22,7 +22,7 @@ public final class ConsumerWithCompletionControl<H> implements Consumer<H> {
     /**
      * @return the completion control
      */
-    public ExecutionControl completionControl() {
+    public ExecutionControl executionControl() {
         return executionControl;
     }
 
@@ -31,7 +31,7 @@ public final class ConsumerWithCompletionControl<H> implements Consumer<H> {
      */
     @Override
     public void accept(final H h) {
-        executionControl.gate.nock();
+        executionControl.nock();
         try {
             handler.accept(h);
         } finally {
