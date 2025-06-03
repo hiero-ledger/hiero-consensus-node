@@ -512,7 +512,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     public void checkOpsDurationThrottle(final long currentOpsDuration) {
         final var throttleAdviser = enhancement.operations().getThrottleAdviser();
         if (throttleAdviser != null) {
-            validateResource(throttleAdviser.shouldThrottleByOpsDuration(currentOpsDuration), THROTTLED_AT_CONSENSUS);
+            validateResource(!throttleAdviser.shouldThrottleByOpsDuration(currentOpsDuration), THROTTLED_AT_CONSENSUS);
         }
     }
 }

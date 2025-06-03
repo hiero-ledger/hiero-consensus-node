@@ -95,6 +95,7 @@ public class HederaEVM extends EVM {
     }
 
     @Override
+    @SuppressWarnings({"java:S3776", "java:S1479"})
     public void runToHalt(MessageFrame frame, OperationTracer tracing) {
         this.evmSpecVersion.maybeWarnVersion();
         OperationTracer operationTracer = tracing == OperationTracer.NO_TRACING ? null : tracing;
@@ -102,6 +103,7 @@ public class HederaEVM extends EVM {
         Operation[] operationArray = this.operations.getOperations();
         long usedOpsDuration = 0;
         final long currentOpsDuration = getHederaOpsDuration(frame);
+        final long hederaOpsDurationShift = this.hederaOpsDuration.durationCheckShift();
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -219,7 +221,16 @@ public class HederaEVM extends EVM {
                         .getOrDefault(
                                 opcode,
                                 result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR);
-                checkHederaOpsDuration(frame, currentOpsDuration + usedOpsDuration);
+
+                // Check the duration of the operations every durationCheckShift opcodes.
+                // This is to avoid checking the duration too frequently and slowing down execution.
+                // We base the shift on the program counter and if the code length is less than the shift we check on
+                // every iteration.
+                // It can be adjusted based on performance requirements.
+                if (hederaOpsDurationShift == 0
+                        || (pc % hederaOpsDurationShift == 0 || code.length < hederaOpsDurationShift)) {
+                    checkHederaOpsDuration(frame, currentOpsDuration + usedOpsDuration);
+                }
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {

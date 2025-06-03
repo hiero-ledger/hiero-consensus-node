@@ -13,6 +13,8 @@ public class HederaOpsDuration {
     public static final String OP_DURATION_MULTIPLIER_KEY = "ops";
     public static final String PRECOMPILE_MULTIPLIER_KEY = "precompile";
     public static final String SYSTEM_CONTRACT_MULTIPLIER_KEY = "systemContract";
+    // This is used to change the step of when we check the duration of the operations.
+    public static final String DURATION_CHECK_SHIFT = "durationCheckShift";
     // As floating point values cannot be used, we use a factor of 100 to use integers.
     public static final long MULTIPLIER_FACTOR = 100;
 
@@ -60,5 +62,9 @@ public class HederaOpsDuration {
 
     public long systemContractDurationMultiplier() {
         return getGasBasedDurationMultiplier().getOrDefault(SYSTEM_CONTRACT_MULTIPLIER_KEY, 1L);
+    }
+
+    public long durationCheckShift() {
+        return getGasBasedDurationMultiplier().getOrDefault(DURATION_CHECK_SHIFT, 100L);
     }
 }

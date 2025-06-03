@@ -291,7 +291,7 @@ public interface HederaOperations {
     }
 
     /**
-     * Returns the ThottleAdvisor or null if it is not available in this scope.
+     * Returns the ThrottleAdvisor or null if it is not available in this scope.
      */
     @Nullable
     ThrottleAdviser getThrottleAdviser();
