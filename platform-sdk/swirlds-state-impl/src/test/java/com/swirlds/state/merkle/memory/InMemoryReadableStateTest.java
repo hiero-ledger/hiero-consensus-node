@@ -4,6 +4,7 @@ package com.swirlds.state.merkle.memory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,14 +61,14 @@ class InMemoryReadableStateTest extends MerkleTestBase {
         }
     }
 
-    private void add(String key, String value) {
-        add(fruitMerkleMap, inMemoryValueClassId(FRUIT_STATE_KEY), STRING_CODEC, STRING_CODEC, key, value);
+    private void add(ProtoBytes key, String value) {
+        add(fruitMerkleMap, inMemoryValueClassId(FRUIT_STATE_KEY), ProtoBytes.PROTOBUF, STRING_CODEC, key, value);
     }
 
     @Nested
     @DisplayName("Query Tests")
     final class QueryTest {
-        private InMemoryReadableKVState<String, String> state;
+        private InMemoryReadableKVState<ProtoBytes, String> state;
 
         @BeforeEach
         void setUp() {

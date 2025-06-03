@@ -7,6 +7,7 @@ import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.T
 import static com.swirlds.state.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -99,8 +100,8 @@ class SerializationTest extends MerkleTestBase {
             @Override
             @SuppressWarnings("rawtypes")
             public Set<StateDefinition> statesToCreate() {
-                final var fruitDef = StateDefinition.inMemory(FRUIT_STATE_KEY, STRING_CODEC, STRING_CODEC);
-                final var animalDef = StateDefinition.onDisk(ANIMAL_STATE_KEY, STRING_CODEC, STRING_CODEC, 100);
+                final var fruitDef = StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC);
+                final var animalDef = StateDefinition.onDisk(ANIMAL_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, 100);
                 final var countryDef = StateDefinition.singleton(COUNTRY_STATE_KEY, STRING_CODEC);
                 final var steamDef = StateDefinition.queue(STEAM_STATE_KEY, STRING_CODEC);
                 return Set.of(fruitDef, animalDef, countryDef, steamDef);
@@ -109,7 +110,7 @@ class SerializationTest extends MerkleTestBase {
             @Override
             public void migrate(@NonNull final MigrationContext ctx) {
                 final var newStates = ctx.newStates();
-                final WritableKVState<String, String> fruit = newStates.get(FRUIT_STATE_KEY);
+                final WritableKVState<ProtoBytes, String> fruit = newStates.get(FRUIT_STATE_KEY);
                 fruit.put(A_KEY, APPLE);
                 fruit.put(B_KEY, BANANA);
                 fruit.put(C_KEY, CHERRY);
@@ -118,8 +119,8 @@ class SerializationTest extends MerkleTestBase {
                 fruit.put(F_KEY, FIG);
                 fruit.put(G_KEY, GRAPE);
 
-                final OnDiskWritableKVState<String, String> animals =
-                        (OnDiskWritableKVState<String, String>) (OnDiskWritableKVState) newStates.get(ANIMAL_STATE_KEY);
+                final OnDiskWritableKVState<ProtoBytes, String> animals = (OnDiskWritableKVState<ProtoBytes, String>)
+                        (OnDiskWritableKVState) newStates.get(ANIMAL_STATE_KEY);
                 animals.put(A_KEY, AARDVARK);
                 animals.put(B_KEY, BEAR);
                 animals.put(C_KEY, CUTTLEFISH);
@@ -335,7 +336,7 @@ class SerializationTest extends MerkleTestBase {
 
     private static void populateVmCache(State loadedTree) {
         final var states = loadedTree.getWritableStates(FIRST_SERVICE);
-        final WritableKVState<String, String> animalState = states.get(ANIMAL_STATE_KEY);
+        final WritableKVState<ProtoBytes, String> animalState = states.get(ANIMAL_STATE_KEY);
         assertThat(animalState.get(A_KEY)).isEqualTo(AARDVARK);
         assertThat(animalState.get(B_KEY)).isEqualTo(BEAR);
         assertThat(animalState.get(C_KEY)).isEqualTo(CUTTLEFISH);
@@ -347,7 +348,7 @@ class SerializationTest extends MerkleTestBase {
 
     private static void assertTree(State loadedTree) {
         final var states = loadedTree.getReadableStates(FIRST_SERVICE);
-        final ReadableKVState<String, String> fruitState = states.get(FRUIT_STATE_KEY);
+        final ReadableKVState<ProtoBytes, String> fruitState = states.get(FRUIT_STATE_KEY);
         assertThat(fruitState.get(A_KEY)).isEqualTo(APPLE);
         assertThat(fruitState.get(B_KEY)).isEqualTo(BANANA);
         assertThat(fruitState.get(C_KEY)).isEqualTo(CHERRY);
@@ -356,7 +357,7 @@ class SerializationTest extends MerkleTestBase {
         assertThat(fruitState.get(F_KEY)).isEqualTo(FIG);
         assertThat(fruitState.get(G_KEY)).isEqualTo(GRAPE);
 
-        final ReadableKVState<String, String> animalState = states.get(ANIMAL_STATE_KEY);
+        final ReadableKVState<ProtoBytes, String> animalState = states.get(ANIMAL_STATE_KEY);
         assertThat(animalState.get(A_KEY)).isEqualTo(AARDVARK);
         assertThat(animalState.get(B_KEY)).isEqualTo(BEAR);
         assertThat(animalState.get(C_KEY)).isEqualTo(CUTTLEFISH);

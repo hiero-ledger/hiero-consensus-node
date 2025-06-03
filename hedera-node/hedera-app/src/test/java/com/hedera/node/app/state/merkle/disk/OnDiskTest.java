@@ -39,8 +39,8 @@ import org.junit.jupiter.api.Test;
  */
 class OnDiskTest extends MerkleTestBase {
 
-    private static final String SERVICE_NAME = "CryptoService";
-    private static final String ACCOUNT_STATE_KEY = "Account";
+    private static final String SERVICE_NAME = "TokenService";
+    private static final String ACCOUNT_STATE_KEY = "ACCOUNTS";
 
     private Schema schema;
     private StateDefinition<AccountID, Account> def;

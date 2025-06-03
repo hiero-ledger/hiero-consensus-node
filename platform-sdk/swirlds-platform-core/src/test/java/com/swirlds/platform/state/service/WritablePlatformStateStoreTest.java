@@ -47,7 +47,7 @@ class WritablePlatformStateStoreTest {
         virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
 
         virtualMap.put(
-                StateUtils.getVirtualMapKey(PlatformStateService.NAME, PLATFORM_STATE_KEY),
+                StateUtils.getVirtualMapKeyForSingleton(PlatformStateService.NAME, PLATFORM_STATE_KEY),
                 toPbjPlatformState(randomPlatformState(randotron)),
                 PlatformState.PROTOBUF);
 

@@ -2,7 +2,7 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKey;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForKv;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
@@ -12,6 +12,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -61,7 +62,7 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     /** {@inheritDoc} */
     @Override
     protected V readFromDataSource(@NonNull K key) {
-        final var value = virtualMap.get(getVirtualMapKey(serviceName, stateKey, key, keyCodec), valueCodec);
+        final var value = virtualMap.get(getVirtualMapKeyForKv(serviceName, stateKey, key), valueCodec);
         // Log to transaction state log, what was read
         logMapGet(computeLabel(serviceName, stateKey), key, value);
         return value;
@@ -73,7 +74,7 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
         logMapIterate(computeLabel(serviceName, stateKey), virtualMap, keyCodec);
-        return new OnDiskIterator<>(virtualMap, keyCodec, getVirtualMapKey(serviceName, stateKey));
+        return new OnDiskIterator<>(virtualMap, keyCodec, StateUtils.stateIdFor(serviceName, stateKey));
     }
 
     /** {@inheritDoc} */
@@ -81,7 +82,7 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     protected void putIntoDataSource(@NonNull K key, @NonNull V value) {
         final Bytes kb = keyCodec.toBytes(key);
         assert kb != null;
-        virtualMap.put(getVirtualMapKey(serviceName, stateKey, key, keyCodec), value, valueCodec);
+        virtualMap.put(getVirtualMapKeyForKv(serviceName, stateKey, key), value, valueCodec);
         // Log to transaction state log, what was put
         logMapPut(computeLabel(serviceName, stateKey), key, value);
     }
@@ -89,7 +90,7 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     /** {@inheritDoc} */
     @Override
     protected void removeFromDataSource(@NonNull K key) {
-        final var removed = virtualMap.remove(getVirtualMapKey(serviceName, stateKey, key, keyCodec), valueCodec);
+        final var removed = virtualMap.remove(getVirtualMapKeyForKv(serviceName, stateKey, key), valueCodec);
         // Log to transaction state log, what was removed
         logMapRemove(computeLabel(serviceName, stateKey), key, removed);
     }

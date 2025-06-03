@@ -25,6 +25,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.merkle.MerkleNode;
@@ -492,10 +493,10 @@ class MerkleStateRootTest extends MerkleTestBase {
             assertThat(states.isEmpty()).isFalse();
             assertThat(states.size()).isEqualTo(4); // animal and fruit and country and steam
 
-            final ReadableKVState<String, String> fruitState = states.get(FRUIT_STATE_KEY);
+            final ReadableKVState<ProtoBytes, String> fruitState = states.get(FRUIT_STATE_KEY);
             assertFruitState(fruitState);
 
-            final ReadableKVState<String, String> animalState = states.get(ANIMAL_STATE_KEY);
+            final ReadableKVState<ProtoBytes, String> animalState = states.get(ANIMAL_STATE_KEY);
             assertAnimalState(animalState);
 
             final ReadableSingletonState<String> countryState = states.getSingleton(COUNTRY_STATE_KEY);
@@ -530,7 +531,7 @@ class MerkleStateRootTest extends MerkleTestBase {
                     .isInstanceOf(ClassCastException.class);
         }
 
-        private static void assertFruitState(ReadableKVState<String, String> fruitState) {
+        private static void assertFruitState(ReadableKVState<ProtoBytes, String> fruitState) {
             assertThat(fruitState).isNotNull();
             assertThat(fruitState.get(A_KEY)).isSameAs(APPLE);
             assertThat(fruitState.get(B_KEY)).isSameAs(BANANA);
@@ -541,7 +542,7 @@ class MerkleStateRootTest extends MerkleTestBase {
             assertThat(fruitState.get(G_KEY)).isNull();
         }
 
-        private void assertAnimalState(ReadableKVState<String, String> animalState) {
+        private void assertAnimalState(ReadableKVState<ProtoBytes, String> animalState) {
             assertThat(animalState).isNotNull();
             assertThat(animalState.get(A_KEY)).isNull();
             assertThat(animalState.get(B_KEY)).isNull();
@@ -694,7 +695,7 @@ class MerkleStateRootTest extends MerkleTestBase {
             assertThat(states.isEmpty()).isFalse();
             assertThat(states.size()).isEqualTo(4);
 
-            final WritableKVState<String, String> fruitStates = states.get(FRUIT_STATE_KEY);
+            final WritableKVState<ProtoBytes, String> fruitStates = states.get(FRUIT_STATE_KEY);
             assertThat(fruitStates).isNotNull();
 
             final var animalStates = states.get(ANIMAL_STATE_KEY);

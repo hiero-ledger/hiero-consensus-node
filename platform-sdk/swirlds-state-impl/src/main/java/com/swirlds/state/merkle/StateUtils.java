@@ -3,7 +3,10 @@ package com.swirlds.state.merkle;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.*;
 
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.VirtualMapKey;
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -394,25 +397,22 @@ public final class StateUtils {
     private static final Bytes[] VIRTUAL_MAP_KEY_CACHE = new Bytes[65536];
 
     /**
-     * Generates a 2 bytes key with the state ID (big‑endian) for a Virtual Map.
+     * Creates an instance of {@link VirtualMapKey} for a singleton state, serializes into a {@link Bytes} object
+     * and returns it.
      * The result is cached to avoid repeated allocations.
      *
      * @param serviceName the service name
      * @param stateKey    the state key
-     * @return a {@link Bytes} object containing the 2‑byte state ID in big‑endian order
+     * @return a {@link VirtualMapKey} for the singleton serialized into {@link Bytes} object
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    public static Bytes getVirtualMapKey(@NonNull final String serviceName, @NonNull final String stateKey) {
-        final int stateId = stateIdFor(serviceName, stateKey);
-        if (stateId < 0 || stateId > 65535) {
-            throw new IllegalArgumentException("State ID " + stateId + " must fit in [0..65535]");
-        }
+    public static Bytes getVirtualMapKeyForSingleton(
+            @NonNull final String serviceName, @NonNull final String stateKey) {
+        final int stateId = getValidatedStateId(serviceName, stateKey);
         Bytes key = VIRTUAL_MAP_KEY_CACHE[stateId];
         if (key == null) {
-            final byte[] bytes = new byte[Short.BYTES];
-            BufferedData writer = BufferedData.wrap(bytes);
-            writeUnsignedShort(writer, stateId);
-            key = Bytes.wrap(bytes);
+            key = VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(
+                    new OneOf<>(VirtualMapKey.KeyOneOfType.SINGLETON, SingletonType.fromProtobufOrdinal(stateId))));
             VIRTUAL_MAP_KEY_CACHE[stateId] = key;
         }
         return key;
@@ -433,17 +433,19 @@ public final class StateUtils {
      * @return a {@link Bytes} object containing exactly 10 bytes in big‑endian order
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    public static Bytes getVirtualMapKey(
+    public static Bytes getVirtualMapKeyForQueue(
             @NonNull final String serviceName, @NonNull final String stateKey, final long index) {
+
+        return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(
+                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), index)));
+    }
+
+    private static int getValidatedStateId(String serviceName, String stateKey) {
         final int stateId = stateIdFor(serviceName, stateKey);
         if (stateId < 0 || stateId > 65535) {
             throw new IllegalArgumentException("State ID " + stateId + " must fit in [0..65535]");
         }
-        final byte[] bytes = new byte[Short.BYTES + Long.BYTES];
-        BufferedData writer = BufferedData.wrap(bytes);
-        writeUnsignedShort(writer, stateId);
-        writer.writeLong(index);
-        return Bytes.wrap(bytes);
+        return stateId;
     }
 
     /**
@@ -460,26 +462,14 @@ public final class StateUtils {
      * @param serviceName the service name
      * @param stateKey    the state key
      * @param key         the key to be serialized and appended
-     * @param keyCodec    the codec used to serialize the key
      * @return a {@link Bytes} object consisting of the 2‑byte state ID (big‑endian) followed by the serialized key bytes
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      * @throws RuntimeException         if an {@link IOException} occurs during key serialization
      */
-    public static <K> Bytes getVirtualMapKey(
-            @NonNull final String serviceName, @NonNull final String stateKey, final K key, final Codec<K> keyCodec) {
-        final int stateId = stateIdFor(serviceName, stateKey);
-        if (stateId < 0 || stateId > 65535) {
-            throw new IllegalArgumentException("State ID " + stateId + " must fit in [0..65535]");
-        }
-        final byte[] bytes = new byte[Short.BYTES + keyCodec.measureRecord(key)];
-        BufferedData writer = BufferedData.wrap(bytes);
-        writeUnsignedShort(writer, stateId);
-        try {
-            keyCodec.write(key, writer);
-        } catch (IOException e) {
-            throw new RuntimeException("Error occurred while writing a key", e);
-        }
-        return Bytes.wrap(bytes);
+    public static <K> Bytes getVirtualMapKeyForKv(
+            @NonNull final String serviceName, @NonNull final String stateKey, final K key) {
+        return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(
+                VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), key)));
     }
 
     /**
