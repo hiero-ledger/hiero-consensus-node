@@ -324,8 +324,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             "[{}] Block node is behind and block state is not available. Closing connection and retrying.",
                             this);
 
-                    final var earliestBlockNumber = blockStreamStateManager.getEarliestAvailableBlockNumber();
-                    final var highestAckedBlockNumber = blockStreamStateManager.getHighestAckedBlockNumber();
+                    final var earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
+                    final var highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
 
                     // Indicate that the block node should recover and catch up from another trustworthy block node
                     final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
