@@ -61,7 +61,6 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -75,7 +74,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchTest {
@@ -191,7 +189,6 @@ public class AtomicBatchTest {
     }
 
     @HapiTest
-    @Tag(TestTags.ADHOC)
     public Stream<DynamicTest> settingSameSlotValueInMultipleCallsPassesStreamValidation(
             @Contract(contract = "Multipurpose", creationGas = 500_000L) SpecContract contract) {
         return hapiTest(

@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ha
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
@@ -116,25 +117,41 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
     @Override
     public void codeSuccess(@NonNull final MessageFrame frame, @NonNull final OperationTracer tracer) {
         super.codeSuccess(requireNonNull(frame), requireNonNull(tracer));
-        // TODO - check if a code rule failed before proceeding
+        final boolean validationRuleFailed = frame.getState() == EXCEPTIONAL_HALT;
         if (hasBytecodeSidecarsEnabled(frame)) {
             final var recipient = proxyUpdaterFor(frame).getHederaAccount(frame.getRecipientAddress());
             final var recipientId = requireNonNull(recipient).hederaContractId();
             final var pendingCreationMetadata = getAndClearPendingCreationMetadata(frame, recipientId);
             final var bytecode = tuweniToPbjBytes(recipient.getCode());
-            final var initcode = pendingCreationMetadata.externalizeInitcodeOnSuccess()
+            final var initcode = pendingCreationMetadata.needsInitcodeExternalized()
                     ? tuweniToPbjBytes(frame.getCode().getBytes())
                     : null;
-            // (FUTURE) Remove after switching to block stream
-            final var contractBytecode =
-                    ContractBytecode.newBuilder().contractId(recipientId).runtimeBytecode(bytecode);
-            if (initcode != null) {
-                contractBytecode.initcode(tuweniToPbjBytes(frame.getCode().getBytes()));
+            // (FUTURE) Remove this sidecar if/else after switching to block stream
+            if (validationRuleFailed) {
+                if (initcode != null) {
+                    final var sidecar =
+                            ContractBytecode.newBuilder().initcode(initcode).build();
+                    pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar, false);
+                }
+            } else if (initcode != null) {
+                final var sidecar = ContractBytecode.newBuilder()
+                        .contractId(recipientId)
+                        .initcode(initcode)
+                        .runtimeBytecode(bytecode)
+                        .build();
+                pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar, false);
             }
-            pendingCreationMetadata.streamBuilder().addContractBytecode(contractBytecode.build(), false);
             // No-op for the RecordStreamBuilder
-            final var initcodeBuilder = ExecutedInitcode.newBuilder().contractId(recipientId);
-            if (initcode != null) {
+            if (validationRuleFailed) {
+                if (initcode != null) {
+                    pendingCreationMetadata
+                            .streamBuilder()
+                            .addInitcode(ContractInitcode.newBuilder()
+                                    .failedInitcode(initcode)
+                                    .build());
+                }
+            } else if (initcode != null) {
+                final var initcodeBuilder = ExecutedInitcode.newBuilder().contractId(recipientId);
                 final int i = indexOf(initcode, bytecode);
                 if (i != -1) {
                     final var leftBookend = initcode.slice(0, i);
@@ -144,12 +161,12 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
                 } else {
                     initcodeBuilder.explicitInitcode(initcode);
                 }
+                pendingCreationMetadata
+                        .streamBuilder()
+                        .addInitcode(ContractInitcode.newBuilder()
+                                .executedInitcode(initcodeBuilder)
+                                .build());
             }
-            pendingCreationMetadata
-                    .streamBuilder()
-                    .addInitcode(ContractInitcode.newBuilder()
-                            .executedInitcode(initcodeBuilder)
-                            .build());
         }
     }
 
@@ -157,7 +174,7 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
             @NonNull final MessageFrame frame,
             @NonNull final OperationTracer tracer,
             @NonNull final Optional<ExceptionalHaltReason> reason) {
-        frame.setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        frame.setState(EXCEPTIONAL_HALT);
         frame.setExceptionalHaltReason(reason);
         tracer.traceAccountCreationResult(frame, reason);
         // TODO - should we revert child records here?
