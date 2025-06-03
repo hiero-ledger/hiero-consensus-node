@@ -303,7 +303,7 @@ public final class IngestChecker {
     }
 
     private void checkThrottles(
-            @NonNull TransactionInfo txInfo,
+            @NonNull final TransactionInfo txInfo,
             @NonNull final State state,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final List<ThrottleUsage> throttleUsages)

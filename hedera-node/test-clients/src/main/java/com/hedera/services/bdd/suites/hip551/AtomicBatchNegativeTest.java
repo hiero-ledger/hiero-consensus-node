@@ -616,10 +616,10 @@ public class AtomicBatchNegativeTest {
                 // save invalid key in registry
                 spec.registry().saveKey("invalidKey", invalidKey);
                 // submit op with an invalid batch key
-                final var op = cryptoCreate("foo")
+                final var cryptoCreateOp = cryptoCreate("foo")
                         .batchKey("invalidKey")
                         .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
-                allRunFor(spec, op);
+                allRunFor(spec, cryptoCreateOp);
             }));
         }
     }
