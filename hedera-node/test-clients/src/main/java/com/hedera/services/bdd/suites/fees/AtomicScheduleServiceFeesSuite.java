@@ -34,6 +34,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
+// This test cases are direct copies of ScheduleServiceFeesSuite. The difference here is that
+// we are wrapping the operations in an atomic batch to confirm the fees are the same
 @HapiTestLifecycle
 public class AtomicScheduleServiceFeesSuite {
 
