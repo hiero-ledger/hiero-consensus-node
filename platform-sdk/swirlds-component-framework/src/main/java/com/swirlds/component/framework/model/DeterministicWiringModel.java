@@ -55,7 +55,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
             @Nullable final UncaughtExceptionHandler taskSchedulerExceptionHandler) {
         super(false);
         this.metrics = Objects.requireNonNull(metrics);
-        this.heartbeatScheduler = new DeterministicHeartbeatScheduler(this, time, "heartbeat");
+        this.heartbeatScheduler = new DeterministicHeartbeatScheduler(this, time);
         this.taskSchedulerExceptionHandler = taskSchedulerExceptionHandler;
     }
 
@@ -135,7 +135,8 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
-        return heartbeatScheduler.buildHeartbeatWire(frequency, taskSchedulerExceptionHandler); // TODO may be null
+        return heartbeatScheduler.buildHeartbeatWire(frequency,
+                Optional.ofNullable(taskSchedulerExceptionHandler).orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION));
     }
 
     /**

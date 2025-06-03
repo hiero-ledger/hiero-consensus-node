@@ -19,10 +19,10 @@ import java.util.Objects;
  * A scheduler that produces heartbeats at a specified rate.
  */
 public abstract class AbstractHeartbeatScheduler {
+    public static final String HEARTBEAT_SCHEDULER_NAME = "Heartbeat";
 
     private final TraceableWiringModel model;
     protected final Time time;
-    protected final String name;
     protected final List<HeartbeatTask> tasks = new ArrayList<>();
     protected boolean started;
 
@@ -31,15 +31,13 @@ public abstract class AbstractHeartbeatScheduler {
      *
      * @param model the wiring model containing this heartbeat scheduler
      * @param time  provides wall clock time
-     * @param name  the name of the heartbeat scheduler
      */
     public AbstractHeartbeatScheduler(
-            @NonNull final TraceableWiringModel model, @NonNull final Time time, @NonNull final String name) {
+            @NonNull final TraceableWiringModel model, @NonNull final Time time) {
         this.model = Objects.requireNonNull(model);
         this.time = Objects.requireNonNull(time);
-        this.name = Objects.requireNonNull(name);
         model.registerVertex(
-                name, TaskSchedulerType.SEQUENTIAL, platformCommonHyperlink(AbstractHeartbeatScheduler.class), false);
+                HEARTBEAT_SCHEDULER_NAME, TaskSchedulerType.SEQUENTIAL, platformCommonHyperlink(AbstractHeartbeatScheduler.class), false);
     }
 
     /**
@@ -70,7 +68,7 @@ public abstract class AbstractHeartbeatScheduler {
                             + "Requested period: " + period);
         }
 
-        final HeartbeatTask task = new HeartbeatTask(model, name, time, period, exceptionHandler);
+        final HeartbeatTask task = new HeartbeatTask(model, HEARTBEAT_SCHEDULER_NAME, time, period, exceptionHandler);
         tasks.add(task);
 
         return task.getOutputWire();
