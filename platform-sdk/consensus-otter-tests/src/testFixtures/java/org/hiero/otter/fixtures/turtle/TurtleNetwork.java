@@ -200,9 +200,9 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
             throw new IllegalStateException("Can only shutdown when the network is running.");
         }
 
-        log.info("Shutting down nodes gracefully...");
+        log.info("Killing nodes immediately...");
         for (final TurtleNode node : nodes) {
-            node.shutdownGracefully(timeout);
+            node.killImmediately(timeout);
         }
     }
 
