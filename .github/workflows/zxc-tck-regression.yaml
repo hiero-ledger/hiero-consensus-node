@@ -152,7 +152,6 @@ jobs:
           NODE_IP: "network-node:50211"
           MIRROR_NODE_REST_URL: "http://mirror-node-rest:5551"
           MIRROR_NODE_REST_JAVA_URL: "http://mirror-node-rest-java:8084"
-    depends_on:
         run: |
           solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           npm run test
