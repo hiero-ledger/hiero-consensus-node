@@ -135,8 +135,10 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @NonNull
     @Override
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
-        return heartbeatScheduler.buildHeartbeatWire(frequency,
-                Optional.ofNullable(taskSchedulerExceptionHandler).orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION));
+        return heartbeatScheduler.buildHeartbeatWire(
+                frequency,
+                Optional.ofNullable(taskSchedulerExceptionHandler)
+                        .orElse(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION));
     }
 
     /**

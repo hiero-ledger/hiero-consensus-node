@@ -30,6 +30,7 @@ public class ExceptionHandlers {
 
     private record DefaultUncaughtExceptionHandler(@NonNull String name) implements UncaughtExceptionHandler {
         private static final Logger logger = LogManager.getLogger(DefaultUncaughtExceptionHandler.class);
+
         @Override
         public void uncaughtException(final Thread thread, final Throwable exception) {
             logger.error(EXCEPTION.getMarker(), "Uncaught exception in {}", name, exception);

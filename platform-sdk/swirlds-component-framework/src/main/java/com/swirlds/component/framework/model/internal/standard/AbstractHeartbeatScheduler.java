@@ -32,12 +32,14 @@ public abstract class AbstractHeartbeatScheduler {
      * @param model the wiring model containing this heartbeat scheduler
      * @param time  provides wall clock time
      */
-    public AbstractHeartbeatScheduler(
-            @NonNull final TraceableWiringModel model, @NonNull final Time time) {
+    public AbstractHeartbeatScheduler(@NonNull final TraceableWiringModel model, @NonNull final Time time) {
         this.model = Objects.requireNonNull(model);
         this.time = Objects.requireNonNull(time);
         model.registerVertex(
-                HEARTBEAT_SCHEDULER_NAME, TaskSchedulerType.SEQUENTIAL, platformCommonHyperlink(AbstractHeartbeatScheduler.class), false);
+                HEARTBEAT_SCHEDULER_NAME,
+                TaskSchedulerType.SEQUENTIAL,
+                platformCommonHyperlink(AbstractHeartbeatScheduler.class),
+                false);
     }
 
     /**

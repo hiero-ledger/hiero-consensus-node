@@ -4,7 +4,6 @@ package com.swirlds.component.framework.schedulers.builders.internal;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.MultiObjectCounter;

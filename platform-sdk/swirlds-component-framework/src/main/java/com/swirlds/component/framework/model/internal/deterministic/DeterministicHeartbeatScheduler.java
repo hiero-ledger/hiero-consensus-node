@@ -37,8 +37,7 @@ public class DeterministicHeartbeatScheduler extends AbstractHeartbeatScheduler 
      * @param model the wiring model containing this heartbeat scheduler
      * @param time provides wall clock time
      */
-    public DeterministicHeartbeatScheduler(
-            @NonNull final TraceableWiringModel model, @NonNull final Time time) {
+    public DeterministicHeartbeatScheduler(@NonNull final TraceableWiringModel model, @NonNull final Time time) {
         super(model, time);
     }
 

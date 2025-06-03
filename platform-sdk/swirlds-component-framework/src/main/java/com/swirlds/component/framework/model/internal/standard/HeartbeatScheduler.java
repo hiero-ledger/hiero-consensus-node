@@ -18,8 +18,7 @@ public class HeartbeatScheduler extends AbstractHeartbeatScheduler {
      * @param model the wiring model containing this heartbeat scheduler
      * @param time  provides wall clock time
      */
-    public HeartbeatScheduler(
-            @NonNull final StandardWiringModel model, @NonNull final Time time) {
+    public HeartbeatScheduler(@NonNull final StandardWiringModel model, @NonNull final Time time) {
         super(model, time);
     }
 

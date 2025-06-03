@@ -154,8 +154,12 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
         throwIfStarted();
-        return getHeartbeatScheduler().buildHeartbeatWire(period, Optional.ofNullable(taskSchedulerExceptionHandler).orElse(
-                ExceptionHandlers.defaultExceptionHandler(AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME)));
+        return getHeartbeatScheduler()
+                .buildHeartbeatWire(
+                        period,
+                        Optional.ofNullable(taskSchedulerExceptionHandler)
+                                .orElse(ExceptionHandlers.defaultExceptionHandler(
+                                        AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME)));
     }
 
     /**
@@ -184,7 +188,10 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
         throwIfStarted();
-        return getHeartbeatScheduler().buildHeartbeatWire(frequency, ExceptionHandlers.defaultExceptionHandler(AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME));
+        return getHeartbeatScheduler()
+                .buildHeartbeatWire(
+                        frequency,
+                        ExceptionHandlers.defaultExceptionHandler(AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME));
     }
 
     /**
