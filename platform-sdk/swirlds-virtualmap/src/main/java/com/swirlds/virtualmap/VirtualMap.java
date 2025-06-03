@@ -697,7 +697,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         throwIfImmutable();
         assert !isHashed() : "Cannot modify already hashed node";
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
-        final long path = records.findKey(key);
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
             if (size() == 0 && !key.equals(VM_STATE_KEY)) {
@@ -706,6 +705,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 add(VM_STATE_KEY, state, null, state.toBytes());
             }
 
+            final long path = records.findKey(key);
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
