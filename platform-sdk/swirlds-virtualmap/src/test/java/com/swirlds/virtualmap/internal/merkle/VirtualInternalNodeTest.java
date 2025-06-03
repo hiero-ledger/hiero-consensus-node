@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
+import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -105,7 +106,7 @@ class VirtualInternalNodeTest extends VirtualTestBase {
         final VirtualLeafNode rightChild = internalNode.getChild(1);
         assertNotNull(leftChild, "child should not be null");
         assertNotNull(rightChild, "child should not be null");
-        assertEquals(A_KEY, leftChild.getKey(), "key should match original");
+        assertEquals(VM_STATE_KEY, leftChild.getKey(), "key should match original");
         assertEquals(D_KEY, rightChild.getKey(), "key should match original");
         assertNull(internalNode.getChild(2), "value should be null");
     }

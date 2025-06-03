@@ -76,11 +76,10 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         assert leftRight != null;
         assert rightLeft != null;
 
-        a = leftLeft.getChild(0);
         d = leftLeft.getChild(1);
         b = leftRight.getChild(0);
         e = leftRight.getChild(1);
-        // rightLeft.getChild(0) - VM state
+        a = rightLeft.getChild(0);
         f = rightLeft.getChild(1);
         c = rightRight.getChild(0);
         g = rightRight.getChild(1);
@@ -155,11 +154,11 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         assertEquals(leftRight, itr.next(), "Wrong value");
         assertEquals(rightLeft, itr.next(), "Wrong value");
         assertEquals(rightRight, itr.next(), "Wrong value");
-        assertEquals(a, itr.next(), "Wrong value");
+        itr.next(); // skip over the map metadata node
         assertEquals(d, itr.next(), "Wrong value");
         assertEquals(b, itr.next(), "Wrong value");
         assertEquals(e, itr.next(), "Wrong value");
-        itr.next(); // skip over the map metadata node
+        assertEquals(a, itr.next(), "Wrong value");
         assertEquals(f, itr.next(), "Wrong value");
         assertEquals(c, itr.next(), "Wrong value");
         assertEquals(g, itr.next(), "Wrong value");
@@ -175,14 +174,14 @@ class VirtualMerkleNavigationTest extends VirtualTestBase {
         assertSame(tllr, itr.next(), "Wrong value");
         assertSame(tll, itr.next(), "Wrong value");
         assertSame(tlrl, itr.next(), "Wrong value");
-        assertEquals(a, itr.next(), "Wrong value");
+        itr.next(); // skip over the map metadata node
         assertEquals(d, itr.next(), "Wrong value");
         assertEquals(leftLeft, itr.next(), "Wrong value");
         assertEquals(b, itr.next(), "Wrong value");
         assertEquals(e, itr.next(), "Wrong value");
         assertEquals(leftRight, itr.next(), "Wrong value");
         assertEquals(left, itr.next(), "Wrong value");
-        itr.next(); // skip over the map metadata node
+        assertEquals(a, itr.next(), "Wrong value");
         assertEquals(f, itr.next(), "Wrong value");
         assertEquals(rightLeft, itr.next(), "Wrong value");
         assertEquals(c, itr.next(), "Wrong value");

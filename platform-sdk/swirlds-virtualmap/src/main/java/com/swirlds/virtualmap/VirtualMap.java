@@ -700,6 +700,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         final long path = records.findKey(key);
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
+            if (size() == 0 && !key.equals(VM_STATE_KEY)) {
+                add(VM_STATE_KEY, state, null, state.toBytes());
+            }
+
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
@@ -716,9 +720,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
-            if (size() == 1 && !key.equals(VM_STATE_KEY)) {
-                persistNonEmptyState();
-            }
         }
     }
 
