@@ -179,9 +179,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         if (state != State.RUNNING) {
             throw new IllegalStateException("Can only freeze when the network is running.");
         }
-        log.info("Preparing freeze...");
 
-        log.debug("Sending TurtleFreezeTransaction transaction...");
+        log.info("Sending freeze transaction...");
         final TurtleTransaction freezeTransaction =
                 TransactionFactory.createFreezeTransaction(timeManager.now().plus(FREEZE_DELAY));
         nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());

@@ -55,6 +55,10 @@ public interface Network {
     /**
      * Freezes the network.
      *
+     * <p>This method sends a freeze transaction to one of the active nodes with a freeze time shortly after the
+     * current time. The method returns once all nodes entered the
+     * {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE} state.
+     *
      * @param timeout the duration to wait before considering the freeze operation as failed
      * @throws InterruptedException if the thread is interrupted while waiting
      */
