@@ -716,7 +716,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             statistics.countUpdatedEntities();
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
-            if (path == INVALID_PATH) {
+            if (size() == 1 && !key.equals(VM_STATE_KEY)) {
                 persistNonEmptyState();
             }
         }
