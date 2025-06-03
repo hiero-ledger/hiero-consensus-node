@@ -162,7 +162,7 @@ public class TestIntake {
     }
 
     public void reset() {
-        loadSnapshot(SyntheticSnapshot.getGenesisSnapshot(ancientMode));
+        loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
         output.clear();
     }
 

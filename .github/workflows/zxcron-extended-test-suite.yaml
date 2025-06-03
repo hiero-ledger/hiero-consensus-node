@@ -275,7 +275,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: Hedera Services - eXtended Test Suite Passing Report",
+                        "text": ":tada: Hiero Consensus Node - eXtended Test Suite Passing Report",
                         "emoji": true
                       }
                     },
@@ -438,7 +438,7 @@ jobs:
           --header 'Content-Type: application/json' \
           --data '{
             "payload": {
-              "summary": "Hedera Services - eXtended Test Suite Failure",
+              "summary": "Hiero Consensus Node - eXtended Test Suite Failure",
               "severity": "error",
               "source": "GitHub Actions - eXtended Test Suite",
               "custom_details": {
@@ -491,7 +491,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - eXtended Test Suite Error Report",
+                        "text": ":grey_exclamation: Hiero Consensus Node - eXtended Test Suite Error Report",
                         "emoji": true
                       }
                     },

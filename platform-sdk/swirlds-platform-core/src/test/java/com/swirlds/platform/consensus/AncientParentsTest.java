@@ -19,12 +19,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Test;
 
 class AncientParentsTest {
 
@@ -46,9 +44,8 @@ class AncientParentsTest {
      * will now be needed for consensus. If the small partition events are not inserted into one of the nodes correctly,
      * it will not be able to reach consensus.
      */
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void nonAncientEventWithMissingParents(final boolean useBirthRounds) {
+    @Test
+    void nonAncientEventWithMissingParents() {
         final long seed = 0;
         final int numNodes = 10;
         final List<Integer> partitionNodes = List.of(0, 1);
@@ -56,7 +53,6 @@ class AncientParentsTest {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, 25)
                 .withValue(ConsensusConfig_.ROUNDS_EXPIRED, 25)
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, Boolean.toString(useBirthRounds))
                 .getOrCreateConfig();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()

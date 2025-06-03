@@ -209,7 +209,7 @@ class ThrottleAccumulatorTest {
                 gasThrottle,
                 bytesThrottle,
                 opsDurationThrottle);
-        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertFalse(subject.checkAndEnforceThrottle(
                 TRANSACTION_GET_RECEIPT, TIME_INSTANT, query, state, AccountID.DEFAULT));
         assertFalse(subject.shouldThrottleNOfUnscaled(1, CRYPTO_TRANSFER, TIME_INSTANT));
@@ -472,10 +472,10 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
         // and
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 3000; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
         var throttlesNow = subject.activeThrottlesFor(TOKEN_MINT);
         var aNow = throttlesNow.get(0);
@@ -520,10 +520,10 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
         // and
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 400; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
         var throttlesNow = subject.activeThrottlesFor(TOKEN_MINT);
         // and
@@ -565,10 +565,10 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
         // and
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 12; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
         var throttlesNow = subject.activeThrottlesFor(CONTRACT_CALL);
         // and
@@ -607,9 +607,9 @@ class ThrottleAccumulatorTest {
         // when:
         subject.rebuildFor(defs);
         // and:
-        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         for (int i = 1; i <= 12; i++) {
-            assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state));
+            assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null));
         }
         var throttlesNow = subject.activeThrottlesFor(CONTRACT_CALL);
         // and:
@@ -659,7 +659,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -704,7 +704,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -748,7 +748,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -791,7 +791,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -834,7 +834,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -875,7 +875,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
@@ -917,7 +917,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
@@ -959,7 +959,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
@@ -1004,7 +1004,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -1049,7 +1049,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -1096,7 +1096,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertFalse(ans);
@@ -1143,7 +1143,7 @@ class ThrottleAccumulatorTest {
 
         // when
         subject.rebuildFor(defs);
-        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
         assertTrue(ans);
@@ -1179,7 +1179,7 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
@@ -1214,7 +1214,7 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
@@ -1248,7 +1248,7 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
@@ -1283,11 +1283,11 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertTrue(subject.wasLastTxnGasThrottled());
 
         given(transactionInfo.functionality()).willReturn(TOKEN_BURN);
-        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state);
+        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null);
         assertFalse(subject.wasLastTxnGasThrottled());
     }
 
@@ -1321,7 +1321,7 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
@@ -1357,11 +1357,11 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertTrue(subject.wasLastTxnGasThrottled());
 
         given(transactionInfo.functionality()).willReturn(TOKEN_BURN);
-        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state);
+        subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null);
         assertFalse(subject.wasLastTxnGasThrottled());
     }
 
@@ -1456,7 +1456,7 @@ class ThrottleAccumulatorTest {
 
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
 
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         Assertions.assertSame(Collections.emptyList(), subject.activeThrottlesFor(CONTRACT_CALL));
     }
 
@@ -1620,10 +1620,10 @@ class ThrottleAccumulatorTest {
 
         // when
         final var txnInfo = scheduleSign(SCHEDULE_ID);
-        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state);
+        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 150; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
 
         final var throttlesNow = subject.activeThrottlesFor(SCHEDULE_SIGN);
@@ -1675,10 +1675,10 @@ class ThrottleAccumulatorTest {
 
         // when
         final var txnInfo = scheduleSign(SCHEDULE_ID);
-        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state);
+        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         boolean subsequentAns = false;
         for (int i = 1; i <= 150; i++) {
-            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state);
+            subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
 
         final var throttlesNow = subject.activeThrottlesFor(SCHEDULE_SIGN);
@@ -1771,7 +1771,7 @@ class ThrottleAccumulatorTest {
 
         // when
         final var scheduleSignTxnInfo = scheduleSign(SCHEDULE_ID);
-        final var ans = subject.checkAndEnforceThrottle(scheduleSignTxnInfo, TIME_INSTANT, state);
+        final var ans = subject.checkAndEnforceThrottle(scheduleSignTxnInfo, TIME_INSTANT, state, null);
         final var throttlesNow = subject.activeThrottlesFor(SCHEDULE_SIGN);
         final var aNow = throttlesNow.getFirst();
 
