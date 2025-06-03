@@ -7,6 +7,8 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_VERSION;
 import static org.hiero.otter.test.BirthRoundFreezeTestUtils.assertBirthRoundsBeforeAndAfterFreeze;
 
+import com.swirlds.platform.event.preconsensus.PcesConfig_;
+import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import java.time.Duration;
 import java.time.Instant;
 import org.hiero.consensus.config.EventConfig_;
@@ -47,8 +49,10 @@ public class BirthRoundMigrationAndFreezeTest {
         // Setup simulation
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
-            node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false);
-            node.getConfiguration().set(SOFTWARE_VERSION, OLD_VERSION);
+            node.getConfiguration()
+                    .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)
+                    .set(SOFTWARE_VERSION, OLD_VERSION)
+                    .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
         }
         network.start(ONE_MINUTE);
         env.transactionGenerator().start();
@@ -61,8 +65,9 @@ public class BirthRoundMigrationAndFreezeTest {
         network.prepareUpgrade(ONE_MINUTE);
 
         for (final Node node : network.getNodes()) {
-            node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true);
-            node.getConfiguration().set(SOFTWARE_VERSION, NEW_VERSION);
+            node.getConfiguration()
+                    .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
+                    .set(SOFTWARE_VERSION, NEW_VERSION);
         }
 
         // Restart the network and perform birth round migration
@@ -82,6 +87,8 @@ public class BirthRoundMigrationAndFreezeTest {
         final Instant postFreezeShutdownTime = timeManager.now();
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
+
+        assertThat(network.getPcesResults()).hasMaxBirthRoundEqualTo(freezeRound);
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.resume(ONE_MINUTE);
