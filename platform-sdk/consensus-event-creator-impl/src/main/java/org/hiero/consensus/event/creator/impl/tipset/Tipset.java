@@ -4,7 +4,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -66,14 +65,12 @@ public class Tipset {
             return new Tipset(roster);
         }
 
-        final List<Tipset> allTipsets = new ArrayList<>(tipsets);
-        allTipsets.add(this);
-        final int length = tipsets.get(0).tips.length;
-        final Tipset newTipset = buildEmptyTipset(tipsets.get(0));
+        final int length = tipsets.getFirst().tips.length;
+        final Tipset newTipset = buildEmptyTipset(tipsets.getFirst());
 
         for (int index = 0; index < length; index++) {
-            long max = NonDeterministicGeneration.GENERATION_UNDEFINED;
-            for (final Tipset tipSet : allTipsets) {
+            long max = this.tips[index];
+            for (final Tipset tipSet : tipsets) {
                 max = Math.max(max, tipSet.tips[index]);
             }
             newTipset.tips[index] = max;
