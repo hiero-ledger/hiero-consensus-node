@@ -271,6 +271,7 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
@@ -289,11 +290,13 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
         with:
           path: run.log
 
       - name: Get Commit Information
         id: fetch-commit-info
+        continue-on-error: true
         run: |
           echo "commit-hash=$(git rev-parse ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
           echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
@@ -301,6 +304,7 @@ jobs:
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
+        continue-on-error: true
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
           EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
