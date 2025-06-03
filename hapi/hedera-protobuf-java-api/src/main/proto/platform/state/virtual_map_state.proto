@@ -128,11 +128,6 @@ message VirtualMapKey {
     proto.EntityNumber AddressBookService__NODES = 20;
 
     /**
-     * A state identifier for the Topics state. 
-     */
-    proto.TopicID ConsensusService__TOPICS = 21;
-
-    /**
      * A state identifier for pending airdrops. 
      */
     proto.PendingAirdropId TokenService__PENDING_AIRDROPS = 25;
@@ -207,6 +202,11 @@ message VirtualMapKey {
      * A state identifier for the CRS publications. 
      */    
     com.hedera.hapi.platform.state.NodeId HintsService__CRS_PUBLICATIONS = 49;
+
+    /**
+     * A state identifier for the Topics state.
+    */
+    proto.TopicID ConsensusService__TOPICS = 52;
 
     // Queue states
     /**
