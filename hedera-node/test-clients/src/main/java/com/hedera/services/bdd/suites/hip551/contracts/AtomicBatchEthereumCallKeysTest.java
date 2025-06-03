@@ -78,7 +78,7 @@ public class AtomicBatchEthereumCallKeysTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> canCreateTokenWithCryptoAdminKeyOnlyIfHasTopLevelSig() {
+    public final Stream<DynamicTest> canCreateTokenWithCryptoAdminKeyOnlyIfHasTopLevelSig() {
         final var cryptoKey = "cryptoKey";
         final var thresholdKey = "thresholdKey";
         final String contract = "TestTokenCreateContract";
@@ -160,7 +160,7 @@ public class AtomicBatchEthereumCallKeysTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> etx013PrecompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
+    public final Stream<DynamicTest> etx013PrecompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
         final String fungibleToken = "token";
         final String mintTxn = "mintTxn";
@@ -209,7 +209,7 @@ public class AtomicBatchEthereumCallKeysTest {
                         recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
-    private HapiAtomicBatch atomicBatchDefaultOperator(HapiTxnOp<?>... ops) {
+    private HapiAtomicBatch atomicBatchDefaultOperator(final HapiTxnOp<?>... ops) {
         return atomicBatch(Arrays.stream(ops)
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))

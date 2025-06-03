@@ -67,7 +67,6 @@ import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -152,7 +151,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
+    public final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
         final var delegateContractKeyShape = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var contractKeyShape = KeyShape.threshOf(1, SIMPLE, KeyShape.CONTRACT);
 
@@ -170,7 +169,7 @@ public class AtomicBatchContractKeysHtsTest {
                         spec,
                         contractCreate(
                                         BURN_TOKEN,
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
                                 .via(CREATION_TX))),
                 newKeyNamed(DELEGATE_KEY).shape(delegateContractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
@@ -211,7 +210,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
+    public final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
         return hapiTest(
@@ -237,7 +236,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 OUTER_CONTRACT,
                                                 "burnDelegateCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .payingWith(GENESIS)
@@ -257,7 +256,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> delegateCallForMintWithContractKey() {
+    public final Stream<DynamicTest> delegateCallForMintWithContractKey() {
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
         return hapiTest(
@@ -281,7 +280,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 OUTER_CONTRACT,
                                                 "mintDelegateCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
                                                 BigInteger.ONE)
                                         .payingWith(GENESIS)
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
@@ -301,7 +300,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForDissociatePrecompileFails() {
+    public final Stream<DynamicTest> staticCallForDissociatePrecompileFails() {
         final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
         final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
@@ -324,8 +323,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "dissociateStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("staticDissociateCallTxn")
                                         .gas(GAS_TO_OFFER))
@@ -335,7 +334,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForTransferWithContractKey() {
+    public final Stream<DynamicTest> staticCallForTransferWithContractKey() {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
@@ -377,9 +376,9 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "transferStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(receiverID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(receiverID.get())),
                                                 1L)
                                         .payingWith(GENESIS)
                                         .via("staticTransferCallWithContractKeyTxn")
@@ -389,7 +388,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForBurnWithContractKey() {
+    public final Stream<DynamicTest> staticCallForBurnWithContractKey() {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
@@ -416,7 +415,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "burnStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .payingWith(GENESIS)
@@ -427,7 +426,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForMintWithContractKey() {
+    public final Stream<DynamicTest> staticCallForMintWithContractKey() {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
@@ -452,7 +451,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "mintStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
                                                 BigInteger.ONE)
                                         .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
@@ -462,7 +461,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForTransferWithDelegateContractKey() {
+    public final Stream<DynamicTest> staticCallForTransferWithDelegateContractKey() {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
@@ -498,9 +497,9 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "transferStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(receiverID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(receiverID.get())),
                                                 1L)
                                         .payingWith(GENESIS)
                                         .via("staticTransferCallWithDelegateContractKeyTxn")
@@ -510,7 +509,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
+    public final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
@@ -538,7 +537,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "burnStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .payingWith(GENESIS)
@@ -549,7 +548,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
+    public final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
         final var outerContract = STATIC_CONTRACT;
         final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
 
@@ -575,7 +574,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "mintStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
                                                 BigInteger.ONE)
                                         .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
@@ -585,7 +584,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> staticCallForAssociatePrecompileFails() {
+    public final Stream<DynamicTest> staticCallForAssociatePrecompileFails() {
         final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
         final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
@@ -610,8 +609,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 outerContract,
                                                 "associateStaticCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
                                         .payingWith(ACCOUNT)
                                         .via("staticAssociateCallTxn")
                                         .gas(GAS_TO_OFFER))
@@ -621,7 +620,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForMintWithContractKey() {
+    public final Stream<DynamicTest> callForMintWithContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
 
@@ -648,7 +647,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "mintTokenCall",
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(TYPE_OF_TOKEN))),
                                         BigInteger.valueOf(amount),
                                         new byte[][] {})
@@ -672,7 +671,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForMintWithDelegateContractKey() {
+    public final Stream<DynamicTest> callForMintWithDelegateContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
 
@@ -699,7 +698,7 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "mintTokenCall",
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(TYPE_OF_TOKEN))),
                                         BigInteger.valueOf(amount),
                                         new byte[][] {})
@@ -723,7 +722,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForTransferWithContractKey() {
+    public final Stream<DynamicTest> callForTransferWithContractKey() {
         return hapiTest(
                 newKeyNamed(UNIVERSAL_KEY),
                 cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
@@ -755,11 +754,11 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "transferNFTCall",
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(NFT))),
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(ACCOUNT))),
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(RECEIVER))),
                                         1L)
                                 .fee(2 * ONE_HBAR)
@@ -785,7 +784,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
+    public final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
         return hapiTest(
                 newKeyNamed(UNIVERSAL_KEY),
                 cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
@@ -814,11 +813,11 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "transferNFTCall",
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(NFT))),
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(ACCOUNT))),
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(RECEIVER))),
                                         1L)
                                 .fee(2 * ONE_HBAR)
@@ -844,7 +843,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForAssociateWithDelegateContractKey() {
+    public final Stream<DynamicTest> callForAssociateWithDelegateContractKey() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
@@ -865,8 +864,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
                                 .gas(GAS_TO_OFFER)
@@ -883,7 +882,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForAssociateWithContractKey() {
+    public final Stream<DynamicTest> callForAssociateWithContractKey() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
@@ -904,8 +903,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
                                 .gas(GAS_TO_OFFER)
@@ -922,7 +921,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForDissociateWithDelegateContractKey() {
+    public final Stream<DynamicTest> callForDissociateWithDelegateContractKey() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
@@ -949,8 +948,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
                                         .gas(GAS_TO_OFFER))
@@ -959,8 +958,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via(TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN)
                                 .gas(GAS_TO_OFFER)
@@ -985,7 +984,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForDissociateWithContractKey() {
+    public final Stream<DynamicTest> callForDissociateWithContractKey() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
@@ -1012,8 +1011,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("nonZeroTokenBalanceDissociateWithContractKeyFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1022,8 +1021,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("tokenDissociateWithContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
@@ -1048,7 +1047,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
+    public final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
                 cryptoCreate(TOKEN_TREASURY),
@@ -1063,7 +1062,7 @@ public class AtomicBatchContractKeysHtsTest {
                         spec,
                         contractCreate(
                                         BURN_TOKEN,
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
                                 .via(CREATION_TX))),
                 newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
@@ -1087,7 +1086,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks() {
+    public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks() {
         final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
         final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
@@ -1112,8 +1111,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         outerContract,
                                         "associateDelegateCall",
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("delegateAssociateCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
@@ -1130,7 +1129,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks() {
+    public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks() {
         final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
         final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
@@ -1156,8 +1155,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         outerContract,
                                         "dissociateDelegateCall",
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("delegateDissociateCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
@@ -1174,7 +1173,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
+    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
@@ -1196,8 +1195,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycNFTAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1208,8 +1207,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(kycTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("kycNFTAssociateTxn")
                                 .gas(GAS_TO_OFFER)
@@ -1217,8 +1216,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycNFTSecondAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1251,7 +1250,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleVanilla() {
+    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleVanilla() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
@@ -1275,8 +1274,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(treasuryID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(treasuryID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("tokenDissociateFromTreasuryFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1284,8 +1283,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("tokenDissociateWithDelegateContractKeyFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1295,8 +1294,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
                                         .gas(GAS_TO_OFFER))
@@ -1305,8 +1304,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via(TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN)
                                 .gas(GAS_TO_OFFER)
@@ -1347,7 +1346,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleFrozen() {
+    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleFrozen() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
@@ -1373,8 +1372,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("frozenTokenAssociateWithDelegateContractKeyTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1384,8 +1383,8 @@ public class AtomicBatchContractKeysHtsTest {
                                 contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("UnfrozenTokenAssociateWithDelegateContractKeyTxn")
                                         .gas(GAS_TO_OFFER)
@@ -1410,7 +1409,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleWithKYC() {
+    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
@@ -1434,8 +1433,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycTokenDissociateWithDelegateContractKeyFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1445,8 +1444,8 @@ public class AtomicBatchContractKeysHtsTest {
                                 contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycTokenDissociateWithDelegateContractKeyHappyTxn")
                                         .gas(GAS_TO_OFFER)
@@ -1471,7 +1470,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
+    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
@@ -1498,8 +1497,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(treasuryID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(treasuryID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("NFTDissociateFromTreasuryFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1507,8 +1506,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("NFTDissociateWithDelegateContractKeyFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1518,8 +1517,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("nonZeroNFTBalanceDissociateWithDelegateContractKeyFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1528,8 +1527,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("NFTDissociateWithDelegateContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
@@ -1570,7 +1569,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
+    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
@@ -1598,8 +1597,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("frozenNFTAssociateWithDelegateContractKeyTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1609,8 +1608,8 @@ public class AtomicBatchContractKeysHtsTest {
                                 contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("UnfrozenNFTAssociateWithDelegateContractKeyTxn")
                                         .gas(GAS_TO_OFFER)
@@ -1635,7 +1634,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
+    public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
@@ -1661,8 +1660,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycNFTDissociateWithDelegateContractKeyFailedTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1672,8 +1671,8 @@ public class AtomicBatchContractKeysHtsTest {
                                 contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycNFTDissociateWithDelegateContractKeyHappyTxn")
                                         .gas(GAS_TO_OFFER)
@@ -1698,7 +1697,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
+    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
 
@@ -1721,8 +1720,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("frozenNFTAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1733,8 +1732,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(frozenTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("frozenNFTAssociateTxn")
                                 .gas(GAS_TO_OFFER)
@@ -1742,8 +1741,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("frozenNFTSecondAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1776,7 +1775,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
+    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
@@ -1796,8 +1795,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("vanillaNFTAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1808,8 +1807,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                        asHeadlongAddress(asAddress(accountID.get())),
+                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(GENESIS)
                                 .via("vanillaNFTAssociateTxn")
                                 .gas(GAS_TO_OFFER)
@@ -1817,8 +1816,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("vanillaNFTSecondAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1851,7 +1850,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
+    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
 
@@ -1871,8 +1870,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycTokenAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1884,8 +1883,8 @@ public class AtomicBatchContractKeysHtsTest {
                                 contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycTokenAssociateTxn")
                                         .gas(GAS_TO_OFFER)
@@ -1893,8 +1892,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(kycTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(kycTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("kycTokenSecondAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1927,7 +1926,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleFrozen() {
+    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleFrozen() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
 
@@ -1949,8 +1948,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("frozenTokenAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -1962,8 +1961,8 @@ public class AtomicBatchContractKeysHtsTest {
                                 contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("frozenTokenAssociateTxn")
                                         .gas(GAS_TO_OFFER)
@@ -1971,8 +1970,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(frozenTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("frozenTokenSecondAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -2005,7 +2004,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleVanilla() {
+    public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleVanilla() {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
@@ -2023,8 +2022,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("vanillaTokenAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -2036,8 +2035,8 @@ public class AtomicBatchContractKeysHtsTest {
                                 contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via(VANILLA_TOKEN_ASSOCIATE_TXN)
                                         .gas(GAS_TO_OFFER)
@@ -2045,8 +2044,8 @@ public class AtomicBatchContractKeysHtsTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_ASSOCIATE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
+                                                asHeadlongAddress(asAddress(accountID.get())),
+                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                         .payingWith(GENESIS)
                                         .via("vanillaTokenSecondAssociateFailsTxn")
                                         .gas(GAS_TO_OFFER))
@@ -2079,7 +2078,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithContractKeyFails() {
+    public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithContractKeyFails() {
         final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
         final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
@@ -2104,9 +2103,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         contractCall(
                                                         outerContract,
                                                         "associateDelegateCall",
-                                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                        HapiParserUtil.asHeadlongAddress(
-                                                                asAddress(vanillaTokenTokenID.get())))
+                                                        asHeadlongAddress(asAddress(accountID.get())),
+                                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
                                                 .payingWith(GENESIS)
                                                 .via("delegateAssociateCallWithContractKeyTxn")
                                                 .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
@@ -2124,7 +2122,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithContractKeyFails() {
+    public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithContractKeyFails() {
         final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
         final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
@@ -2150,9 +2148,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         contractCall(
                                                         outerContract,
                                                         "dissociateDelegateCall",
-                                                        HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())),
-                                                        HapiParserUtil.asHeadlongAddress(
-                                                                asAddress(vanillaTokenTokenID.get())))
+                                                        asHeadlongAddress(asAddress(accountID.get())),
+                                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
                                                 .payingWith(GENESIS)
                                                 .via("delegateDissociateCallWithContractKeyTxn")
                                                 .gas(GAS_TO_OFFER))
@@ -2169,7 +2166,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> callForBurnWithContractKey() {
+    public final Stream<DynamicTest> callForBurnWithContractKey() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
                 cryptoCreate(TOKEN_TREASURY),
@@ -2184,7 +2181,7 @@ public class AtomicBatchContractKeysHtsTest {
                         spec,
                         contractCreate(
                                         BURN_TOKEN,
-                                        HapiParserUtil.asHeadlongAddress(
+                                        asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
                                 .via(CREATION_TX))),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
@@ -2208,7 +2205,7 @@ public class AtomicBatchContractKeysHtsTest {
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49));
     }
 
-    private HapiAtomicBatch atomicBatchDefaultOperator(HapiTxnOp<?>... ops) {
+    private HapiAtomicBatch atomicBatchDefaultOperator(final HapiTxnOp<?>... ops) {
         return atomicBatch(Arrays.stream(ops)
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))

@@ -102,7 +102,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate internal call with value to account requiring receiver signature")
-    final Stream<DynamicTest> internalCallWithValueToAccountWithReceiverSigRequired() {
+    public final Stream<DynamicTest> internalCallWithValueToAccountWithReceiverSigRequired() {
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT),
                 contractCreate(INTERNAL_CALLER_CONTRACT).balance(ONE_HBAR),
@@ -122,7 +122,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate transfer to account requiring receiver signature")
-    final Stream<DynamicTest> transferToAccountWithReceiverSigRequired() {
+    public final Stream<DynamicTest> transferToAccountWithReceiverSigRequired() {
         return hapiTest(
                 recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
                 getAccountInfo(RECEIVER_SIG_REQUIRED).savingSnapshot("accInfo"),
@@ -155,7 +155,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate contract creation fails if missing required signatures")
-    final Stream<DynamicTest> createFailsIfMissingSigs() {
+    public final Stream<DynamicTest> createFailsIfMissingSigs() {
         final var shape = listOf(SIMPLE, threshOf(2, 3), threshOf(1, 3));
         final var validSig = shape.signedWith(sigs(ON, sigs(ON, ON, OFF), sigs(OFF, OFF, ON)));
         final var invalidSig = shape.signedWith(sigs(OFF, sigs(ON, ON, OFF), sigs(OFF, OFF, ON)));
@@ -176,7 +176,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate contract creation with auto-renew account requiring signatures")
-    final Stream<DynamicTest> contractWithAutoRenewNeedSignatures() {
+    public final Stream<DynamicTest> contractWithAutoRenewNeedSignatures() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 uploadInitCode(CONTRACT),
@@ -197,7 +197,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate updating auto-renew account with proper signatures")
-    final Stream<DynamicTest> updateAutoRenewAccountWorks() {
+    public final Stream<DynamicTest> updateAutoRenewAccountWorks() {
         final var newAccount = "newAccount";
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
@@ -220,7 +220,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate updating max automatic associations requires proper key")
-    final Stream<DynamicTest> updateMaxAutomaticAssociationsAndRequireKey() {
+    public final Stream<DynamicTest> updateMaxAutomaticAssociationsAndRequireKey() {
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 uploadInitCode(CONTRACT),
@@ -240,7 +240,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate contract update fails for all fields except expiry when using the wrong key")
-    final Stream<DynamicTest> cannotUpdateContractExceptExpiryWithWrongKey() {
+    public final Stream<DynamicTest> cannotUpdateContractExceptExpiryWithWrongKey() {
         final var someValidExpiry = new AtomicLong(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS + 1234L);
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
@@ -321,7 +321,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate contract deletion fails without proper signature")
-    final Stream<DynamicTest> deleteWithoutProperSig() {
+    public final Stream<DynamicTest> deleteWithoutProperSig() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT),
@@ -333,7 +333,7 @@ public class AtomicBatchContractSignatureValidationTest {
 
     @HapiTest
     @DisplayName("Validate self-destruct fails when beneficiary requires receiver signature without proper signature")
-    final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn() {
+    public final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn() {
         return hapiTest(
                 uploadInitCode(SELF_DESTRUCT_CALLABLE_CONTRACT),
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
@@ -352,7 +352,7 @@ public class AtomicBatchContractSignatureValidationTest {
     @DisplayName("Validate contract update and delete")
     // This test is inspired by the "Friday the 13th" contract update and delete scenario
     // see com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.fridayThe13thSpec
-    final Stream<DynamicTest> fridayThe13thSpec() {
+    public final Stream<DynamicTest> fridayThe13thSpec() {
         final var contract = "SimpleStorage";
         final var suffix = "Clone";
         final var newExpiry = Instant.now().getEpochSecond() + DEFAULT_PROPS.defaultExpirationSecs() + 200;
@@ -458,7 +458,7 @@ public class AtomicBatchContractSignatureValidationTest {
                 atomicBatchDefaultOperator(contractDelete(contract + suffix).payingWith(payer)));
     }
 
-    private HapiAtomicBatch atomicBatchDefaultOperator(HapiTxnOp<?>... ops) {
+    private HapiAtomicBatch atomicBatchDefaultOperator(final HapiTxnOp<?>... ops) {
         return atomicBatch(Arrays.stream(ops)
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))
