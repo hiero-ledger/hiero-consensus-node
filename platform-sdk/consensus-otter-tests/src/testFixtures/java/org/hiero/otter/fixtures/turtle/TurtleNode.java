@@ -38,6 +38,7 @@ import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -105,6 +106,16 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private PlatformStatus platformStatus;
 
+    /**
+     * Constructor of {@link TurtleNode}.
+     * @param randotron the random number generator
+     * @param time the time provider
+     * @param selfId the node ID of the node
+     * @param roster the initial roster
+     * @param keysAndCerts the keys and certificates of the node
+     * @param network the simulated network
+     * @param outputDirectory the output directory for the node
+     */
     public TurtleNode(
             @NonNull final Randotron randotron,
             @NonNull final Time time,
@@ -143,6 +154,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      *
      * @return the status of the platform
      */
+    @Nullable
     PlatformStatus platformStatus() {
         return platformStatus;
     }
@@ -276,7 +288,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void tick(@NonNull Instant now) {
+    public void tick(@NonNull final Instant now) {
         if (lifeCycle == LifeCycle.STARTED) {
             try {
                 ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
@@ -307,11 +319,14 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
+     *
+     * @throws InterruptedException if the thread is interrupted while the node is being destroyed
      */
     public void destroy() throws InterruptedException {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
+            resultsCollector.destroy();
             doShutdownNode();
             lifeCycle = LifeCycle.DESTROYED;
 

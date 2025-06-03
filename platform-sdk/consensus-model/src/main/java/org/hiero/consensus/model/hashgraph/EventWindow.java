@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.hashgraph;
 
+import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -70,12 +71,23 @@ public record EventWindow(
     }
 
     /**
+     * Creates a genesis event window
+     *
+     * @return a genesis event window
+     */
+    @NonNull
+    public static EventWindow getGenesisEventWindow() {
+        return getGenesisEventWindow(BIRTH_ROUND_THRESHOLD);
+    }
+
+    /**
      * Creates a genesis event window for the given ancient mode.
      *
      * @param ancientMode the ancient mode to use
      * @return a genesis event window.
      */
     @NonNull
+    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
     public static EventWindow getGenesisEventWindow(@NonNull final AncientMode ancientMode) {
         final long firstIndicator = ancientMode == GENERATION_THRESHOLD ? FIRST_GENERATION : ROUND_FIRST;
         return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, firstIndicator, firstIndicator, ancientMode);
