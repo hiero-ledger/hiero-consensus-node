@@ -101,7 +101,7 @@ public class ThrottleAccumulator {
     private boolean lastTxnWasGasThrottled;
     private LeakyBucketDeterministicThrottle bytesThrottle;
     private LeakyBucketDeterministicThrottle gasThrottle;
-    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+    private LeakyBucketDeterministicThrottle contractOpsDurationThrottle;
     private List<DeterministicThrottle> activeThrottles = emptyList();
 
     @Nullable
@@ -151,13 +151,14 @@ public class ThrottleAccumulator {
             @NonNull final ThrottleMetrics throttleMetrics,
             @NonNull final LeakyBucketDeterministicThrottle gasThrottle,
             @NonNull final LeakyBucketDeterministicThrottle bytesThrottle,
-            @NonNull final LeakyBucketDeterministicThrottle opsDurationThrottle) {
+            @NonNull final LeakyBucketDeterministicThrottle contractOsDurationThrottle) {
         this.configSupplier = requireNonNull(configSupplier, "configProvider must not be null");
         this.capacitySplitSource = requireNonNull(capacitySplitSource, "capacitySplitSource must not be null");
         this.throttleType = requireNonNull(throttleType, "throttleType must not be null");
         this.gasThrottle = requireNonNull(gasThrottle, "gasThrottle must not be null");
         this.bytesThrottle = requireNonNull(bytesThrottle, "bytesThrottle must not be null");
-        this.opsDurationThrottle = requireNonNull(opsDurationThrottle, "opsDurationThrottle must not be null");
+        this.contractOpsDurationThrottle =
+                requireNonNull(contractOsDurationThrottle, "contractOsDurationThrottle must not be null");
 
         this.throttleMetrics = throttleMetrics;
         this.throttleMetrics.setupGasThrottleMetric(gasThrottle, configSupplier.get());
@@ -195,19 +196,19 @@ public class ThrottleAccumulator {
     /**
      * Checks if capacity has been breached in the ops duration throttle.
      *
-     * @param now the instant of time the transaction throttling should be checked for
+     * @param now the instant of consensus time the transaction throttling should be checked for
      * @return whether the transaction should be throttled
      */
     public boolean checkAndEnforceOpsDurationThrottle(final long currentOpsDuration, @NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
             return false;
         }
-        opsDurationThrottle.resetLastAllowedUse();
+        contractOpsDurationThrottle.resetLastAllowedUse();
 
         final boolean shouldThrottleByOpsDuration =
                 configSupplier.get().getConfigData(ContractsConfig.class).throttleThrottleByOpsDuration();
-        if (shouldThrottleByOpsDuration && !opsDurationThrottle.allow(now, currentOpsDuration)) {
-            opsDurationThrottle.reclaimLastAllowedUse();
+        if (shouldThrottleByOpsDuration && !contractOpsDurationThrottle.allow(now, currentOpsDuration)) {
+            contractOpsDurationThrottle.reclaimLastAllowedUse();
             return true;
         }
 
@@ -971,16 +972,16 @@ public class ThrottleAccumulator {
         if (contractConfig.throttleThrottleByOpsDuration() && maxOpsDuration == 0) {
             log.warn("{} ops duration throttles are enabled, but limited to 0 ops/sec", throttleType.name());
         }
-        opsDurationThrottle =
+        contractOpsDurationThrottle =
                 new LeakyBucketDeterministicThrottle(maxOpsDuration, "OpsDuration", DEFAULT_BURST_SECONDS);
         if (throttleMetrics != null) {
-            throttleMetrics.setupOpsDurationMetric(opsDurationThrottle, configuration);
+            throttleMetrics.setupOpsDurationMetric(contractOpsDurationThrottle, configuration);
         }
         if (verbose == Verbose.YES) {
             log.info(
                     "Resolved {} ops duration throttle -\n {} ops duration/sec (throttling {})",
                     throttleType.name(),
-                    opsDurationThrottle.capacity(),
+                    contractOpsDurationThrottle.capacity(),
                     (contractConfig.throttleThrottleByOpsDuration() ? "ON" : "OFF"));
         }
     }
@@ -1033,7 +1034,7 @@ public class ThrottleAccumulator {
      * Gets the ops duration throttle.
      */
     public @NonNull LeakyBucketDeterministicThrottle opsDurationThrottle() {
-        return requireNonNull(opsDurationThrottle, "");
+        return requireNonNull(contractOpsDurationThrottle, "");
     }
 
     public enum ThrottleType {

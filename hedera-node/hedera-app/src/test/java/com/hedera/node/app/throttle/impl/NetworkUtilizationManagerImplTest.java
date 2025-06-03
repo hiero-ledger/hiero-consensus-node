@@ -77,7 +77,7 @@ class NetworkUtilizationManagerImplTest {
     }
 
     @Test
-    void verifyShouldThrottlePostHandle() {
+    void verifyShouldThrottleOpsDuration() {
         // when
         subject.shouldThrottleByOpsDuration(1_000_000, consensusNow);
 
