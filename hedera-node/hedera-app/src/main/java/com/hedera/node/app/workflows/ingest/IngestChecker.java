@@ -61,11 +61,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
@@ -253,17 +251,21 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        assertThrottlingPreconditions(txInfo, configuration);
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final List<ThrottleUsage> throttleUsages = new ArrayList<>();
-        if (hederaConfig.ingestThrottleEnabled()
-                && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
-            workflowMetrics.incrementThrottled(functionality);
-            throw new PreCheckException(BUSY);
-        }
-        result.setThrottleUsages(throttleUsages);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
 
-        // 4a. Run pure checks
+        try {
+            checkThrottles(txInfo, state, hederaConfig, throttleUsages);
+            if (functionality == ATOMIC_BATCH) {
+                checkThrottlesForInnerTxns(
+                        state, configuration, txBody.atomicBatch().transactions(), throttleUsages);
+            }
+        } finally {
+            // Always keep throttle usages up to date for refund logic
+            result.setThrottleUsages(throttleUsages);
+        }
+
+        // 4b. Run pure checks
         final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         dispatcher.dispatchPureChecks(pureChecksContext);
 
@@ -300,8 +302,22 @@ public final class IngestChecker {
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
     }
 
+    private void checkThrottles(
+            @NonNull TransactionInfo txInfo,
+            @NonNull final State state,
+            @NonNull final HederaConfig hederaConfig,
+            @NonNull final List<ThrottleUsage> throttleUsages)
+            throws PreCheckException {
+        assertThrottlingPreconditions(txInfo, hederaConfig);
+        if (hederaConfig.ingestThrottleEnabled()
+                && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
+            workflowMetrics.incrementThrottled(txInfo.functionality());
+            throw new PreCheckException(BUSY);
+        }
+    }
+
     /**
-     * Validates throttling constraints for nested transactions while ensuring accurate capacity accounting.
+     * Validates throttling constraints for inner transactions part of Atomic Batch.
      *
      * @param state Current network state for throttle evaluation
      * @param configuration System configuration
@@ -309,51 +325,23 @@ public final class IngestChecker {
      * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
      */
     private void checkThrottlesForInnerTxns(
-            @NonNull final State state, @NonNull final Configuration configuration, final List<Bytes> innerTxnsBytes)
+            @NonNull final State state,
+            @NonNull final Configuration configuration,
+            @NonNull final List<Bytes> innerTxnsBytes,
+            @NonNull final List<ThrottleUsage> throttleUsages)
             throws PreCheckException {
 
-        if (innerTxnsBytes == null || innerTxnsBytes.isEmpty()) {
+        if (innerTxnsBytes.isEmpty()) {
             return;
         }
 
-        final Map<HederaFunctionality, Integer> usedCapacity = new EnumMap<>(HederaFunctionality.class);
-        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        final var ingestThrottleEnabled = hederaConfig.ingestThrottleEnabled();
         final var maxParseSize = maxIngestParseSize(configuration);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
 
-        try {
-            for (final var bytes : innerTxnsBytes) {
-                final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
-                final var functionality = innerTxn.functionality();
-                assertThrottlingPreconditions(innerTxn, configuration);
-
-                if (ingestThrottleEnabled) {
-                    if (synchronizedThrottleAccumulator.shouldThrottle(innerTxn, state)) {
-                        workflowMetrics.incrementThrottled(functionality);
-                        throw new PreCheckException(BUSY);
-                    }
-                    // Only track successfully claimed capacity
-                    usedCapacity.merge(functionality, 1, Integer::sum);
-                }
-            }
-        } catch (PreCheckException e) {
-            if (ingestThrottleEnabled) {
-                // Release capacity for all inner transactions that claimed capacity
-                releaseAccumulatedCapacity(usedCapacity);
-                // Release capacity for the atomic batch itself
-                releaseAccumulatedCapacity(Map.of(ATOMIC_BATCH, 1));
-            }
-            throw e;
+        for (final var bytes : innerTxnsBytes) {
+            final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
+            checkThrottles(innerTxn, state, hederaConfig, throttleUsages);
         }
-    }
-
-    /**
-     * Releases capacity for all tracked functionalities.
-     *
-     * @param usedCapacity Map of functionality to capacity count
-     */
-    private void releaseAccumulatedCapacity(final Map<HederaFunctionality, Integer> usedCapacity) {
-        usedCapacity.forEach(synchronizedThrottleAccumulator::leakCapacityForNOfUnscaled);
     }
 
     private static int maxIngestParseSize(Configuration configuration) {
@@ -367,15 +355,13 @@ public final class IngestChecker {
     }
 
     private void assertThrottlingPreconditions(
-            @NonNull final TransactionInfo txInfo, @NonNull final Configuration configuration)
-            throws PreCheckException {
+            @NonNull final TransactionInfo txInfo, @NonNull final HederaConfig hederaConfig) throws PreCheckException {
         if (UNSUPPORTED_TRANSACTIONS.contains(txInfo.functionality())) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
         if (PRIVILEGED_TRANSACTIONS.contains(txInfo.functionality())) {
             final var payerNum =
                     txInfo.payerID() == null ? Long.MAX_VALUE : txInfo.payerID().accountNumOrElse(Long.MAX_VALUE);
-            final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             // This adds a mild restriction that privileged transactions can only
             // be issued by system accounts; (FUTURE) consider giving non-trivial
             // minimum fees to privileged transactions that fail with NOT_SUPPORTED

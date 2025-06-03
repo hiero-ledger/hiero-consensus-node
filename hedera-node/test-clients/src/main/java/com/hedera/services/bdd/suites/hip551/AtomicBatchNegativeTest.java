@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -414,6 +415,51 @@ public class AtomicBatchNegativeTest {
                             .hasPrecheck(BUSY)
                             .signedByPayerAnd(batchOperator)
                             .payingWith(payer));
+        }
+
+        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @DisplayName("Verify inner transaction front end throttle leaks capacity")
+        public Stream<DynamicTest> frontEndThrottleLeaksCapacity() {
+            final var batchOperator = "batchOperator";
+            final var contract = "CalldataSize";
+            final var function = "callme";
+            final var payload = new byte[100];
+            final var payer = "payer";
+            return hapiTest(
+                    cryptoCreate(batchOperator),
+                    cryptoCreate(payer).balance(ONE_HBAR),
+                    uploadInitCode(contract),
+                    contractCreate(contract),
+                    // The artificial limits result in 1 contract call per second
+                    overridingThrottles("testSystemFiles/artificial-limits.json"),
+                    // Should throttle at ingest
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator))
+                            .payingWith(batchOperator)
+                            .hasPrecheck(BUSY),
+                    // Wait for the throttle to be released
+                    sleepForSeconds(1),
+                    // Should throttle at ingest but this time defer status resolution
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator))
+                            .deferStatusResolution()
+                            .payingWith(batchOperator)
+                            .hasPrecheck(BUSY),
+                    // This should succeed, as the batch above should refund capacity
+                    atomicBatch(contractCall(contract, function, payload)
+                                    .payingWith(payer)
+                                    .batchKey(batchOperator))
+                            .payingWith(batchOperator));
         }
 
         @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
