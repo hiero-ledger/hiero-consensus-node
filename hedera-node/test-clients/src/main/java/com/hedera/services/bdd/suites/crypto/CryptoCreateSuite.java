@@ -231,7 +231,7 @@ public class CryptoCreateSuite {
                 cryptoCreate("invalidStakedAccount")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
-                        .stakedAccountId("0.0.0")
+                        .stakedAccountId("0")
                         .hasPrecheck(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")
                         .balance(ONE_HUNDRED_HBARS)
@@ -1024,13 +1024,13 @@ public class CryptoCreateSuite {
                 cryptoCreate("differentShard")
                         .key(key)
                         .balance(1L)
-                        .shardId(ShardID.newBuilder().setShardNum(1).build())
+                        .shardId(ShardID.newBuilder().setShardNum(3).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID),
                 // expected realm is 2
                 cryptoCreate("differentRealm")
                         .key(key)
                         .balance(1L)
-                        .realmId(RealmID.newBuilder().setRealmNum(1).build())
+                        .realmId(RealmID.newBuilder().setRealmNum(4).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 }

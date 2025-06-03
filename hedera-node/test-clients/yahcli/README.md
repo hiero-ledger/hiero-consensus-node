@@ -786,6 +786,10 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.8 -n localh
   --adminKey adminKey.pem
 ```
 
+Independent of the gossip CA certificate format, the `--declineRewards` option can be used to indicate that the
+new node should decline reward payments. Use `--declineRewards` to decline rewards, or `--declineRewards false`
+to accept rewards. This value defaults to `true` (declines the rewards) if not specified.
+
 :warning: If the payer and admin keys do not meet the signing requirements of the new node's fee collection account,
 there must be a key in the target network's _keys/_ directory for that account.
 
@@ -853,3 +857,7 @@ Targeting localhost, paying with 0.0.2
 .!. No key on disk for account 0.0.42, payer and admin key signatures must meet its signing requirements
 .i. SUCCESS - node1 has been updated
 ```
+
+A node can also be updated to begin declining or accepting reward payments. Use `--startDecliningRewards` to
+begin accepting reward payments, or `--stopDecliningRewards` to stop accepting reward payments. These params have
+no default values.

@@ -16,26 +16,20 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class EventSignatureValidatorTests {
     private Randotron random;
@@ -213,15 +207,11 @@ class EventSignatureValidatorTests {
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
+    @Test
     @DisplayName("Ancient events are discarded")
-    void ancientEvent(final boolean useBirthRoundForAncientThreshold) {
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, useBirthRoundForAncientThreshold)
-                        .getOrCreateConfig())
-                .build();
+    void ancientEvent() {
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
         final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
 
         final EventSignatureValidator validator = new DefaultEventSignatureValidator(
@@ -236,14 +226,8 @@ class EventSignatureValidatorTests {
         assertNotEquals(null, validator.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
 
-        validatorWithTrueVerifier.setEventWindow(new EventWindow(
-                ConsensusConstants.ROUND_FIRST,
-                100L,
-                ConsensusConstants.ROUND_FIRST /* ignored in this context */,
-                platformContext
-                        .getConfiguration()
-                        .getConfigData(EventConfig.class)
-                        .getAncientMode()));
+        validatorWithTrueVerifier.setEventWindow(
+                EventWindowBuilder.builder().setAncientThreshold(100).build());
 
         assertNull(validatorWithTrueVerifier.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());

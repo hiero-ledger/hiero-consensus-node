@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.stale;
 
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -20,13 +19,13 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.Test;
 
 class StaleEventDetectorTests {
@@ -90,9 +89,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final PlatformEvent event = new TestingEventBuilder(randotron).build();
@@ -105,9 +102,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final long ancientThreshold = randotron.nextPositiveLong() + 100;
@@ -120,8 +115,11 @@ class StaleEventDetectorTests {
                 .setBirthRound(eventBirthRound)
                 .build();
 
-        detector.setInitialEventWindow(new EventWindow(
-                randotron.nextPositiveInt(), ancientThreshold, randotron.nextPositiveLong(), BIRTH_ROUND_THRESHOLD));
+        detector.setInitialEventWindow(EventWindowBuilder.builder()
+                .setLatestConsensusRound(randotron.nextPositiveInt())
+                .setAncientThreshold(ancientThreshold)
+                .setExpiredThreshold(randotron.nextPositiveLong())
+                .build());
 
         final List<RoutableData<StaleEventDetectorOutput>> output = detector.addSelfEvent(event);
 
@@ -147,8 +145,11 @@ class StaleEventDetectorTests {
             @NonNull final Randotron randotron,
             @NonNull final List<PlatformEvent> events,
             final long ancientThreshold) {
-        final EventWindow eventWindow = new EventWindow(
-                randotron.nextPositiveLong(), ancientThreshold, randotron.nextPositiveLong(), BIRTH_ROUND_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setLatestConsensusRound(randotron.nextPositiveLong())
+                .setAncientThreshold(ancientThreshold)
+                .setExpiredThreshold(randotron.nextPositiveLong())
+                .build();
 
         return new ConsensusRound(
                 mock(Roster.class), events, eventWindow, mock(ConsensusSnapshot.class), false, Instant.now());
@@ -159,9 +160,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final Set<PlatformEvent> detectedStaleEvents = new HashSet<>();
@@ -169,11 +168,11 @@ class StaleEventDetectorTests {
         final List<PlatformEvent> consensusEvents = new ArrayList<>();
 
         long currentAncientThreshold = randotron.nextLong(100, 1_000);
-        detector.setInitialEventWindow(new EventWindow(
-                randotron.nextPositiveLong(),
-                currentAncientThreshold,
-                randotron.nextPositiveLong(),
-                BIRTH_ROUND_THRESHOLD));
+        detector.setInitialEventWindow(EventWindowBuilder.builder()
+                .setLatestConsensusRound(randotron.nextPositiveLong())
+                .setAncientThreshold(currentAncientThreshold)
+                .setExpiredThreshold(randotron.nextPositiveLong())
+                .build());
 
         for (int i = 0; i < 10_000; i++) {
             final boolean selfEvent = randotron.nextBoolean(0.25);
@@ -235,9 +234,7 @@ class StaleEventDetectorTests {
         final Randotron randotron = Randotron.create();
         final NodeId selfId = NodeId.of(randotron.nextPositiveLong());
 
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final StaleEventDetector detector = new DefaultStaleEventDetector(configuration, new NoOpMetrics(), selfId);
 
         final long ancientThreshold1 = randotron.nextPositiveInt() + 100;
@@ -248,8 +245,11 @@ class StaleEventDetectorTests {
                 .setBirthRound(eventBirthRound1)
                 .build();
 
-        detector.setInitialEventWindow(new EventWindow(
-                randotron.nextPositiveInt(), ancientThreshold1, randotron.nextPositiveLong(), BIRTH_ROUND_THRESHOLD));
+        detector.setInitialEventWindow(EventWindowBuilder.builder()
+                .setLatestConsensusRound(randotron.nextPositiveInt())
+                .setAncientThreshold(ancientThreshold1)
+                .setExpiredThreshold(randotron.nextPositiveLong())
+                .build());
 
         final List<RoutableData<StaleEventDetectorOutput>> output1 = detector.addSelfEvent(event1);
         assertSelfEventReturned(output1, event1);
@@ -262,8 +262,11 @@ class StaleEventDetectorTests {
 
         // Setting the ancient threshold after the original event should not cause it to come back as stale.
         final long ancientThreshold2 = eventBirthRound1 + randotron.nextPositiveInt();
-        detector.setInitialEventWindow(new EventWindow(
-                randotron.nextPositiveInt(), ancientThreshold2, randotron.nextPositiveLong(), BIRTH_ROUND_THRESHOLD));
+        detector.setInitialEventWindow(EventWindowBuilder.builder()
+                .setLatestConsensusRound(randotron.nextPositiveInt())
+                .setAncientThreshold(ancientThreshold2)
+                .setExpiredThreshold(randotron.nextPositiveLong())
+                .build());
 
         // Verify that we get otherwise normal behavior after the clear.
 

@@ -97,6 +97,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private Map<AccountID, Long> dispatchPaidRewards;
     private final DispatchMetadata dispatchMetaData;
     private final TransactionChecker transactionChecker;
+    private final TransactionCategory transactionCategory;
     // This is used to store the pre-handle results for the inner transactions
     // in an atomic batch, null otherwise
     @Nullable
@@ -127,7 +128,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final FeeAccumulator feeAccumulator,
             @NonNull final DispatchMetadata handleMetaData,
             @NonNull final TransactionChecker transactionChecker,
-            @Nullable final List<PreHandleResult> preHandleResults) {
+            @Nullable final List<PreHandleResult> preHandleResults,
+            @NonNull final TransactionCategory transactionCategory) {
         this.consensusNow = requireNonNull(consensusNow);
         this.creatorInfo = requireNonNull(creatorInfo);
         this.txnInfo = requireNonNull(transactionInfo);
@@ -155,6 +157,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.dispatchMetaData = requireNonNull(handleMetaData);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.preHandleResults = preHandleResults;
+        this.transactionCategory = requireNonNull(transactionCategory);
     }
 
     @NonNull
@@ -176,8 +179,21 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     }
 
     @Override
-    public boolean tryToChargePayer(final long amount) {
-        return feeAccumulator.chargeFee(payerId, amount, null).networkFee() == amount;
+    public boolean tryToCharge(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot charge negative amount " + amount);
+        }
+        return feeAccumulator.chargeFee(accountId, amount, null).networkFee() == amount;
+    }
+
+    @Override
+    public void refundBestEffort(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot charge negative amount " + amount);
+        }
+        feeAccumulator.refundFee(accountId, amount);
     }
 
     @NonNull
@@ -337,7 +353,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 computeDispatchFeesAsTopLevel == ComputeDispatchFeesAsTopLevel.NO,
                 authorizer,
                 storeFactory.asReadOnly(),
-                consensusNow));
+                consensusNow,
+                transactionCategory == TransactionCategory.BATCH_INNER ? verifier : null,
+                transactionCategory == TransactionCategory.BATCH_INNER
+                        ? txnInfo.signatureMap().sigPair().size()
+                        : 0));
     }
 
     @NonNull

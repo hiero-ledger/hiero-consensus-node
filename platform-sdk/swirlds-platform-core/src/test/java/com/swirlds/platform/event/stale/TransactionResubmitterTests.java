@@ -15,10 +15,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.Test;
 
 class TransactionResubmitterTests {
@@ -104,11 +104,9 @@ class TransactionResubmitterTests {
                 TestPlatformContextBuilder.create().build();
 
         final long currentRound = randotron.nextLong(1, 1000);
-        final EventWindow eventWindow = new EventWindow(
-                currentRound,
-                1 /* ignored by resubmitter */,
-                1 /* ignored by resubmitter */,
-                AncientMode.BIRTH_ROUND_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setLatestConsensusRound(currentRound)
+                .build();
 
         final TransactionResubmitter resubmitter = new DefaultTransactionResubmitter(platformContext);
         resubmitter.updateEventWindow(eventWindow);
@@ -137,11 +135,9 @@ class TransactionResubmitterTests {
                 TestPlatformContextBuilder.create().build();
 
         final long currentRound = randotron.nextLong(1, 1000);
-        final EventWindow eventWindow = new EventWindow(
-                currentRound,
-                1 /* ignored by resubmitter */,
-                1 /* ignored by resubmitter */,
-                AncientMode.BIRTH_ROUND_THRESHOLD);
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setLatestConsensusRound(currentRound)
+                .build();
 
         final TransactionResubmitter resubmitter = new DefaultTransactionResubmitter(platformContext);
         resubmitter.updateEventWindow(eventWindow);

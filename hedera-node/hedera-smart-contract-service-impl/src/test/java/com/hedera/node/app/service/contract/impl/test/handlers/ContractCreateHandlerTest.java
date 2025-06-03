@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -27,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
@@ -64,6 +66,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private HederaOperations hederaOperations;
 
     @Mock
     private TransactionComponent.Factory factory;
@@ -113,10 +118,11 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(baseProxyWorldUpdater);
         System.out.println(expectedResult);
-        final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);
+        final var expectedOutcome =
+                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, opsDuration);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
@@ -131,11 +137,12 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(factory.create(handleContext, HederaFunctionality.CONTRACT_CREATE))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
         final var expectedOutcome =
-                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, HALT_RESULT.gasPrice(), null, null);
+                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, null, null, opsDuration);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);

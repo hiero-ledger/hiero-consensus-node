@@ -21,7 +21,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -31,8 +30,11 @@ import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
+import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -587,14 +589,37 @@ public class ConversionUtils {
     }
 
     /**
-     * Throws a {@link HandleException} if the given status is not {@link ResponseCodeEnum#SUCCESS}.
-     *
-     * @param status the status
+     * Throws a {@link HandleException} if the given outcome did not succeed for a call.
+     * @param outcome the outcome
+     * @param hederaOperations the Hedera operations
+     * @param streamBuilder the stream builder
      */
-    public static void throwIfUnsuccessful(@NonNull final ResponseCodeEnum status) {
-        if (status != SUCCESS) {
-            // We don't want to rollback the root updater here since it contains gas charges
-            throw new HandleException(status, HandleException.ShouldRollbackStack.NO);
+    public static void throwIfUnsuccessfulCall(
+            @NonNull final CallOutcome outcome,
+            @NonNull final HederaOperations hederaOperations,
+            @NonNull final ContractCallStreamBuilder streamBuilder) {
+        requireNonNull(outcome);
+        requireNonNull(hederaOperations);
+        requireNonNull(streamBuilder);
+        if (outcome.status() != SUCCESS) {
+            throw new HandleException(outcome.status(), feeChargingContext -> {
+                hederaOperations.replayGasChargingIn(feeChargingContext);
+                outcome.addCalledContractIfNotAborted(streamBuilder);
+            });
+        }
+    }
+
+    /**
+     * Throws a {@link HandleException} if the given outcome did not succeed for a call.
+     * @param outcome the outcome
+     * @param hederaOperations the Hedera operations
+     */
+    public static void throwIfUnsuccessfulCreate(
+            @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
+        requireNonNull(outcome);
+        requireNonNull(hederaOperations);
+        if (outcome.status() != SUCCESS) {
+            throw new HandleException(outcome.status(), hederaOperations::replayGasChargingIn);
         }
     }
 
@@ -742,7 +767,7 @@ public class ConversionUtils {
      * @return its long value
      */
     public static long numberOfLongZero(@NonNull final byte[] explicit) {
-        final var number = longFrom(
+        return longFrom(
                 explicit[12],
                 explicit[13],
                 explicit[14],
@@ -751,10 +776,6 @@ public class ConversionUtils {
                 explicit[17],
                 explicit[18],
                 explicit[19]);
-        if (number < 0) {
-            throw new IllegalArgumentException("Number is negative");
-        }
-        return number;
     }
 
     /**
@@ -764,7 +785,7 @@ public class ConversionUtils {
      * @return its realm value
      */
     public static long realmOfLongZero(@NonNull final byte[] explicit) {
-        final var realm = longFrom(
+        return longFrom(
                 explicit[4],
                 explicit[5],
                 explicit[6],
@@ -773,10 +794,6 @@ public class ConversionUtils {
                 explicit[9],
                 explicit[10],
                 explicit[11]);
-        if (realm < 0) {
-            throw new IllegalArgumentException("Realm is negative");
-        }
-        return realm;
     }
 
     /**
@@ -786,11 +803,7 @@ public class ConversionUtils {
      * @return its shard value
      */
     public static int shardOfLongZero(@NonNull final byte[] explicit) {
-        final var shard = longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
-        if (shard < 0) {
-            throw new IllegalArgumentException("Shard is negative");
-        }
-        return shard;
+        return longFrom(explicit[0], explicit[1], explicit[2], explicit[3]);
     }
 
     // too many arguments

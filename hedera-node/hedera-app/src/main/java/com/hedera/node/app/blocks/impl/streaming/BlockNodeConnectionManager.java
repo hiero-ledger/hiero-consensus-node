@@ -3,9 +3,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.PublishStreamRequest;
-import com.hedera.hapi.block.PublishStreamResponse;
-import com.hedera.hapi.block.protoc.BlockStreamServiceGrpc;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,6 +27,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
+import org.hiero.block.api.protoc.PublishStreamRequest;
+import org.hiero.block.api.protoc.PublishStreamResponse;
 
 /**
  * Manages connections to block nodes, connection lifecycle and node selection.
@@ -40,7 +40,7 @@ public class BlockNodeConnectionManager {
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
     private static final String GRPC_END_POINT =
-            BlockStreamServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
+            BlockStreamPublishServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
 
     // Add a random number generator for jitter
     private final Random random = new Random();
@@ -97,10 +97,11 @@ public class BlockNodeConnectionManager {
                 .build();
 
         return client.serviceClient(GrpcServiceDescriptor.builder()
-                .serviceName(BlockStreamServiceGrpc.SERVICE_NAME)
+                .serviceName(BlockStreamPublishServiceGrpc.SERVICE_NAME)
                 .putMethod(
                         GRPC_END_POINT,
-                        GrpcClientMethodDescriptor.bidirectional(BlockStreamServiceGrpc.SERVICE_NAME, GRPC_END_POINT)
+                        GrpcClientMethodDescriptor.bidirectional(
+                                        BlockStreamPublishServiceGrpc.SERVICE_NAME, GRPC_END_POINT)
                                 .requestType(PublishStreamRequest.class)
                                 .responseType(PublishStreamResponse.class)
                                 .marshallerSupplier(new RequestResponseMarshaller.Supplier())

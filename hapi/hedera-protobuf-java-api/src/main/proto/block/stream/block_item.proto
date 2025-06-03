@@ -37,6 +37,7 @@ import "block/stream/output/block_header.proto";
 import "block/stream/output/state_changes.proto";
 import "block/stream/output/transaction_output.proto";
 import "block/stream/output/transaction_result.proto";
+import "block/stream/trace/trace_data.proto";
 
 /**
  * A single item within a block stream.
@@ -238,6 +239,14 @@ message BlockItem {
          * </ul>
          */
         RecordFileItem record_file = 10;
+
+        /**
+         * A trace data.
+         * <p>
+         * Any informational trace data MAY be described by
+         * stream items of this type.<br/>
+         */
+        com.hedera.hapi.block.stream.trace.TraceData trace_data = 16;
     }
 }
 

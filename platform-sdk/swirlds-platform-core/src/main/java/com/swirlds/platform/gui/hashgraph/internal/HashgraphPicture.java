@@ -6,7 +6,6 @@ import static com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants.HASHGRAPH
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.Consensus;
-import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
@@ -28,7 +27,6 @@ import java.awt.image.BufferedImage;
 import java.io.Serial;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JPanel;
@@ -279,16 +277,10 @@ public class HashgraphPicture extends JPanel {
             s += " " + event.getRoundCreated();
         }
         if (options.writeVote() && event.isWitness()) {
-            for (final Iterator<CandidateWitness> it =
-                            consensus.getRounds().getElectionRound().undecidedWitnesses();
-                    it.hasNext(); ) {
-                final CandidateWitness candidateWitnessI = it.next();
-                String vote = event.getVote(candidateWitnessI) ? "T" : "F";
+            for (int i = 0; i < event.getVotesSize(); i++) {
                 // showing T or F from true/false for readability on the picture
-                s += vote
-                        // showing first two characters from the hash of the witness
-                        // current event is voting on(example H:aa)
-                        + candidateWitnessI.getWitness().shortString().substring(5, 10) + "|";
+                final String vote = event.getVote(i) ? "T" : "F";
+                s += vote;
             }
         }
         if (options.writeEventHash()) {

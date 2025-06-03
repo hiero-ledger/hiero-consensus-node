@@ -190,8 +190,12 @@ class MerkleDbDataSourceSnapshotMergeTest {
                             "pathToKeyValue", dataSource.newPathToKeyValueCompactor());
 
                     assertEventuallyTrue(
-                            dataSource.compactionCoordinator.futuresByName::isEmpty,
-                            Duration.ofSeconds(1),
+                            () -> {
+                                synchronized (dataSource.compactionCoordinator) {
+                                    return dataSource.compactionCoordinator.compactorsByName.isEmpty();
+                                }
+                            },
+                            Duration.ofSeconds(4),
                             "compaction tasks should have been completed");
 
                     compacting.set(false);

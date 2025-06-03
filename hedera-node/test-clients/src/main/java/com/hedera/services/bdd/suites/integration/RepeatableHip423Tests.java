@@ -19,7 +19,6 @@ import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera.DEFAULT_ROUND_DURATION;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -33,6 +32,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
@@ -86,6 +86,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledExecutionResult;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
@@ -111,6 +112,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.CREATE_TXN;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.NEW_SENDER_KEY;
 import static com.hedera.services.bdd.suites.hip423.LongTermScheduleUtils.ORIG_FILE;
@@ -945,6 +947,7 @@ public class RepeatableHip423Tests {
                 scheduleSign("scheduleSign")
                         .payingWith("sender")
                         .alsoSigningWith("receiver")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("receiver"))
                         .hasKnownStatusFrom(INVALID_SCHEDULE_ID)
                         .via("signTxn"),
                 validateChargedUsd("signTxn", 0.001));
@@ -1717,7 +1720,9 @@ public class RepeatableHip423Tests {
                         .hasKnownStatus(SCHEDULE_EXPIRY_IS_BUSY));
     }
 
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION,
+            overrides = {"atomicBatch.isEnabled", "atomicBatch.maxNumberOfTransactions"})
     @DisplayName("Failing batch will trigger schedule")
     // BATCH_14
     final Stream<DynamicTest> failingBatchWillTriggerSchedule() {
@@ -1726,6 +1731,7 @@ public class RepeatableHip423Tests {
         final var schedule = "scheduledXfer";
         final var batchOperator = "batchOperator";
         return hapiTest(
+                overridingTwo("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"),
                 cryptoCreate(batchOperator),
                 cryptoCreate(sender).balance(ONE_HBAR).via("createSender"),
                 cryptoCreate(receiver).balance(0L),

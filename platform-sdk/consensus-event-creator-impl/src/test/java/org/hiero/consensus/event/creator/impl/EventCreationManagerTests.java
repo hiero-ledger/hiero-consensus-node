@@ -17,10 +17,9 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +55,7 @@ class EventCreationManagerTests {
         final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
-        assertSame(eventsToCreate.get(0), e0);
+        assertSame(eventsToCreate.getFirst(), e0);
 
         time.tick(Duration.ofSeconds(1));
 
@@ -78,7 +77,7 @@ class EventCreationManagerTests {
         final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
-        assertSame(eventsToCreate.get(0), e0);
+        assertSame(eventsToCreate.getFirst(), e0);
 
         time.tick(Duration.ofSeconds(1));
 
@@ -100,7 +99,7 @@ class EventCreationManagerTests {
         final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
-        assertSame(eventsToCreate.get(0), e0);
+        assertSame(eventsToCreate.getFirst(), e0);
 
         // no tick
 
@@ -121,7 +120,7 @@ class EventCreationManagerTests {
         final PlatformEvent e0 = manager.maybeCreateEvent();
         verify(creator, times(1)).maybeCreateEvent();
         assertNotNull(e0);
-        assertSame(eventsToCreate.get(0), e0);
+        assertSame(eventsToCreate.getFirst(), e0);
 
         time.tick(Duration.ofSeconds(1));
 
@@ -142,12 +141,14 @@ class EventCreationManagerTests {
 
     @Test
     void nonFutureEventsAreNotBuffered() {
-        manager.setEventWindow(createEventWindow(1));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(2).build());
         final PlatformEvent e2 = eventWithBirthRound(2);
         manager.registerEvent(e2);
         verify(creator, times(1)).registerEvent(e2);
 
-        manager.setEventWindow(createEventWindow(2));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(3).build());
         final PlatformEvent e1 = eventWithBirthRound(1);
         final PlatformEvent e3 = eventWithBirthRound(3);
         manager.registerEvent(e1);
@@ -158,7 +159,8 @@ class EventCreationManagerTests {
 
     @Test
     void futureEventsAreBuffered() {
-        manager.setEventWindow(createEventWindow(1));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(2).build());
 
         final PlatformEvent e3 = eventWithBirthRound(3);
         final PlatformEvent e4 = eventWithBirthRound(4);
@@ -170,26 +172,34 @@ class EventCreationManagerTests {
         manager.registerEvent(e5);
         verify(creator, times(0)).registerEvent(any(PlatformEvent.class));
 
-        manager.setEventWindow(createEventWindow(2));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(3).build());
         verify(creator, times(1)).registerEvent(e3);
 
-        manager.setEventWindow(createEventWindow(3));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(4).build());
         verify(creator, times(1)).registerEvent(e4);
 
-        manager.setEventWindow(createEventWindow(4));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(5).build());
         verify(creator, times(1)).registerEvent(e5);
     }
 
     @Test
     void ancientEventsAreIgnored() {
-        manager.setEventWindow(createEventWindow(20, 10));
+        manager.setEventWindow(EventWindowBuilder.builder()
+                .setLatestConsensusRound(20)
+                .setNewEventBirthRound(21)
+                .setAncientThreshold(10)
+                .build());
         manager.registerEvent(eventWithBirthRound(9));
         verify(creator, times(0)).registerEvent(any(PlatformEvent.class));
     }
 
     @Test
     void testClear() {
-        manager.setEventWindow(createEventWindow(1));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(2).build());
 
         final PlatformEvent e3 = eventWithBirthRound(3);
         final PlatformEvent e4 = eventWithBirthRound(4);
@@ -201,7 +211,8 @@ class EventCreationManagerTests {
         manager.registerEvent(e5);
 
         manager.clear();
-        manager.setEventWindow(createEventWindow(4));
+        manager.setEventWindow(
+                EventWindowBuilder.builder().setNewEventBirthRound(5).build());
         verify(creator, times(0)).registerEvent(any(PlatformEvent.class));
     }
 
@@ -209,13 +220,5 @@ class EventCreationManagerTests {
         final PlatformEvent mockEvent = mock(PlatformEvent.class);
         when(mockEvent.getBirthRound()).thenReturn(birthRound);
         return mockEvent;
-    }
-
-    private EventWindow createEventWindow(final long latestConsensusRound) {
-        return new EventWindow(latestConsensusRound, 1, 1, AncientMode.BIRTH_ROUND_THRESHOLD);
-    }
-
-    private EventWindow createEventWindow(final long latestConsensusRound, final long ancientThreshold) {
-        return new EventWindow(latestConsensusRound, ancientThreshold, 1, AncientMode.BIRTH_ROUND_THRESHOLD);
     }
 }
