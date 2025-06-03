@@ -18,10 +18,11 @@ public class TestValueCodec implements Codec<TestValue> {
         return DEFAULT_VALUE;
     }
 
+    @NonNull
     @Override
-    public @NonNull TestValue parse(
-            @NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
-        return new TestValue(input);
+    public TestValue parse(
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
+        return new TestValue(in);
     }
 
     @Override

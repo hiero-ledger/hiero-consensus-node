@@ -43,15 +43,8 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.EntityIdFactory;
@@ -63,15 +56,12 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,13 +72,6 @@ import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 class NodeRewardManagerTest {
-
-    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .build();
 
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
 
@@ -124,17 +107,9 @@ class NodeRewardManagerTest {
 
     @BeforeEach
     void setUp() {
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
         // to make it work for the multiple node in one JVM case, we need reset the default instance path every time
         // we create another instance of MerkleDB.
         MerkleDb.resetDefaultInstancePath();
-        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
-
         writableStates = mock(
                 WritableStates.class,
                 withSettings().extraInterfaces(CommittableWritableStates.class).strictness(Strictness.LENIENT));

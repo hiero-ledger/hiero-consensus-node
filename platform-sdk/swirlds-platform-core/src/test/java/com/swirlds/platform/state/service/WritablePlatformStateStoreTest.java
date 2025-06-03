@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
@@ -13,15 +12,13 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
-import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -162,10 +159,6 @@ class WritablePlatformStateStoreTest {
     @AfterEach
     void tearDown() {
         virtualMap.release();
-        assertEventuallyEquals(
-                0L,
-                MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.of(5, ChronoUnit.SECONDS),
-                "All databases should be closed");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

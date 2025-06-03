@@ -23,6 +23,21 @@ on:
         type: boolean
         required: false
         default: false
+      enable-gradle-determinism:
+        description: "Gradle Build Determinism Check Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-docker-determinism:
+        description: "Docker Build Determinism Check Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-ci-trigger:
+        description: "Trigger CI Flows Enabled"
+        type: boolean
+        required: false
+        default: false
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -42,6 +57,14 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
 jobs:
   code:
     name: Code
@@ -49,16 +72,58 @@ jobs:
     with:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-spotless-check: false
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  dependency-check:
+    name: Dependency (Module Info)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - code
+    with:
+      custom-job-label: "Check"
+      enable-dependency-check: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  spotless:
+    name: Spotless
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - code
+    with:
+      custom-job-label: "Check"
+      enable-unit-tests: false
+      enable-spotless-check: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  mats-unit-tests:
+    name: MATS - Unit Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS Unit Tests"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       enable-unit-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
-      enable-hapi-tests-misc: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-crypto: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-iss: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-token: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-smart-contract: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-time-consuming: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-restart: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-nd-reconnect: ${{ github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-spotless-check: ${{ github.event.inputs.enable-spotless-check == 'true' }}
+      enable-hapi-tests-misc: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-crypto: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-iss: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-token: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-smart-contract: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-restart: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-nd-reconnect: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
       enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
       enable-network-log-capture: true
     secrets:
@@ -69,11 +134,48 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
+  mats-gradle-determinism:
+    name: MATS - Gradle Determinism
+    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
+    needs:
+      - dependency-check
+      - spotless
+    if: ${{ github.event_name == 'push' || github.event.inputs.enable-gradle-determinism == 'true' }}
+    with:
+      ref: ${{ github.event.inputs.ref || '' }}
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+    secrets:
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  mats-docker-determinism:
+    name: MATS - Docker Determinism
+    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
+    needs:
+      - dependency-check
+      - spotless
+    if: ${{ github.event_name == 'push' || github.event.inputs.enable-docker-determinism == 'true' }}
+    with:
+      ref: ${{ github.event.inputs.ref || '' }}
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+    secrets:
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   deploy-ci-trigger:
     name: Trigger CI Flows
     runs-on: hiero-network-node-linux-medium
-    needs: code
-    if: ${{ needs.code.result == 'success' }}
+    needs:
+      - mats-unit-tests
+      - mats-gradle-determinism
+      - mats-docker-determinism
+    if:
+      ${{ (github.event_name == 'push' || github.event.inputs.enable-ci-trigger == 'true') &&
+      needs.mats-unit-tests.result == 'success' &&
+      needs.mats-gradle-determinism.result == 'success' &&
+      needs.mats-docker-determinism.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
