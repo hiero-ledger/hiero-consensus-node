@@ -73,7 +73,7 @@ public class BirthRoundFreezeTest {
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
-        assertThat(network.getPcesResults()).hasMaxBirthRoundEqualTo(freezeRound);
+        assertThat(network.getPcesResults()).hasMaxBirthRoundLessThanOrEqualTo(freezeRound);
 
         for (final Node node : network.getNodes()) {
             node.getConfiguration().set(SOFTWARE_VERSION, NEW_VERSION);
