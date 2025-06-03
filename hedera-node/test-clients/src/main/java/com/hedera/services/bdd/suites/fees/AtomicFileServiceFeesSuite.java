@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
@@ -12,20 +10,27 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
-public class FileServiceFeesSuite {
+// This test cases are direct copies of FileServiceFeesSuite. The difference here is that
+// we are wrapping the operations in an atomic batch to confirm the fees are the same
+@HapiTestLifecycle
+public class AtomicFileServiceFeesSuite {
+
     private static final String MEMO = "Really quite something!";
     private static final String CIVILIAN = "civilian";
     private static final String KEY = "key";
@@ -33,56 +38,78 @@ public class FileServiceFeesSuite {
     private static final double BASE_FEE_FILE_UPDATE = 0.05;
     private static final double BASE_FEE_FILE_DELETE = 0.007;
     private static final double BASE_FEE_FILE_APPEND = 0.05;
-    private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
-    private static final double BASE_FEE_FILE_GET_FILE = 0.0001;
+    private static final String BATCH_OPERATOR = "batchOperator";
+    private static final String ATOMIC_BATCH = "atomicBatch";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(
+                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+    }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file create transaction")
     final Stream<DynamicTest> fileCreateBaseUSDFee() {
         // 90 days considered for base fee
         var contents = "0".repeat(1000).getBytes();
-
         return hapiTest(
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed(KEY).shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key(KEY).balance(ONE_HUNDRED_HBARS),
                 newKeyListNamed("WACL", List.of(CIVILIAN)),
-                fileCreate("test")
-                        .memo(MEMO)
-                        .key("WACL")
-                        .contents(contents)
-                        .payingWith(CIVILIAN)
-                        .via("fileCreateBasic"),
-                validateChargedUsd("fileCreateBasic", BASE_FEE_FILE_CREATE));
+                atomicBatch(fileCreate("test")
+                                .memo(MEMO)
+                                .key("WACL")
+                                .contents(contents)
+                                .payingWith(CIVILIAN)
+                                .via("fileCreateBasic")
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("fileCreateBasic", ATOMIC_BATCH, BASE_FEE_FILE_CREATE, 5));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file update transaction")
     final Stream<DynamicTest> fileUpdateBaseUSDFee() {
         var contents = "0".repeat(1000).getBytes();
-
         return hapiTest(
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed("key").shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
                 newKeyListNamed("key", List.of(CIVILIAN)),
                 fileCreate("test").key("key").contents("ABC"),
-                fileUpdate("test")
-                        .contents(contents)
-                        .memo(MEMO)
-                        .payingWith(CIVILIAN)
-                        .via("fileUpdateBasic"),
-                validateChargedUsd("fileUpdateBasic", BASE_FEE_FILE_UPDATE));
+                atomicBatch(fileUpdate("test")
+                                .contents(contents)
+                                .memo(MEMO)
+                                .payingWith(CIVILIAN)
+                                .via("fileUpdateBasic")
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("fileUpdateBasic", ATOMIC_BATCH, BASE_FEE_FILE_UPDATE, 5));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file delete transaction")
     final Stream<DynamicTest> fileDeleteBaseUSDFee() {
         return hapiTest(
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed("key").shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
                 newKeyListNamed("WACL", List.of(CIVILIAN)),
                 fileCreate("test").memo(MEMO).key("WACL").contents("ABC"),
-                fileDelete("test").blankMemo().payingWith(CIVILIAN).via("fileDeleteBasic"),
-                validateChargedUsd("fileDeleteBasic", BASE_FEE_FILE_DELETE));
+                atomicBatch(fileDelete("test")
+                                .blankMemo()
+                                .payingWith(CIVILIAN)
+                                .via("fileDeleteBasic")
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("fileDeleteBasic", ATOMIC_BATCH, BASE_FEE_FILE_DELETE, 10));
     }
 
     @HapiTest
@@ -100,6 +127,7 @@ public class FileServiceFeesSuite {
         final var magicWacl = "magicWacl";
 
         return hapiTest(
+                cryptoCreate(BATCH_OPERATOR),
                 newKeyNamed(magicKey),
                 newKeyListNamed(magicWacl, List.of(magicKey)),
                 cryptoCreate(civilian).balance(ONE_HUNDRED_HBARS).key(magicKey),
@@ -107,36 +135,16 @@ public class FileServiceFeesSuite {
                         .key(magicWacl)
                         .lifetime(THREE_MONTHS_IN_SECONDS)
                         .contents("Nothing much!"),
-                fileAppend(targetFile)
-                        .signedBy(magicKey)
-                        .blankMemo()
-                        .content(contentBuilder.toString())
-                        .payingWith(civilian)
-                        .via(baseAppend),
-                validateChargedUsd(baseAppend, BASE_FEE_FILE_APPEND));
-    }
-
-    @HapiTest
-    @DisplayName("USD base fee as expected for file get content transaction")
-    final Stream<DynamicTest> fileGetContentBaseUSDFee() {
-        return customizedHapiTest(
-                Map.of("memo.useSpecName", "false"),
-                cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
-                fileCreate("ntb").key(CIVILIAN).contents("Nothing much!").memo(MEMO),
-                getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
-                sleepFor(1000),
-                validateChargedUsd("getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT));
-    }
-
-    @HapiTest
-    @DisplayName("USD base fee as expected for file get info transaction")
-    final Stream<DynamicTest> fileGetInfoBaseUSDFee() {
-        return customizedHapiTest(
-                Map.of("memo.useSpecName", "false"),
-                cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
-                fileCreate("ntb").key(CIVILIAN).contents("Nothing much!").memo(MEMO),
-                getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),
-                sleepFor(1000),
-                validateChargedUsd("getFileInfoBasic", BASE_FEE_FILE_GET_FILE));
+                atomicBatch(fileAppend(targetFile)
+                                .signedBy(magicKey)
+                                .blankMemo()
+                                .content(contentBuilder.toString())
+                                .payingWith(civilian)
+                                .via(baseAppend)
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd(baseAppend, ATOMIC_BATCH, BASE_FEE_FILE_APPEND, 5));
     }
 }
