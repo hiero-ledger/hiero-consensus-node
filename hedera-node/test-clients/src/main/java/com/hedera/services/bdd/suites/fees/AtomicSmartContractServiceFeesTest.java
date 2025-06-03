@@ -37,6 +37,8 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
+// This test cases are direct copies of SmartContractServiceFeesTest. The difference here is that
+// we are wrapping the operations in an atomic batch to confirm the fees are the same
 @HapiTestLifecycle
 @OrderedInIsolation
 @Tag(SMART_CONTRACT)
