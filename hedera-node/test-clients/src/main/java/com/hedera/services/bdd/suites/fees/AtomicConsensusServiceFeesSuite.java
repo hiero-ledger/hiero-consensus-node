@@ -14,11 +14,13 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpecOperation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Map;
@@ -36,6 +38,8 @@ public class AtomicConsensusServiceFeesSuite {
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
     private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0001;
+    private static final String BATCH_OPERATOR = "batchOperator";
+    private static final String ATOMIC_BATCH = "atomicBatch";
 
     private static final String PAYER = "payer";
     private static final String TOPIC_NAME = "testTopic";
@@ -46,56 +50,78 @@ public class AtomicConsensusServiceFeesSuite {
                 Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
+    private HapiSpecOperation[] topicCreateSetup() {
+        return new HapiSpecOperation[] {
+            cryptoCreate(BATCH_OPERATOR),
+            newKeyNamed("adminKey"),
+            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+            cryptoCreate("collector"),
+            cryptoCreate("treasury"),
+            cryptoCreate("autoRenewAccount"),
+        };
+    }
+
     @HapiTest
     @DisplayName("Topic create base USD fee as expected")
     final Stream<DynamicTest> topicCreateBaseUSDFee() {
-        final var batchOperator = "batchOperator";
+        return hapiTest(flattened(
+                topicCreateSetup(),
+                atomicBatch(createTopic(TOPIC_NAME)
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .via("topicCreate")
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("topicCreate", ATOMIC_BATCH, BASE_FEE_TOPIC_CREATE, 6)));
+    }
 
-        return hapiTest(
-                cryptoCreate(batchOperator),
-                newKeyNamed("adminKey"),
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("collector"),
-                cryptoCreate("treasury"),
-                cryptoCreate("autoRenewAccount"),
-                atomicBatch(
-                                createTopic(TOPIC_NAME)
-                                        .blankMemo()
-                                        .payingWith(PAYER)
-                                        .via("topicCreate")
-                                        .batchKey(batchOperator),
-                                createTopic("TopicWithCustomFee")
-                                        .blankMemo()
-                                        .payingWith(PAYER)
-                                        .withConsensusCustomFee(fixedConsensusHbarFee(1, "collector"))
-                                        .via("topicCreateWithCustomFee")
-                                        .batchKey(batchOperator),
-                                createTopic("TopicWithMultipleCustomFees")
-                                        .blankMemo()
-                                        .payingWith(PAYER)
-                                        .withConsensusCustomFee(fixedConsensusHbarFee(1, "collector"))
-                                        .withConsensusCustomFee(fixedConsensusHbarFee(2, "collector"))
-                                        .withConsensusCustomFee(fixedConsensusHbarFee(3, "collector"))
-                                        .withConsensusCustomFee(fixedConsensusHbarFee(4, "collector"))
-                                        .withConsensusCustomFee(fixedConsensusHbarFee(5, "collector"))
-                                        .via("topicCreateWithMultipleCustomFees")
-                                        .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd("topicCreate", "atomicBatch", BASE_FEE_TOPIC_CREATE, 6),
+    @HapiTest
+    @DisplayName("Topic create with custom fee base USD fee as expected")
+    final Stream<DynamicTest> topicCreateWithCustomFee() {
+        return hapiTest(flattened(
+                topicCreateSetup(),
+                atomicBatch(createTopic("TopicWithCustomFee")
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(1, "collector"))
+                                .via("topicCreateWithCustomFee")
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
                 validateInnerTxnChargedUsd(
-                        "topicCreateWithCustomFee", "atomicBatch", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 5),
+                        "topicCreateWithCustomFee", ATOMIC_BATCH, BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 5)));
+    }
+
+    @HapiTest
+    @DisplayName("Topic create with multiple custom fee base USD fee as expected")
+    final Stream<DynamicTest> topicCreateWithMultipleCustomFee() {
+        return hapiTest(flattened(
+                topicCreateSetup(),
+                atomicBatch(createTopic("TopicWithMultipleCustomFees")
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(1, "collector"))
+                                .withConsensusCustomFee(fixedConsensusHbarFee(2, "collector"))
+                                .withConsensusCustomFee(fixedConsensusHbarFee(3, "collector"))
+                                .withConsensusCustomFee(fixedConsensusHbarFee(4, "collector"))
+                                .withConsensusCustomFee(fixedConsensusHbarFee(5, "collector"))
+                                .via("topicCreateWithMultipleCustomFees")
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
                 validateInnerTxnChargedUsd(
-                        "topicCreateWithMultipleCustomFees", "atomicBatch", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 5));
+                        "topicCreateWithMultipleCustomFees", ATOMIC_BATCH, TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 5)));
     }
 
     @HapiTest
     @DisplayName("Topic update base USD fee as expected")
     final Stream<DynamicTest> topicUpdateBaseUSDFee() {
-        final var batchOperator = "batchOperator";
-
         return hapiTest(
-                cryptoCreate(batchOperator),
+                cryptoCreate(BATCH_OPERATOR),
                 cryptoCreate("autoRenewAccount"),
                 cryptoCreate(PAYER),
                 createTopic(TOPIC_NAME)
@@ -106,38 +132,38 @@ public class AtomicConsensusServiceFeesSuite {
                                 .payingWith(PAYER)
                                 .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
                                 .via("updateTopic")
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd("updateTopic", "atomicBatch", BASE_FEE_TOPIC_UPDATE, 10));
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("updateTopic", ATOMIC_BATCH, BASE_FEE_TOPIC_UPDATE, 10));
     }
 
     @HapiTest
     @DisplayName("Topic delete base USD fee as expected")
     final Stream<DynamicTest> topicDeleteBaseUSDFee() {
-        final var batchOperator = "batchOperator";
         return hapiTest(
-                cryptoCreate(batchOperator),
+                cryptoCreate(BATCH_OPERATOR),
                 cryptoCreate(PAYER),
                 createTopic(TOPIC_NAME).adminKeyName(PAYER),
                 atomicBatch(deleteTopic(TOPIC_NAME)
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .via("topicDelete")
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd("topicDelete", "atomicBatch", BASE_FEE_TOPIC_DELETE, 10));
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
+                validateInnerTxnChargedUsd("topicDelete", ATOMIC_BATCH, BASE_FEE_TOPIC_DELETE, 10));
     }
 
     @HapiTest
     @DisplayName("Topic submit message base USD fee as expected")
     final Stream<DynamicTest> topicSubmitMessageBaseUSDFee() {
-        final var batchOperator = "batchOperator";
         final byte[] messageBytes = new byte[100]; // 4k
         Arrays.fill(messageBytes, (byte) 0b1);
         return hapiTest(
-                cryptoCreate(batchOperator),
+                cryptoCreate(BATCH_OPERATOR),
                 cryptoCreate(PAYER).hasRetryPrecheckFrom(BUSY),
                 createTopic(TOPIC_NAME).submitKeyName(PAYER).hasRetryPrecheckFrom(BUSY),
                 atomicBatch(submitMessageTo(TOPIC_NAME)
@@ -146,10 +172,11 @@ public class AtomicConsensusServiceFeesSuite {
                                 .message(new String(messageBytes))
                                 .hasRetryPrecheckFrom(BUSY)
                                 .via("submitMessage")
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                                .batchKey(BATCH_OPERATOR))
+                        .via(ATOMIC_BATCH)
+                        .signedByPayerAnd(BATCH_OPERATOR)
+                        .payingWith(BATCH_OPERATOR),
                 sleepFor(1000),
-                validateInnerTxnChargedUsd("submitMessage", "atomicBatch", BASE_FEE_TOPIC_SUBMIT_MESSAGE, 6));
+                validateInnerTxnChargedUsd("submitMessage", ATOMIC_BATCH, BASE_FEE_TOPIC_SUBMIT_MESSAGE, 6));
     }
 }
