@@ -97,7 +97,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .payingWith(CIVILIAN)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd(cryptoCreate, "atomicBatch", BASE_FEE_CRYPTO_CREATE));
     }
 
@@ -117,7 +118,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .signedBy(CIVILIAN)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd(cryptoDelete, "atomicBatch", BASE_FEE_CRYPTO_DELETE, 5));
     }
 
@@ -128,6 +130,7 @@ public class AtomicCryptoServiceFeesSuite {
         final String nft = "nft";
         final String supplyKey = "supplyKey";
         final String baseDeleteNft = "baseDeleteNft";
+        final String baseDeleteNft2 = "baseDeleteNft2";
         final var batchOperator = "batchOperator";
         return hapiTest(
                 cryptoCreate(batchOperator),
@@ -166,26 +169,25 @@ public class AtomicCryptoServiceFeesSuite {
                         .addTokenAllowance(OWNER, token, SPENDER, 100L)
                         .addNftAllowance(OWNER, nft, SPENDER, false, List.of(1L, 2L, 3L)),
                 /* without specifying owner */
-                atomicBatch(cryptoDeleteAllowance()
-                                .payingWith(OWNER)
-                                .blankMemo()
-                                .addNftDeleteAllowance(MISSING_OWNER, nft, List.of(1L))
-                                .via(baseDeleteNft)
-                                .batchKey(batchOperator))
+                atomicBatch(
+                                cryptoDeleteAllowance()
+                                        .payingWith(OWNER)
+                                        .blankMemo()
+                                        .addNftDeleteAllowance(MISSING_OWNER, nft, List.of(1L))
+                                        .via(baseDeleteNft)
+                                        .batchKey(batchOperator),
+                                cryptoDeleteAllowance()
+                                        .payingWith(OWNER)
+                                        .blankMemo()
+                                        .addNftDeleteAllowance(OWNER, nft, List.of(1L))
+                                        .via(baseDeleteNft2)
+                                        .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd(baseDeleteNft, "atomicBatch", BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 5),
                 cryptoApproveAllowance().payingWith(OWNER).addNftAllowance(OWNER, nft, SPENDER, false, List.of(1L)),
-                /* with specifying owner */
-                atomicBatch(cryptoDeleteAllowance()
-                                .payingWith(OWNER)
-                                .blankMemo()
-                                .addNftDeleteAllowance(OWNER, nft, List.of(1L))
-                                .via(baseDeleteNft)
-                                .batchKey(batchOperator))
-                        .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
-                validateInnerTxnChargedUsd(baseDeleteNft, "atomicBatch", BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 5));
+                validateInnerTxnChargedUsd(baseDeleteNft2, "atomicBatch", BASE_FEE_CRYPTO_DELETE_ALLOWANCE, 5));
     }
 
     @HapiTest
@@ -239,7 +241,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .logged()
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd("approve", "atomicBatch", 0.05, 5),
                 atomicBatch(cryptoApproveAllowance()
                                 .payingWith(OWNER)
@@ -305,7 +308,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .logged()
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd("approveModifyCryptoTxn", "atomicBatch", 0.049375, 5),
                 atomicBatch(cryptoApproveAllowance()
                                 .payingWith(OWNER)
@@ -316,7 +320,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .logged()
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd("approveModifyTokenTxn", "atomicBatch", 0.04943, 5),
                 atomicBatch(cryptoApproveAllowance()
                                 .payingWith(OWNER)
@@ -327,7 +332,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .logged()
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd("approveModifyNftTxn", "atomicBatch", 0.049375, 5),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
@@ -384,7 +390,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .batchKey(batchOperator))
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 getAccountInfo(canonicalAccount).hasMaxAutomaticAssociations(0).logged(),
                 atomicBatch(cryptoUpdate(autoAssocTarget)
                                 .payingWith(autoAssocTarget)
@@ -393,7 +400,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .via(plusOneTxn)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(1).logged(),
                 atomicBatch(cryptoUpdate(autoAssocTarget)
                                 .payingWith(autoAssocTarget)
@@ -402,7 +410,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .via(plusTenTxn)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(11).logged(),
                 atomicBatch(cryptoUpdate(autoAssocTarget)
                                 .payingWith(autoAssocTarget)
@@ -411,7 +420,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .via(plusFiveKTxn)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 getAccountInfo(autoAssocTarget)
                         .hasMaxAutomaticAssociations(5000)
                         .logged(),
@@ -434,7 +444,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .via(validNegativeTxn)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 getAccountInfo(autoAssocTarget).hasMaxAutomaticAssociations(-1).logged(),
                 validateInnerTxnChargedUsd(
                         baseTxn, "atomicBatch", BASE_FEE_WITH_EXPIRY_CRYPTO_UPDATE, allowedPercentDiff),
@@ -507,21 +518,24 @@ public class AtomicCryptoServiceFeesSuite {
                                 .via(hbarXferTxn)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 atomicBatch(cryptoTransfer(moving(1, fungibleToken).between(SENDER, RECEIVER))
                                 .blankMemo()
                                 .payingWith(SENDER)
                                 .via(htsXferTxn)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 atomicBatch(cryptoTransfer(movingUnique(nonFungibleToken, 1).between(SENDER, RECEIVER))
                                 .blankMemo()
                                 .payingWith(SENDER)
                                 .via(nftXferTxn)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 atomicBatch(cryptoTransfer(moving(1, fungibleTokenWithCustomFee).between(nonTreasurySender, RECEIVER))
                                 .blankMemo()
                                 .fee(ONE_HBAR)
@@ -529,7 +543,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .via(htsXferTxnWithCustomFee)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 atomicBatch(cryptoTransfer(movingUnique(nonFungibleTokenWithCustomFee, 1)
                                         .between(nonTreasurySender, RECEIVER))
                                 .blankMemo()
@@ -538,7 +553,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .via(nftXferTxnWithCustomFee)
                                 .batchKey(batchOperator))
                         .via("atomicBatch")
-                        .signedByPayerAnd(batchOperator),
+                        .signedByPayerAnd(batchOperator)
+                        .payingWith(batchOperator),
                 validateInnerTxnChargedUsd(hbarXferTxn, "atomicBatch", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5),
                 validateInnerTxnChargedUsd(htsXferTxn, "atomicBatch", BASE_FEE_HTS_CRYPTO_TRANSFER, 5),
                 validateInnerTxnChargedUsd(nftXferTxn, "atomicBatch", BASE_FEE_NFT_CRYPTO_TRANSFER, 5),
