@@ -92,7 +92,7 @@ public class NodeResultsCollector {
     @NonNull
     public List<ConsensusRound> currentConsensusRounds(final int startIndex) {
         final List<ConsensusRound> copy = List.copyOf(consensusRounds);
-        return copy.subList(startIndex, copy.size() - 1);
+        return copy.subList(startIndex, copy.size());
     }
 
     /**

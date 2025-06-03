@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.contract.hapi;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -2559,9 +2558,7 @@ public class ContractCallSuite {
 
         return hapiTest(
                 withOpContext((spec, ctxLog) -> spec.registry()
-                        .saveContractId(
-                                BAD_EVM_ADDRESS_CONTRACT,
-                                asContractIdWithEvmAddress(ByteString.copyFrom(unhex(BAD_EVM_ADDRESS))))),
+                        .saveContractId(BAD_EVM_ADDRESS_CONTRACT, spec, ByteString.copyFrom(unhex(BAD_EVM_ADDRESS)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(BAD_EVM_ADDRESS_CONTRACT, getABIFor(FUNCTION, NAME, ERC_721_ABI))

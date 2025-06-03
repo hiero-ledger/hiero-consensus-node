@@ -13,6 +13,8 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_VERSION;
 
+import com.swirlds.platform.event.preconsensus.PcesConfig_;
+import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import java.time.Duration;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.Network;
@@ -37,16 +39,19 @@ class BirthRoundMigrationTest {
         // Setup simulation
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
-            node.getConfiguration().set(SOFTWARE_VERSION, OLD_VERSION);
+            node.getConfiguration()
+                    .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)
+                    .set(SOFTWARE_VERSION, OLD_VERSION)
+                    .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
         }
         network.start(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.generator().stop();
+        env.transactionGenerator().stop();
         network.prepareUpgrade(ONE_MINUTE);
 
         // Before migrating to birth round, all events should have a birth round of 1L
@@ -57,7 +62,7 @@ class BirthRoundMigrationTest {
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
         // check that all nodes froze at the same round
-        assertThat(network.getConsensusResults()).hasLastRoundNum(freezeRound);
+        assertThat(network.getConsensusResults()).haveLastRoundNum(freezeRound);
 
         // update the configuration
         for (final Node node : network.getNodes()) {
@@ -68,7 +73,7 @@ class BirthRoundMigrationTest {
 
         // restart the network
         network.resume(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
@@ -76,8 +81,8 @@ class BirthRoundMigrationTest {
         // Assert the results
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
         assertThat(network.getConsensusResults())
-                .hasAdvancedSince(freezeRound)
-                .hasEqualRoundsIgnoringLast(withPercentage(5));
+                .haveAdvancedSinceRound(freezeRound)
+                .haveEqualRoundsIgnoringLast(withPercentage(5));
 
         assertThat(network.getStatusProgression())
                 .hasSteps(
