@@ -77,6 +77,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      *
      * @param randotron the random generator
      * @param timeManager the time manager
+     * @param logging the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
      */
     public TurtleNetwork(
@@ -174,13 +175,12 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void prepareUpgrade(@NonNull final Duration timeout) throws InterruptedException {
+    public void freeze(@NonNull final Duration timeout) {
         if (state != State.RUNNING) {
-            throw new IllegalStateException("Cannot prepare upgrade when the network is not running.");
+            throw new IllegalStateException("Can only freeze when the network is running.");
         }
-        log.info("Preparing upgrade...");
 
-        log.debug("Sending TurtleFreezeTransaction transaction...");
+        log.info("Sending freeze transaction...");
         final TurtleTransaction freezeTransaction =
                 TransactionFactory.createFreezeTransaction(timeManager.now().plus(FREEZE_DELAY));
         nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
@@ -189,10 +189,20 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         if (!timeManager.waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {
             fail("Timeout while waiting for all nodes to freeze.");
         }
+    }
 
-        log.debug("Shutting down nodes gracefully...");
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void shutdown(@NonNull final Duration timeout) throws InterruptedException {
+        if (state != State.RUNNING) {
+            throw new IllegalStateException("Can only shutdown when the network is running.");
+        }
+
+        log.info("Killing nodes immediately...");
         for (final TurtleNode node : nodes) {
-            node.shutdownGracefully(Duration.ZERO);
+            node.killImmediately(Duration.ZERO);
         }
     }
 

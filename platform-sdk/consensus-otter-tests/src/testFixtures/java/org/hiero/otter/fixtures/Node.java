@@ -14,6 +14,7 @@ import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
  *
  * <p>This interface provides methods to control the state of the node, such as killing and reviving it.
  */
+@SuppressWarnings("unused")
 public interface Node {
 
     /**
@@ -26,7 +27,7 @@ public interface Node {
      * @param timeout the duration to wait before considering the kill operation as failed
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void failUnexpectedly(@NonNull Duration timeout) throws InterruptedException;
+    void killImmediately(@NonNull Duration timeout) throws InterruptedException;
 
     /**
      * Shutdown the node gracefully.
@@ -34,7 +35,7 @@ public interface Node {
      * <p>This method simulates a graceful shutdown of the node. It allows the node to finish any
      * ongoing work, preserve the current state, and perform any other necessary cleanup operations
      * before shutting down. If the simulation of a sudden failure is desired, use
-     * {@link #failUnexpectedly(Duration)} instead.
+     * {@link #killImmediately(Duration)} instead.
      *
      * @param timeout the duration to wait before considering the shutdown operation as failed
      * @throws InterruptedException if the thread is interrupted while waiting
