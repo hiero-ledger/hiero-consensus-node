@@ -65,7 +65,6 @@ import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -288,8 +287,8 @@ public class SwirldsPlatform implements Platform {
 
         blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
 
-        final GenerationCalculator generationMigrationShim = buildGenerationMigrationShim(initialState,
-                platformStateFacade);
+        final GenerationCalculator generationMigrationShim =
+                buildGenerationMigrationShim(initialState, platformStateFacade);
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
@@ -407,11 +406,11 @@ public class SwirldsPlatform implements Platform {
      */
     @NonNull
     private GenerationCalculator buildGenerationMigrationShim(
-            @NonNull final SignedState initialState,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final SignedState initialState, @NonNull final PlatformStateFacade platformStateFacade) {
 
         final State state = initialState.getState();
-        final long firstBirthRoundWithoutGenerations = initialState.isGenesisState() ? ConsensusConstants.ROUND_FIRST
+        final long firstBirthRoundWithoutGenerations = initialState.isGenesisState()
+                ? ConsensusConstants.ROUND_FIRST
                 : platformStateFacade.consensusSnapshotOf(state).round() + 1;
         return new DefaultGenerationCalculator(platformContext, firstBirthRoundWithoutGenerations);
     }

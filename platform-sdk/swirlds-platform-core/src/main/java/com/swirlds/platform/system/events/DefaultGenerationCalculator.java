@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.events;
+
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.common.context.PlatformContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -6,8 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
-
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 public class DefaultGenerationCalculator implements GenerationCalculator {
 
@@ -23,8 +24,7 @@ public class DefaultGenerationCalculator implements GenerationCalculator {
      * @param firstBirthRoundWithoutGenerations the first birth round value where generations are not used
      */
     public DefaultGenerationCalculator(
-            @NonNull final PlatformContext platformContext,
-            final long firstBirthRoundWithoutGenerations) {
+            @NonNull final PlatformContext platformContext, final long firstBirthRoundWithoutGenerations) {
 
         logger.info(
                 STARTUP.getMarker(),
@@ -32,11 +32,13 @@ public class DefaultGenerationCalculator implements GenerationCalculator {
                 firstBirthRoundWithoutGenerations);
 
         this.firstBirthRoundWithoutGenerations = firstBirthRoundWithoutGenerations;
-        this.setGenerationToZero = platformContext.getConfiguration().getConfigData(EventConfig.class)
+        this.setGenerationToZero = platformContext
+                .getConfiguration()
+                .getConfigData(EventConfig.class)
                 .setGenerationToZero();
 
-//        shimAncientEvents = platformContext.getMetrics().getOrCreate(SHIM_ANCIENT_EVENTS);
-//        shimBarelyNonAncientEvents = platformContext.getMetrics().getOrCreate(SHIM_BARELY_NON_ANCIENT_EVENTS);
+        //        shimAncientEvents = platformContext.getMetrics().getOrCreate(SHIM_ANCIENT_EVENTS);
+        //        shimBarelyNonAncientEvents = platformContext.getMetrics().getOrCreate(SHIM_BARELY_NON_ANCIENT_EVENTS);
     }
 
     /**

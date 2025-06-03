@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.events;
 
 import com.hedera.hapi.node.base.SemanticVersion;

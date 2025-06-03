@@ -74,7 +74,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -165,8 +164,8 @@ public class PlatformWiring {
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
 
-        generationCalculatorWiring = new ComponentWiring<>(model, GenerationCalculator.class,
-                DIRECT_THREADSAFE_CONFIGURATION);
+        generationCalculatorWiring =
+                new ComponentWiring<>(model, GenerationCalculator.class, DIRECT_THREADSAFE_CONFIGURATION);
 
         eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, config.eventHasher());
 
@@ -348,8 +347,7 @@ public class PlatformWiring {
         if (generationCalculatorWiring != null) {
             eventHasherWiring
                     .getOutputWire()
-                    .solderTo(
-                            generationCalculatorWiring.getInputWire(GenerationCalculator::maybeCalculateGeneration));
+                    .solderTo(generationCalculatorWiring.getInputWire(GenerationCalculator::maybeCalculateGeneration));
             generationCalculatorWiring
                     .getOutputWire()
                     .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
@@ -504,11 +502,11 @@ public class PlatformWiring {
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 transactionHandlerSysTxnsOutputWire = transactionHandlerWiring
-                .getOutputWire()
-                .buildTransformer(
-                        "getSystemTransactions",
-                        "transaction handler result",
-                        TransactionHandlerResult::systemTransactions);
+                        .getOutputWire()
+                        .buildTransformer(
+                                "getSystemTransactions",
+                                "transaction handler result",
+                                TransactionHandlerResult::systemTransactions);
         transactionHandlerSysTxnsOutputWire.solderTo(
                 stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePostconsensusSignatures));
         transactionHandlerSysTxnsOutputWire.solderTo(

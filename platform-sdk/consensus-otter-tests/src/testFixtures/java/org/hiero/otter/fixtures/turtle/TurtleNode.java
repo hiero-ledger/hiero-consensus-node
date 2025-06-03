@@ -5,6 +5,7 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
@@ -39,13 +40,18 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
+import org.assertj.core.api.Fail;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -282,6 +288,41 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @NonNull
     public SingleNodePcesResult getPcesResult() {
         return new SingleNodePcesResultImpl(selfId, platformContext);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void copyInitialState(final String stateDirName) {
+        try {
+            final Path resourceDir = Paths.get("src", "test", "resources", "states", stateDirName);
+            copyFolder(
+                    resourceDir.resolve("otter").resolve("0"),
+                    Path.of(nodeConfiguration.getOutputDirectory(), "/otter", "/" + selfId));
+            copyFolder(
+                    resourceDir.resolve("preconsensus-events").resolve("0"),
+                    Path.of(nodeConfiguration.getOutputDirectory(), "/preconsensus-events", "/" + selfId));
+        } catch (final IOException e) {
+            Fail.fail(e.getMessage());
+        }
+    }
+
+    private static void copyFolder(final Path src, final Path dest) throws IOException {
+        if (!Files.exists(dest)) {
+            Files.createDirectories(dest);
+        }
+        try (final Stream<Path> stream = Files.walk(src)) {
+            stream.forEach(source -> copy(source, dest.resolve(src.relativize(source))));
+        }
+    }
+
+    private static void copy(final Path source, final Path dest) {
+        try {
+            Files.copy(source, dest, REPLACE_EXISTING);
+        } catch (final Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
+        }
     }
 
     /**

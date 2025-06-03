@@ -1,0 +1,10 @@
+------------- Configuration Overrides -------------
+
+event.preconsensus.limitReplayFrequency, false
+event.useBirthRoundAncientThreshold, true
+fileSystemManager.rootPath, build/turtle/node-0
+jvmPauseDetectorSleepMs, 0
+paths.settingsUsedDir, build/turtle/node-0
+platformSchedulers.consensusEventStream, NO_OP
+state.savedStateDirectory, build/turtle/node-0
+turtle.software.version, 1.0.0

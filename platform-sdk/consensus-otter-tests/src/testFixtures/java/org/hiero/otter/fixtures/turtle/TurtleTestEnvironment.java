@@ -52,13 +52,13 @@ public class TurtleTestEnvironment implements TestEnvironment {
                 FileUtils.deleteDirectory(rootOutputDirectory);
             }
             Files.createDirectories(rootOutputDirectory);
-        } catch (IOException ex) {
+        } catch (final IOException ex) {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
 
         final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
 
-        final Randotron randotron = Randotron.create();
+        final Randotron randotron = Randotron.create(0L);
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
 

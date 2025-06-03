@@ -1,0 +1,4 @@
+(root) TurtleAppState                                           /     board-advance-cattle-across
+   0 SingletonNode       PlatformStateService.PLATFORM_STATE    /0    aisle-skin-penalty-horse
+   1 VirtualMap          RosterService.ROSTERS                  /1    worry-fish-amused-slice
+   2 SingletonNode       RosterService.ROSTER_STATE             /2    salt-surprise-puppy-indoor

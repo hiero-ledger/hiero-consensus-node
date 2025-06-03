@@ -1,0 +1,14 @@
+ROUND:                               51
+HASH:                                e73ba7e1712230121762c62b885d7d67fa0072781f97d9e47e45b005a06f5ad780022c612764233b35d475144fc1b28e
+HASH_MNEMONIC:                       board-advance-cattle-across
+NUMBER_OF_CONSENSUS_EVENTS:          3326
+CONSENSUS_TIMESTAMP:                 2027-03-02T20:40:08.624001Z
+LEGACY_RUNNING_EVENT_HASH:           38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  bid-belt-culture-decorate
+MINIMUM_GENERATION_NON_ANCIENT:      24
+SOFTWARE_VERSION:                    SemanticVersion[major=1, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2025-06-02T19:21:16.704455Z
+NODE_ID:                             0
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4115
