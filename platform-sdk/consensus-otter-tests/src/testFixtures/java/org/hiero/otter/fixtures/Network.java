@@ -113,11 +113,4 @@ public interface Network {
      */
     @NonNull
     MultipleNodePcesResults getPcesResults();
-
-    /**
-     * Copies an initial state from the specified directory into each node's state directory.
-     *
-     * @param stateDirName the name of the directory in the resources folder containing the initial state to copy
-     */
-    void copyInitialState(String stateDirName);
 }

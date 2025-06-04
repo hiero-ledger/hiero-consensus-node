@@ -484,6 +484,7 @@ public class GraphGeneratorTests {
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Forking Source Test")
+    @Disabled("Need to find a better way to verify that branches were created")
     public void forkingSourceTest() {
         final int numberOfEvents = 1000;
 

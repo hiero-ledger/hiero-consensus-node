@@ -283,14 +283,6 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void copyInitialState(final String stateDirName) {
-        nodes.forEach(node -> node.copyInitialState(stateDirName));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void tick(@NonNull final Instant now) {
         if (state != State.RUNNING) {
             return;

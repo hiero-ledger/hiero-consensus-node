@@ -115,11 +115,4 @@ public interface Node {
      */
     @NonNull
     SingleNodePcesResult getPcesResult();
-
-    /**
-     * Copies an initial state from the specified directory into the node's state directory.
-     *
-     * @param stateDirName the name of the directory in the resources folder containing the initial state to copy
-     */
-    void copyInitialState(String stateDirName);
 }
