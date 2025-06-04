@@ -143,8 +143,6 @@ jobs:
           kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
 
-          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
-
       # Start the TCK client
       - name: Start tck-client
         env:
@@ -156,6 +154,7 @@ jobs:
           MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
         run: |
           solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          cp .env.custom_node .env
           npm run test
         working-directory: platform-sdk/regression # required
 
