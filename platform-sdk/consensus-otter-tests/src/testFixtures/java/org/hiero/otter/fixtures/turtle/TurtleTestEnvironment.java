@@ -45,7 +45,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     /**
      * Constructor for the {@link TurtleTestEnvironment} class.
      *
-     * @param randomSeed the seed for the random number generator; if {@code 0}, a random seed will be generated
+     * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
      */
     public TurtleTestEnvironment(final long randomSeed) {
         final Path rootOutputDirectory = Path.of("build", "turtle");

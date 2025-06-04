@@ -5,22 +5,18 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.hiero.otter.fixtures.TestEnvironment;
 
 /**
- * Annotation to mark a class as an Otter test.
- *
- * <p>This annotation can be used to specify that a method is a test case for the Otter framework.
- * An Otter test method can define one parameter of type {@link TestEnvironment} to access the test environment.
+ * Annotation to specify optional configuration parameters that are specific to Turtle tests.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface TurtleSpecs {
 
     /**
-     * The name of the test.
+     * Fixed seed for the PRNG of the test. If set to {@code 0} (the default), a random seed will be generated.
      *
-     * @return the name of the test
+     * @return the random seed
      */
     long randomSeed() default 0L;
 }
