@@ -798,7 +798,7 @@ jobs:
         run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
 
       - name: Gradle Publish to Maven Central
-        if: ${{ inputs.version-policy == 'specified' && 'Maven Central' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}
           NEXUS_PASSWORD: ${{ secrets.svcs-ossrh-password }}
