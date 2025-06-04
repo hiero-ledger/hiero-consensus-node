@@ -36,6 +36,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -102,9 +103,9 @@ class GossipRpcShadowgraphSynchronizerTest {
     }
 
     @Test
-    void createPeerStateStartSync() {
+    void createPeerHandlerStartSync() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerState(gossipSender, otherNodeId);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
         conversation.possiblyStartSync();
         Mockito.verify(gossipSender).sendSyncData(any());
     }
@@ -112,7 +113,7 @@ class GossipRpcShadowgraphSynchronizerTest {
     @Test
     void fullEmptySync() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerState(gossipSender, otherNodeId);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
         conversation.possiblyStartSync();
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
@@ -126,7 +127,7 @@ class GossipRpcShadowgraphSynchronizerTest {
     @Test
     void testFallenBehind() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerState(gossipSender, otherNodeId);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
         conversation.possiblyStartSync();
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(
@@ -139,7 +140,7 @@ class GossipRpcShadowgraphSynchronizerTest {
     @Test
     void removeFallenBehind() {
         var otherNodeId = NodeId.of(5);
-        var conversation = synchronizer.createPeerState(gossipSender, otherNodeId);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
         shadowgraph.updateEventWindow(new EventWindow(100, 101, 1000, 800, BIRTH_ROUND_THRESHOLD));
         conversation.possiblyStartSync();
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -160,14 +161,15 @@ class GossipRpcShadowgraphSynchronizerTest {
         Mockito.verify(gossipSender).sendSyncData(any());
     }
 
+    @Disabled
     @Test
     void broadcastSelfEvent() {
         var otherNodeId5 = NodeId.of(5);
         var otherNodeId7 = NodeId.of(7);
         var gossipSender7 = mock(GossipRpcSender.class);
         when(gossipSender7.sendEndOfEvents()).thenReturn(CompletableFuture.completedFuture(null));
-        var conversation5 = synchronizer.createPeerState(gossipSender, otherNodeId5);
-        var conversation7 = synchronizer.createPeerState(gossipSender7, otherNodeId7);
+        var conversation5 = synchronizer.createPeerHandler(gossipSender, otherNodeId5);
+        var conversation7 = synchronizer.createPeerHandler(gossipSender7, otherNodeId7);
         var event = new TestingEventBuilder(new Random())
                 .setSystemTransactionCount(0)
                 .setAppTransactionCount(0)

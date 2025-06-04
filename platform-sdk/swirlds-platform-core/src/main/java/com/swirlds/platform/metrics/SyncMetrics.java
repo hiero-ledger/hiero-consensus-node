@@ -15,6 +15,7 @@ import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.metrics.api.FloatFormats;
+import com.swirlds.metrics.api.IntegerAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.SyncPhase;
@@ -154,6 +155,25 @@ public class SyncMetrics {
                     PLATFORM_CATEGORY, "broadcastEventsReceived")
             .withUnit("hz")
             .withDescription("Number of times per second event was received by broadcast from the remote nodes");
+
+    private final IntegerAccumulator.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerAccumulator.Config(
+                    Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
+            .withDescription("number of rpc thread running in read mode")
+            .withAccumulator(Integer::sum)
+            .withResetOnSnapshot(false);
+
+    private final IntegerAccumulator.Config RPC_WRITE_THREAD_RUNNING_CONFIG = new IntegerAccumulator.Config(
+                    Metrics.PLATFORM_CATEGORY, "rpcWriteThreadRunning")
+            .withDescription("number of rpc thread running in write mode")
+            .withAccumulator(Integer::sum)
+            .withResetOnSnapshot(false);
+
+    private final IntegerAccumulator.Config RPC_DISPATCH_THREAD_RUNNING_CONFIG = new IntegerAccumulator.Config(
+                    Metrics.PLATFORM_CATEGORY, "rpcDispatchThreadRunning")
+            .withDescription("number of rpc thread running in dispatch mode")
+            .withAccumulator(Integer::sum)
+            .withResetOnSnapshot(false);
+
     private final CountPerSecond broadcastEventsReceivedCounter;
 
     private final RunningAverageMetric tipsPerSync;
@@ -171,11 +191,15 @@ public class SyncMetrics {
     private final AverageAndMax avgEventsPerSyncRec;
     private final MaxStat multiTipsPerSync;
     private final RunningAverageMetric syncFilterTime;
-    private final ConcurrentHashMap<NodeId, AverageStat> rpcQueueSize = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<NodeId, AverageStat> rpcOutputQueueSize = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<NodeId, AverageStat> rpcInputQueueSize = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<NodeId, PhaseTimer<SyncPhase>> syncPhasePerNode = new ConcurrentHashMap<>();
     private final Metrics metrics;
     private final AverageAndMax outputQueuePollTime;
     private final Time time;
+    private final @NonNull IntegerAccumulator rpcReadThreadRunning;
+    private final @NonNull IntegerAccumulator rpcWriteThreadRunning;
+    private final @NonNull IntegerAccumulator rpcDispatchThreadRunning;
 
     /**
      * Constructor of {@code SyncMetrics}
@@ -210,6 +234,10 @@ public class SyncMetrics {
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
         broadcastEventsSentCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_SENT_COUNTER_CONFIG);
         broadcastEventsReceivedCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG);
+
+        rpcReadThreadRunning = metrics.getOrCreate(RPC_READ_THREAD_RUNNING_CONFIG);
+        rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
+        rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -511,16 +539,36 @@ public class SyncMetrics {
      *
      * @param size size of the queue
      */
-    public void rpcQueueSize(NodeId node, final int size) {
+    public void rpcOutputQueueSize(NodeId node, final int size) {
 
-        rpcQueueSize
+        rpcOutputQueueSize
                 .computeIfAbsent(
                         node,
                         nodeId -> new AverageStat(
                                 metrics,
                                 PLATFORM_CATEGORY,
-                                String.format("rpc_queue_size_%02d", nodeId.id()),
+                                String.format("rpc_output_queue_size_%02d", nodeId.id()),
                                 String.format("gossip rpc output queue size to node %02d", nodeId.id()),
+                                FloatFormats.FORMAT_10_0,
+                                AverageStat.WEIGHT_VOLATILE))
+                .update(size);
+    }
+
+    /**
+     * Report size of the outgoing queue
+     *
+     * @param size size of the queue
+     */
+    public void rpcInputQueueSize(NodeId node, final int size) {
+
+        rpcInputQueueSize
+                .computeIfAbsent(
+                        node,
+                        nodeId -> new AverageStat(
+                                metrics,
+                                PLATFORM_CATEGORY,
+                                String.format("rpc_input_queue_size_%02d", nodeId.id()),
+                                String.format("gossip rpc input queue size from node %02d", nodeId.id()),
                                 FloatFormats.FORMAT_10_0,
                                 AverageStat.WEIGHT_VOLATILE))
                 .update(size);
@@ -530,15 +578,29 @@ public class SyncMetrics {
         outputQueuePollTime.update(nanos / 1000);
     }
 
-    public void reportSyncPhase(@NonNull final NodeId node, @NonNull final SyncPhase syncPhase) {
-        var phaseMetric = syncPhasePerNode.computeIfAbsent(
+    public SyncPhase reportSyncPhase(@NonNull final NodeId node, @NonNull final SyncPhase syncPhase) {
+        PhaseTimer<SyncPhase> phaseMetric = syncPhasePerNode.computeIfAbsent(
                 node, nodeId -> new PhaseTimerBuilder<SyncPhase>(metrics, time, "platform", SyncPhase.class)
                         .enableFractionalMetrics()
-                        .setInitialPhase(SyncPhase.IDLE)
+                        .setInitialPhase(SyncPhase.OUTSIDE_OF_RPC)
                         .setMetricsNamePrefix(String.format("sync_phase_%02d", nodeId.id()))
                         .build());
         synchronized (phaseMetric) {
+            final SyncPhase oldPhase = phaseMetric.getActivePhase();
             phaseMetric.activatePhase(syncPhase);
+            return oldPhase;
         }
+    }
+
+    public void rpcReadThreadRunning(final int change) {
+        rpcReadThreadRunning.update(change);
+    }
+
+    public void rpcWriteThreadRunning(final int change) {
+        rpcWriteThreadRunning.update(change);
+    }
+
+    public void rpcDispatchThreadRunning(final int change) {
+        rpcDispatchThreadRunning.update(change);
     }
 }

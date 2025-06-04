@@ -20,6 +20,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.AncientMode;
@@ -38,7 +39,7 @@ public class AbstractShadowgraphSynchronizer {
     /**
      * The shadow graph manager to use for this sync
      */
-    protected final Shadowgraph shadowGraph;
+    private final Shadowgraph shadowGraph;
 
     /**
      * Number of member nodes in the network for this sync
@@ -149,7 +150,7 @@ public class AbstractShadowgraphSynchronizer {
      * @param nodeId node id against which we have fallen behind
      * @return status about who has fallen behind
      */
-    protected SyncFallenBehindStatus fallenBehind(
+    protected SyncFallenBehindStatus hasFallenBehind(
             @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
         Objects.requireNonNull(self);
         Objects.requireNonNull(other);
@@ -269,4 +270,12 @@ public class AbstractShadowgraphSynchronizer {
      * Stops helper threads needed for synchronizing shadowgraph
      */
     public void stop() {}
+
+    public ReservedEventWindow getReserveEventWindow() {
+        return shadowGraph.reserve();
+    }
+
+    public List<ShadowEvent> shadows(final List<Hash> tips) {
+        return shadowGraph.shadows(tips);
+    }
 }

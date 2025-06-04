@@ -6,6 +6,7 @@ import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import java.util.concurrent.Callable;
+import org.hiero.base.concurrent.ThrowingRunnable;
 
 /**
  * Parallel executor that suppressed all exceptions.
@@ -28,6 +29,18 @@ public class ExceptionSuppressingParallelExecutor implements ParallelExecutor {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void doParallel(final Runnable onThrow, final ThrowingRunnable task1, final ThrowingRunnable... tasks)
+            throws ParallelExecutionException {
+        try {
+            executor.doParallel(onThrow, task1, tasks);
+        } catch (final ParallelExecutionException e) {
+            // suppress exceptions
+        }
+    }
     /**
      * {@inheritDoc}
      */

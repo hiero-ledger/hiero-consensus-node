@@ -6,6 +6,7 @@ import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import java.util.concurrent.Callable;
+import org.hiero.base.concurrent.ThrowingRunnable;
 
 /**
  * Executes two tasks simultaneously and replacing a specified task at a specified phase. Only
@@ -67,6 +68,16 @@ public class ReplaceSyncPhaseParallelExecutor implements ParallelExecutor {
         } finally {
             incPhase();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     * Not implemented
+     */
+    @Override
+    public void doParallel(final Runnable onThrow, final ThrowingRunnable task1, final ThrowingRunnable... tasks)
+            throws ParallelExecutionException {
+        throw new UnsupportedOperationException();
     }
 
     /**

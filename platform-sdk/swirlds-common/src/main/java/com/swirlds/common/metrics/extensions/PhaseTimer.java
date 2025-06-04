@@ -106,6 +106,10 @@ public class PhaseTimer<T extends Enum<T>> {
         activePhase = phase;
     }
 
+    public T getActivePhase() {
+        return activePhase;
+    }
+
     /**
      * Build the metric name for the fraction of time spent in a given phase.
      *

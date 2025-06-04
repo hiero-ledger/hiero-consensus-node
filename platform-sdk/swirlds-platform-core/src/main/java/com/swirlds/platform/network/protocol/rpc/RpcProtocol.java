@@ -7,6 +7,7 @@ import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.GossipRpcShadowgraphSynchronizer;
+import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.NetworkMetrics;
@@ -14,7 +15,6 @@ import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.hiero.consensus.config.EventConfig;
@@ -29,9 +29,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
  */
 public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchronizer> {
 
-    private final NodeId selfId;
     private final CachedPoolParallelExecutor executor;
-    private final AtomicBoolean gossipHalted = new AtomicBoolean(false);
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final NetworkMetrics networkMetrics;
     private final Time time;
@@ -42,19 +40,16 @@ public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchr
      * Constructs a new sync protocol
      *
      * @param synchronizer       the shadow graph synchronizer, responsible for actually doing the sync
-     * @param selfId             id of current node
      * @param executor           executor to run read/write threads
      * @param intakeEventCounter keeps track of how many events have been received from each peerr
      * @param platformContext    the platform context
      * @param rosterSize         estimated roster size
      * @param networkMetrics     network metrics to register data about communication traffic and latencies
      * @param time               the {@link Time} instance for the platformeturns the {@link Time} instance for the
-     * @param syncMetrics        metrics tracking syncing
-     *                           platform
+     * @param syncMetrics        metrics tracking syncing platform
      */
     protected RpcProtocol(
             @NonNull final GossipRpcShadowgraphSynchronizer synchronizer,
-            @NonNull final NodeId selfId,
             @NonNull final CachedPoolParallelExecutor executor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformContext platformContext,
@@ -63,7 +58,6 @@ public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchr
             @NonNull final Time time,
             @NonNull final SyncMetrics syncMetrics) {
         super(synchronizer, platformContext, rosterSize, intakeEventCounter);
-        this.selfId = Objects.requireNonNull(selfId);
         this.executor = Objects.requireNonNull(executor);
         this.networkMetrics = Objects.requireNonNull(networkMetrics);
         this.time = Objects.requireNonNull(time);
@@ -109,7 +103,6 @@ public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchr
 
         return new RpcProtocol(
                 synchronizer,
-                selfId,
                 new CachedPoolParallelExecutor(threadManager, "node-rpc-sync"),
                 intakeEventCounter,
                 platformContext,
@@ -124,10 +117,8 @@ public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchr
      */
     @Override
     public PeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        return new RpcPeerProtocol(
-                selfId,
+        final RpcPeerProtocol peerProtocol = new RpcPeerProtocol(
                 peerId,
-                synchronizer,
                 executor,
                 gossipHalted::get,
                 platformStatus::get,
@@ -137,6 +128,9 @@ public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchr
                 syncMetrics,
                 syncConfig,
                 ancientMode);
+        final RpcPeerHandler handler = synchronizer.createPeerHandler(peerProtocol, peerId);
+        peerProtocol.setRpcPeerHandler(handler);
+        return peerProtocol;
     }
 
     /**

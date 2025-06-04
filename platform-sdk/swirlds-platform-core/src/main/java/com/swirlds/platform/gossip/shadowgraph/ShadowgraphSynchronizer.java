@@ -121,7 +121,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
         // reporting and performance analysis
         final SyncTiming timing = new SyncTiming();
         final List<PlatformEvent> sendList;
-        try (final ReservedEventWindow reservation = shadowGraph.reserve()) {
+        try (final ReservedEventWindow reservation = getReserveEventWindow()) {
             connection.initForSync();
 
             timing.start();
@@ -140,7 +140,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             syncMetrics.eventWindow(myWindow, theirTipsAndEventWindow.eventWindow());
 
-            if (fallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())
+            if (hasFallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())
                     != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
                 // aborting the sync since someone has fallen behind
                 return false;
@@ -150,7 +150,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
             final Set<ShadowEvent> eventsTheyHave = new HashSet<>();
 
             // process the hashes received
-            final List<ShadowEvent> theirTips = shadowGraph.shadows(theirTipsAndEventWindow.tips());
+            final List<ShadowEvent> theirTips = shadows(theirTipsAndEventWindow.tips());
 
             // For each tip they send us, determine if we have that event.
             // For each tip, send true if we have the event and false if we don't.
