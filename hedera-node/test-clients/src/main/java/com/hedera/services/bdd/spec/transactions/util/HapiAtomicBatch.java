@@ -91,7 +91,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                                                 spec.logPrefix(),
                                                 txnToString(transaction));
                                     }
-
                                     // save transaction id and transaction
                                     final var txnId = extractTxnId(transaction);
                                     innerOpsByTxnId.put(txnId, op);
