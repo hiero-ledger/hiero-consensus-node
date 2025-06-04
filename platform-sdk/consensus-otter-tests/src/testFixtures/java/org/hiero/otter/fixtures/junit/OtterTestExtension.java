@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.extension.TestInstancePreDestroyCallback;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.platform.commons.support.AnnotationSupport;
 
 public class OtterTestExtension
         implements TestInstancePreDestroyCallback, ParameterResolver, TestTemplateInvocationContextProvider {
@@ -150,7 +152,11 @@ public class OtterTestExtension
      * @return a new {@link TurtleTestEnvironment} instance
      */
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final TurtleTestEnvironment turtleTestEnvironment = new TurtleTestEnvironment();
+        final Optional<TurtleSpecs> turtleSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
+        final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
+
+        final TurtleTestEnvironment turtleTestEnvironment = new TurtleTestEnvironment(randomSeed);
 
         extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, turtleTestEnvironment);
 

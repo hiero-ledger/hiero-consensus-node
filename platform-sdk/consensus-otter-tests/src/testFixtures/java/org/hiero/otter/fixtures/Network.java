@@ -28,10 +28,13 @@ public interface Network {
     /**
      * Start the network with the currently configured setup.
      *
-     * @param timeout the duration to wait before considering the start operation as failed
+     * <p>The method will wait until all nodes have become {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
+     * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
+     * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start(@NonNull Duration timeout) throws InterruptedException;
+    void start() throws InterruptedException;
 
     /**
      * Add an instrumented node to the network.
@@ -59,28 +62,33 @@ public interface Network {
      * current time. The method returns once all nodes entered the
      * {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE} state.
      *
-     * @param timeout the duration to wait before considering the freeze operation as failed
+     * <p>It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
+     * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void freeze(@NonNull Duration timeout) throws InterruptedException;
+    void freeze() throws InterruptedException;
 
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks
      * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
-     * network with {@link #resume(Duration)}.
+     * network with {@link #start()}.
      *
-     * @param timeout the duration to wait before considering the shutdown operation as failed
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
+     * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void shutdown(@NonNull Duration timeout) throws InterruptedException;
+    void shutdown() throws InterruptedException;
 
     /**
-     * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.
+     * Allows to override the default timeout for network operations.
      *
-     * @param duration the duration to wait before considering the resume operation as failed
-     * @throws InterruptedException if the thread is interrupted while waiting
+     * @param timeout the duration to wait before considering the operation as failed
+     * @return an instance of {@link AsyncNetworkActions} that can be used to perform network actions
      */
-    void resume(@NonNull Duration duration) throws InterruptedException;
+    @NonNull
+    AsyncNetworkActions withTimeout(@NonNull Duration timeout);
 
     /**
      * Gets the consensus rounds of all nodes.
