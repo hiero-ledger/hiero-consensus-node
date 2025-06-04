@@ -2,12 +2,14 @@
 <Configuration status="INFO">
 	<Appenders>
 		<Console name="Console" target="SYSTEM_OUT">
-			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p  %-4L %c{1} - %m%n"/>
+            <!-- 'hc' -> 'HapiClients' -->
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;hc&gt; %-5p  %-4L %c{1} - %m%n"/>
 		</Console>
 		<RollingFile name="RollingFile" fileName="output/hapi-client.log"
 					 filePattern="output/hapi-client.log-%d{yyyy-MM-dd}-%i.log" >
 			<PatternLayout>
-				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m%n</pattern>
+				<!-- 'tc' -> 'test-clients' -->
+				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;tc&gt; %-5p %-4L %c{1} - %m%n</pattern>
 			</PatternLayout>
 			<Policies>
 				<SizeBasedTriggeringPolicy size="5 MB" />

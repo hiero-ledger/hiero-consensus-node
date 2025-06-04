@@ -1,0 +1,159 @@
+/**
+ * # Smart Contract Service
+ * Block stream messages that report the trace data of transactions handled
+ * by the `smart contract` service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream.trace;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.trace.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream.trace">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/contract_types.proto";
+import "streams/sidecar_file.proto";
+import "streams/contract_action.proto";
+import "google/protobuf/wrappers.proto";
+
+/**
+ * Usage of a contract's storage slots in an EVM transaction.<br/>
+ */
+message ContractSlotUsage {
+  /**
+   * The contract using the storage slots.
+   */
+  proto.ContractID contract_id = 1;
+
+  /**
+   * The keys of storage slots that were written to in the EVM transaction.
+   * These keys are 256-bit words, left-padded with zeros if necessary.<br/>
+   * Interested consumers can get the written values from the state changes
+   * block item of the transactional unit containing this trace data.
+   */
+  repeated bytes written_slot_keys = 2;
+
+  /**
+   * The storage slots that were read in this EVM execution. They may or
+   * may not have associated slot writes.
+   */
+  repeated SlotRead slot_reads = 3;
+}
+
+/**
+ * A read slot in a contract's storage, as used in an EVM transaction.<br/>
+ */
+message SlotRead {
+  oneof identifier {
+    /**
+    * If this slot was also written, the index in the ContractSlotUsage#written_slot_keys
+    * list above.
+    */
+    int32 index = 1;
+
+    /**
+    * If this slot was only read, its key; may be left-padded with zeros to form a
+    * 256-bit word.
+    */
+    bytes key = 2;
+  }
+
+  /**
+  * The storage value in this slot, may be left-padded with zeros to form a 256-bit word.
+  */
+  bytes read_value = 3;
+}
+
+/**
+ * The initcode of a contract, possibly deduplicated if the runtime part
+ * is already externalized in state changes.
+ */
+message ContractInitcode {
+  /**
+   * The contract created from the initcode.
+   */
+  proto.ContractID contract_id = 1;
+
+  /**
+   * The bytecode that precedes and deploys the runtime bytecode of a contract.
+   */
+  bytes deploy_bytecode = 2;
+
+  /**
+   * If not externalized in state, the bytecode that defines a deployed
+   * contracts logic.
+   */
+  google.protobuf.BytesValue runtime_bytecode = 3;
+
+  /**
+   * The bytecode that follows the runtime bytecode in a contracts deployment.
+   */
+  bytes metadata_bytecode = 4;
+}
+
+/**
+ * A EVM transaction log; c.f. eth_getTransactionReceipt.<br/>
+ * Stream consumers may compute bloom values from topics and data if desired.
+ */
+message EVMTransactionLog {
+  /**
+   * The contract emitting the log.
+   */
+  proto.ContractID contract_id = 1;
+
+  /**
+   * The logged data.
+   */
+  bytes data = 2;
+
+  /**
+   * The log's topics; may be left-padded with zeros to form 256-bit words.
+   */
+  repeated bytes topics = 3;
+}
+
+/**
+ * EVM trace data, including:
+ * 1. Initcode used for any internal contract creations.
+ * 2. Contract actions executed during the transaction (i.e., the call trace)
+ * 3. Contract slot usages, including reads and writes.
+ * 4. Events logged during the transaction.
+ * 5. Full error message, if any, produced by the contract call.
+ */
+message EVMTraceData {
+  /**
+   * The initcode of child contracts created during execution.
+   */
+  repeated ContractInitcode initcodes = 1;
+
+  /**
+   * All contract actions executed during the transaction.
+   */
+  repeated proto.ContractAction contract_actions = 2;
+
+  /**
+   * Contract slot usages in the transaction, by contract id.
+   */
+  repeated ContractSlotUsage contract_slot_usages = 3;
+
+  /**
+   * Log events produced during the transaction, by contract id.
+   */
+  repeated EVMTransactionLog logs = 4;
+
+  /**
+   * Additional details of any error message in the EVM transaction result.
+   * <p>
+   * This SHALL be unset if the contract call succeeded.
+   */
+  string error_details = 5;
+}

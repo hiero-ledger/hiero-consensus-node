@@ -36,7 +36,7 @@ class BranchReporterTests {
         final DefaultBranchReporter reporter = new DefaultBranchReporter(platformContext, roster);
 
         int ancientThreshold = randotron.nextInt(1, 1000);
-        reporter.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        reporter.updateEventWindow(EventWindowBuilder.builder()
                 .setAncientThreshold(ancientThreshold)
                 .build());
 
@@ -52,13 +52,13 @@ class BranchReporterTests {
 
             if (randotron.nextBoolean(0.1)) {
                 ancientThreshold++;
-                reporter.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                reporter.updateEventWindow(EventWindowBuilder.builder()
                         .setAncientThreshold(ancientThreshold)
                         .build());
             }
             if (randotron.nextBoolean(0.1)) {
                 reporter.clear();
-                reporter.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                reporter.updateEventWindow(EventWindowBuilder.builder()
                         .setAncientThreshold(ancientThreshold)
                         .build());
             }
@@ -66,7 +66,7 @@ class BranchReporterTests {
 
         // Advance ancient window very far into the future
         ancientThreshold += 1000;
-        reporter.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        reporter.updateEventWindow(EventWindowBuilder.builder()
                 .setAncientThreshold(ancientThreshold)
                 .build());
     }
@@ -83,7 +83,7 @@ class BranchReporterTests {
         final DefaultBranchReporter reporter = new DefaultBranchReporter(platformContext, roster);
 
         int ancientThreshold = randotron.nextInt(1, 1000);
-        reporter.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        reporter.updateEventWindow(EventWindowBuilder.builder()
                 .setAncientThreshold(ancientThreshold)
                 .build());
 
@@ -99,7 +99,7 @@ class BranchReporterTests {
 
             if (randotron.nextBoolean(0.01)) {
                 ancientThreshold++;
-                reporter.updateEventWindow(EventWindowBuilder.birthRoundMode()
+                reporter.updateEventWindow(EventWindowBuilder.builder()
                         .setAncientThreshold(ancientThreshold)
                         .build());
             }
@@ -107,7 +107,7 @@ class BranchReporterTests {
 
         // Advance ancient window very far into the future
         ancientThreshold += 1000;
-        reporter.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        reporter.updateEventWindow(EventWindowBuilder.builder()
                 .setAncientThreshold(ancientThreshold)
                 .build());
     }
