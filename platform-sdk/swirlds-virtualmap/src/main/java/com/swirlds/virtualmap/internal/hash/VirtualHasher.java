@@ -317,30 +317,52 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
 
     // Chunk heights. Chunks starting at ranks 0, defaultChunkHeight, defaultChunkHeight * 2, and so on
     // have height == defaultChunkHeight. There may be no chunks starting at ranks, which are not multipliers
-    // of defaultChunkHeight. Exceptions are chunks closer to the leaf ranks, their heights are aligned
-    // with the first leaf rank. For example, if defaultChunkHeight == 3, and firstLeafRank == 5, chunks
-    // at rank 3 are of height 2. When the first and the last leaf ranks are different, chunks at the first
-    // leaf rank are of height 1.
+    // of defaultChunkHeight. There may be no chunks of heights less than defaultChunkHeight, except chunks
+    // that are close to the leaf ranks, their heights are aligned with the first leaf rank. For example,
+    // if the first leaf rank is 15, the last leaf rank is 16, and defaultChunkHeight is 6, then the root
+    // chunk is of height 6 (ranks 1 to 6, rank 0 is the output), chunks below it are of height 6, too (ranks
+    // 7 to 12, rank 6 is the output). Chunks starting at rank 13 are of height 3 (ranks 13 to 15), their
+    // input rank is 15, the same as the first leaf rank. Also, there are some chunks of height 1 starting
+    // at rank 15, each with two leaves at the last leaf rank as inputs.
 
-    // Given a rank, return chunk height, where the rank is the chunk input rank
-    private int getChunkHeightForInputRank(
+    /**
+     * Given a rank, returns chunk height, where the rank is the chunk input rank.
+     *
+     * @param rank the input rank
+     * @param firstLeafRank the rank of the first leaf path
+     * @param lastLeafRank the rank of the last leaf path
+     * @param defaultChunkHeight default chunk height from configuration
+     */
+    private static int getChunkHeightForInputRank(
             final int rank, final int firstLeafRank, final int lastLeafRank, final int defaultChunkHeight) {
         if ((rank == lastLeafRank) && (firstLeafRank != lastLeafRank)) {
+            // Small chunks of height 1 starting at the first leaf rank
             return 1;
         } else if (rank == firstLeafRank) {
+            // If a chunk ends at the first leaf rank, its height is aligned with the first leaf rank
             return ((rank - 1) % defaultChunkHeight) + 1;
         } else {
+            // All other chunks are of the default height
             assert (rank % defaultChunkHeight == 0);
             return defaultChunkHeight;
         }
     }
 
-    // Given a rank, return chunk height, where the chunk starts at the rank
-    private int getChunkHeightForStartingRank(
+    /**
+     * Given a rank, returns chunk height, where the chunk starts at the rank.
+     *
+     * @param rank the starting rank
+     * @param firstLeafRank the rank of the first leaf path
+     * @param lastLeafRank the rank of the last leaf path
+     * @param defaultChunkHeight default chunk height from configuration
+     */
+    private static int getChunkHeightForStartingRank(
             final int rank, final int firstLeafRank, final int lastLeafRank, final int defaultChunkHeight) {
         if ((rank == firstLeafRank) && (firstLeafRank != lastLeafRank)) {
+            // Small chunks of height 1 starting at the first leaf rank
             return 1;
         } else {
+            // Either default height, or height to the first leaf rank, whichever is smaller
             assert rank % defaultChunkHeight == 0;
             assert rank < firstLeafRank;
             return Math.min(defaultChunkHeight, firstLeafRank - rank);
