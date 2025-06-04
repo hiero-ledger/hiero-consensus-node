@@ -31,7 +31,7 @@ public class HappyPathTest {
         // Setup simulation
         network.addNodes(4);
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
-        network.start(Duration.ofMinutes(1L));
+        network.start();
         env.transactionGenerator().start();
 
         // Wait for two minutes
