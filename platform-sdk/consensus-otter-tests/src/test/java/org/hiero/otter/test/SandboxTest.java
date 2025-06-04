@@ -30,20 +30,20 @@ public class SandboxTest {
 
         // Setup simulation
         final List<Node> nodes = network.addNodes(4);
-        network.start(ONE_MINUTE);
+        network.start();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
 
         // Kill node
         final Node node = nodes.getFirst();
-        node.killImmediately(ONE_MINUTE);
+        node.killImmediately();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
 
         // Revive node
-        node.start(ONE_MINUTE);
+        node.start();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
@@ -64,7 +64,7 @@ public class SandboxTest {
         // Setup simulation
         network.addNodes(3);
         final InstrumentedNode nodeX = network.addInstrumentedNode();
-        network.start(ONE_MINUTE);
+        network.start();
 
         // Wait for ten seconds
         timeManager.waitFor(TEN_SECONDS);

@@ -24,12 +24,14 @@ public interface Node {
      *
      * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
      * preserve the current state, or any other similar operation is made. To simulate a graceful
-     * shutdown, use {@link #shutdownGracefully(Duration)} instead.
+     * shutdown, use {@link #shutdownGracefully()} instead.
      *
-     * @param timeout the duration to wait before considering the kill operation as failed
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
+     * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void killImmediately(@NonNull Duration timeout) throws InterruptedException;
+    void killImmediately() throws InterruptedException;
 
     /**
      * Shutdown the node gracefully.
@@ -37,20 +39,32 @@ public interface Node {
      * <p>This method simulates a graceful shutdown of the node. It allows the node to finish any
      * ongoing work, preserve the current state, and perform any other necessary cleanup operations
      * before shutting down. If the simulation of a sudden failure is desired, use
-     * {@link #killImmediately(Duration)} instead.
+     * {@link #killImmediately()} instead.
      *
-     * @param timeout the duration to wait before considering the shutdown operation as failed
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
+     * shut down. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void shutdownGracefully(@NonNull Duration timeout) throws InterruptedException;
+    void shutdownGracefully() throws InterruptedException;
 
     /**
      * Start the node.
      *
-     * @param timeout the duration to wait before considering the start operation as failed
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
+     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start(@NonNull Duration timeout) throws InterruptedException;
+    void start() throws InterruptedException;
+
+    /**
+     * Allows to override the default timeout for node operations.
+     *
+     * @param timeout the duration to wait before considering the operation as failed
+     * @return an instance of {@link AsyncNodeActions} that can be used to perform node actions
+     */
+    AsyncNodeActions withTimeout(@NonNull Duration timeout);
 
     /**
      * Submit a transaction to the node.

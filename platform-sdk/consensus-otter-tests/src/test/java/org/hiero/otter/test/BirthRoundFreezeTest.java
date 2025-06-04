@@ -56,14 +56,14 @@ public class BirthRoundFreezeTest {
                     .set(SOFTWARE_VERSION, OLD_VERSION)
                     .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
         }
-        network.start(ONE_MINUTE);
+        network.start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        network.freeze(ONE_MINUTE);
-        network.shutdown(ONE_MINUTE);
+        network.freeze();
+        network.shutdown();
 
         // Events with a created time before this time should have a maximum birth round of
         // the freeze round. Events created after this time should have a birth round greater
