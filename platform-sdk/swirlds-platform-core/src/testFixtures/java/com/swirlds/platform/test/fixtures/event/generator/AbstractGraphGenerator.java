@@ -32,16 +32,12 @@ public abstract class AbstractGraphGenerator implements GraphGenerator {
      */
     private Random random;
 
-    /** A map that holds the maximum event generation for each creator */
-    private final Map<NodeId, Long> maxGenerationPerCreator;
-
     /** The highest birth round of created events for each creator */
     private final Map<NodeId, Long> maxBirthRoundPerCreator;
 
     protected AbstractGraphGenerator(final long initialSeed) {
         this.initialSeed = initialSeed;
         random = new Random(initialSeed);
-        maxGenerationPerCreator = new HashMap<>();
         maxBirthRoundPerCreator = new HashMap<>();
     }
 
@@ -59,7 +55,6 @@ public abstract class AbstractGraphGenerator implements GraphGenerator {
     public final void reset() {
         numEventsGenerated = 0;
         random = new Random(initialSeed);
-        maxGenerationPerCreator.clear();
         maxBirthRoundPerCreator.clear();
         resetInternalData();
     }
@@ -87,7 +82,6 @@ public abstract class AbstractGraphGenerator implements GraphGenerator {
         final EventImpl next = buildNextEvent(numEventsGenerated);
         next.getBaseEvent().signalPrehandleCompletion();
         numEventsGenerated++;
-        updateMaxGeneration(next);
         updateMaxBirthRound(next);
         return next;
     }
@@ -114,13 +108,6 @@ public abstract class AbstractGraphGenerator implements GraphGenerator {
         return initialSeed;
     }
 
-    /**
-     * Updates the max generation based on the latest event
-     */
-    private void updateMaxGeneration(final EventImpl event) {
-        maxGenerationPerCreator.merge(event.getCreatorId(), event.getGeneration(), Math::max);
-    }
-
     private void updateMaxBirthRound(@NonNull final EventImpl event) {
         maxBirthRoundPerCreator.merge(event.getCreatorId(), event.getBirthRound(), Math::max);
     }
@@ -129,23 +116,7 @@ public abstract class AbstractGraphGenerator implements GraphGenerator {
      * {@inheritDoc}
      */
     @Override
-    public long getMaxGeneration(@Nullable final NodeId creatorId) {
-        return maxGenerationPerCreator.getOrDefault(creatorId, EventConstants.GENERATION_UNDEFINED);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public long getMaxBirthRound(@Nullable final NodeId creatorId) {
         return maxBirthRoundPerCreator.getOrDefault(creatorId, ConsensusConstants.ROUND_NEGATIVE_INFINITY);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getMaxGeneration() {
-        return maxGenerationPerCreator.values().stream().max(Long::compareTo).orElse(EventConstants.FIRST_GENERATION);
     }
 }
