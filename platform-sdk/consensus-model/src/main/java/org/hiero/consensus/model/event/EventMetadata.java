@@ -132,7 +132,6 @@ public class EventMetadata extends AbstractHashable {
         this.transactions =
                 gossipEvent.transactions().stream().map(TransactionWrapper::new).toList();
         birthRound = gossipEvent.eventCore().birthRound();
-        overrideParentGenerationsToZero();
     }
 
     private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
