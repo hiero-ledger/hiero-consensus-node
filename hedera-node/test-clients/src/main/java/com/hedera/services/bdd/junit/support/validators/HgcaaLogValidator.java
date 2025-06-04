@@ -99,7 +99,7 @@ public class HgcaaLogValidator {
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
                 List.of("Block node", "reported it is behind. Will restart stream at block"),
-                List.of("BlockNodeConnectionManager", "BlockStreamWorkerLoop", "Handling connection error"));
+                List.of("BlockNodeConnectionManager", "Block stream worker interrupted"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;
