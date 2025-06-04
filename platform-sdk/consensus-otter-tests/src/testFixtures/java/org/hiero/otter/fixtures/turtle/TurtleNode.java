@@ -155,12 +155,11 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     }
 
     /**
-     * Returns the status of the platform while the node is running or {@code null} if not.
-     *
-     * @return the status of the platform
+     * {@inheritDoc}
      */
+    @Override
     @Nullable
-    PlatformStatus platformStatus() {
+    public PlatformStatus platformStatus() {
         return platformStatus;
     }
 
