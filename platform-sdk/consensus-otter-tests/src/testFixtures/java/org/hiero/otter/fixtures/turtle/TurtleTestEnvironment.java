@@ -39,7 +39,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);
 
     private final TurtleNetwork network;
-    private final TurtleTransactionGenerator generator;
+    private final TurtleTransactionGenerator transactionGenerator;
     private final TurtleTimeManager timeManager;
 
     /**
@@ -52,7 +52,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
                 FileUtils.deleteDirectory(rootOutputDirectory);
             }
             Files.createDirectories(rootOutputDirectory);
-        } catch (IOException ex) {
+        } catch (final IOException ex) {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
 
@@ -76,12 +76,10 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
-        network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory);
-
-        generator = new TurtleTransactionGenerator(network, randotron);
+        transactionGenerator = new TurtleTransactionGenerator(randotron);
+        network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
 
         timeManager.addTimeTickReceiver(network);
-        timeManager.addTimeTickReceiver(generator);
     }
 
     /**
@@ -108,7 +106,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public TransactionGenerator transactionGenerator() {
-        return generator;
+        return transactionGenerator;
     }
 
     /**
@@ -116,7 +114,6 @@ public class TurtleTestEnvironment implements TestEnvironment {
      */
     @Override
     public void destroy() throws InterruptedException {
-        generator.stop();
         network.destroy();
         ConstructableRegistry.getInstance().reset();
         RuntimeObjectRegistry.reset();
