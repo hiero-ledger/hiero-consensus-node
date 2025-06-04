@@ -496,7 +496,7 @@ public class SimulatedBlockNodeServer {
                 final long blockNumber) {
             final EndOfStream endOfStream = EndOfStream.newBuilder()
                     .setStatus(responseCode)
-                    .setBlockNumber(lastVerifiedBlockNumber.get()) // Use current last verified
+                    .setBlockNumber(blockNumber)
                     .build();
             final PublishStreamResponse response =
                     PublishStreamResponse.newBuilder().setEndStream(endOfStream).build();
