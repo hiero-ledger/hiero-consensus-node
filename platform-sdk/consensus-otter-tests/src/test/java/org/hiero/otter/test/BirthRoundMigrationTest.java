@@ -73,7 +73,7 @@ class BirthRoundMigrationTest {
         }
 
         // restart the network
-        network.resume(ONE_MINUTE);
+        network.start(ONE_MINUTE);
         env.transactionGenerator().start();
 
         // Wait for 30 seconds

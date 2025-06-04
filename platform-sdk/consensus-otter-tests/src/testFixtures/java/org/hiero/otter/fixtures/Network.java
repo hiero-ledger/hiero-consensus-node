@@ -67,20 +67,12 @@ public interface Network {
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks
      * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
-     * network with {@link #resume(Duration)}.
+     * network with {@link #start(Duration)}.
      *
      * @param timeout the duration to wait before considering the shutdown operation as failed
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     void shutdown(@NonNull Duration timeout) throws InterruptedException;
-
-    /**
-     * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.
-     *
-     * @param duration the duration to wait before considering the resume operation as failed
-     * @throws InterruptedException if the thread is interrupted while waiting
-     */
-    void resume(@NonNull Duration duration) throws InterruptedException;
 
     /**
      * Gets the consensus rounds of all nodes.

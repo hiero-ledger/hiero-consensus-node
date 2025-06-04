@@ -97,9 +97,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     @Override
     @NonNull
     public List<Node> addNodes(final int count) {
-        if (state != State.INIT) {
-            throw new IllegalStateException("Cannot add nodes after the network has been started.");
-        }
+        throwIfInState(State.RUNNING, "Cannot add nodes after the network has been started.");
+        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
         if (!nodes.isEmpty()) {
             throw new UnsupportedOperationException("Adding nodes incrementally is not supported yet.");
         }
@@ -137,9 +136,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     public void start(@NonNull final Duration timeout) {
-        if (state != State.INIT) {
-            throw new IllegalStateException("Cannot start the network more than once.");
-        }
+        throwIfInState(State.RUNNING, "Network is already running.");
 
         log.info("Starting network...");
         state = State.RUNNING;
@@ -176,9 +173,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     public void freeze(@NonNull final Duration timeout) {
-        if (state != State.RUNNING) {
-            throw new IllegalStateException("Can only freeze when the network is running.");
-        }
+        throwIfInState(State.INIT, "Network has not been started yet.");
+        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
         final TurtleTransaction freezeTransaction =
@@ -196,30 +192,14 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     @Override
     public void shutdown(@NonNull final Duration timeout) throws InterruptedException {
-        if (state != State.RUNNING) {
-            throw new IllegalStateException("Can only shutdown when the network is running.");
-        }
+        throwIfInState(State.INIT, "Network has not been started yet.");
+        throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
 
         log.info("Killing nodes immediately...");
         for (final TurtleNode node : nodes) {
             node.killImmediately(Duration.ZERO);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void resume(@NonNull final Duration timeout) {
-        log.info("Resuming network...");
-        for (final TurtleNode node : nodes) {
-            node.start(Duration.ZERO);
-        }
-
-        log.debug("Waiting for nodes to become active again...");
-        if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
-            fail("Timeout while waiting for nodes to become active.");
-        }
+        state = State.SHUTDOWN;
     }
 
     /**
@@ -308,5 +288,11 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     private BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
         return () -> nodes.stream().allMatch(node -> node.platformStatus() == status);
+    }
+
+    private void throwIfInState(@NonNull final State expected, @NonNull final String message) {
+        if (state == expected) {
+            throw new IllegalStateException(message);
+        }
     }
 }

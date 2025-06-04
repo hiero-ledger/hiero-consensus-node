@@ -72,7 +72,7 @@ public class BirthRoundMigrationAndFreezeTest {
         }
 
         // Restart the network and perform birth round migration
-        network.resume(ONE_MINUTE);
+        network.start(ONE_MINUTE);
         env.transactionGenerator().start();
 
         // Wait for 30 seconds
@@ -93,7 +93,7 @@ public class BirthRoundMigrationAndFreezeTest {
         assertThat(network.getPcesResults()).hasMaxBirthRoundLessThanOrEqualTo(freezeRound);
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
-        network.resume(ONE_MINUTE);
+        network.start(ONE_MINUTE);
         env.transactionGenerator().start();
 
         // Wait for 30 seconds
