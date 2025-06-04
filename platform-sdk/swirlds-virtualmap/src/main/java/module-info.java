@@ -23,7 +23,7 @@ open module com.swirlds.virtualmap {
             com.swirlds.merkledb,
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core.test.fixtures,
-            com.swirlds.state.validator;
+            com.hedera.state.validator;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

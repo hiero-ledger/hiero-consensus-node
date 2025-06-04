@@ -71,7 +71,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.state.merkle to
             com.hedera.node.app.test.fixtures,
             com.hedera.node.test.clients,
-            com.swirlds.state.validator;
+            com.hedera.state.validator;
     exports com.hedera.node.app.workflows.dispatcher;
     exports com.hedera.node.app.workflows.standalone;
     exports com.hedera.node.app.config;
