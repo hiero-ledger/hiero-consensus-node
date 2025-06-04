@@ -128,7 +128,7 @@ jobs:
           echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Increment Build Promotion Index
-        uses: step-security/increment@c2cdc97bbfdf3f5ef530d5c1f28311ff8f0c70f4 # v2.0.1
+        uses: step-security/increment@f07ae8bfe2d5ddd67e68f0eb153010db6e5fdbd1 # v2.14.0
         id: increment
         with:
           name: "XTS_BUILD_PROMOTION_INDEX"
@@ -173,7 +173,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - XTS Candidate Promoted for Single Day Performance/Longevity Tests",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Promoted for Single Day Performance/Longevity Tests",
                         "emoji": true
                       }
                     },
@@ -238,7 +238,7 @@ jobs:
           --header 'Content-Type: application/json' \
           --data '{
             "payload": {
-              "summary": "Hedera Services - eXtended Test Suite Failure",
+              "summary": "Hiero Consensus Node - eXtended Test Suite Failure",
               "severity": "error",
               "source": "GitHub Actions - eXtended Test Suite",
               "custom_details": {
@@ -268,7 +268,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - Build Candidate Promotion Error Report",
+                        "text": ":warning: Hiero Consensus Node - Build Candidate Promotion Error Report",
                         "emoji": true
                       }
                     },

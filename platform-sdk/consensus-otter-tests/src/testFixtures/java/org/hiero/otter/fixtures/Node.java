@@ -2,8 +2,10 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -14,6 +16,7 @@ import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
  *
  * <p>This interface provides methods to control the state of the node, such as killing and reviving it.
  */
+@SuppressWarnings("unused")
 public interface Node {
 
     /**
@@ -23,10 +26,10 @@ public interface Node {
      * preserve the current state, or any other similar operation is made. To simulate a graceful
      * shutdown, use {@link #shutdownGracefully(Duration)} instead.
      *
-     *
      * @param timeout the duration to wait before considering the kill operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void failUnexpectedly(@NonNull Duration timeout) throws InterruptedException;
+    void killImmediately(@NonNull Duration timeout) throws InterruptedException;
 
     /**
      * Shutdown the node gracefully.
@@ -34,16 +37,20 @@ public interface Node {
      * <p>This method simulates a graceful shutdown of the node. It allows the node to finish any
      * ongoing work, preserve the current state, and perform any other necessary cleanup operations
      * before shutting down. If the simulation of a sudden failure is desired, use
-     * {@link #failUnexpectedly(Duration)} instead.
+     * {@link #killImmediately(Duration)} instead.
+     *
+     * @param timeout the duration to wait before considering the shutdown operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
     void shutdownGracefully(@NonNull Duration timeout) throws InterruptedException;
 
     /**
-     * Revive the node.
+     * Start the node.
      *
-     * @param timeout the duration to wait before considering the revive operation as failed
+     * @param timeout the duration to wait before considering the start operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void revive(@NonNull Duration timeout) throws InterruptedException;
+    void start(@NonNull Duration timeout) throws InterruptedException;
 
     /**
      * Submit a transaction to the node.
@@ -68,6 +75,14 @@ public interface Node {
      */
     @NonNull
     NodeId getSelfId();
+
+    /**
+     * Returns the status of the platform while the node is running or {@code null} if not.
+     *
+     * @return the status of the platform
+     */
+    @Nullable
+    PlatformStatus platformStatus();
 
     /**
      * Gets the consensus rounds of the node.

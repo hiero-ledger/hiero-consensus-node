@@ -4,8 +4,8 @@
 - Unit Tests / Standard - :x:
 - Snyk Scan / Standard - :x:
 - Gradle Determinism / Generate Baseline - :x:
-- Gradle Determinism / Verify Artifacts (windows-2019) - :x:
 - Gradle Determinism / Verify Artifacts (windows-2022) - :x:
+- Gradle Determinism / Verify Artifacts (windows-2025) - :x:
 - Gradle Determinism / Verify Artifacts (ubuntu-22.04) - :x:
 - Gradle Determinism / Verify Artifacts (hiero-network-node-linux-large) - :x:
 - Gradle Determinism / Verify Artifacts (hiero-network-node-linux-medium) - :x:
@@ -20,6 +20,7 @@
 - HAPI Tests (Token) / Standard - :tada:
 - HAPI Tests (Restart) / Standard - :tada:
 - HAPI Tests (ISS) / Standard - :tada:
+- Otter Tests / Standard - :tada:
 - Title Check - :tada:
 - Spotless / Check - :tada:
 - Milestone Check - :tada:

@@ -15,17 +15,15 @@ import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
-import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -95,7 +93,7 @@ public class DataFileCompactor {
      * compaction on hold, which is critical as snapshots should be as fast as possible, while
      * compactions are just background processes.
      */
-    private final Semaphore snapshotCompactionLock = new Semaphore(1);
+    private final Lock snapshotCompactionLock = new ReentrantLock();
 
     /**
      * Start time of the current compaction, or null if compaction isn't running
@@ -123,15 +121,23 @@ public class DataFileCompactor {
     /**
      * Indicates whether compaction is in progress at the time when {@link #pauseCompaction()}
      * is called. This flag is then checked in {@link DataFileCompactor#resumeCompaction()} )} to start a new
-     * compacted file or not.
+     * compacted file or not. This field is synchronized using {@link #snapshotCompactionLock}.
      */
-    private final AtomicBoolean compactionWasInProgress = new AtomicBoolean(false);
+    private boolean compactionWasInProgress = false;
 
     /**
      * This variable keeps track of the compaction level that was in progress at the time when it was suspended.
-     * Once the compaction is resumed, this level is used to start a new compacted file, and then it's reset to 0.
+     * Once the compaction is resumed, this level is used to start a new compacted file, and then it's reset to
+     * 0. This field is synchronized using {@link #snapshotCompactionLock}.
      */
-    private final AtomicInteger compactionLevelInProgress = new AtomicInteger(0);
+    private int compactionLevelInProgress = 0;
+
+    /**
+     * A flag used to interrupt this compaction task rather than using {@link Thread#interrupt()}.
+     * This flag is set in {@link #interruptCompaction()} and checked periodically in the main
+     * compaction loop.
+     */
+    private volatile boolean interruptFlag = false;
 
     /**
      * @param dbConfig                       MerkleDb config
@@ -174,7 +180,7 @@ public class DataFileCompactor {
      * @throws IOException          If there was a problem with the compaction
      * @throws InterruptedException If the compaction thread was interrupted
      */
-    synchronized List<Path> compactFiles(
+    List<Path> compactFiles(
             final CASableLongIndex index,
             final List<? extends DataFileReader> filesToCompact,
             final int targetCompactionLevel)
@@ -185,19 +191,21 @@ public class DataFileCompactor {
             return Collections.emptyList();
         }
 
+        interruptFlag = false;
+
         // create a merge time stamp, this timestamp is the newest time of the set of files we are
         // merging
         final Instant startTime = filesToCompact.stream()
                 .map(file -> file.getMetadata().getCreationDate())
                 .max(Instant::compareTo)
                 .orElseGet(Instant::now);
-        snapshotCompactionLock.acquire();
+        snapshotCompactionLock.lock();
         try {
             currentCompactionStartTime.set(startTime);
             newCompactedFiles.clear();
             startNewCompactionFile(targetCompactionLevel);
         } finally {
-            snapshotCompactionLock.release();
+            snapshotCompactionLock.unlock();
         }
 
         // We need a map to find readers by file index below. It doesn't have to be synchronized
@@ -220,61 +228,65 @@ public class DataFileCompactor {
         boolean allDataItemsProcessed = false;
         try {
             final KeyRange keyRange = dataFileCollection.getValidKeyRange();
-            index.forEach((path, dataLocation) -> {
-                if (!keyRange.withinRange(path)) {
-                    return;
-                }
-                final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
-                if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) {
-                    return;
-                }
-                final DataFileReader reader = readers[fileIndex - firstIndexInc];
-                if (reader == null) {
-                    return;
-                }
-                final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
-                // Take the lock. If a snapshot is started in a different thread, this call
-                // will block until the snapshot is done. The current file will be flushed,
-                // and current data file writer and reader will point to a new file
-                snapshotCompactionLock.acquire();
-                try {
-                    final DataFileWriter newFileWriter = currentWriter.get();
-                    final BufferedData itemBytes = reader.readDataItem(fileOffset);
-                    assert itemBytes != null;
-                    long newLocation = newFileWriter.storeDataItem(itemBytes);
-                    // update the index
-                    index.putIfEqual(path, dataLocation, newLocation);
-                } catch (final ClosedByInterruptException e) {
-                    logger.info(
-                            MERKLE_DB.getMarker(),
-                            "Failed to copy data item {} / {} due to thread interruption",
-                            fileIndex,
-                            fileOffset,
-                            e);
-                    throw e;
-                } catch (final IOException z) {
-                    logger.error(EXCEPTION.getMarker(), "Failed to copy data item {} / {}", fileIndex, fileOffset, z);
-                    throw z;
-                } finally {
-                    snapshotCompactionLock.release();
-                }
-            });
-            allDataItemsProcessed = true;
+            allDataItemsProcessed = index.forEach(
+                    (path, dataLocation) -> {
+                        if (!keyRange.withinRange(path)) {
+                            return;
+                        }
+                        final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
+                        if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) {
+                            return;
+                        }
+                        final DataFileReader reader = readers[fileIndex - firstIndexInc];
+                        if (reader == null) {
+                            return;
+                        }
+                        final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
+                        // Take the lock. If a snapshot is started in a different thread, this call
+                        // will block until the snapshot is done. The current file will be flushed,
+                        // and current data file writer and reader will point to a new file
+                        snapshotCompactionLock.lock();
+                        try {
+                            final DataFileWriter newFileWriter = currentWriter.get();
+                            final BufferedData itemBytes = reader.readDataItem(fileOffset);
+                            assert itemBytes != null;
+                            long newLocation = newFileWriter.storeDataItem(itemBytes);
+                            // update the index
+                            index.putIfEqual(path, dataLocation, newLocation);
+                        } catch (final IOException z) {
+                            logger.error(
+                                    EXCEPTION.getMarker(),
+                                    "Failed to copy data item {} / {}",
+                                    fileIndex,
+                                    fileOffset,
+                                    z);
+                            throw z;
+                        } finally {
+                            snapshotCompactionLock.unlock();
+                        }
+                    },
+                    this::notInterrupted);
         } finally {
             // Even if the thread is interrupted, make sure the new compacted file is properly closed
             // and is included to future compactions
-            snapshotCompactionLock.acquire();
+            snapshotCompactionLock.lock();
             try {
                 // Finish writing the last file. In rare cases, it may be an empty file
                 finishCurrentCompactionFile();
                 // Clear compaction start time
                 currentCompactionStartTime.set(null);
                 if (allDataItemsProcessed) {
+                    logger.info(
+                            MERKLE_DB.getMarker(), "All files to compact have been processed, they will be deleted");
                     // Close the readers and delete compacted files
                     dataFileCollection.deleteFiles(filesToCompact);
+                } else {
+                    logger.info(
+                            MERKLE_DB.getMarker(),
+                            "Some files to compact haven't been processed, they will be compacted later");
                 }
             } finally {
-                snapshotCompactionLock.release();
+                snapshotCompactionLock.unlock();
             }
         }
 
@@ -343,13 +355,13 @@ public class DataFileCompactor {
      * @see #resumeCompaction()
      */
     public void pauseCompaction() throws IOException {
-        snapshotCompactionLock.acquireUninterruptibly();
+        snapshotCompactionLock.lock();
         // Check if compaction is currently in progress. If so, flush and close the current file, so
         // it's included to the snapshot
         final DataFileWriter compactionWriter = currentWriter.get();
         if (compactionWriter != null) {
-            compactionWasInProgress.set(true);
-            compactionLevelInProgress.set(compactionWriter.getMetadata().getCompactionLevel());
+            compactionWasInProgress = true;
+            compactionLevelInProgress = compactionWriter.getMetadata().getCompactionLevel();
             finishCurrentCompactionFile();
             // Don't start a new compaction file here, as it would be included to snapshots, but
             // it shouldn't, as it isn't fully written yet. Instead, a new file will be started
@@ -364,23 +376,44 @@ public class DataFileCompactor {
      * Resumes compaction previously put on hold with {@link #pauseCompaction()}. If there was no
      * compaction running at that moment, but new compaction was started (and blocked) since {@link
      * #pauseCompaction()}, this new compaction is resumed.
-     * <p>
-     * <b>This method must be always balanced with and called after {@link #pauseCompaction()}. If
-     * there are more / less calls to resume compactions than to pause, or if they are called in a
-     * wrong order, it will result in deadlocks.</b>
+     *
+     * <p><b>This method must be always balanced with and called after {@link #pauseCompaction()} on
+     * the same thread. If there are more or less calls to resume compactions than to pause, or if
+     * they are called in a wrong order, it will result in deadlocks.</b>
      *
      * @throws IOException If an I/O error occurs
+     * @throws IllegalMonitorStateException If this method is called on a different thread than
+     *      {@link #pauseCompaction()}
      */
     public void resumeCompaction() throws IOException {
         try {
-            if (compactionWasInProgress.getAndSet(false)) {
+            if (compactionWasInProgress) {
+                compactionWasInProgress = false;
                 assert currentWriter.get() == null;
                 assert currentReader.get() == null;
-                startNewCompactionFile(compactionLevelInProgress.getAndSet(0));
+                startNewCompactionFile(compactionLevelInProgress);
+                compactionLevelInProgress = 0;
             }
         } finally {
-            snapshotCompactionLock.release();
+            snapshotCompactionLock.unlock();
         }
+    }
+
+    /**
+     * Interrupts this compaction task. This is a less invasive way to stop the task than
+     * {@link Thread#interrupt()}, which has side effects like interrupt exceptions and
+     * closed file channels.
+     *
+     * <p>There is no guarantee that the task, if currently running, is stopped immediately
+     * after this method is called, but it's stopped in reasonable time.
+     */
+    public void interruptCompaction() {
+        interruptFlag = true;
+    }
+
+    // A helper method to avoid using a lambda in compactFiles()
+    public boolean notInterrupted() {
+        return !interruptFlag;
     }
 
     /**

@@ -15,9 +15,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -40,14 +38,11 @@ import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.File;
-import java.io.IOException;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -79,7 +74,6 @@ import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
-    private static final Logger log = LogManager.getLogger(TurtleNode.class);
 
     private enum LifeCycle {
         INIT,
@@ -95,19 +89,38 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final SimulatedNetwork network;
+    private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
     private final PlatformStatusChangeListener platformStatusChangeListener;
 
-    private DeterministicWiringModel model;
     private PlatformContext platformContext;
-    private Platform platform;
-    private PlatformWiring platformWiring;
     private LifeCycle lifeCycle = LifeCycle.INIT;
 
+    @Nullable
+    private DeterministicWiringModel model;
+
+    @Nullable
+    private Platform platform;
+
+    @Nullable
+    private PlatformWiring platformWiring;
+
+    @Nullable
     private PlatformStatus platformStatus;
 
+    /**
+     * Constructor of {@link TurtleNode}.
+     * @param randotron the random number generator
+     * @param time the time provider
+     * @param selfId the node ID of the node
+     * @param roster the initial roster
+     * @param keysAndCerts the keys and certificates of the node
+     * @param network the simulated network
+     * @param logging the logging instance for the node
+     * @param outputDirectory the output directory for the node
+     */
     public TurtleNode(
             @NonNull final Randotron randotron,
             @NonNull final Time time,
@@ -115,7 +128,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
+            @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
+        logging.addNodeLogging(selfId, outputDirectory);
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
@@ -125,6 +140,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             this.roster = requireNonNull(roster);
             this.keysAndCerts = requireNonNull(keysAndCerts);
             this.network = requireNonNull(network);
+            this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
             this.platformStatusChangeListener = data -> {
@@ -139,11 +155,11 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     }
 
     /**
-     * Returns the status of the platform while the node is running or {@code null} if not.
-     *
-     * @return the status of the platform
+     * {@inheritDoc}
      */
-    PlatformStatus platformStatus() {
+    @Override
+    @Nullable
+    public PlatformStatus platformStatus() {
         return platformStatus;
     }
 
@@ -160,7 +176,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void failUnexpectedly(@NonNull final Duration timeout) throws InterruptedException {
+    public void killImmediately(@NonNull final Duration timeout) throws InterruptedException {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
@@ -179,7 +195,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-            platformWiring.flushIntakePipeline();
+            if (platformWiring != null) {
+                platformWiring.flushIntakePipeline();
+            }
             doShutdownNode();
 
         } finally {
@@ -191,11 +209,10 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void revive(@NonNull final Duration timeout) {
+    public void start(@NonNull final Duration timeout) {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-            checkLifeCycle(LifeCycle.INIT, "Node has not been started previously.");
             checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
@@ -218,6 +235,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             checkLifeCycle(LifeCycle.INIT, "Node has not been started yet.");
             checkLifeCycle(LifeCycle.SHUTDOWN, "Node has been shut down.");
             checkLifeCycle(LifeCycle.DESTROYED, "Node has been destroyed.");
+            assert platform != null; // platform must be initialized if lifeCycle is STARTED
 
             platform.createTransaction(transaction);
 
@@ -276,8 +294,9 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void tick(@NonNull Instant now) {
+    public void tick(@NonNull final Instant now) {
         if (lifeCycle == LifeCycle.STARTED) {
+            assert model != null; // model must be initialized if lifeCycle is STARTED
             try {
                 ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
                 model.tick();
@@ -288,43 +307,20 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     }
 
     /**
-     * Start the node
-     */
-    public void start() {
-        try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
-
-            checkLifeCycle(LifeCycle.STARTED, "Node has already been started.");
-            checkLifeCycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
-
-            // Clean the output directory and start the node
-            final String rootPath =
-                    nodeConfiguration.createConfiguration().getValue(FileSystemManagerConfig_.ROOT_PATH);
-            log.info("Deleting directory: {}", rootPath);
-            if (rootPath != null) {
-                try {
-                    FileUtils.deleteDirectory(new File(rootPath).toPath());
-                } catch (IOException ex) {
-                    log.warn("Failed to delete directory: {}", rootPath, ex);
-                }
-            }
-            doStartNode();
-
-        } finally {
-            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
-        }
-    }
-
-    /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
+     *
+     * @throws InterruptedException if the thread is interrupted while the node is being destroyed
      */
     public void destroy() throws InterruptedException {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
+            resultsCollector.destroy();
             doShutdownNode();
             lifeCycle = LifeCycle.DESTROYED;
+
+            logging.removeNodeLogging(selfId);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -339,7 +335,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
 
     private void doShutdownNode() throws InterruptedException {
         if (lifeCycle == LifeCycle.STARTED) {
-            // TODO: Release all resources
+            assert platform != null; // platform must be initialized if lifeCycle is STARTED
+            assert platformWiring != null; // platformWiring must be initialized if lifeCycle is STARTED
             getMetricsProvider().removePlatformMetrics(platform.getSelfId());
             platformWiring.stop();
             platform.getNotificationEngine().unregisterAll();

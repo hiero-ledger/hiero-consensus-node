@@ -60,7 +60,7 @@ class StatsSigningTestingToolStateTest {
         random = new Random();
         event = mock(PlatformEvent.class);
 
-        final var eventWindow = EventWindowBuilder.birthRoundMode()
+        final var eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(10)
                 .setAncientThreshold(5)
                 .setExpiredThreshold(20)

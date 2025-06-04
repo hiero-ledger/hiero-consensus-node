@@ -131,7 +131,7 @@ public class StartupStateUtilsTests {
                 .build();
 
         // make the state immutable
-        signedState.getState().copy();
+        signedState.getState().copy().release();
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
