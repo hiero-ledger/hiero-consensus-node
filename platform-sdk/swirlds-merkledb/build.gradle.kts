@@ -22,6 +22,7 @@ jmhModuleInfo {
 }
 
 testModuleInfo {
+    requires("com.google.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
@@ -38,10 +39,7 @@ hammerModuleInfo {
     requires("com.swirlds.common")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.merkledb.test.fixtures")
-    requires("com.swirlds.metrics.api")
     requires("com.swirlds.config.api")
-    requires("com.swirlds.virtualmap")
-    requires("org.hiero.base.crypto")
     requires("org.apache.logging.log4j")
     requires("org.apache.logging.log4j.core")
     requires("org.junit.jupiter.api")
