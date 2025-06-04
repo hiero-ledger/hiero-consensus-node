@@ -47,14 +47,14 @@ public class BirthRoundFreezeTest {
         for (final Node node : network.getNodes()) {
             node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true);
         }
-        network.start(ONE_MINUTE);
+        network.start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        network.freeze(ONE_MINUTE);
-        network.shutdown(ONE_MINUTE);
+        network.freeze();
+        network.shutdown();
 
         // Events with a created time before this time should have a maximum birth round of
         // the freeze round. Events created after this time should have a birth round greater

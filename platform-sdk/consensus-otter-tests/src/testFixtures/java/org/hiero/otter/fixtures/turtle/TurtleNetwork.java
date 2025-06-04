@@ -29,6 +29,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -53,7 +54,10 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
 
     private static final Logger log = LogManager.getLogger(TurtleNetwork.class);
 
+    private static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_FREEZE_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration FREEZE_DELAY = Duration.ofSeconds(10);
+    private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ZERO;
 
     private enum State {
         INIT,
@@ -141,23 +145,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void start(@NonNull final Duration timeout) {
-        if (state != State.INIT) {
-            throw new IllegalStateException("Cannot start the network more than once.");
-        }
-
-        log.info("Starting network...");
-        state = State.RUNNING;
-        for (final TurtleNode node : nodes) {
-            node.start(Duration.ZERO);
-        }
-
-        transactionGenerator.start();
-
-        log.debug("Waiting for nodes to become active...");
-        if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
-            fail("Timeout while waiting for nodes to become active.");
-        }
+    public void start() throws InterruptedException {
+        withTimeout(DEFAULT_START_TIMEOUT).start();
     }
 
     /**
@@ -182,39 +171,25 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void freeze(@NonNull final Duration timeout) {
-        if (state != State.RUNNING) {
-            throw new IllegalStateException("Can only freeze when the network is running.");
-        }
-
-        log.info("Sending freeze transaction...");
-        final TurtleTransaction freezeTransaction =
-                TransactionFactory.createFreezeTransaction(timeManager.now().plus(FREEZE_DELAY));
-        nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
-
-        log.debug("Waiting for nodes to freeze...");
-        if (!timeManager.waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {
-            fail("Timeout while waiting for all nodes to freeze.");
-        }
-
-        transactionGenerator.stop();
+    public void freeze() throws InterruptedException {
+        withTimeout(DEFAULT_FREEZE_TIMEOUT).freeze();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void shutdown(@NonNull final Duration timeout) throws InterruptedException {
-        if (state != State.RUNNING) {
-            throw new IllegalStateException("Can only shutdown when the network is running.");
-        }
+    public void shutdown() throws InterruptedException {
+        withTimeout(DEFAULT_SHUTDOWN_TIMEOUT).shutdown();
+    }
 
-        log.info("Killing nodes immediately...");
-        for (final TurtleNode node : nodes) {
-            node.killImmediately(Duration.ZERO);
-        }
-
-        transactionGenerator.stop();
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public AsyncNetworkActions withTimeout(@NonNull final Duration timeout) {
+        return new TurtleAsyncNetworkActions(timeout);
     }
 
     /**
@@ -224,7 +199,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     public void resume(@NonNull final Duration timeout) {
         log.info("Resuming network...");
         for (final TurtleNode node : nodes) {
-            node.start(Duration.ZERO);
+            node.start();
         }
 
         transactionGenerator.start();
@@ -343,5 +318,79 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     private BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
         return () -> nodes.stream().allMatch(node -> node.platformStatus() == status);
+    }
+
+    /**
+     * Turtle-specific implementation of {@link AsyncNetworkActions}
+     */
+    private class TurtleAsyncNetworkActions implements AsyncNetworkActions {
+
+        private final Duration timeout;
+
+        private TurtleAsyncNetworkActions(@NonNull final Duration timeout) {
+            this.timeout = requireNonNull(timeout);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void start() {
+            if (state != State.INIT) {
+                throw new IllegalStateException("Cannot start the network more than once.");
+            }
+
+            log.info("Starting network...");
+            state = State.RUNNING;
+            for (final TurtleNode node : nodes) {
+                node.start();
+            }
+
+            transactionGenerator.start();
+
+            log.debug("Waiting for nodes to become active...");
+            if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
+                fail("Timeout while waiting for nodes to become active.");
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void freeze() {
+            if (state != State.RUNNING) {
+                throw new IllegalStateException("Can only freeze when the network is running.");
+            }
+
+            log.info("Sending freeze transaction...");
+            final TurtleTransaction freezeTransaction =
+                    TransactionFactory.createFreezeTransaction(timeManager.now().plus(FREEZE_DELAY));
+            nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
+
+            log.debug("Waiting for nodes to freeze...");
+            if (!timeManager.waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {
+                fail("Timeout while waiting for all nodes to freeze.");
+            }
+
+            transactionGenerator.stop();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void shutdown() throws InterruptedException {
+            if (state != State.RUNNING) {
+                throw new IllegalStateException("Can only shutdown when the network is running.");
+            }
+
+            log.info("Killing nodes immediately...");
+            for (final TurtleNode node : nodes) {
+                node.killImmediately();
+            }
+
+            transactionGenerator.stop();
+        }
     }
 }
