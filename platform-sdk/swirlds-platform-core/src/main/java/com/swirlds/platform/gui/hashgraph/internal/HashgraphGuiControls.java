@@ -113,7 +113,7 @@ public class HashgraphGuiControls implements HashgraphPictureOptions {
             labelRoundRecCheckbox,
             labelConsOrderCheckbox,
             labelConsTimestampCheckbox,
-                labelNGenCheckbox,
+            labelNGenCheckbox,
             labelBirthroundCheckbox,
             labelBranchNumberCheckbox,
             labelDeGenCheckbox,
