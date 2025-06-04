@@ -32,7 +32,7 @@ public class HappyPathTest {
         network.addNodes(4);
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
         network.start(Duration.ofMinutes(1L));
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for two minutes
         timeManager.waitFor(Duration.ofMinutes(1L));
@@ -47,6 +47,6 @@ public class HappyPathTest {
 
         assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1);
 
-        assertThat(network.getConsensusResults()).hasEqualRoundsIgnoringLast(Percentage.withPercentage(1));
+        assertThat(network.getConsensusResults()).haveEqualRoundsIgnoringLast(Percentage.withPercentage(1));
     }
 }
