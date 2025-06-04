@@ -48,11 +48,6 @@ class OrphanBufferTests {
      */
     private List<PlatformEvent> intakeEvents;
 
-    /**
-     * The maximum generation of any event that has been created
-     */
-    private long maxGeneration;
-
     private Random random;
 
     /**
@@ -102,10 +97,6 @@ class OrphanBufferTests {
 
         final PlatformEvent selfParent = tips.get(eventCreator);
         final PlatformEvent otherParent = chooseOtherParent(parentCandidates);
-
-        final long maxParentGeneration = Math.max(selfParent.getGeneration(), otherParent.getGeneration());
-        final long eventGeneration = maxParentGeneration + 1;
-        maxGeneration = Math.max(maxGeneration, eventGeneration);
 
         return new TestingEventBuilder(random)
                 .setCreatorId(eventCreator)
