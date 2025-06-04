@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.node;
 
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
+
 import com.google.common.base.MoreObjects;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -31,6 +34,7 @@ public class HapiNodeDelete extends HapiTxnOp<HapiNodeDelete> {
 
     public HapiNodeDelete(@NonNull final String nodeName) {
         this.nodeName = nodeName;
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiNodeDelete(@NonNull final Supplier<String> supplier) {
