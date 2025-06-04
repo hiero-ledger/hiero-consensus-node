@@ -802,7 +802,7 @@ jobs:
         env:
           NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}
           NEXUS_PASSWORD: ${{ secrets.svcs-ossrh-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true -PpublishTestRelease=true
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
