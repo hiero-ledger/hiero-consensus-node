@@ -44,7 +44,7 @@ public class StandardGuiSource implements HashgraphGuiSource {
     public List<EventImpl> getEvents(final long startGeneration, final int numGenerations) {
         return eventStorage.getNonAncientEvents().stream()
                 .filter(e ->
-                        e.getGeneration() >= startGeneration && e.getGeneration() < startGeneration + numGenerations)
+                        e.getNGen() >= startGeneration && e.getNGen() < startGeneration + numGenerations)
                 .toList();
     }
 

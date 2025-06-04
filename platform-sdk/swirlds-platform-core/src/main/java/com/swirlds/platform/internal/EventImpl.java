@@ -530,6 +530,7 @@ public class EventImpl implements Clearable {
      *
      * @return the generation of this event
      */
+    @Deprecated(forRemoval = true)
     public long getGeneration() {
         return baseEvent.getGeneration();
     }

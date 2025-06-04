@@ -69,8 +69,8 @@ public class PictureMetadata {
         long minGenTmp = Long.MAX_VALUE;
         long maxGenTmp = Long.MIN_VALUE;
         for (final EventImpl event : events) {
-            minGenTmp = Math.min(minGenTmp, event.getGeneration());
-            maxGenTmp = Math.max(maxGenTmp, event.getGeneration());
+            minGenTmp = Math.min(minGenTmp, event.getNGen());
+            maxGenTmp = Math.max(maxGenTmp, event.getNGen());
         }
         maxGenTmp = Math.max(maxGenTmp, minGenTmp + 2);
         minGen = minGenTmp;
@@ -123,7 +123,7 @@ public class PictureMetadata {
      * find y position on the screen for an event
      */
     public int ypos(final EventImpl event) {
-        return (event == null) ? -100 : (int) (ymax - r * (1 + 2 * (event.getGeneration() - minGen)));
+        return (event == null) ? -100 : (int) (ymax - r * (1 + 2 * (event.getNGen() - minGen)));
     }
 
     /**
