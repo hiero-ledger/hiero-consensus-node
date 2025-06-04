@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
@@ -317,9 +318,10 @@ public class RecordStreamBuilder
         transactionReceiptBuilder.accountID((AccountID) null);
 
         // null out contractId only if aborted (used gas is 0)
-        if (contractFunctionResult != null && contractFunctionResult.gasUsed() == 0) {
+        if (contractFunctionResult != null && (contractFunctionResult.gasUsed() == 0 || status.equals(SUCCESS))) {
             transactionReceiptBuilder.contractID((ContractID) null);
         }
+
         contractFunctionResult = null;
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);

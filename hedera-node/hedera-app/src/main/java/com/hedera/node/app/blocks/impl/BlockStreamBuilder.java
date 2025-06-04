@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static java.util.Collections.emptyList;
@@ -1062,8 +1063,9 @@ public class BlockStreamBuilder
         transactionFee = 0L;
 
         accountId = null;
+
         // null out contractId only if aborted (used gas is 0)
-        if (contractFunctionResult != null && getGasUsedForContractTxn() == 0) {
+        if (contractFunctionResult != null && (contractFunctionResult.gasUsed() == 0 || status.equals(SUCCESS))) {
             contractId = null;
         }
 
