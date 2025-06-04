@@ -229,7 +229,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
         return Optional.empty();
     }
 
-    protected void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
+    private void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
         registerTransaction(spec, txnName, txnSubmitted);
     }
 
