@@ -20,7 +20,6 @@ import org.hiero.otter.fixtures.TimeManager;
 public class BirthRoundFreezeTest {
 
     private static final Duration THIRTY_SECONDS = Duration.ofSeconds(30L);
-    private static final Duration ONE_MINUTE = Duration.ofMinutes(1L);
 
     /**
      * Test steps:
