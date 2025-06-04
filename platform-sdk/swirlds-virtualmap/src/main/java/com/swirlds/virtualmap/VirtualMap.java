@@ -98,6 +98,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.StackTrace;
 import org.hiero.base.constructable.ConstructableClass;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Hash;
@@ -695,6 +696,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
     public <V> void put(final Bytes key, final V value, final Codec<V> valueCodec, final Bytes valueBytes) {
         throwIfImmutable();
+        if (isHashed()) {
+            // System.out.println("VirtualMap.put() called on a hashed node: " + StackTrace.getStackTrace());
+            // logger.error(EXCEPTION.getMarker(), "Cannot modify already hashed node with stacktrace: ", StackTrace.getStackTrace());
+        }
         assert !isHashed() : "Cannot modify already hashed node";
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
@@ -1109,6 +1114,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * @param value Hash value to set
      */
     private void setHashPrivate(@Nullable final Hash value) {
+        // System.out.println("Caller: " + StackTrace.getStackTrace());
         hash.set(value);
     }
 
@@ -1520,6 +1526,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     private <V> void add(final Bytes key, final V value, final Codec<V> valueCodec, final Bytes valueBytes) {
         throwIfImmutable();
+        if (isHashed()) {
+            // System.out.println("VirtualMap.put() called on a hashed node: " + StackTrace.getStackTrace());
+            // logger.error(EXCEPTION.getMarker(), "Cannot modify already hashed node with stacktrace: ", StackTrace.getStackTrace());
+        }
         assert !isHashed() : "Cannot modify already hashed node";
 
         // We're going to imagine what happens to the leaf and the tree without
