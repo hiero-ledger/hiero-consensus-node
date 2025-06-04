@@ -62,7 +62,7 @@ public class BirthRoundFreezeTest {
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.bumpConfigVersion();
-        network.resume(ONE_MINUTE);
+        network.start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);

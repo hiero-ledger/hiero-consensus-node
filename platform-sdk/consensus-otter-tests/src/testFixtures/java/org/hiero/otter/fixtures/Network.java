@@ -92,14 +92,6 @@ public interface Network {
     AsyncNetworkActions withTimeout(@NonNull Duration timeout);
 
     /**
-     * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.
-     *
-     * @param duration the duration to wait before considering the resume operation as failed
-     * @throws InterruptedException if the thread is interrupted while waiting
-     */
-    void resume(@NonNull Duration duration) throws InterruptedException;
-
-    /**
      * Sets the version of the network.
      *
      * <p>This method sets the version of all nodes currently added to the network. Please note that the new version
