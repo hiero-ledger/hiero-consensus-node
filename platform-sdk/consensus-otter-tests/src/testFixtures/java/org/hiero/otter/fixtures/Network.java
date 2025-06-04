@@ -53,14 +53,26 @@ public interface Network {
     List<Node> getNodes();
 
     /**
-     * Prepares the network for an upgrade. All required preparations steps are executed and the network
-     * is shutdown. Once shutdown, it is possible to change the configuration etc. before resuming the
-     * network with {@link #resume(Duration)}.
+     * Freezes the network.
      *
-     * @param timeout the duration to wait before considering the preparation operation as failed
+     * <p>This method sends a freeze transaction to one of the active nodes with a freeze time shortly after the
+     * current time. The method returns once all nodes entered the
+     * {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE} state.
+     *
+     * @param timeout the duration to wait before considering the freeze operation as failed
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException;
+    void freeze(@NonNull Duration timeout) throws InterruptedException;
+
+    /**
+     * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks
+     * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
+     * network with {@link #resume(Duration)}.
+     *
+     * @param timeout the duration to wait before considering the shutdown operation as failed
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
+    void shutdown(@NonNull Duration timeout) throws InterruptedException;
 
     /**
      * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.

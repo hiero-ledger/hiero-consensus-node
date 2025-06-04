@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -252,7 +253,7 @@ public class SteadyStateThrottlingTest {
                     int logScreen = 0;
                     while (watch.elapsed(SECONDS) < secsToRun) {
                         var subOps = IntStream.range(0, burstSize)
-                                .mapToObj(ignore -> getAccountBalance("2")
+                                .mapToObj(ignore -> getAccountBalance(DEFAULT_PAYER)
                                         .noLogging()
                                         .payingWith("curious")
                                         .hasAnswerOnlyPrecheckFrom(BUSY, OK))
