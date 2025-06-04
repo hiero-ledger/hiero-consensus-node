@@ -4,14 +4,14 @@ The **Hedera State Validator** is a tool used to _validate_ or _introspect_ the 
 
 ## Validate
 
-[ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) primary function is to ensure that backups are not corrupted and can be used to restore
-the node's state. Additionally, it can be utilized for development purposes, such as verifying
+[ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) primary function is to ensure that states are not corrupted and make sure that Hedera nodes can start from existing state snapshots. 
+Additionally, it can be utilized for development purposes, such as verifying
 that the node's state remains intact after refactoring or debugging to investigate the root cause
 of a corrupted state.
 
 ### Usage
 
-1. Download the state files from the GCP Bucket.
+1. Download the state files.
 2. Run the following command to execute the validation:
 
    ```shell
@@ -40,7 +40,7 @@ of a corrupted state.
 
 ### Usage
 
-1. Download the state files from the GCP Bucket.
+1. Download the state files.
 2. Run the following command to execute the introspection:
 
    ```shell

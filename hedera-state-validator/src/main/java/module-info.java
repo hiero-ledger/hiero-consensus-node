@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-module com.swirlds.state.validator {
+module com.hedera.state.validator {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.consensus.impl;
