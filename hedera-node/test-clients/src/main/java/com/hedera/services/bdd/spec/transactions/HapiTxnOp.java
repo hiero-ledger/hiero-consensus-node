@@ -180,6 +180,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return finalizedTxn(spec, opBodyDef(spec));
     }
 
+    public void setTransactionSubmitted(final Transaction txn) {
+        this.txnSubmitted = txn;
+    }
+
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         configureTlsFor(spec);
@@ -236,7 +240,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 }
             } finally {
                 /* Used by superclass to perform standard housekeeping. */
-                txnSubmitted = txn;
+                setTransactionSubmitted(txn);
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
@@ -882,22 +886,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         this.actualStatus = record.getReceipt().getStatus();
         this.lastReceipt = record.getReceipt();
         updateStateOf(spec);
-    }
-
-    /**
-     * Since we are not submitting inner transactions, we need to set them as submitted
-     * inorder to be able to update properly the state of the spec registry.
-     */
-    public void setInnerTxnAsSubmitted(HapiSpec spec, Transaction txn) {
-        txnSubmitted = txn;
-        try {
-            if (shouldRegisterTxn) {
-                registerTxnSubmitted(spec);
-            }
-        } catch (Throwable e) {
-            log.error("Failed to register transaction {} in registry: {}", txnName, e.getMessage());
-            throw new RuntimeException(e);
-        }
     }
 
     public T batchKey(String key) {

@@ -76,7 +76,6 @@ public class FileServiceFeesSuite {
     @HapiTest
     @DisplayName("USD base fee as expected for file delete transaction")
     final Stream<DynamicTest> fileDeleteBaseUSDFee() {
-        String memo = "Really quite something!";
         return hapiTest(
                 newKeyNamed("key").shape(KeyShape.SIMPLE),
                 cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
