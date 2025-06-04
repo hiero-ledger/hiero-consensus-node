@@ -8,9 +8,7 @@ import static org.hiero.otter.test.BirthRoundFreezeTestUtils.assertBirthRoundsBe
 
 import java.time.Duration;
 import java.time.Instant;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -44,9 +42,6 @@ public class BirthRoundFreezeTest {
 
         // Setup simulation
         network.addNodes(4);
-        for (final Node node : network.getNodes()) {
-            node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true);
-        }
         network.start();
 
         // Wait for 30 seconds
