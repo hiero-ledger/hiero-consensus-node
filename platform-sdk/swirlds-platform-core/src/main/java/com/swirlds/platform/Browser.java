@@ -76,7 +76,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -285,15 +284,7 @@ public class Browser {
 
             // Build the platform with the given values
             final State state = initialState.get().getState();
-            final long round = platformStateFacade.roundOf(state);
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-            logger.info("MGT RosterUtils createRosterHistory: {}", rosterHistory);
-            logger.info("MGT RosterRetriever PreviousRoster: {}", RosterRetriever.retrievePreviousRoster(state));
-            logger.info("MGT rosterHistory CurrentRoster: {}", rosterHistory.getCurrentRoster());
-            logger.info("MGT rosterHistory PreviousRoster: {}", rosterHistory.getPreviousRoster());
-            logger.info("MGT rosterHistory roster for round: {}", rosterHistory.getRosterForRound(round));
-            logger.info("MGT RosterRetriever roster for round: {}", RosterRetriever.getActiveRosterHash(state, round));
-
 
             final PlatformBuilder builder = PlatformBuilder.create(
                     appMain.getClass().getName(),
