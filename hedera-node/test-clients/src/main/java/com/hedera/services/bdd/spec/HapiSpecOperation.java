@@ -207,9 +207,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
         try {
             final boolean hasCompleteLifecycle = submitOp(spec);
 
-            if (shouldRegisterTxn) {
-                registerTxnSubmitted(spec);
-            }
+            registerTxnSubmitted(spec);
 
             if (hasCompleteLifecycle) {
                 assertExpectationsGiven(spec);
@@ -230,7 +228,9 @@ public abstract class HapiSpecOperation implements SpecOperation {
     }
 
     protected void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
-        registerTransaction(spec, txnName, txnSubmitted);
+        if (shouldRegisterTxn) {
+            registerTransaction(spec, txnName, txnSubmitted);
+        }
     }
 
     protected Consumer<TransactionBody.Builder> bodyDef(final HapiSpec spec) {
