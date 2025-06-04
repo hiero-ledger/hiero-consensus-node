@@ -177,4 +177,26 @@ public class Tipset {
         sb.append(")");
         return sb.toString();
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final boolean equals(final Object o) {
+        if (!(o instanceof final Tipset tipset)) {
+            return false;
+        }
+
+        return roster.equals(tipset.roster) && Arrays.equals(tips, tipset.tips);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        int result = roster.hashCode();
+        result = 31 * result + Arrays.hashCode(tips);
+        return result;
+    }
 }
