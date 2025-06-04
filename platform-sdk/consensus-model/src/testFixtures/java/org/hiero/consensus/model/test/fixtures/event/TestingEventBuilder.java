@@ -367,6 +367,7 @@ public class TestingEventBuilder {
      * @param generation the generation to override with
      * @return this instance
      */
+    @Deprecated(forRemoval = true)
     public @NonNull TestingEventBuilder overrideSelfParentGeneration(final long generation) {
         this.selfParentGenerationOverride = generation;
         return this;
@@ -380,6 +381,7 @@ public class TestingEventBuilder {
      * @param generation the generation to override with
      * @return this instance
      */
+    @Deprecated(forRemoval = true)
     public @NonNull TestingEventBuilder overrideOtherParentGeneration(final long generation) {
         this.otherParentGenerationOverride = generation;
         return this;
