@@ -110,14 +110,11 @@ public interface Node {
     void setVersion(@NonNull SemanticVersion version);
 
     /**
-     * Bumps the software version of the node.
-     *
-     * <p>This method increments the patch version of the current software version. If the current
-     * version is {@code 1.2.3}, after calling this method, it will become {@code 1.2.4}.
+     * This method updates the version to trigger a "config only upgrade" on the next restart.
      *
      * <p>Please note that the new version will become effective only after the node is (re-)started.
      */
-    void bumpVersion();
+    void bumpConfigVersion();
 
     /**
      * Gets the consensus rounds of the node.

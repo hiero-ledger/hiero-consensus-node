@@ -96,16 +96,13 @@ public interface Network {
     void setVersion(@NonNull SemanticVersion version);
 
     /**
-     * Bumps the version of the network.
-     *
-     * <p>This method increments the patch version of the current software version for all nodes in the network.
-     * If no version is set, {@link Node#DEFAULT_VERSION} will be used.
+     * This method updates the version of all nodes in the network to trigger a "config only upgrade" on the next restart.
      *
      * <p>Please note that the new version will become effective only after a node is (re-)started.
      *
-     * @see Node#bumpVersion()
+     * @see Node#bumpConfigVersion()
      */
-    void bumpVersion();
+    void bumpConfigVersion();
 
     /**
      * Gets the consensus rounds of all nodes.

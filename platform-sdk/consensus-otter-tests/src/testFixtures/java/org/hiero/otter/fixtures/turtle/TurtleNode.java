@@ -194,9 +194,14 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void bumpVersion() {
-        this.version =
-                this.version.copyBuilder().patch(this.version.patch() + 1).build();
+    public void bumpConfigVersion() {
+        int newBuildNumber;
+        try {
+            newBuildNumber = Integer.parseInt(version.build()) + 1;
+        } catch (final NumberFormatException e) {
+            newBuildNumber = 1;
+        }
+        this.version = this.version.copyBuilder().build("" + newBuildNumber).build();
     }
 
     /**

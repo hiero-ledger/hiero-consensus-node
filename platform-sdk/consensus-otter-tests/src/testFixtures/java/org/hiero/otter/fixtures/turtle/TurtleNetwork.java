@@ -249,9 +249,9 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void bumpVersion() {
+    public void bumpConfigVersion() {
         for (final TurtleNode node : nodes) {
-            node.bumpVersion();
+            node.bumpConfigVersion();
         }
     }
 
