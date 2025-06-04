@@ -2,7 +2,7 @@
 package com.swirlds.platform.consensus;
 
 import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
+import static com.swirlds.platform.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherParentAges;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
@@ -414,7 +414,7 @@ public class GraphGeneratorTests {
     public void validateEventOrder(final GraphGenerator generator) {
         System.out.println("Validate Event Order");
         final List<EventImpl> events = generator.generateEvents(1000);
-        assertTrue(areGenerationNumbersValid(events, generator.getNumberOfSources()));
+        assertTrue(areBirthRoundNumbersValid(events, generator.getNumberOfSources()));
         assertTrue(isEventOrderValid(events));
 
         generator.reset();
@@ -497,7 +497,7 @@ public class GraphGeneratorTests {
 
         final List<EventImpl> events = generator.generateEvents(numberOfEvents);
 
-        assertFalse(areGenerationNumbersValid(events, 4));
+        assertFalse(areBirthRoundNumbersValid(events, 4));
     }
 
     @Test

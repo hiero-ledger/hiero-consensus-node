@@ -81,7 +81,7 @@ public final class EventUtils {
     /**
      * Check to see if all events have increasing generation numbers for each node.
      */
-    public static boolean areGenerationNumbersValid(
+    public static boolean areBirthRoundNumbersValid(
             @NonNull final Iterable<EventImpl> events, final int numberOfNodes) {
         Objects.requireNonNull(events, "events must not be null");
         final Map<NodeId, Long> previousGenNumber = new HashMap<>(numberOfNodes);
@@ -89,11 +89,11 @@ public final class EventUtils {
         for (final EventImpl event : events) {
             final NodeId nodeId = event.getCreatorId();
             if (previousGenNumber.containsKey(nodeId)) {
-                if (previousGenNumber.get(nodeId) >= event.getGeneration()) {
+                if (previousGenNumber.get(nodeId) > event.getBirthRound()) {
                     return false;
                 }
             }
-            previousGenNumber.put(nodeId, event.getGeneration());
+            previousGenNumber.put(nodeId, event.getBirthRound());
         }
         return true;
     }

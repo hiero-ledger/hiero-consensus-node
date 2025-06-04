@@ -11,6 +11,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.junit.jupiter.api.Disabled;
 
 /**
  * Test class for verifying the behavior of birth round migration when loading a freeze state from disk that did not use
@@ -34,6 +35,7 @@ public class MigrationToZeroGenerationTest {
      * @param env the test environment for this test
      * @throws InterruptedException if an operation times out
      */
+    @Disabled("Disabled until we figure out how to check in a state to start with.")
     @OtterTest
     void testMigrationToZeroGenerationFromFreezeState(final TestEnvironment env) throws InterruptedException {
 
@@ -46,8 +48,8 @@ public class MigrationToZeroGenerationTest {
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
             node.getConfiguration().set(SOFTWARE_VERSION, NEW_VERSION);
-            node.copyInitialState(OtterInitialStates.V64_FREEZE_STATE);
         }
+        network.copyInitialState(OtterInitialStates.V64_FREEZE_STATE);
 
         // Start the network. Load the freeze state from disk that did not use birth round ancient mode.
         network.start(ONE_MINUTE);

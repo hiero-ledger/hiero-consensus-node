@@ -65,9 +65,9 @@ public interface Network {
     void freeze(@NonNull Duration timeout) throws InterruptedException;
 
     /**
-     * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks
-     * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
-     * network with {@link #resume(Duration)}.
+     * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or
+     * preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the network
+     * with {@link #resume(Duration)}.
      *
      * @param timeout the duration to wait before considering the shutdown operation as failed
      * @throws InterruptedException if the thread is interrupted while waiting
@@ -113,4 +113,11 @@ public interface Network {
      */
     @NonNull
     MultipleNodePcesResults getPcesResults();
+
+    /**
+     * Copies an initial state from the specified directory into each node's state directory.
+     *
+     * @param stateDirName the name of the directory in the resources folder containing the initial state to copy
+     */
+    void copyInitialState(String stateDirName);
 }

@@ -395,8 +395,6 @@ class OrphanBufferTests {
     @DisplayName("Verify the assignment of nGen for events one ancient and one non-ancient parent")
     @Test
     void testNGenValueWithAncientAndNonAncientParents() {
-        // Pick some values to use. These are arbitrary.
-        final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
         final EventWindow eventWindow = EventWindowBuilder.builder()
@@ -420,8 +418,6 @@ class OrphanBufferTests {
                 .setOtherParent(node0AncientEvent)
                 .setSelfParent(node1AncientEvent)
                 .setBirthRound(minimumBirthRoundNonAncient)
-                .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
-                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
                 .build();
 
         // An event that is non-ancient with a barely ancient self-parent and a barely non-ancient other-parent
@@ -429,8 +425,6 @@ class OrphanBufferTests {
                 .setSelfParent(node0AncientEvent)
                 .setOtherParent(node1NonAncientEvent)
                 .setBirthRound(minimumBirthRoundNonAncient)
-                .overrideOtherParentGeneration(minimumGenerationNonAncient)
-                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
                 .build();
 
         final DefaultOrphanBuffer orphanBuffer =

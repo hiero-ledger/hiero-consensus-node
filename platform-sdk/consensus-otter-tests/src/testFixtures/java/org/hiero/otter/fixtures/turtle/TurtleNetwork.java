@@ -65,6 +65,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
     private final List<TurtleNode> nodes = new ArrayList<>();
+    private final TurtleTransactionGenerator transactionGenerator;
 
     private List<Node> publicNodes = List.of();
     private ExecutorService executorService;
@@ -75,20 +76,23 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron the random generator
-     * @param timeManager the time manager
-     * @param logging the logging utility
+     * @param randotron           the random generator
+     * @param timeManager         the time manager
+     * @param logging             the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
+     * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
      */
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
-            @NonNull final Path rootOutputDirectory) {
+            @NonNull final Path rootOutputDirectory,
+            @NonNull final TurtleTransactionGenerator transactionGenerator) {
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
+        this.transactionGenerator = requireNonNull(transactionGenerator);
     }
 
     /**
@@ -147,6 +151,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
             node.start(Duration.ZERO);
         }
 
+        transactionGenerator.start();
+
         log.debug("Waiting for nodes to become active...");
         if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
             fail("Timeout while waiting for nodes to become active.");
@@ -189,6 +195,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         if (!timeManager.waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {
             fail("Timeout while waiting for all nodes to freeze.");
         }
+
+        transactionGenerator.stop();
     }
 
     /**
@@ -204,6 +212,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         for (final TurtleNode node : nodes) {
             node.killImmediately(Duration.ZERO);
         }
+
+        transactionGenerator.stop();
     }
 
     /**
@@ -215,6 +225,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         for (final TurtleNode node : nodes) {
             node.start(Duration.ZERO);
         }
+
+        transactionGenerator.start();
 
         log.debug("Waiting for nodes to become active again...");
         if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
@@ -271,12 +283,21 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
+    public void copyInitialState(final String stateDirName) {
+        nodes.forEach(node -> node.copyInitialState(stateDirName));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void tick(@NonNull final Instant now) {
         if (state != State.RUNNING) {
             return;
         }
 
         simulatedNetwork.tick(now);
+        transactionGenerator.tick(now, publicNodes);
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
@@ -294,6 +315,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      */
     public void destroy() throws InterruptedException {
         log.info("Destroying network...");
+        transactionGenerator.stop();
         for (final TurtleNode node : nodes) {
             node.destroy();
         }
@@ -301,7 +323,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     }
 
     /**
-     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given {@link PlatformStatus}.
+     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given
+     * {@link PlatformStatus}.
      *
      * @param status the status to check
      * @return the {@link BooleanSupplier}

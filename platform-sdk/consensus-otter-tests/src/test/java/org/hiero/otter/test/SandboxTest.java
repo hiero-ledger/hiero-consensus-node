@@ -31,7 +31,6 @@ public class SandboxTest {
         // Setup simulation
         final List<Node> nodes = network.addNodes(4);
         network.start(ONE_MINUTE);
-        env.transactionGenerator().start();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
@@ -66,9 +65,8 @@ public class SandboxTest {
         network.addNodes(3);
         final InstrumentedNode nodeX = network.addInstrumentedNode();
         network.start(ONE_MINUTE);
-        env.transactionGenerator().start();
 
-        // Wait for one minute
+        // Wait for ten seconds
         timeManager.waitFor(TEN_SECONDS);
 
         // Start branching

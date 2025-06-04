@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.validation;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.event.EventConstants.GENERATION_UNDEFINED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -195,30 +194,6 @@ class InternalEventValidatorTests {
         assertNull(singleNodeValidator.validateEvent(event));
 
         assertEquals(2, exitedIntakePipelineCount.get());
-    }
-
-    @Test
-    @DisplayName("An event with parent inconsistency is invalid")
-    void inconsistentParents() {
-        // self parent has invalid generation.
-        final PlatformEvent invalidSelfParentGeneration = new TestingEventBuilder(random)
-                .setSelfParent(new TestingEventBuilder(random).build())
-                .overrideSelfParentGeneration(GENERATION_UNDEFINED)
-                .build();
-
-        // other parent has invalid generation.
-        final PlatformEvent invalidOtherParentGeneration = new TestingEventBuilder(random)
-                .setOtherParent(new TestingEventBuilder(random).build())
-                .overrideOtherParentGeneration(GENERATION_UNDEFINED)
-                .build();
-
-        assertNull(multinodeValidator.validateEvent(invalidSelfParentGeneration));
-        assertNull(multinodeValidator.validateEvent(invalidOtherParentGeneration));
-
-        assertNull(singleNodeValidator.validateEvent(invalidSelfParentGeneration));
-        assertNull(singleNodeValidator.validateEvent(invalidOtherParentGeneration));
-
-        assertEquals(4, exitedIntakePipelineCount.get());
     }
 
     @Test

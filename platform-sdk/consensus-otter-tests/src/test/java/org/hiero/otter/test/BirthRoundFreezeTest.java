@@ -57,13 +57,11 @@ public class BirthRoundFreezeTest {
                     .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
         }
         network.start(ONE_MINUTE);
-        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.transactionGenerator().stop();
         network.freeze(ONE_MINUTE);
         network.shutdown(ONE_MINUTE);
 
@@ -82,7 +80,6 @@ public class BirthRoundFreezeTest {
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.resume(ONE_MINUTE);
-        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
