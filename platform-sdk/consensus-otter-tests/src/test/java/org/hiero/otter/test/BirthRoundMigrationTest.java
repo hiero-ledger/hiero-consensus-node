@@ -12,8 +12,6 @@ import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import com.swirlds.platform.event.preconsensus.PcesConfig_;
-import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import java.time.Duration;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.Network;
@@ -35,9 +33,7 @@ class BirthRoundMigrationTest {
         // Setup simulation
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
-            node.getConfiguration()
-                    .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)
-                    .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+            node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false);
         }
         network.start(ONE_MINUTE);
         env.transactionGenerator().start();

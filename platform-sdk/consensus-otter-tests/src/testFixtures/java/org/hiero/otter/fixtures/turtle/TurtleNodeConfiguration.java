@@ -11,6 +11,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
+import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -75,6 +76,7 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
                 .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory)
                 .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory)
                 .withValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
-                .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
+                .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
+                .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
     }
 }

@@ -6,8 +6,6 @@ import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.test.BirthRoundFreezeTestUtils.assertBirthRoundsBeforeAndAfterFreeze;
 
-import com.swirlds.platform.event.preconsensus.PcesConfig_;
-import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import java.time.Duration;
 import java.time.Instant;
 import org.hiero.consensus.config.EventConfig_;
@@ -45,9 +43,7 @@ public class BirthRoundMigrationAndFreezeTest {
         // Setup simulation
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
-            node.getConfiguration()
-                    .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)
-                    .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+            node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false);
         }
         network.start(ONE_MINUTE);
         env.transactionGenerator().start();
