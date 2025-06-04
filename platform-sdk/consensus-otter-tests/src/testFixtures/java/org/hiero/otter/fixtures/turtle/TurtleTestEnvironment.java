@@ -44,8 +44,10 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
     /**
      * Constructor for the {@link TurtleTestEnvironment} class.
+     *
+     * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
      */
-    public TurtleTestEnvironment() {
+    public TurtleTestEnvironment(final long randomSeed) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
@@ -58,7 +60,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
 
-        final Randotron randotron = Randotron.create();
+        final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
 
