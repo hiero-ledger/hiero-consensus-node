@@ -36,13 +36,11 @@ class BirthRoundMigrationTest {
             node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false);
         }
         network.start(ONE_MINUTE);
-        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.transactionGenerator().stop();
         network.freeze(ONE_MINUTE);
         network.shutdown(ONE_MINUTE);
 
@@ -64,7 +62,6 @@ class BirthRoundMigrationTest {
         // restart the network
         network.bumpVersion();
         network.resume(ONE_MINUTE);
-        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);

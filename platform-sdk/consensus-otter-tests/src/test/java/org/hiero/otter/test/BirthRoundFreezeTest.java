@@ -48,13 +48,11 @@ public class BirthRoundFreezeTest {
             node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true);
         }
         network.start(ONE_MINUTE);
-        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.transactionGenerator().stop();
         network.freeze(ONE_MINUTE);
         network.shutdown(ONE_MINUTE);
 
@@ -70,7 +68,6 @@ public class BirthRoundFreezeTest {
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.bumpVersion();
         network.resume(ONE_MINUTE);
-        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
