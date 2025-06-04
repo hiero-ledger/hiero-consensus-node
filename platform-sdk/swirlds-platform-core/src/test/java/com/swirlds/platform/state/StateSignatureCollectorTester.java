@@ -58,7 +58,7 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     @Override
     public List<ReservedSignedState> addReservedState(@NonNull final ReservedSignedState reservedSignedState) {
-        final EventWindow window = EventWindowBuilder.generationMode()
+        final EventWindow window = EventWindowBuilder.builder()
                 .setLatestConsensusRound(reservedSignedState.get().getRound())
                 .build();
 

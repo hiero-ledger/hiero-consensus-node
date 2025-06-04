@@ -143,7 +143,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
         log.info("Starting network...");
         state = State.RUNNING;
         for (final TurtleNode node : nodes) {
-            node.start();
+            node.start(Duration.ZERO);
         }
 
         log.debug("Waiting for nodes to become active...");
@@ -192,7 +192,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
 
         log.debug("Shutting down nodes gracefully...");
         for (final TurtleNode node : nodes) {
-            node.shutdownGracefully(timeout);
+            node.shutdownGracefully(Duration.ZERO);
         }
     }
 
@@ -203,7 +203,7 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     public void resume(@NonNull final Duration timeout) {
         log.info("Resuming network...");
         for (final TurtleNode node : nodes) {
-            node.revive(timeout);
+            node.start(Duration.ZERO);
         }
 
         log.debug("Waiting for nodes to become active again...");

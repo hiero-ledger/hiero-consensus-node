@@ -25,17 +25,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -64,7 +61,6 @@ public class SyncNode {
     private boolean saveGeneratedEvents;
     private boolean shouldAcceptSync = true;
     private boolean reconnected = false;
-    private final AncientMode ancientMode;
 
     private long expirationThreshold;
 
@@ -78,32 +74,18 @@ public class SyncNode {
 
     private final PlatformContext platformContext;
 
-    public SyncNode(
-            final int numNodes,
-            final long nodeId,
-            final EventEmitter eventEmitter,
-            @NonNull final AncientMode ancientMode) {
+    public SyncNode(final int numNodes, final long nodeId, final EventEmitter eventEmitter) {
 
-        this(
-                numNodes,
-                nodeId,
-                eventEmitter,
-                new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"),
-                ancientMode);
+        this(numNodes, nodeId, eventEmitter, new CachedPoolParallelExecutor(getStaticThreadManager(), "sync-node"));
     }
 
     public SyncNode(
-            final int numNodes,
-            final long nodeId,
-            final EventEmitter eventEmitter,
-            final ParallelExecutor executor,
-            @NonNull final AncientMode ancientMode) {
+            final int numNodes, final long nodeId, final EventEmitter eventEmitter, final ParallelExecutor executor) {
 
         if (executor.isMutable()) {
             executor.start();
         }
 
-        this.ancientMode = Objects.requireNonNull(ancientMode);
         this.numNodes = numNodes;
         this.nodeId = NodeId.of(nodeId);
         this.eventEmitter = eventEmitter;
@@ -120,9 +102,6 @@ public class SyncNode {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(SyncConfig_.FILTER_LIKELY_DUPLICATES, false)
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
 
         platformContext = TestPlatformContextBuilder.create()
@@ -130,7 +109,7 @@ public class SyncNode {
                 .build();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
         this.executor = executor;
     }
 
@@ -232,9 +211,6 @@ public class SyncNode {
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(SyncConfig_.FILTER_LIKELY_DUPLICATES, false)
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
                 .getOrCreateConfig();
 
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
@@ -270,7 +246,6 @@ public class SyncNode {
         final long ancientThreshold = Math.max(shadowGraph.getEventWindow().ancientThreshold(), expirationThreshold);
 
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
                 .setAncientThreshold(ancientThreshold)
                 .setExpiredThreshold(expirationThreshold)
                 .build();

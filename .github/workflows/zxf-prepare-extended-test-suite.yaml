@@ -128,7 +128,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - XTS Candidate Tagging Failed",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Tagging Failed",
                         "emoji": true
                       }
                     },

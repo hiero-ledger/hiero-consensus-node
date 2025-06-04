@@ -228,7 +228,10 @@ public class BlockBufferService {
         if (!isStreamingEnabled.get()) {
             return;
         }
-        if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
+
+        if (blockNumber < 0) {
+            throw new IllegalArgumentException("Block number must be non-negative");
+        }
 
         if (this.lastProducedBlockNumber >= blockNumber) {
             logger.error(

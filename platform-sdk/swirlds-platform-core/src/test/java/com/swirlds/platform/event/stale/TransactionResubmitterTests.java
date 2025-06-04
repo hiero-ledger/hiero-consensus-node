@@ -104,7 +104,7 @@ class TransactionResubmitterTests {
                 TestPlatformContextBuilder.create().build();
 
         final long currentRound = randotron.nextLong(1, 1000);
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(currentRound)
                 .build();
 
@@ -135,7 +135,7 @@ class TransactionResubmitterTests {
                 TestPlatformContextBuilder.create().build();
 
         final long currentRound = randotron.nextLong(1, 1000);
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(currentRound)
                 .build();
 

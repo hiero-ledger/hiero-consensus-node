@@ -1543,18 +1543,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // wait for the worker thread to die
         final Thread workerThread = workerThread().get();
-        workerThread.interrupt();
-        final long startMillis = System.currentTimeMillis();
+        if (workerThread != null) {
+            workerThread.interrupt();
+            final long startMillis = System.currentTimeMillis();
 
-        do {
-            final long durationMs = System.currentTimeMillis() - startMillis;
-            if (durationMs >= 3_000) {
-                fail("Worker thread did not terminate in allotted time");
-                break;
-            }
+            do {
+                final long durationMs = System.currentTimeMillis() - startMillis;
+                if (durationMs >= 3_000) {
+                    fail("Worker thread did not terminate in allotted time");
+                    break;
+                }
 
-            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
-        } while (State.TERMINATED != workerThread.getState());
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+            } while (State.TERMINATED != workerThread.getState());
+        }
 
         isActive.set(true); // set the flag back to true now that the worker thread is dead
 

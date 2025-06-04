@@ -50,7 +50,6 @@ public class BlockStreamMetrics {
     public BlockStreamMetrics(@NonNull final Metrics metrics, @NonNull final NodeInfo selfNodeInfo) {
         this.metrics = requireNonNull(metrics);
         this.selfNodeInfo = requireNonNull(selfNodeInfo);
-        registerMetrics();
     }
 
     /**

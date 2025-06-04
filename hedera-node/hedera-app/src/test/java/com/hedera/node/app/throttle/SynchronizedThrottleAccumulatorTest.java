@@ -13,6 +13,8 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.swirlds.state.State;
 import java.time.InstantSource;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,12 +43,14 @@ class SynchronizedThrottleAccumulatorTest {
     void verifyCheckAndEnforceThrottleIsCalled() {
         // given
         final var state = mock(State.class);
+        final List<ThrottleUsage> usages = new ArrayList<>();
 
         // when
-        subject.shouldThrottle(transactionInfo, state);
+        subject.shouldThrottle(transactionInfo, state, usages);
 
         // then
-        verify(throttleAccumulator, times(1)).checkAndEnforceThrottle(eq(transactionInfo), any(), eq(state));
+        verify(throttleAccumulator, times(1))
+                .checkAndEnforceThrottle(eq(transactionInfo), any(), eq(state), eq(usages));
     }
 
     @Test

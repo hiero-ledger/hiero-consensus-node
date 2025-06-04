@@ -198,10 +198,6 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
         this.params = Optional.of(params);
     }
 
-    public String getTxnName() {
-        return txnName;
-    }
-
     public Optional<Long> getGas() {
         return gas;
     }
