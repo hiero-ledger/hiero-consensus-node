@@ -33,7 +33,7 @@ public class FunctionWithExecutionControl<V, R> implements Function<V, R> {
      */
     @Override
     public R apply(final V v) {
-        executionControl.nock();
+        executionControl.knock();
         try {
             return function.apply(v);
         } finally {

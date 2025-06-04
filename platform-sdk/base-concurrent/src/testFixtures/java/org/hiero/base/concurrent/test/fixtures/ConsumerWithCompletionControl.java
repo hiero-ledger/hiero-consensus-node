@@ -31,7 +31,7 @@ public final class ConsumerWithCompletionControl<H> implements Consumer<H> {
      */
     @Override
     public void accept(final H h) {
-        executionControl.nock();
+        executionControl.knock();
         try {
             handler.accept(h);
         } finally {

@@ -177,7 +177,7 @@ class SequentialTaskSchedulerTests {
         final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unBlocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
             if (x == 50) {
-                gate.nock();
+                gate.knock();
             }
         });
 
@@ -225,9 +225,9 @@ class SequentialTaskSchedulerTests {
         final Gate gate98 = Gate.closedGate();
         final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.blocked(x -> {
             if (x == 50) {
-                gate50.nock();
+                gate50.knock();
             } else if (x == 98) {
-                gate98.nock();
+                gate98.knock();
             }
             wireValue.set(hash32(wireValue.get(), x));
         });

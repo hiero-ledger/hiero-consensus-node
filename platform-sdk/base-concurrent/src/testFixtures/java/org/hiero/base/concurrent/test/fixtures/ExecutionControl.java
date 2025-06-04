@@ -56,11 +56,11 @@ public class ExecutionControl {
     }
 
     /**
-     * If the gate that is guarding the handler is open it will return immediatelly.
+     * If the gate that is guarding the handler is open it will return immediately.
      * If the gate is closed, it will block the calling thread.
      */
-    public void nock() {
-        gate.nock();
+    public void knock() {
+        gate.knock();
     }
 
     @Override

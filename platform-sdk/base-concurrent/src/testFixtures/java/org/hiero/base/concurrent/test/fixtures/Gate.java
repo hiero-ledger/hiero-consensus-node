@@ -30,7 +30,7 @@ public class Gate {
      * Causes the calling thread to block if the gate is closed.
      * The first call to open will cause all blocked threads to continue.
      */
-    public void nock() {
+    public void knock() {
         ThrowingRunnableWrapper.runWrappingChecked(latch::await);
     }
 
