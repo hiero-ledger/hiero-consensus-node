@@ -177,24 +177,17 @@ public class BlockNodeConnectionManager {
         grpcEndpoint = requireNonNull(endpoint, "gRPC endpoint is missing");
 
         isStreamingEnabled.set(isStreamingEnabled());
-        final Thread workerThread;
-
         if (isStreamingEnabled.get()) {
             final String blockNodeConnectionConfigPath = blockNodeConnectionFileDir();
 
             availableBlockNodes = new ArrayList<>(extractBlockNodesConfigurations(blockNodeConnectionConfigPath));
             logger.info("Loaded block node configuration from {}", blockNodeConnectionConfigPath);
             logger.info("Block node configuration: {}", availableBlockNodes);
-
-            workerThread = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
-            //            blockStreamMetrics.registerMetrics();
         } else {
             logger.info("Block node streaming is disabled; will not setup connections to block nodes");
             availableBlockNodes = new ArrayList<>();
-            workerThread = null;
+            blockStreamWorkerThreadRef = new AtomicReference<>(null);
         }
-
-        //        blockStreamWorkerThreadRef = new AtomicReference<>(workerThread);
     }
 
     /**
