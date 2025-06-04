@@ -38,7 +38,7 @@ import org.apache.logging.log4j.Logger;
 public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     private static final Logger log = LogManager.getLogger(HapiAtomicBatch.class);
     private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
-    private final List<HapiTxnOp<?>> batchOperations = new ArrayList<>();
+    private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
     private final Map<TransactionID, HapiTxnOp<?>> innerOpsByTxnId = new HashMap<>();
     private final Map<TransactionID, Transaction> innerTnxsByTxnId = new HashMap<>();
     private final List<String> txnIdsForOrderValidation = new ArrayList<>();
@@ -46,7 +46,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     public HapiAtomicBatch() {}
 
     public HapiAtomicBatch(HapiTxnOp<?>... ops) {
-        this.batchOperations.addAll(Arrays.stream(ops).toList());
+        this.operationsToBatch.addAll(Arrays.stream(ops).toList());
     }
 
     @Override
@@ -77,7 +77,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         final AtomicBatchTransactionBody opBody = spec.txns()
                 .<AtomicBatchTransactionBody, AtomicBatchTransactionBody.Builder>body(
                         AtomicBatchTransactionBody.class, b -> {
-                            for (HapiTxnOp<?> op : batchOperations) {
+                            for (HapiTxnOp<?> op : operationsToBatch) {
                                 try {
                                     // set node account id to 0.0.0 if not set
                                     if (op.getNode().isEmpty()) {
@@ -157,7 +157,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
 
     @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
-        return super.toStringHelper().add("range", batchOperations);
+        return super.toStringHelper().add("range", operationsToBatch);
     }
 
     public HapiAtomicBatch validateTxnOrder(String... txnIds) {
