@@ -34,7 +34,6 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -274,7 +273,6 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @Disabled
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for NFT")
         public Stream<DynamicTest> failToGetTokenKeyNFT() {
@@ -284,7 +282,6 @@ public class NumericValidationTest {
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
-        @Disabled
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for Fungible Token")
         public Stream<DynamicTest> failToGetTokenKeyFT() {
@@ -331,7 +328,6 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @Disabled
     @DisplayName("fail to call HAS functions with invalid amounts")
     class HASFunctionsTests {
 
@@ -361,7 +357,7 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @Disabled
+    // TODO Glib: failed
     @DisplayName("fail to call Exchange Rate System contract functions")
     class ExchangeRateSystemContractTests {
 
