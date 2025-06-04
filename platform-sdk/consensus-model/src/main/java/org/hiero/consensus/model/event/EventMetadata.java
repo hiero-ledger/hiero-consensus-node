@@ -23,7 +23,7 @@ public class EventMetadata extends AbstractHashable {
 
     /**
      * This is a temporary constant that acts as a feature flag. If set to true, all generations will be set to zero
-     * including in parent descriptors. This constant can be removed once no events have generations populated anymore.
+     * including in parent descriptors. This constant can be removed once a events have generations populated anymore.
      */
     private static final boolean SET_GENERATIONS_TO_ZERO = true;
     /**
@@ -102,14 +102,6 @@ public class EventMetadata extends AbstractHashable {
         this.birthRound = birthRound;
     }
 
-    private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
-        return 1
-                + Objects.requireNonNull(allParents).stream()
-                        .mapToLong(d -> d.eventDescriptor().generation())
-                        .max()
-                        .orElse(EventConstants.GENERATION_UNDEFINED);
-    }
-
     /**
      * Create a EventMetadata object
      *
@@ -141,6 +133,14 @@ public class EventMetadata extends AbstractHashable {
                 gossipEvent.transactions().stream().map(TransactionWrapper::new).toList();
         birthRound = gossipEvent.eventCore().birthRound();
         overrideParentGenerationsToZero();
+    }
+
+    private static long calculateGeneration(@NonNull final List<EventDescriptorWrapper> allParents) {
+        return 1
+                + Objects.requireNonNull(allParents).stream()
+                        .mapToLong(d -> d.eventDescriptor().generation())
+                        .max()
+                        .orElse(EventConstants.GENERATION_UNDEFINED);
     }
 
     /**
