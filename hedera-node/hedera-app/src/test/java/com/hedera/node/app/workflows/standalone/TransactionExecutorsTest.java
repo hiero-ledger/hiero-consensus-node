@@ -37,6 +37,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -500,6 +501,7 @@ public class TransactionExecutorsTest {
                         new UtilServiceImpl(appContext, (signedTxn, config) -> null),
                         new RecordCacheService(),
                         new BlockRecordService(),
+                        new BlockStreamService(),
                         new FeeService(),
                         new CongestionThrottleService(),
                         new NetworkServiceImpl(),
