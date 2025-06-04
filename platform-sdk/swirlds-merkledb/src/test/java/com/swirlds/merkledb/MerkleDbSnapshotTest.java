@@ -42,6 +42,7 @@ import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -105,8 +106,6 @@ class MerkleDbSnapshotTest {
         for (int i = 0; i < MAPS_COUNT; i++) {
             final VirtualMap<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> vm = stateRoot.getChild(i);
             final VirtualMapState state = vm.getLeft();
-            System.out.println("state.getFirstLeafPath() = " + state.getFirstLeafPath());
-            System.out.println("state.getLastLeafPath() = " + state.getLastLeafPath());
             final VirtualRootNode<ExampleLongKeyFixedSize, ExampleFixedSizeVirtualValue> root = vm.getRight();
             for (int path = 0; path <= state.getLastLeafPath(); path++) {
                 final Hash hash = root.getRecords().findHash(path);
@@ -238,9 +237,11 @@ class MerkleDbSnapshotTest {
         closeDataSources(restoredStateRoot);
     }
 
-    private static void closeDataSources(MerkleInternal initialRoot) throws IOException {
+    private static void closeDataSources(MerkleInternal initialRoot) throws IOException, InterruptedException {
         for (int i = 0; i < MAPS_COUNT; i++) {
-            ((VirtualMap<?, ?>) initialRoot.getChild(i)).getDataSource().close();
+            final VirtualMap<?, ?> vm = initialRoot.getChild(i);
+            ((VirtualRootNode<?, ?>) vm.getRight()).getPipeline().awaitTermination(8, TimeUnit.SECONDS);
+            vm.getDataSource().close();
         }
     }
 

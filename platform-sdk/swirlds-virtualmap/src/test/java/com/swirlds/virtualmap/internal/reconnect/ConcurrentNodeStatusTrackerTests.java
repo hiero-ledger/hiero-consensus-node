@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal;
+package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.virtualmap.internal.ConcurrentNodeStatusTracker.Status;
@@ -8,6 +8,8 @@ import static com.swirlds.virtualmap.internal.ConcurrentNodeStatusTracker.Status
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.swirlds.virtualmap.internal.ConcurrentNodeStatusTracker;
+import com.swirlds.virtualmap.internal.Path;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
