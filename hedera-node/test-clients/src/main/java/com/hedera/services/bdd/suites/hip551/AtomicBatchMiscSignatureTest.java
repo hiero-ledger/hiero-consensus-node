@@ -56,8 +56,9 @@ public class AtomicBatchMiscSignatureTest {
         @HapiTest
         @DisplayName("airdrop with missing sender's signature fails")
         final Stream<DynamicTest> missingSenderSigFails() {
-            final var airdropOp =
-                    tokenAirdrop(moving(1, "FT").between("owner", "receiver")).batchKey("batchOperator");
+            final var airdropOp = tokenAirdrop(moving(1, "FT").between("owner", "receiver"))
+                    .payingWith(DEFAULT_PAYER)
+                    .batchKey("batchOperator");
 
             return hapiTest(
                     cryptoCreate("batchOperator"),
