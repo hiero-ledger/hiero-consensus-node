@@ -143,6 +143,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockStreamItemQueue = new ConcurrentLinkedQueue<>();
 
         connectionManager = new BlockNodeConnectionManager(configProvider, stateManager, metrics, executorService);
+        connectionManager.start();
 
         // Disable the background worker thread to make testing in isolation better
         disableWorkerThread();
@@ -306,9 +307,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("No block nodes available to connect to");
 
+        verify(stateManager, times(2)).getBlockStreamItemQueue();
+        verify(metrics, times(1)).registerMetrics();
+
         verifyNoInteractions(executorService);
-        verifyNoInteractions(stateManager);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -339,9 +343,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(nodeConfig.priority()).isEqualTo(1);
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CONNECTING);
 
+        verify(stateManager, times(2)).getBlockStreamItemQueue();
+        verify(metrics, times(1)).registerMetrics();
+
         verifyNoMoreInteractions(executorService);
-        verifyNoInteractions(stateManager);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -391,10 +398,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
 
-        final BlockNodeConfig node1Config = new BlockNodeConfig("localhost", 8080, 1);
-        final BlockNodeConfig node2Config = new BlockNodeConfig("localhost", 8081, 2);
+        final BlockNodeConfig node1Config = new BlockNodeConfig("localhost", 8081, 1);
+        final BlockNodeConfig node2Config = new BlockNodeConfig("localhost", 8082, 2);
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
-        final BlockNodeConfig node3Config = new BlockNodeConfig("localhost", 8082, 3);
+        final BlockNodeConfig node3Config = new BlockNodeConfig("localhost", 8083, 3);
 
         connections.put(node2Config, node2Conn);
         availableNodes.add(node1Config);
@@ -1387,8 +1394,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicBoolean isManagerActive = isActiveFlag();
         isStreamingEnabled.set(false);
         isManagerActive.set(false);
-
-        connectionManager.start();
 
         assertThat(isManagerActive).isFalse();
 
