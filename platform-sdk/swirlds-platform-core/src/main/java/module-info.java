@@ -88,7 +88,6 @@ module com.swirlds.platform.core {
 
     opens com.swirlds.platform.cli to
             info.picocli;
-
     exports com.swirlds.platform.event.preconsensus;
     exports com.swirlds.platform.gossip.sync.protocol;
     exports com.swirlds.platform.gossip;
@@ -107,7 +106,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.freeze;
-
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
@@ -137,6 +135,7 @@ module com.swirlds.platform.core {
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
+    requires java.annotation;
     requires java.desktop;
     requires java.management;
     requires java.scripting;
