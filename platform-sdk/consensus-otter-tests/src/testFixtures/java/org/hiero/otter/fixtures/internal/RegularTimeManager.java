@@ -30,7 +30,7 @@ public class RegularTimeManager implements TimeManager {
     @Override
     public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
         try {
-            await().atMost(waitTime);
+            await().atMost(waitTime).until(condition::getAsBoolean);
         } catch (final ConditionTimeoutException ex) {
             return false; // Condition was not met within the specified time
         }
