@@ -66,49 +66,45 @@ public abstract class AbstractNode implements HederaNode {
         requireNonNull(path);
         final var workingDir = requireNonNull(metadata.workingDir());
         return switch (path) {
+            case WORKING_DIR -> workingDir;
             case APPLICATION_LOG -> workingDir.resolve(OUTPUT_DIR).resolve(HGCAA_LOG);
             case SWIRLDS_LOG -> workingDir.resolve(OUTPUT_DIR).resolve(SWIRLDS_LOG);
             case ADDRESS_BOOK -> workingDir.resolve(CONFIG_TXT);
-            case GENESIS_PROPERTIES -> workingDir
-                    .resolve(DATA_DIR)
-                    .resolve(CONFIG_DIR)
-                    .resolve(GENESIS_PROPERTIES);
-            case NODE_ADMIN_KEYS_JSON -> workingDir
-                    .resolve(DATA_DIR)
-                    .resolve(CONFIG_DIR)
-                    .resolve(NODE_ADMIN_KEYS_JSON);
-            case APPLICATION_PROPERTIES -> workingDir
-                    .resolve(DATA_DIR)
-                    .resolve(CONFIG_DIR)
-                    .resolve(APPLICATION_PROPERTIES);
+            case GENESIS_PROPERTIES ->
+                workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR).resolve(GENESIS_PROPERTIES);
+            case NODE_ADMIN_KEYS_JSON ->
+                workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR).resolve(NODE_ADMIN_KEYS_JSON);
+            case APPLICATION_PROPERTIES ->
+                workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR).resolve(APPLICATION_PROPERTIES);
             case LOG4J2_XML -> workingDir.resolve(LOG4J2_XML);
             case DATA_CONFIG_DIR -> workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR);
-            case RECORD_STREAMS_DIR -> workingDir
-                    .resolve(DATA_DIR)
-                    .resolve(RECORD_STREAMS_DIR)
-                    .resolve(String.format(
-                            "record%s.%s.%s",
-                            getAccountId().shardNum(),
-                            getAccountId().realmNum(),
-                            getAccountId().accountNumOrThrow()));
-            case BLOCK_STREAMS_DIR -> workingDir
-                    .resolve(DATA_DIR)
-                    .resolve(BLOCK_STREAMS_DIR)
-                    .resolve(String.format(
-                            "block-%s.%s.%s",
-                            getAccountId().shardNum(),
-                            getAccountId().realmNum(),
-                            getAccountId().accountNumOrThrow()));
-            case UPGRADE_ARTIFACTS_DIR -> workingDir
-                    .resolve(DATA_DIR)
-                    .resolve(UPGRADE_DIR)
-                    .resolve(CURRENT_DIR);
-            case SAVED_STATES_DIR -> workingDir
-                    .resolve(DATA_DIR)
-                    .resolve(SAVED_STATES_DIR)
-                    .resolve(Hedera.APP_NAME)
-                    .resolve("" + getNodeId())
-                    .resolve(Hedera.SWIRLD_NAME);
+            case RECORD_STREAMS_DIR ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(RECORD_STREAMS_DIR)
+                        .resolve(String.format(
+                                "record%s.%s.%s",
+                                getAccountId().shardNum(),
+                                getAccountId().realmNum(),
+                                getAccountId().accountNumOrThrow()));
+            case BLOCK_STREAMS_DIR ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(BLOCK_STREAMS_DIR)
+                        .resolve(String.format(
+                                "block-%s.%s.%s",
+                                getAccountId().shardNum(),
+                                getAccountId().realmNum(),
+                                getAccountId().accountNumOrThrow()));
+            case UPGRADE_ARTIFACTS_DIR ->
+                workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR);
+            case SAVED_STATES_DIR ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(SAVED_STATES_DIR)
+                        .resolve(Hedera.APP_NAME)
+                        .resolve("" + getNodeId())
+                        .resolve(Hedera.SWIRLD_NAME);
         };
     }
 

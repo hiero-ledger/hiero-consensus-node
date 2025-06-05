@@ -234,6 +234,10 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
+    <Logger name="com.hedera.node.app.blocks.impl.streaming" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="RollingFile"/>
+    </Logger>
     <Logger name="java.nio" level="ERROR" additivity="false">
       <!-- <AppenderRef ref="Console"/> -->
       <AppenderRef ref="RollingFile"/>

@@ -746,6 +746,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return true;
         }
 
+        @Override
+        protected void onException(final Throwable t) {
+            log.error("Error occurred while executing task", t);
+        }
+
         void send(SequentialTask next) {
             this.next = next;
             send();
