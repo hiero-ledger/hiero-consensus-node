@@ -124,7 +124,7 @@ class SyncFilteringTest {
         final int eventCount = 1000;
         final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
                 .map(EventImpl::getBaseEvent)
-                .sorted(Comparator.comparingLong(PlatformEvent::getGeneration))
+                .sorted(Comparator.comparingLong(PlatformEvent::getNGen))
                 .toList();
 
         final Map<Hash, PlatformEvent> eventMap =
@@ -176,7 +176,7 @@ class SyncFilteringTest {
             // Verify topological ordering.
             long maxGeneration = -1;
             for (final PlatformEvent event : filteredEvents) {
-                final long generation = event.getGeneration();
+                final long generation = event.getNGen();
                 assertTrue(generation >= maxGeneration);
                 maxGeneration = generation;
             }

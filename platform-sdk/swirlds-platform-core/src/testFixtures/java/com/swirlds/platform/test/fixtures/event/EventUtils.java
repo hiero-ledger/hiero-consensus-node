@@ -79,7 +79,7 @@ public final class EventUtils {
     }
 
     /**
-     * Check to see if all events have increasing generation numbers for each node.
+     * Check to see if all events have increasing birth round numbers for each node.
      */
     public static boolean areBirthRoundNumbersValid(
             @NonNull final Iterable<EventImpl> events, final int numberOfNodes) {

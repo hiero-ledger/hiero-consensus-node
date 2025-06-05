@@ -88,7 +88,7 @@ public class ConsensusOutput implements Clearable {
 
     public @NonNull List<PlatformEvent> sortedAddedEvents() {
         final List<PlatformEvent> sortedEvents = new ArrayList<>(addedEvents);
-        sortedEvents.sort(Comparator.comparingLong(PlatformEvent::getGeneration)
+        sortedEvents.sort(Comparator.comparingLong(PlatformEvent::getBirthRound)
                 .thenComparingLong(e -> e.getCreatorId().id())
                 .thenComparing(PlatformEvent::getHash));
         return sortedEvents;

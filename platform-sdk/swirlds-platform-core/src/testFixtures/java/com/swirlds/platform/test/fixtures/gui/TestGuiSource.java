@@ -39,7 +39,6 @@ public class TestGuiSource {
     private final HashgraphGuiSource guiSource;
     private ConsensusSnapshot savedSnapshot;
     private final GuiEventStorage eventStorage;
-    private final AncientMode ancientMode;
     private final Map<GossipEvent, BranchedEventMetadata> eventsToBranchMetadata = new HashMap<>();
     private final OrphanBuffer orphanBuffer;
 
@@ -57,10 +56,6 @@ public class TestGuiSource {
         this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), addressBook);
         this.guiSource = new StandardGuiSource(addressBook, eventStorage);
         this.eventProvider = eventProvider;
-        this.ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
         this.orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
     }
 
@@ -78,7 +73,7 @@ public class TestGuiSource {
         for (final PlatformEvent event : events) {
             if (!eventToBranchIndex.isEmpty() && eventToBranchIndex.containsKey(event)) {
                 final BranchedEventMetadata branchedEventMetadata =
-                        new BranchedEventMetadata(eventToBranchIndex.get(event), event.getGeneration());
+                        new BranchedEventMetadata(eventToBranchIndex.get(event), event.getNGen());
                 eventsToBranchMetadata.put(event.getGossipEvent(), branchedEventMetadata);
             }
 
@@ -117,7 +112,7 @@ public class TestGuiSource {
             for (final PlatformEvent event : events) {
                 if (!eventToBranchIndex.isEmpty() && eventToBranchIndex.containsKey(event)) {
                     final BranchedEventMetadata branchedEventMetadata =
-                            new BranchedEventMetadata(eventToBranchIndex.get(event), event.getGeneration());
+                            new BranchedEventMetadata(eventToBranchIndex.get(event), event.getNGen());
                     eventsToBranchMetadata.put(event.getGossipEvent(), branchedEventMetadata);
                 }
 
