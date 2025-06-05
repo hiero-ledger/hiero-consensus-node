@@ -27,10 +27,7 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Consumer;
-
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -331,7 +328,7 @@ public class PlatformStateFacade {
         }
 
         return createInfoString(
-                hashDepth, readablePlatformStateStore(state), Cryptography.NULL_HASH, merkleNodeState.getRoot())
+                        hashDepth, readablePlatformStateStore(state), Cryptography.NULL_HASH, merkleNodeState.getRoot())
                 .concat(sb.toString());
     }
 

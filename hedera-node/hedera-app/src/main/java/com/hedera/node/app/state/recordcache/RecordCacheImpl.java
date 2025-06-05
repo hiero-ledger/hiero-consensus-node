@@ -336,14 +336,14 @@ public class RecordCacheImpl implements HederaRecordCache {
     @Override
     public void commitRoundReceipts(
             @NonNull final State state,
-            @NonNull final Instant lastConsensus,
             @NonNull final Instant consensusNow,
+            @NonNull final Instant consensusForBlockStream,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final StreamMode streamMode) {
         requireNonNull(state);
-        requireNonNull(lastConsensus);
         requireNonNull(consensusNow);
+        requireNonNull(consensusForBlockStream);
         requireNonNull(blockStreamManager);
         requireNonNull(streamMode);
         if (streamMode != RECORDS) {
@@ -362,7 +362,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             final var changes = immediateStateChangeListener.getStateChanges();
             if (!changes.isEmpty()) {
                 final var stateChangesItem = BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(asTimestamp(lastConsensus), new ArrayList<>(changes)))
+                        .stateChanges(new StateChanges(asTimestamp(consensusForBlockStream), new ArrayList<>(changes)))
                         .build();
                 blockStreamManager.writeItem(stateChangesItem);
             }

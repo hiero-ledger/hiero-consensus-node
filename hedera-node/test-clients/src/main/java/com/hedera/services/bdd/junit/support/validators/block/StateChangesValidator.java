@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.junit.support.validators.block.RootHashUti
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -396,10 +395,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                             block.items().getFirst().blockHeaderOrThrow().number());
 
                     if (!blockProof.startOfBlockStateRootHash().equals(startOfStateHash)) {
-                        System.out.println("blockProof.startOfBlockStateRootHash(): " + blockProof.startOfBlockStateRootHash());
+                        System.out.println(
+                                "blockProof.startOfBlockStateRootHash(): " + blockProof.startOfBlockStateRootHash());
                         System.out.println("startOfStateHash: " + startOfStateHash);
                         state.getRoot().getHash();
-                        System.out.println("SOUT Block: " + block + "\n Full info: " + platformStateFacade.getInfoString(state, 5));
+                        System.out.println("SOUT Block: " + block + "\n Full info: "
+                                + platformStateFacade.getInfoString(state, 5));
                     }
 
                     validateBlockProof(i, firstBlockRound, blockProof, expectedBlockHash, startOfStateHash);

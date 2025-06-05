@@ -8,7 +8,6 @@ import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapPut;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapRemove;
-import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -17,7 +16,6 @@ import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 
