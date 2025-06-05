@@ -58,14 +58,11 @@ import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.events.BirthRoundMigrationShim;
-import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -287,9 +284,6 @@ public class SwirldsPlatform implements Platform {
 
         blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
 
-        final BirthRoundMigrationShim birthRoundMigrationShim =
-                buildBirthRoundMigrationShim(initialState, ancientMode, platformStateFacade);
-
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final PlatformPublisher publisher = new DefaultPlatformPublisher(blocks.applicationCallbacks());
@@ -299,7 +293,6 @@ public class SwirldsPlatform implements Platform {
                 pcesReplayer,
                 stateSignatureCollector,
                 eventWindowManager,
-                birthRoundMigrationShim,
                 inlinePcesWriter,
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,
@@ -395,36 +388,6 @@ public class SwirldsPlatform implements Platform {
         } else {
             pcesReplayLowerBound = 0;
         }
-    }
-
-    /**
-     * Builds the birth round migration shim if necessary.
-     *
-     * @param initialState the initial state
-     * @param ancientMode  the ancient mode
-     * @return the birth round migration shim, or null if it is not needed
-     */
-    @Nullable
-    private BirthRoundMigrationShim buildBirthRoundMigrationShim(
-            @NonNull final SignedState initialState,
-            @NonNull final AncientMode ancientMode,
-            @NonNull final PlatformStateFacade platformStateFacade) {
-
-        if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
-            // We don't need the shim if we haven't migrated to birth round mode.
-            return null;
-        }
-        if (initialState.isGenesisState()) {
-            // We don't need the shim if we are starting from genesis.
-            return null;
-        }
-
-        final State state = initialState.getState();
-        return new DefaultBirthRoundMigrationShim(
-                platformContext,
-                platformStateFacade.firstVersionInBirthRoundModeOf(state),
-                platformStateFacade.lastRoundBeforeBirthRoundModeOf(state),
-                platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(state));
     }
 
     /**

@@ -37,6 +37,15 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
     }
 
     /**
+     * Gets the output directory for the Turtle node.
+     *
+     * @return the output directory as a string
+     */
+    public String getOutputDirectory() {
+        return outputDirectory;
+    }
+
+    /**
      * Creates a configuration for the Turtle node using the overridden properties.
      *
      * @return the configuration for the Turtle node

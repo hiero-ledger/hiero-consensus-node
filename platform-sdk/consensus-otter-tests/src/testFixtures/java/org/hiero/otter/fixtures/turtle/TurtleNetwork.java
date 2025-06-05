@@ -56,9 +56,9 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron the random generator
-     * @param timeManager the time manager
-     * @param logging the logging utility
+     * @param randotron           the random generator
+     * @param timeManager         the time manager
+     * @param logging             the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
      */

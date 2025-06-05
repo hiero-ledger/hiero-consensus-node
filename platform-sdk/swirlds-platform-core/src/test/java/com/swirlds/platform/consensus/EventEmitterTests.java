@@ -2,8 +2,8 @@
 package com.swirlds.platform.consensus;
 
 import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
+import static com.swirlds.platform.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.areEventListsEquivalent;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -140,7 +140,7 @@ public class EventEmitterTests {
     public void validateEventOrder(final EventEmitter emitter) {
         System.out.println("Validate Event Order");
         final List<EventImpl> events = emitter.emitEvents(1000);
-        assertTrue(areGenerationNumbersValid(events, emitter.getGraphGenerator().getNumberOfSources()));
+        assertTrue(areBirthRoundNumbersValid(events, emitter.getGraphGenerator().getNumberOfSources()));
         assertTrue(isEventOrderValid(events));
 
         emitter.reset();

@@ -77,7 +77,7 @@ public interface Network {
      * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
      * network with {@link #start()}.
      *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
+     * <p>The method will wait for an environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
      *
      * @throws InterruptedException if the thread is interrupted while waiting
