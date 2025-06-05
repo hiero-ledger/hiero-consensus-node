@@ -8,6 +8,7 @@ import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapPut;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapRemove;
+import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -16,6 +17,7 @@ import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 
@@ -83,6 +85,7 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
         final Bytes kb = keyCodec.toBytes(key);
         assert kb != null;
         virtualMap.put(getVirtualMapKeyForKv(serviceName, stateKey, key), value, valueCodec);
+        updateVmState();
         // Log to transaction state log, what was put
         logMapPut(computeLabel(serviceName, stateKey), key, value);
     }
@@ -91,6 +94,7 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     @Override
     protected void removeFromDataSource(@NonNull K key) {
         final var removed = virtualMap.remove(getVirtualMapKeyForKv(serviceName, stateKey, key), valueCodec);
+        updateVmState();
         // Log to transaction state log, what was removed
         logMapRemove(computeLabel(serviceName, stateKey), key, removed);
     }
@@ -102,5 +106,10 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
         // Log to transaction state log, size of map
         logMapGetSize(computeLabel(serviceName, stateKey), size);
         return size;
+    }
+
+    private void updateVmState() {
+        VirtualMapState vmState = virtualMap.getState();
+        virtualMap.put(VM_STATE_KEY, vmState, null, vmState.toBytes());
     }
 }
