@@ -722,15 +722,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         @Override
         protected boolean onExecute() {
-            try {
-                return doExecute();
-            } catch (final RuntimeException e) {
-                log.error("Error occurred while executing task", e);
-                throw e;
-            }
-        }
-
-        private boolean doExecute() {
             final var kind = item.item().kind();
             switch (kind) {
                 case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(hash);
@@ -753,6 +744,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             next.send();
             return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            log.error("Error occurred while executing task", t);
         }
 
         void send(SequentialTask next) {
