@@ -115,6 +115,7 @@ class SignedStateFileReadWriteTest {
 
         final String fileString = sb.toString();
         assertTrue(fileString.contains(hashInfoString), "hash info string not found");
+        state.release();
     }
 
     @Test
@@ -128,7 +129,7 @@ class SignedStateFileReadWriteTest {
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
         State state = signedState.getState();
-        state.copy();
+        state.copy().release();
         state.createSnapshot(testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
@@ -154,6 +155,8 @@ class SignedStateFileReadWriteTest {
                 deserializedSignedState.reservedSignedState().get().getState().getHash(),
                 "hash should match");
         assertNotSame(signedState, deserializedSignedState.reservedSignedState(), "state should be a different object");
+        signedState.getState().release();
+        deserializedSignedState.reservedSignedState().get().getState().release();
     }
 
     @Test
@@ -178,7 +181,7 @@ class SignedStateFileReadWriteTest {
                 .build();
 
         // make immutable
-        signedState.getState().copy();
+        signedState.getState().copy().release();
 
         writeSignedStateToDisk(
                 platformContext,

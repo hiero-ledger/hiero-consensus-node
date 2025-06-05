@@ -46,6 +46,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -346,6 +347,17 @@ public abstract class VirtualMapReconnectTestBase {
         @SuppressWarnings("rawtypes")
         public ValueSerializer getValueSerializer() {
             throw new UnsupportedOperationException("This method should never be called");
+        }
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        if (teacherMap.getReservationCount() > 0) {
+            teacherMap.release();
+        }
+
+        if (learnerMap.getReservationCount() > 0) {
+            learnerMap.release();
         }
     }
 }

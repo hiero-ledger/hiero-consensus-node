@@ -13,6 +13,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
@@ -247,6 +248,7 @@ class DefaultSignedStateValidatorTests {
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @ParameterizedTest
