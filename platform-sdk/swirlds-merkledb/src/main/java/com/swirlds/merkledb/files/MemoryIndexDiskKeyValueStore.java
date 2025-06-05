@@ -84,6 +84,7 @@ public class MemoryIndexDiskKeyValueStore implements AutoCloseable, Snapshotable
     public void updateValidKeyRange(final long min, final long max) {
         // By calling `updateMinValidIndex` we compact the index if it's applicable.
         index.updateValidRange(min, max);
+        // Data file collection key range is updated in endWriting()
     }
 
     /**
@@ -121,7 +122,8 @@ public class MemoryIndexDiskKeyValueStore implements AutoCloseable, Snapshotable
     public DataFileReader endWriting() throws IOException {
         final long currentMinValidKey = index.getMinValidIndex();
         final long currentMaxValidKey = index.getMaxValidIndex();
-        final DataFileReader dataFileReader = fileCollection.endWriting(currentMinValidKey, currentMaxValidKey);
+        fileCollection.updateValidKeyRange(currentMinValidKey, currentMaxValidKey);
+        final DataFileReader dataFileReader = fileCollection.endWriting();
         logger.info(
                 MERKLE_DB.getMarker(),
                 "{} Ended writing, newFile={}, numOfFiles={}, minimumValidKey={}, maximumValidKey={}",

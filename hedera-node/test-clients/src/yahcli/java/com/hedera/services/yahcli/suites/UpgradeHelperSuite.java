@@ -3,12 +3,15 @@ package com.hedera.services.yahcli.suites;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.yahcli.config.ConfigManager;
+import com.hedera.services.yahcli.util.HapiSpecUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,29 +24,29 @@ public class UpgradeHelperSuite extends HapiSuite {
     private final String upgradeFile;
     /* Null for a PREPARE_UPGRADE, non-null for a TELEMETRY_UPGRADE or FREEZE_UPGRADE */
     private final Instant startTime;
-    private final Map<String, String> specConfig;
+    private final ConfigManager configManager;
     private final boolean isTelemetryUpgrade;
 
     public UpgradeHelperSuite(
-            final Map<String, String> specConfig, final byte[] upgradeFileHash, final String upgradeFile) {
-        this(specConfig, upgradeFileHash, upgradeFile, null, false);
+            final ConfigManager configManager, final byte[] upgradeFileHash, final String upgradeFile) {
+        this(configManager, upgradeFileHash, upgradeFile, null, false);
     }
 
     public UpgradeHelperSuite(
-            final Map<String, String> specConfig,
+            final ConfigManager configManager,
             final byte[] upgradeFileHash,
             final String upgradeFile,
             @Nullable final Instant startTime) {
-        this(specConfig, upgradeFileHash, upgradeFile, startTime, false);
+        this(configManager, upgradeFileHash, upgradeFile, startTime, false);
     }
 
     public UpgradeHelperSuite(
-            final Map<String, String> specConfig,
+            final ConfigManager configManager,
             final byte[] upgradeFileHash,
             final String upgradeFile,
             @Nullable final Instant startTime,
             final boolean isTelemetryUpgrade) {
-        this.specConfig = specConfig;
+        this.configManager = configManager;
         this.upgradeFile = upgradeFile;
         this.upgradeFileHash = upgradeFileHash;
         this.startTime = startTime;
@@ -77,11 +80,9 @@ public class UpgradeHelperSuite extends HapiSuite {
                     .havingHash(upgradeFileHash);
         }
 
-        return HapiSpec.customHapiSpec("DoStagingAction")
-                .withProperties(specConfig)
-                .given()
-                .when()
-                .then(op);
+        final var spec = new HapiSpec(
+                "DoStagingAction", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {op});
+        return HapiSpecUtils.targeted(spec, configManager);
     }
 
     @Override
