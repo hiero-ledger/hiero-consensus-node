@@ -33,7 +33,7 @@ import org.hiero.otter.fixtures.internal.AbstractNetwork;
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-public class TurtleNetwork extends AbstractNetwork implements Network, TurtleTimeManager.TimeTickReceiver {
+public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 

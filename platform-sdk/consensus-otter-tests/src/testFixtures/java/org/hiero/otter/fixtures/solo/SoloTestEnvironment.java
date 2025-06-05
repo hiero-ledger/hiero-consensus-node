@@ -13,7 +13,16 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
  */
 public class SoloTestEnvironment implements TestEnvironment {
 
-    private final TimeManager timeManager = new RegularTimeManager();
+    private final Network network;
+    private final RegularTimeManager timeManager = new RegularTimeManager();
+    private final SoloTransactionGenerator transactionGenerator = new SoloTransactionGenerator();
+
+    /**
+     * Constructor for the {@link SoloTestEnvironment} class.
+     */
+    public SoloTestEnvironment() {
+        network = new SoloNetwork(timeManager, transactionGenerator);
+    }
 
     /**
      * {@inheritDoc}
@@ -21,7 +30,7 @@ public class SoloTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public Network network() {
-        throw new UnsupportedOperationException("Not implemented yet!");
+        return network;
     }
 
     /**
@@ -39,7 +48,7 @@ public class SoloTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public TransactionGenerator transactionGenerator() {
-        throw new UnsupportedOperationException("Not implemented yet!");
+        return transactionGenerator;
     }
 
     /**
@@ -47,6 +56,6 @@ public class SoloTestEnvironment implements TestEnvironment {
      */
     @Override
     public void destroy() throws InterruptedException {
-        throw new UnsupportedOperationException("Not implemented yet!");
+        network.shutdown();
     }
 }

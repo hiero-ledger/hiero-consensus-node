@@ -97,6 +97,7 @@ public abstract class AbstractNetwork implements Network {
      *
      * @return the {@link TransactionGenerator} instance
      */
+    @NonNull
     protected abstract TransactionGenerator transactionGenerator();
 
     /**
