@@ -604,6 +604,7 @@ public class ConversionUtils {
         if (outcome.status() != SUCCESS) {
             throw new HandleException(outcome.status(), feeChargingContext -> {
                 hederaOperations.replayGasChargingIn(feeChargingContext);
+                outcome.addCalledContractIfNotAborted(streamBuilder);
             });
         }
     }

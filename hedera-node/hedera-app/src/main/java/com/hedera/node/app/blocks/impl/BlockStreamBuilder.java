@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static java.util.Collections.emptyList;
@@ -1065,7 +1066,8 @@ public class BlockStreamBuilder
 
         accountId = null;
 
-        if (Objects.equals(functionality, CONTRACT_CREATE)) {
+        // null out the contract ID if this is a contract create or if rolling back successful transaction
+        if (Objects.equals(functionality(), CONTRACT_CREATE) || SUCCESS.equals(status)) {
             contractId = null;
         }
 
