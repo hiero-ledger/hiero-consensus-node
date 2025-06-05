@@ -398,7 +398,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     if (!blockProof.startOfBlockStateRootHash().equals(startOfStateHash)) {
                         System.out.println("blockProof.startOfBlockStateRootHash(): " + blockProof.startOfBlockStateRootHash());
                         System.out.println("startOfStateHash: " + startOfStateHash);
-                    //    state.getRoot().getHash();
+                        state.getRoot().getHash();
                         System.out.println("SOUT Block: " + block + "\n Full info: " + platformStateFacade.getInfoString(state, 5));
                     }
 

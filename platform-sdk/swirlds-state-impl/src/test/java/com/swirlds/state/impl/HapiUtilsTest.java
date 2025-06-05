@@ -5,9 +5,19 @@ import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
 
 class HapiUtilsTest {
+
+    @Test
+    void parseB() throws ParseException {
+        VirtualMapKey key = VirtualMapKey.PROTOBUF.parse(Bytes.fromHex("f007c301"));
+        System.out.println(key);
+    }
+
     @Test
     void nonAlphaPreReleasePartsComeAfterAnyAlpha() {
         final var alphaVersion = SemanticVersion.newBuilder()
