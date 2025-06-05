@@ -32,9 +32,12 @@ import org.junit.platform.commons.support.AnnotationSupport;
 /**
  * A JUnit 5 extension for testing with the Otter framework.
  *
- * <p> This extension supports parameter resolution for {@link TestEnvironment} and manages the lifecycle of the test
+ * <p>This extension supports parameter resolution for {@link TestEnvironment} and manages the lifecycle of the test
  * environment. The type of the {@link TestEnvironment} is selected based on the system property {@code "otter.env"}.
- * This extension also provides a way to run tests as templates when no other test annotations are present.
+ *
+ * <p>The extension checks if the test method is annotated with any standard JUnit test annotations
+ * (e.g., {@link RepeatedTest} or {@link ParameterizedTest}). If none of these annotations are present, this extension
+ * ensures that the method is executed like a regular test (i.e., as if annotated with {@link Test}).
  */
 public class OtterTestExtension
         implements TestInstancePreDestroyCallback, ParameterResolver, TestTemplateInvocationContextProvider {
