@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.validation;
 
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -97,7 +99,7 @@ class EventSignatureValidatorTests {
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
 
-        // create two addresses, one for the previous address book and one for the current address book
+        // create two addresses, one for the previous roster and one for the current roster
         rosterHistory = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND);
 
         validatorWithTrueVerifier =
@@ -142,8 +144,8 @@ class EventSignatureValidatorTests {
     }
 
     @Test
-    @DisplayName("Lower version event with missing previous address book")
-    void versionMismatchWithNullPreviousAddressBook() {
+    @DisplayName("Lower version event with missing previous roster")
+    void versionMismatchWithNullPreviousRoster() {
         final EventSignatureValidator signatureValidator =
                 new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
 
@@ -157,9 +159,9 @@ class EventSignatureValidatorTests {
     }
 
     @Test
-    @DisplayName("Node is missing from the applicable address book")
-    void applicableAddressBookMissingNode() {
-        // this creator isn't in the current address book, so verification will fail
+    @DisplayName("Node is missing from the applicable roster")
+    void applicableRosterMissingNode() {
+        // this creator isn't in the current roster, so verification will fail
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(99))
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
@@ -184,23 +186,61 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Event passes validation if the signature verifies")
     void validSignature() {
-        // both the event and the app have the same version, so the currentAddressBook will be selected
-        final PlatformEvent event1 = new TestingEventBuilder(random)
+        // create an event that should be validated with the currentRoster
+        final PlatformEvent event1Valid = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
-        assertNotEquals(null, validatorWithTrueVerifier.validateSignature(event1));
+        assertNotNull(validatorWithTrueVerifier.validateSignature(event1Valid));
         assertEquals(0, exitedIntakePipelineCount.get());
 
-        // event2 is from a previous version, so the previous address book will be selected
+        // event2 is from a previous version, so the previous roster will be selected
         final PlatformEvent event2 = new TestingEventBuilder(random)
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
                 .build();
 
-        assertNotEquals(null, validatorWithTrueVerifier.validateSignature(event2));
+        assertNotNull(validatorWithTrueVerifier.validateSignature(event2));
         assertEquals(0, exitedIntakePipelineCount.get());
+
+        // similarly we test invalid events for each of the rosters and make sure they exited the pipeline
+        final PlatformEvent event1Invalid = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(CURRENT_ROSTER_NODE_ID.id() + 1))
+                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .build();
+        final PlatformEvent event2Invalid = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(PREVIOUS_ROSTER_NODE_ID.id() + 1))
+                .setBirthRound(PREVIOUS_ROSTER_ROUND)
+                .build();
+
+        assertNull(validatorWithTrueVerifier.validateSignature(event1Invalid));
+        assertNull(validatorWithTrueVerifier.validateSignature(event2Invalid));
+        assertEquals(2, exitedIntakePipelineCount.get());
+
+        // make sure that events from any round number higher than CURRENT_ROSTER_ROUND get validated by the
+        // currentRoster
+        final Random random = getRandomPrintSeed();
+        random.ints(CURRENT_ROSTER_ROUND, Integer.MAX_VALUE)
+                .limit(10)
+                .boxed()
+                .map(r -> new TestingEventBuilder(this.random)
+                        .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                        .setBirthRound(r)
+                        .build())
+                .forEach(e -> assertNotNull(validatorWithTrueVerifier.validateSignature(e)));
+
+        // make sure that events from any round number higher than PREVIOUS_ROSTER_ROUND and lower than
+        // CURRENT_ROSTER_ROUND
+        // get validated by the previous roster
+        random.ints(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND)
+                .limit(10)
+                .boxed()
+                .map(r -> new TestingEventBuilder(this.random)
+                        .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
+                        .setBirthRound(r)
+                        .build())
+                .forEach(e -> assertNotNull(validatorWithTrueVerifier.validateSignature(e)));
     }
 
     @Test
@@ -211,7 +251,7 @@ class EventSignatureValidatorTests {
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
-        assertNotEquals(null, validatorWithTrueVerifier.validateSignature(event));
+        assertNotNull(validatorWithTrueVerifier.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
 
         assertNull(validatorWithFalseVerifier.validateSignature(event));
@@ -232,7 +272,7 @@ class EventSignatureValidatorTests {
                 .setBirthRound(CURRENT_ROSTER_ROUND)
                 .build();
 
-        assertNotEquals(null, validator.validateSignature(event));
+        assertNotNull(validator.validateSignature(event));
         assertEquals(0, exitedIntakePipelineCount.get());
 
         validatorWithTrueVerifier.setEventWindow(
