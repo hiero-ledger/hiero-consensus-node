@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -28,10 +29,13 @@ public interface Network {
     /**
      * Start the network with the currently configured setup.
      *
-     * @param timeout the duration to wait before considering the start operation as failed
+     * <p>The method will wait until all nodes have become {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
+     * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
+     * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start(@NonNull Duration timeout) throws InterruptedException;
+    void start() throws InterruptedException;
 
     /**
      * Add an instrumented node to the network.
@@ -53,22 +57,60 @@ public interface Network {
     List<Node> getNodes();
 
     /**
-     * Prepares the network for an upgrade. All required preparations steps are executed and the network
-     * is shutdown. Once shutdown, it is possible to change the configuration etc. before resuming the
-     * network with {@link #resume(Duration)}.
+     * Freezes the network.
      *
-     * @param timeout the duration to wait before considering the preparation operation as failed
+     * <p>This method sends a freeze transaction to one of the active nodes with a freeze time shortly after the
+     * current time. The method returns once all nodes entered the
+     * {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE} state.
+     *
+     * <p>It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
+     * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException;
+    void freeze() throws InterruptedException;
 
     /**
-     * Resumes the network after it has previously been paused, e.g. to prepare for an upgrade.
+     * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks
+     * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
+     * network with {@link #start()}.
      *
-     * @param duration the duration to wait before considering the resume operation as failed
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
+     * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     *
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void resume(@NonNull Duration duration) throws InterruptedException;
+    void shutdown() throws InterruptedException;
+
+    /**
+     * Allows to override the default timeout for network operations.
+     *
+     * @param timeout the duration to wait before considering the operation as failed
+     * @return an instance of {@link AsyncNetworkActions} that can be used to perform network actions
+     */
+    @NonNull
+    AsyncNetworkActions withTimeout(@NonNull Duration timeout);
+
+    /**
+     * Sets the version of the network.
+     *
+     * <p>This method sets the version of all nodes currently added to the network. Please note that the new version
+     * will become effective only after a node is (re-)started.
+     *
+     * @see Node#setVersion(SemanticVersion)
+     *
+     * @param version the semantic version to set for the network
+     */
+    void setVersion(@NonNull SemanticVersion version);
+
+    /**
+     * This method updates the version of all nodes in the network to trigger a "config only upgrade" on the next restart.
+     *
+     * <p>Please note that the new version will become effective only after a node is (re-)started.
+     *
+     * @see Node#bumpConfigVersion()
+     */
+    void bumpConfigVersion();
 
     /**
      * Gets the consensus rounds of all nodes.

@@ -83,8 +83,8 @@ public class CreatePrecompileSuite {
     public static final String FALSE = "false";
     public static final String CREATE_TOKEN_WITH_ALL_CUSTOM_FEES_AVAILABLE = "createTokenWithAllCustomFeesAvailable";
     private static final Logger log = LogManager.getLogger(CreatePrecompileSuite.class);
-    private static final long GAS_TO_OFFER = 4_000_000L;
-    private static final long GAS_TO_OFFER_2 = 4_000_000L;
+    private static final long CONTRACT_CREATE_GAS_TO_OFFER = 4_000_000L;
+    private static final long GAS_TO_OFFER = 1_000_000L;
     public static final long AUTO_RENEW_PERIOD = 8_000_000L;
     public static final String TOKEN_SYMBOL = "tokenSymbol";
     public static final String TOKEN_NAME = "tokenName";
@@ -121,7 +121,7 @@ public class CreatePrecompileSuite {
                 contractCreate(TOKEN_CREATE_CONTRACT)
                         .autoRenewAccountId(ACCOUNT)
                         .adminKey(CONTRACT_ADMIN_KEY)
-                        .gas(GAS_TO_OFFER),
+                        .gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 newKeyNamed(THRESHOLD_KEY)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, TOKEN_CREATE_CONTRACT)))
                         .exposingKeyTo(k -> ed2551Key.set(k.getThresholdKey()
@@ -232,7 +232,7 @@ public class CreatePrecompileSuite {
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
                 contractCreate(TOKEN_CREATE_CONTRACT)
                         .autoRenewAccountId(ACCOUNT)
-                        .gas(GAS_TO_OFFER),
+                        .gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 newKeyNamed(THRESHOLD_KEY)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, TOKEN_CREATE_CONTRACT)))
                         .exposingKeyTo(k -> ed2551Key.set(k.getThresholdKey()
@@ -301,7 +301,7 @@ public class CreatePrecompileSuite {
                 cryptoCreate(ACCOUNT_TO_ASSOCIATE).key(ACCOUNT_TO_ASSOCIATE_KEY),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
                 contractCreate(TOKEN_CREATE_CONTRACT)
-                        .gas(GAS_TO_OFFER)
+                        .gas(CONTRACT_CREATE_GAS_TO_OFFER)
                         .adminKey(CONTRACT_ADMIN_KEY)
                         .autoRenewAccountId(ACCOUNT),
                 newKeyNamed(THRESHOLD_KEY)
@@ -366,7 +366,7 @@ public class CreatePrecompileSuite {
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
                 getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
                 withOpContext((spec, opLog) ->
-                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER))),
+                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
                     final var subop1 = balanceSnapshot(ACCOUNT_BALANCE, ACCOUNT);
                     final var preCallSnap = balanceSnapshot("preCallSnap", TOKEN_CREATE_CONTRACT);
@@ -383,7 +383,7 @@ public class CreatePrecompileSuite {
                                             asAddress(spec.registry().getAccountID(ACCOUNT))),
                                     AUTO_RENEW_PERIOD)
                             .via(FIRST_CREATE_TXN)
-                            .gas(GAS_TO_OFFER)
+                            .gas(3_000_000)
                             .payingWith(ACCOUNT)
                             .sending(DEFAULT_AMOUNT_TO_SEND)
                             .exposingResultTo(result -> {
@@ -414,7 +414,7 @@ public class CreatePrecompileSuite {
                     final var subop4 = getAccountBalance(ACCOUNT)
                             .hasTinyBars(changeFromSnapshot(ACCOUNT_BALANCE, -(gasCost + DEFAULT_AMOUNT_TO_SEND)));
                     final var contractBalanceCheck = getAccountBalance(TOKEN_CREATE_CONTRACT)
-                            .hasTinyBars(changeFromSnapshot("preCallSnap", +(DEFAULT_AMOUNT_TO_SEND - creationFee)));
+                            .hasTinyBars(changeFromSnapshot("preCallSnap", (DEFAULT_AMOUNT_TO_SEND - creationFee)));
                     final var getAccountTokenBalance =
                             getAccountBalance(ACCOUNT).hasTokenBalance(String.valueOf(createdTokenNum.get()), 0);
                     final var tokenInfo = getTokenInfo(String.valueOf(createdTokenNum.get()))
@@ -451,7 +451,7 @@ public class CreatePrecompileSuite {
         final AtomicReference<byte[]> ed2551Key = new AtomicReference<>();
         return hapiTest(
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 newKeyNamed(TOKEN_CREATE_CONTRACT_AS_KEY).shape(CONTRACT.signedWith(TOKEN_CREATE_CONTRACT)),
                 newKeyNamed(THRESHOLD_KEY)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, TOKEN_CREATE_CONTRACT)))
@@ -540,7 +540,7 @@ public class CreatePrecompileSuite {
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
                 contractCreate(TOKEN_CREATE_CONTRACT)
                         .autoRenewAccountId(ACCOUNT)
-                        .gas(GAS_TO_OFFER),
+                        .gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, TOKEN_CREATE_CONTRACT))),
                 cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
                 withOpContext((spec, opLog) -> allRunFor(
@@ -602,7 +602,7 @@ public class CreatePrecompileSuite {
         final var createdTokenNum = new AtomicLong();
         return hapiTest(
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 newKeyNamed(THRESHOLD_KEY)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, TOKEN_CREATE_CONTRACT))),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).key(THRESHOLD_KEY),
@@ -648,7 +648,7 @@ public class CreatePrecompileSuite {
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
                 getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
                 withOpContext((spec, opLog) ->
-                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER))),
+                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
                     final var balanceSnapshot = balanceSnapshot(
                             ACCOUNT_BALANCE, spec.isUsingEthCalls() ? DEFAULT_CONTRACT_SENDER : ACCOUNT);
@@ -689,7 +689,7 @@ public class CreatePrecompileSuite {
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -717,7 +717,7 @@ public class CreatePrecompileSuite {
                 newKeyNamed(ECDSA_KEY).shape(SECP256K1),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -752,7 +752,7 @@ public class CreatePrecompileSuite {
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
                 withOpContext((spec, opLog) ->
-                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER))),
+                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
                     final var accountSnapshot = spec.isUsingEthCalls()
                             ? balanceSnapshot(ACCOUNT_BALANCE, DEFAULT_CONTRACT_SENDER)
@@ -798,7 +798,7 @@ public class CreatePrecompileSuite {
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -832,7 +832,7 @@ public class CreatePrecompileSuite {
                 newKeyNamed(ED25519KEY).shape(ED25519),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).key(ED25519KEY),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -874,7 +874,7 @@ public class CreatePrecompileSuite {
                 cryptoCreate(ACCOUNT).key(ED25519KEY).balance(ONE_MILLION_HBARS),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
                 withOpContext((spec, opLog) ->
-                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER))),
+                        allRunFor(spec, contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER))),
                 withOpContext((spec, ignore) -> {
                     final var balanceSnapshot = spec.isUsingEthCalls()
                             ? balanceSnapshot(ACCOUNT_BALANCE, DEFAULT_CONTRACT_SENDER)
@@ -930,7 +930,7 @@ public class CreatePrecompileSuite {
                 newKeyNamed(ED25519KEY).shape(ED25519),
                 cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).key(ED25519KEY),
                 uploadInitCode(TOKEN_CREATE_CONTRACT),
-                contractCreate(TOKEN_CREATE_CONTRACT).gas(GAS_TO_OFFER),
+                contractCreate(TOKEN_CREATE_CONTRACT).gas(CONTRACT_CREATE_GAS_TO_OFFER),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -964,7 +964,7 @@ public class CreatePrecompileSuite {
                 cryptoCreate(FEE_COLLECTOR).balance(0L),
                 uploadInitCode(TOKEN_MISC_OPERATIONS_CONTRACT),
                 contractCreate(TOKEN_MISC_OPERATIONS_CONTRACT)
-                        .gas(GAS_TO_OFFER_2)
+                        .gas(CONTRACT_CREATE_GAS_TO_OFFER)
                         .autoRenewAccountId(ACCOUNT),
                 newKeyNamed(THRESHOLD_KEY)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, TOKEN_MISC_OPERATIONS_CONTRACT))),
@@ -992,7 +992,7 @@ public class CreatePrecompileSuite {
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getAccountID(ACCOUNT))))
                                 .via(FIRST_CREATE_TXN)
-                                .gas(GAS_TO_OFFER_2)
+                                .gas(CONTRACT_CREATE_GAS_TO_OFFER)
                                 .sending(DEFAULT_AMOUNT_TO_SEND)
                                 .payingWith(ACCOUNT)
                                 .exposingResultTo(result -> {

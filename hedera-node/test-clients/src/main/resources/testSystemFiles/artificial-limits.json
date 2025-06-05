@@ -1,147 +1,141 @@
 {
-  "buckets": [
-	{
-	  "name": "ThroughputLimits",
-	  "burstPeriod": 3,
-	  "throttleGroups": [
+	"buckets": [
 		{
-		  "opsPerSec": 100,
-		  "operations": [
-			"CryptoCreate",
-			"CryptoTransfer",
-			"UtilPrng",
-			"CryptoUpdate",
-			"CryptoDelete",
-			"CryptoGetInfo",
-			"CryptoGetAccountRecords",
-			"CryptoApproveAllowance",
-			"CryptoDeleteAllowance",
-			"ConsensusCreateTopic",
-			"ConsensusSubmitMessage",
-			"ConsensusUpdateTopic",
-			"ConsensusDeleteTopic",
-			"ConsensusGetTopicInfo",
-			"TokenGetInfo",
-			"TokenGetNftInfo",
-			"TokenGetNftInfos",
-			"TokenGetAccountNftInfos",
-			"ScheduleDelete",
-			"ScheduleGetInfo",
-			"FileGetContents",
-			"FileGetInfo",
-			"ContractUpdate",
-			"ContractDelete",
-			"ContractGetInfo",
-			"ContractGetBytecode",
-			"ContractGetRecords",
-			"ContractCallLocal",
-			"TransactionGetRecord",
-			"GetVersionInfo",
-			"AtomicBatch"
-		  ]
+			"name": "ThroughputLimits",
+			"burstPeriod": 3,
+			"throttleGroups": [
+				{
+					"opsPerSec": 100,
+					"operations": [
+						"CryptoCreate",
+						"CryptoTransfer",
+						"UtilPrng",
+						"CryptoUpdate",
+						"CryptoDelete",
+						"CryptoGetInfo",
+						"CryptoGetAccountRecords",
+						"CryptoApproveAllowance",
+						"CryptoDeleteAllowance",
+						"ConsensusCreateTopic",
+						"ConsensusSubmitMessage",
+						"ConsensusUpdateTopic",
+						"ConsensusDeleteTopic",
+						"ConsensusGetTopicInfo",
+						"TokenGetInfo",
+						"TokenGetNftInfo",
+						"TokenGetNftInfos",
+						"TokenGetAccountNftInfos",
+						"ScheduleDelete",
+						"ScheduleGetInfo",
+						"FileGetContents",
+						"FileGetInfo",
+						"ContractUpdate",
+						"ContractDelete",
+						"ContractGetInfo",
+						"ContractGetBytecode",
+						"ContractGetRecords",
+						"ContractCallLocal",
+						"TransactionGetRecord",
+						"GetVersionInfo",
+						"AtomicBatch"
+					]
+				},
+				{
+					"opsPerSec": 3,
+					"operations": [
+						"ContractCall",
+						"ContractCreate",
+						"FileCreate",
+						"FileUpdate",
+						"FileAppend",
+						"FileDelete",
+						"EthereumTransaction"
+					]
+				},
+				{
+					"opsPerSec": 30,
+					"operations": [
+						"ScheduleSign",
+						"TokenCreate",
+						"TokenDelete",
+						"TokenMint",
+						"TokenBurn",
+						"TokenPause",
+						"TokenUnpause",
+						"TokenUpdate",
+						"TokenFeeScheduleUpdate",
+						"TokenAssociateToAccount",
+						"TokenAccountWipe",
+						"TokenDissociateFromAccount",
+						"TokenFreezeAccount",
+						"TokenUnfreezeAccount",
+						"TokenGrantKycToAccount",
+						"TokenRevokeKycFromAccount"
+					]
+				}
+			]
 		},
 		{
-		  "opsPerSec": 3, 
-          "operations": [
-            "ContractCall", 
-            "ContractCreate", 
-            "FileCreate",
-            "FileUpdate",
-            "FileAppend",
-            "FileDelete",
-            "EthereumTransaction"
-          ]
+			"name": "PriorityReservations",
+			"burstPeriod": 3,
+			"throttleGroups": [
+				{
+					"opsPerSec": 2,
+					"operations": [
+						"ContractCall",
+						"ContractCreate",
+						"FileCreate",
+						"FileUpdate",
+						"FileAppend",
+						"FileDelete",
+						"EthereumTransaction"
+					]
+				}
+			]
 		},
 		{
-		  "opsPerSec": 30,
-		  "operations": [
-			"ScheduleSign",
-			"TokenCreate",
-			"TokenDelete",
-			"TokenMint",
-			"TokenBurn",
-			"TokenPause",
-			"TokenUnpause",
-			"TokenUpdate",
-			"TokenFeeScheduleUpdate",
-			"TokenAssociateToAccount",
-			"TokenAccountWipe",
-			"TokenDissociateFromAccount",
-			"TokenFreezeAccount",
-			"TokenUnfreezeAccount",
-			"TokenGrantKycToAccount",
-			"TokenRevokeKycFromAccount"
-		  ]
-		}
-	  ]
-	},
-	{
-	  "name": "PriorityReservations",
-	  "burstPeriod": 3,
-	  "throttleGroups": [
-		{
-		  "opsPerSec": 2,
-		  "operations": [
-			"ContractCall",
-			"ContractCreate",
-			"FileCreate",
-			"FileUpdate",
-			"FileAppend",
-			"FileDelete",
-            "EthereumTransaction"
-		  ]
-		}
-	  ]
-	},
-	{
-	  "name": "CreationLimits",
-	  "burstPeriod": 6,
-	  "throttleGroups": [
-		{
-		  "opsPerSec": 1,
-		  "operations": [
-			"CryptoCreate"
-		  ]
+			"name": "CreationLimits",
+			"burstPeriod": 6,
+			"throttleGroups": [
+				{
+					"opsPerSec": 1,
+					"operations": [
+						"CryptoCreate"
+					]
+				},
+				{
+					"opsPerSec": 1,
+					"operations": [
+						"ConsensusCreateTopic"
+					]
+				},
+				{
+					"opsPerSec": 1,
+					"operations": [
+						"TokenCreate",
+						"TokenAssociateToAccount",
+						"ScheduleCreate"
+					]
+				}
+			]
 		},
 		{
-		  "opsPerSec": 1,
-		  "operations": [
-			"ConsensusCreateTopic"
-		  ]
-		},
-		{
-		  "opsPerSec": 1,
-		  "operations": [
-			"TokenCreate",
-			"TokenAssociateToAccount",
-			"ScheduleCreate"
-		  ]
+			"name": "FreeQueryLimits",
+			"burstPeriod": 1,
+			"throttleGroups": [
+				{
+					"opsPerSec": 100,
+					"operations": [
+						"CryptoGetAccountBalance"
+					]
+				},
+				{
+					"opsPerSec": 1000,
+					"operations": [
+						"TransactionGetReceipt"
+					]
+				}
+			]
 		}
-	  ]
-	},
-	{
-	  "name": "FreeQueryLimits",
-	  "burstPeriod": 1,
-	  "throttleGroups": [
-		{
-		  "opsPerSec": 100,
-		  "operations": [
-			"TransactionGetReceipt"
-		  ]
-		}
-	  ]
-	},
-    {
-	  "name": "BalanceQueryLimits",
-	  "burstPeriod": 1,
-	  "throttleGroups": [
-		{
-		  "opsPerSec": 10,
-		  "operations": [
-			"CryptoGetAccountBalance"
-		  ]
-		}
-	  ]
-	}
-  ]
+	]
 }

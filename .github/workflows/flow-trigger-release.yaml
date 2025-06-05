@@ -211,7 +211,7 @@ jobs:
           cat RELEASE.md
 
       - name: Publish Release Notes
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
         if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
         with:
           name: v${{ steps.next-release.outputs.version }}

@@ -229,12 +229,8 @@ public abstract class HapiSpecOperation implements SpecOperation {
         return Optional.empty();
     }
 
-    private void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
-        if (txnSubmitted != Transaction.getDefaultInstance()) {
-            spec.registry().saveBytes(txnName, txnSubmitted.toByteString());
-            final TransactionID txnId = extractTxnId(txnSubmitted);
-            spec.registry().saveTxnId(txnName, txnId);
-        }
+    protected void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
+        registerTransaction(spec, txnName, txnSubmitted);
     }
 
     protected Consumer<TransactionBody.Builder> bodyDef(final HapiSpec spec) {
@@ -457,9 +453,34 @@ public abstract class HapiSpecOperation implements SpecOperation {
         return payer;
     }
 
+    public String getTxnName() {
+        return txnName;
+    }
+
+    public boolean shouldRegisterTxn() {
+        return shouldRegisterTxn;
+    }
+
     protected ByteString rationalize(final String expectedLedgerId) {
         final var hex = expectedLedgerId.substring(2);
         final var bytes = HexFormat.of().parseHex(hex);
         return ByteString.copyFrom(bytes);
+    }
+
+    /**
+     * Registers a transaction in a {@link HapiSpec}'s registry by a given name
+     *
+     * @param spec the spec to register the transaction with
+     * @param txnName the name given to reference the transaction
+     * @param txn the value to store for the given name
+     * @throws Throwable if no transaction ID can be extracted from the given `txn` param
+     */
+    public static void registerTransaction(final HapiSpec spec, final String txnName, final Transaction txn)
+            throws Throwable {
+        if (txn != Transaction.getDefaultInstance()) {
+            spec.registry().saveBytes(txnName, txn.toByteString());
+            final TransactionID txnId = extractTxnId(txn);
+            spec.registry().saveTxnId(txnName, txnId);
+        }
     }
 }
