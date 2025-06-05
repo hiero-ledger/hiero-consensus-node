@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -181,8 +182,9 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          */
         void migrateFromV9ToV10() {
             SemanticVersion latestVersion = version(10, 0, 0);
+            TestMerkleStateRoot stateRoot = new TestMerkleStateRoot();
             schemaRegistry.migrate(
-                    new TestMerkleStateRoot(),
+                    stateRoot,
                     version(9, 0, 0),
                     latestVersion,
                     config,
@@ -192,6 +194,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     migrationStateChanges,
                     startupNetworks,
                     TEST_PLATFORM_STATE_FACADE);
+            stateRoot.release();
         }
     }
 
@@ -210,6 +213,14 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                 versions[i] = version(0, i, 0);
             }
             merkleTree = new TestMerkleStateRoot();
+        }
+
+        @AfterEach
+        void tearDown() {
+            merkleTree.release();
+            if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() >= 0) {
+                fruitVirtualMap.release();
+            }
         }
 
         @Test

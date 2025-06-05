@@ -83,6 +83,8 @@ public class WorkingDirUtils {
 
     private static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
 
+    private static final String LOG4J2_DATE_FORMAT = "%d{yyyy-MM-dd HH:mm:ss.SSS}";
+
     private WorkingDirUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
@@ -109,7 +111,8 @@ public class WorkingDirUtils {
      * @param workingDir the path to the working directory
      * @param configTxt the contents of the <i>config.txt</i> file
      */
-    public static void recreateWorkingDir(@NonNull final Path workingDir, @NonNull final String configTxt) {
+    public static void recreateWorkingDir(
+            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
         requireNonNull(workingDir);
         requireNonNull(configTxt);
 
@@ -130,7 +133,7 @@ public class WorkingDirUtils {
         // Copy the bootstrap assets into the working directory
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
         // Update the log4j2.xml file with the correct output directory
-        updateLog4j2XmlOutputDir(workingDir);
+        updateLog4j2XmlOutputDir(workingDir, nodeId);
     }
 
     /**
@@ -195,7 +198,7 @@ public class WorkingDirUtils {
                 : Path.of(TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC);
     }
 
-    private static void updateLog4j2XmlOutputDir(@NonNull final Path workingDir) {
+    private static void updateLog4j2XmlOutputDir(@NonNull final Path workingDir, long nodeId) {
         final var path = workingDir.resolve(LOG4J2_XML);
         final var log4j2Xml = readStringUnchecked(path);
         final var updatedLog4j2Xml = log4j2Xml
@@ -229,7 +232,9 @@ public class WorkingDirUtils {
                                  \s""")
                 .replace(
                         "output/",
-                        workingDir.resolve(OUTPUT_DIR).toAbsolutePath().normalize() + "/");
+                        workingDir.resolve(OUTPUT_DIR).toAbsolutePath().normalize() + "/")
+                // Differentiate between node outputs in combined logging
+                .replace(LOG4J2_DATE_FORMAT, LOG4J2_DATE_FORMAT + " &lt;" + "n" + nodeId + "&gt;");
         writeStringUnchecked(path, updatedLog4j2Xml, StandardOpenOption.WRITE);
     }
 

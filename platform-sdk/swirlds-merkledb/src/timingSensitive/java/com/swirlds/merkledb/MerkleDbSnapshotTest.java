@@ -17,7 +17,6 @@ import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.test.fixtures.AssertionUtils;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -25,6 +24,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValue;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValueSerializer;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -92,11 +92,7 @@ class MerkleDbSnapshotTest {
     @AfterEach
     public void afterTest() {
         // check db count
-        AssertionUtils.assertEventuallyEquals(
-                0L,
-                MerkleDbDataSource::getCountOfOpenDatabases,
-                Duration.ofSeconds(1),
-                "Expected no open dbs. Actual number of open dbs: " + MerkleDbDataSource.getCountOfOpenDatabases());
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     private static MerkleDbTableConfig fixedConfig() {

@@ -7,6 +7,8 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration.SOFTWARE_VERSION;
 import static org.hiero.otter.test.BirthRoundFreezeTestUtils.assertBirthRoundsBeforeAndAfterFreeze;
 
+import com.swirlds.platform.event.preconsensus.PcesConfig_;
+import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import java.time.Duration;
 import java.time.Instant;
 import org.hiero.consensus.config.EventConfig_;
@@ -17,8 +19,8 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 
 /**
- * Test class for verifying the behavior of birth rounds before and after a freeze in a network
- * that never used generation ancient mode.
+ * Test class for verifying the behavior of birth rounds before and after a freeze in a network that never used
+ * generation ancient mode.
  */
 public class BirthRoundFreezeTest {
 
@@ -49,18 +51,21 @@ public class BirthRoundFreezeTest {
         // Setup simulation
         network.addNodes(4);
         for (final Node node : network.getNodes()) {
-            node.getConfiguration().set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true);
-            node.getConfiguration().set(SOFTWARE_VERSION, OLD_VERSION);
+            node.getConfiguration()
+                    .set(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
+                    .set(SOFTWARE_VERSION, OLD_VERSION)
+                    .set(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
         }
         network.start(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Initiate the migration
-        env.generator().stop();
-        network.prepareUpgrade(ONE_MINUTE);
+        env.transactionGenerator().stop();
+        network.freeze(ONE_MINUTE);
+        network.shutdown(ONE_MINUTE);
 
         // Events with a created time before this time should have a maximum birth round of
         // the freeze round. Events created after this time should have a birth round greater
@@ -69,13 +74,15 @@ public class BirthRoundFreezeTest {
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
+        assertThat(network.getPcesResults()).hasMaxBirthRoundLessThanOrEqualTo(freezeRound);
+
         for (final Node node : network.getNodes()) {
             node.getConfiguration().set(SOFTWARE_VERSION, NEW_VERSION);
         }
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.resume(ONE_MINUTE);
-        env.generator().start();
+        env.transactionGenerator().start();
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
@@ -84,8 +91,8 @@ public class BirthRoundFreezeTest {
         assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResults())
-                .hasAdvancedSince(freezeRound)
-                .hasEqualRoundsIgnoringLast(withPercentage(5));
+                .haveAdvancedSinceRound(freezeRound)
+                .haveEqualRoundsIgnoringLast(withPercentage(5));
 
         assertBirthRoundsBeforeAndAfterFreeze(
                 network.getNodes().getFirst().getConsensusResult().consensusRounds(),

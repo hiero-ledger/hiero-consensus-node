@@ -78,6 +78,8 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.node.state.entity;
     exports org.hiero.block.api.codec;
+    exports com.hedera.hapi.block.stream.trace;
+    exports com.hedera.hapi.block.stream.trace.protoc;
 
     // for testing against Google protobuf
     opens com.hedera.hapi.block.stream.input.protoc;
