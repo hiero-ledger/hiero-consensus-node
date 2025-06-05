@@ -9,7 +9,6 @@ import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderVa
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
