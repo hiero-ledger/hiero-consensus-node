@@ -283,6 +283,8 @@ public class ShadowgraphSynchronizer {
         final SyncFallenBehindStatus status = SyncFallenBehindStatus.getStatus(self, other);
         if (status == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
             fallenBehindManager.reportFallenBehind(connection.getOtherId());
+        } else {
+            fallenBehindManager.clearFallenBehind(connection.getOtherId());
         }
 
         if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
