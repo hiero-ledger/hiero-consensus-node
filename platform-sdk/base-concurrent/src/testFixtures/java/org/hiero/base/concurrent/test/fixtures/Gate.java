@@ -2,6 +2,7 @@
 package org.hiero.base.concurrent.test.fixtures;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class Gate {
     private volatile CountDownLatch latch;
@@ -29,9 +30,16 @@ public class Gate {
     /**
      * Causes the calling thread to block if the gate is closed.
      * The first call to open will cause all blocked threads to continue.
+     * @param duration to wait
      */
-    public void knock() {
-        ThrowingRunnableWrapper.runWrappingChecked(latch::await);
+    public void knock(final long duration) {
+        try {
+            if (!latch.await(duration, TimeUnit.MILLISECONDS)) {
+                throw new IllegalStateException("Gate is still closed");
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while waiting for an execution to finish", e);
+        }
     }
 
     /**

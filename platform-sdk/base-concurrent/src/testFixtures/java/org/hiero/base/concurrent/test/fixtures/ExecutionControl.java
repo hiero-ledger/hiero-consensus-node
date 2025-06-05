@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.test.fixtures;
 
-import static org.hiero.base.concurrent.test.fixtures.ThrowingRunnableWrapper.runWrappingChecked;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.concurrent.Semaphore;
@@ -15,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 public class ExecutionControl {
     private final Semaphore semaphore;
     private final Gate gate;
+    private static final long DEFAULT_TIMEOUT = Duration.ofSeconds(10).toMillis();
 
     ExecutionControl(@NonNull final Gate gate) {
         this.semaphore = new Semaphore(0);
@@ -34,11 +33,13 @@ public class ExecutionControl {
      * @param duration the max time to wait for the mark to complete
      */
     public void await(int numberOfExecutions, final Duration duration) {
-        runWrappingChecked(() -> {
+        try {
             if (!semaphore.tryAcquire(numberOfExecutions, duration.toMillis(), TimeUnit.MILLISECONDS)) {
-                throw new RuntimeException("Timed out waiting for an execution to finish");
+                throw new RuntimeException("Timed out of %s waiting for an execution to finish:".formatted(duration));
             }
-        });
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while waiting for an execution to finish", e);
+        }
     }
 
     /**
@@ -60,7 +61,7 @@ public class ExecutionControl {
      * If the gate is closed, it will block the calling thread.
      */
     public void knock() {
-        gate.knock();
+        gate.knock(DEFAULT_TIMEOUT);
     }
 
     @Override

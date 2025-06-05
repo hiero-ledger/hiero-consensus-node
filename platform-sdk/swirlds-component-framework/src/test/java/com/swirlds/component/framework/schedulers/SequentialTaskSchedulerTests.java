@@ -45,7 +45,6 @@ import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
 import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
 import org.hiero.base.concurrent.test.fixtures.Gate;
 import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
-import org.hiero.base.concurrent.test.fixtures.ThrowingRunnableWrapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -94,7 +93,7 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger wireValue = new AtomicInteger();
         final ConsumerWithCompletionControl<Integer> handler =
-                ConsumerWithCompletionControl.unBlocked(x -> wireValue.set(hash32(wireValue.get(), x)));
+                ConsumerWithCompletionControl.unblocked(x -> wireValue.set(hash32(wireValue.get(), x)));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -138,7 +137,7 @@ class SequentialTaskSchedulerTests {
         final long expectedValue =
                 IntStream.range(0, ops).mapToLong(i -> (long) i).sum();
         // This will result in a deterministic value
-        final ConsumerWithCompletionControl<Long> handler = ConsumerWithCompletionControl.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Long> handler = ConsumerWithCompletionControl.unblocked(x -> {
             nonProcessedInput.remove(x.intValue());
             // This will result in a deterministic value
             wireValue.addAndGet(x);
@@ -174,10 +173,10 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger wireValue = new AtomicInteger();
         final Gate gate = Gate.closedGate();
-        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unblocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
             if (x == 50) {
-                gate.knock();
+                gate.knock(AWAIT_MAX_DURATION.toMillis());
             }
         });
 
@@ -225,9 +224,9 @@ class SequentialTaskSchedulerTests {
         final Gate gate98 = Gate.closedGate();
         final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.blocked(x -> {
             if (x == 50) {
-                gate50.knock();
+                gate50.knock(AWAIT_MAX_DURATION.toMillis());
             } else if (x == 98) {
-                gate98.knock();
+                gate98.knock(AWAIT_MAX_DURATION.toMillis());
             }
             wireValue.set(hash32(wireValue.get(), x));
         });
@@ -442,7 +441,7 @@ class SequentialTaskSchedulerTests {
         final int totalWork = 11;
         final AtomicInteger wireValue = new AtomicInteger();
         final ConsumerWithCompletionControl<Integer> handler =
-                ConsumerWithCompletionControl.unBlocked(x -> wireValue.set(hash32(wireValue.get(), x)));
+                ConsumerWithCompletionControl.unblocked(x -> wireValue.set(hash32(wireValue.get(), x)));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -612,11 +611,11 @@ class SequentialTaskSchedulerTests {
         final int totalWork = DEFAULT_OPERATIONS;
         final AtomicInteger wireValue = new AtomicInteger();
         final ConsumerWithCompletionControl<Integer> integerHandler =
-                ConsumerWithCompletionControl.unBlocked(x2 -> wireValue.set(hash32(wireValue.get(), x2)));
+                ConsumerWithCompletionControl.unblocked(x2 -> wireValue.set(hash32(wireValue.get(), x2)));
         final ConsumerWithCompletionControl<Boolean> booleanHandler =
-                ConsumerWithCompletionControl.unBlocked(x1 -> wireValue.set((x1 ? -1 : 1) * wireValue.get()));
+                ConsumerWithCompletionControl.unblocked(x1 -> wireValue.set((x1 ? -1 : 1) * wireValue.get()));
         final ConsumerWithCompletionControl<String> stringHandler =
-                ConsumerWithCompletionControl.unBlocked(x -> wireValue.set(hash32(wireValue.get(), x.hashCode())));
+                ConsumerWithCompletionControl.unblocked(x -> wireValue.set(hash32(wireValue.get(), x.hashCode())));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -677,7 +676,7 @@ class SequentialTaskSchedulerTests {
                 ConsumerWithCompletionControl.blocked(unprocessedArguments::remove);
 
         final ConsumerWithCompletionControl<Integer> handler2 =
-                ConsumerWithCompletionControl.unBlocked(unprocessedArguments::remove);
+                ConsumerWithCompletionControl.unblocked(unprocessedArguments::remove);
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -979,7 +978,7 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger wireValue = new AtomicInteger();
         final AtomicInteger lastX = new AtomicInteger();
-        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unBlocked(x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unblocked(x -> {
             lastX.set(x);
             if (x == 50) {
                 throw new IllegalStateException("intentional");
@@ -1204,7 +1203,7 @@ class SequentialTaskSchedulerTests {
         });
 
         final ConsumerWithCompletionControl<Integer> handlerD =
-                ConsumerWithCompletionControl.unBlocked(x -> countD.set(hash32(countD.get(), x)));
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
 
         inputA.bind(handlerA);
         inputB.bind(handlerB);
@@ -1284,7 +1283,7 @@ class SequentialTaskSchedulerTests {
         });
 
         final ConsumerWithCompletionControl<Integer> handlerD =
-                ConsumerWithCompletionControl.unBlocked(x -> countD.set(hash32(countD.get(), x)));
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
 
         inputA.bind(handlerA);
         inputB.bind(handlerB);
@@ -1390,7 +1389,7 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger sumB = new AtomicInteger();
         final ConsumerWithCompletionControl<Integer> handlerB =
-                ConsumerWithCompletionControl.unBlocked(sumB::getAndAdd);
+                ConsumerWithCompletionControl.unblocked(sumB::getAndAdd);
 
         addNewValueToA.bind(handlerA);
         setInversionBitInA.bind(handlerInvertA);
@@ -1609,7 +1608,7 @@ class SequentialTaskSchedulerTests {
         });
 
         final ConsumerWithCompletionControl<Integer> handlerD =
-                ConsumerWithCompletionControl.unBlocked(x -> countD.set(hash32(countD.get(), x)));
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
         inputA.bind(handlerA);
         inputB.bind(handlerB);
         inputC.bind(handlerC);
@@ -1721,7 +1720,7 @@ class SequentialTaskSchedulerTests {
         });
 
         final ConsumerWithCompletionControl<Integer> handlerD =
-                ConsumerWithCompletionControl.unBlocked(x -> countD.set(hash32(countD.get(), x)));
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
 
         inputA.bind(handlerA);
         inputB.bind(handlerB);
@@ -1786,11 +1785,11 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger count = new AtomicInteger();
         final ConsumerWithCompletionControl<Boolean> handlerBBool =
-                ConsumerWithCompletionControl.unBlocked(x2 -> count.set(hash32(count.get(), x2 ? 1 : 0)));
+                ConsumerWithCompletionControl.unblocked(x2 -> count.set(hash32(count.get(), x2 ? 1 : 0)));
         final ConsumerWithCompletionControl<String> handlerBString =
-                ConsumerWithCompletionControl.unBlocked(x1 -> count.set(hash32(count.get(), x1.hashCode())));
+                ConsumerWithCompletionControl.unblocked(x1 -> count.set(hash32(count.get(), x1.hashCode())));
         final ConsumerWithCompletionControl<Integer> handlerBInt =
-                ConsumerWithCompletionControl.unBlocked(x -> count.set(hash32(count.get(), x)));
+                ConsumerWithCompletionControl.unblocked(x -> count.set(hash32(count.get(), x)));
 
         aIn.bind(handlerA);
         bInBoolean.bindConsumer(handlerBBool);
@@ -2286,7 +2285,12 @@ class SequentialTaskSchedulerTests {
     }
 
     private static void sleep(long millis) {
-        new ThrowingRunnableWrapper(() -> Thread.sleep(millis), t -> fail("Unexpected interruption", t)).run();
+
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            fail("Unexpected interruption", e);
+        }
     }
 
     /**

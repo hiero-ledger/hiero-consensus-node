@@ -59,7 +59,7 @@ public final class ConsumerWithCompletionControl<H> implements Consumer<H> {
      * @param <H>     the type of the handler
      * @return the new {@link ConsumerWithCompletionControl}
      */
-    public static <H> ConsumerWithCompletionControl<H> unBlocked(@NonNull final Consumer<H> handler) {
+    public static <H> ConsumerWithCompletionControl<H> unblocked(@NonNull final Consumer<H> handler) {
         return new ConsumerWithCompletionControl<>(handler, Gate.openGate());
     }
 }
