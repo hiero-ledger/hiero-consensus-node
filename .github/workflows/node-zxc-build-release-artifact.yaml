@@ -3,6 +3,16 @@ name: "ZXC: [Node] Deploy Release Artifacts"
 on:
   workflow_call:
     inputs:
+      ref:
+        description: "Git Reference (branch, tag, or commit SHA)"
+        type: string
+        required: true
+        default: ""
+      ref-name:
+        description: "Git Reference Name (branch or tag)"
+        type: string
+        required: true
+        default: ""
       # Valid version policies are as follows: specified, branch-commit, adhoc-commit
       version-policy:
         description: "Version Policy:"
@@ -50,11 +60,6 @@ on:
         type: string
         required: false
         default: "wrapper"
-      ref:
-        description: "Git Reference (branch, tag, or commit SHA)"
-        type: string
-        required: false
-        default: ""
 
     secrets:
       access-token:
@@ -136,6 +141,8 @@ jobs:
           echo "::group::Show SemVer Binary Version Info"
           semver --version
           echo "::endgroup::"
+
+      # step to pull head ref and ref name based on the input ref.
 
       - name: Verify Workflow Parameters
         id: parameters
