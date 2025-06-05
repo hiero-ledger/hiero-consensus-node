@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -31,8 +29,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.api.Test;
 
 @DisplayName("TipsetTracker Tests")
 class TipsetTrackerTests {
@@ -54,13 +51,10 @@ class TipsetTrackerTests {
      * This test creates a bunch of events, adds them to the {@link TipsetTracker}, and verifies that the correct
      * tipsets for those added events are returned. Lastly, it advances the event window and verifies that tipsets for
      * ancient events are no longer returned by the tracker.
-     *
-     * @param ancientMode the ancient mode to use (i.e. generation or birth round)
      */
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @Test
     @DisplayName("Basic Behavior Test")
-    void basicBehaviorTest(final AncientMode ancientMode) {
+    void basicBehaviorTest() {
         final Random random = getRandomPrintSeed();
 
         final int nodeCount = random.nextInt(10, 20);
@@ -71,7 +65,7 @@ class TipsetTrackerTests {
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
         final Map<EventDescriptorWrapper, Tipset> expectedTipsets = new HashMap<>();
 
-        final TipsetTracker tracker = new TipsetTracker(Time.getCurrent(), selfId, roster, ancientMode);
+        final TipsetTracker tracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
 
         long birthRound = ConsensusConstants.ROUND_FIRST;
 
@@ -169,19 +163,16 @@ class TipsetTrackerTests {
         }
 
         // Slowly advance the ancient threshold, we should see tipsets disappear as we go.
-        long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD
-                ? ConsensusConstants.ROUND_FIRST
-                : EventConstants.FIRST_GENERATION;
+        long ancientThreshold = ConsensusConstants.ROUND_FIRST;
         while (tracker.size() > 0) {
             ancientThreshold += random.nextInt(1, 5);
             final EventWindow eventWindow = EventWindowBuilder.builder()
-                    .setAncientMode(ancientMode)
                     .setAncientThreshold(ancientThreshold)
                     .build();
             tracker.setEventWindow(eventWindow);
             assertEquals(eventWindow, tracker.getEventWindow());
             for (final EventDescriptorWrapper descriptor : expectedTipsets.keySet()) {
-                if (descriptor.getAncientIndicator(ancientMode) < ancientThreshold) {
+                if (descriptor.eventDescriptor().birthRound() < ancientThreshold) {
                     assertNull(tracker.getTipset(descriptor));
                 } else {
                     assertTipsetEquality(roster, expectedTipsets.get(descriptor), tracker.getTipset(descriptor));

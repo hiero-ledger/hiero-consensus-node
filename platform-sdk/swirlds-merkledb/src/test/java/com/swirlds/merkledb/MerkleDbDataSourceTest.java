@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
@@ -25,6 +24,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
@@ -45,6 +45,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -106,14 +107,12 @@ class MerkleDbDataSourceTest {
 
         final String tableName = "createAndCheckInternalNodeHashes";
         // check db count
-        assertEventuallyEquals(
-                0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
         final int count = 10_000;
         createAndApplyDataSource(testDirectory, tableName, testType, count, hashesRamToDiskThreshold, dataSource -> {
             // check db count
-            assertEventuallyEquals(
-                    1L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected only 1 db");
+            MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
             // create some node hashes
             dataSource.saveRecords(
@@ -138,8 +137,7 @@ class MerkleDbDataSourceTest {
             // close data source
             dataSource.close();
             // check db count
-            assertEventuallyEquals(
-                    0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+            MerkleDbTestUtils.assertAllDatabasesClosed();
             // check the database was deleted
             assertEventuallyFalse(
                     () -> Files.exists(testDirectory.resolve(tableName)),
@@ -462,8 +460,7 @@ class MerkleDbDataSourceTest {
             dataSource2.close();
         }
         // check db count
-        assertEventuallyEquals(
-                0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     boolean directMemoryUsageByDataFileIteratorWorkaroundApplied = false;
@@ -542,8 +539,7 @@ class MerkleDbDataSourceTest {
                 snapshotDataSource.close();
 
                 // check db count
-                assertEventuallyEquals(
-                        0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+                MerkleDbTestUtils.assertAllDatabasesClosed();
             });
         }
     }
@@ -606,8 +602,7 @@ class MerkleDbDataSourceTest {
                         .close(),
                 "Should be possible to instantiate data source with merging disabled");
         // check db count
-        assertEventuallyEquals(
-                0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @ParameterizedTest
@@ -845,6 +840,61 @@ class MerkleDbDataSourceTest {
         });
     }
 
+    @ParameterizedTest
+    @EnumSource(TestType.class)
+    void closeWhileFlushingTest(final TestType testType) throws IOException, InterruptedException {
+        final Path dbPath = testDirectory.resolve("merkledb-closeWhileFlushingTest-" + testType);
+        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(dbPath, "vm", 1000, 0, false, false);
+
+        final int count = 20;
+        final List<VirtualKey> keys = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            keys.add(testType.dataType().createVirtualLongKey(i));
+        }
+        final List<ExampleByteArrayVirtualValue> values = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            values.add(testType.dataType().createVirtualValue(i + 1));
+        }
+
+        final CountDownLatch updateStarted = new CountDownLatch(1);
+        final Thread closeThread = new Thread(() -> {
+            try {
+                updateStarted.await();
+                Thread.sleep(new Random().nextInt(100));
+                dataSource.close();
+            } catch (Exception z) {
+                // Print and ignore
+                z.printStackTrace(System.err);
+            }
+        });
+        closeThread.start();
+
+        final KeySerializer keySerializer = testType.dataType().getKeySerializer();
+        final ValueSerializer valueSerializer = testType.dataType().getValueSerializer();
+
+        updateStarted.countDown();
+        for (int i = 0; i < 10; i++) {
+            final int k = i;
+            try {
+                dataSource.saveRecords(
+                        count - 1,
+                        2 * count - 2,
+                        IntStream.range(0, count).mapToObj(j -> new VirtualHashRecord(k + j, hash(k + j + 1))),
+                        IntStream.range(count - 1, count)
+                                .mapToObj(j -> new VirtualLeafRecord<>(k + j, keys.get(k), values.get((k + j) % count)))
+                                .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                        Stream.empty(),
+                        true);
+            } catch (Exception z) {
+                // Print and ignore
+                z.printStackTrace(System.err);
+                break;
+            }
+        }
+
+        closeThread.join();
+    }
+
     // =================================================================================================================
     // Helper Methods
 
@@ -875,8 +925,7 @@ class MerkleDbDataSourceTest {
         } finally {
             dataSource.close();
         }
-        assertEventuallyEquals(
-                0L, MerkleDbDataSource::getCountOfOpenDatabases, Duration.ofSeconds(1), "Expected no open dbs");
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     public static VirtualHashRecord createVirtualInternalRecord(final int i) {

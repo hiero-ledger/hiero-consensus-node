@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -8,6 +9,7 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -57,9 +59,11 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
         requireNonNull(requestBuffer);
         requireNonNull(responseBuffer);
 
-        ResponseCodeEnum result = ResponseCodeEnum.OK;
+        ResponseCodeEnum result = OK;
         long estimatedFee = 0L;
 
+        // Track any throttle capacity used so we can reclaim it if we don't actually submit to consensus
+        final var checkerResult = new IngestChecker.Result();
         // Grab (and reference count) the state, so we have a consistent view of things
         try (final var wrappedState = stateAccessor.get()) {
             // 0. Node state pre-checks
@@ -68,10 +72,10 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
             // 1.-6. Parse and check the transaction
             final var state = wrappedState.get();
             final var configuration = configProvider.getConfiguration();
-            final var transactionInfo = ingestChecker.runAllChecks(state, requestBuffer, configuration);
+            ingestChecker.runAllChecks(state, requestBuffer, configuration, checkerResult);
 
             // 7. Submit to platform
-            submissionManager.submit(transactionInfo.txBody(), requestBuffer);
+            submissionManager.submit(checkerResult.txnInfoOrThrow().txBody(), requestBuffer);
         } catch (final InsufficientBalanceException e) {
             estimatedFee = e.getEstimatedFee();
             result = e.responseCode();
@@ -86,6 +90,10 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
         } catch (final Exception e) {
             logger.error("Possibly CATASTROPHIC failure while running the ingest workflow", e);
             result = ResponseCodeEnum.FAIL_INVALID;
+        }
+        // Reclaim any used throttle capacity if we failed (i.e., did not submit the transaction to consensus)
+        if (result != OK) {
+            checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
         }
 
         // 8. Return PreCheck code and estimated fee
