@@ -188,10 +188,13 @@ public class SwirldsPlatform implements Platform {
         // The reservation on this state is held by the caller of this constructor.
         final SignedState initialState = blocks.initialState().get();
 
-        // This method is a no-op if we are not in birth round mode, or if we have already migrated.
-        final SemanticVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
+
+        blocks.platformStateFacade().bulkUpdateOf(initialState.getState(), v -> {
+            v.setFirstVersionInBirthRoundMode(SemanticVersion.newBuilder().build());
+            v.setLastRoundBeforeBirthRoundMode(0);
+            v.setLowestJudgeGenerationBeforeBirthRoundMode(0);
+        });
 
         selfId = blocks.selfId();
 
