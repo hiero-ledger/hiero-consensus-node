@@ -85,7 +85,6 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
         final Bytes kb = keyCodec.toBytes(key);
         assert kb != null;
         virtualMap.put(getVirtualMapKeyForKv(serviceName, stateKey, key), value, valueCodec);
-        updateVmState();
         // Log to transaction state log, what was put
         logMapPut(computeLabel(serviceName, stateKey), key, value);
     }
@@ -94,7 +93,6 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     @Override
     protected void removeFromDataSource(@NonNull K key) {
         final var removed = virtualMap.remove(getVirtualMapKeyForKv(serviceName, stateKey, key), valueCodec);
-        updateVmState();
         // Log to transaction state log, what was removed
         logMapRemove(computeLabel(serviceName, stateKey), key, removed);
     }
@@ -106,10 +104,5 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
         // Log to transaction state log, size of map
         logMapGetSize(computeLabel(serviceName, stateKey), size);
         return size;
-    }
-
-    private void updateVmState() {
-        VirtualMapState vmState = virtualMap.getState();
-        virtualMap.put(VM_STATE_KEY, vmState, null, vmState.toBytes());
     }
 }
