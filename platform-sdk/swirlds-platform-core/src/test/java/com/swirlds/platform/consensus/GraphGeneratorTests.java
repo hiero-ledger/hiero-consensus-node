@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -484,7 +486,6 @@ public class GraphGeneratorTests {
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Forking Source Test")
-    @Disabled("Need to find a better way to verify that branches were created")
     public void forkingSourceTest() {
         final int numberOfEvents = 1000;
 
@@ -498,7 +499,15 @@ public class GraphGeneratorTests {
 
         final List<EventImpl> events = generator.generateEvents(numberOfEvents);
 
-        assertFalse(areBirthRoundNumbersValid(events, 4));
+        final boolean multipleSelfParents = events.stream()
+                .map(EventImpl::getSelfParent)
+                .filter(Objects::nonNull)
+                .map(EventImpl::getBaseHash)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .values()
+                .stream()
+                .anyMatch(c -> c > 1);
+        assertTrue(multipleSelfParents, "Expected multiple self parents in the event list");
     }
 
     @Test
