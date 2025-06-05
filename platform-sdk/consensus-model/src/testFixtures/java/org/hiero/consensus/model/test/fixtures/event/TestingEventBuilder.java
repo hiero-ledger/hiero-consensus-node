@@ -5,7 +5,6 @@ import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREAT
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
@@ -464,20 +463,22 @@ public class TestingEventBuilder {
      */
     @Nullable
     private EventDescriptorWrapper createDescriptorFromParent(
-            @Nullable final PlatformEvent parent,
-            @Nullable final Long birthRoundOverride) {
+            @Nullable final PlatformEvent parent, @Nullable final Long birthRoundOverride) {
         if (parent == null) {
             if (birthRoundOverride != null) {
                 throw new IllegalArgumentException("Cannot override birth round on a parent that doesn't exist");
             }
             return null;
         }
-        if(birthRoundOverride == null){
+        if (birthRoundOverride == null) {
             return parent.getDescriptor();
         }
 
-        return new EventDescriptorWrapper(
-                parent.getDescriptor().eventDescriptor().copyBuilder().birthRound(birthRoundOverride).build());
+        return new EventDescriptorWrapper(parent.getDescriptor()
+                .eventDescriptor()
+                .copyBuilder()
+                .birthRound(birthRoundOverride)
+                .build());
     }
 
     /**
@@ -502,8 +503,7 @@ public class TestingEventBuilder {
                 createDescriptorFromParent(selfParent, selfParentBirthRoundOverride);
         final List<EventDescriptorWrapper> otherParentDescriptors = Stream.ofNullable(otherParents)
                 .flatMap(List::stream)
-                .map(parent -> createDescriptorFromParent(
-                        parent, otherParentBirthRoundOverride))
+                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride))
                 .toList();
 
         if (this.birthRound == null) {
