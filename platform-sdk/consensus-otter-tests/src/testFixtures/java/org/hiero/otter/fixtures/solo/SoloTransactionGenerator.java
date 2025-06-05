@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.solo;
 
 import org.apache.logging.log4j.LogManager;

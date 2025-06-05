@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
-import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
@@ -234,7 +233,7 @@ public abstract class AbstractNetwork implements Network {
          * @param timeout the duration to wait for actions to complete
          */
         public AsyncNetworkActionsImpl(@NonNull final Duration timeout) {
-            this.timeout = requireNonNull(timeout);
+            this.timeout = timeout;
         }
 
         /**

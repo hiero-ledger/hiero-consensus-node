@@ -34,7 +34,9 @@ public class SoloNetwork extends AbstractNetwork implements Network {
      * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
      */
-    public SoloNetwork(@NonNull final RegularTimeManager timeManager, @NonNull final SoloTransactionGenerator transactionGenerator) {
+    public SoloNetwork(
+            @NonNull final RegularTimeManager timeManager,
+            @NonNull final SoloTransactionGenerator transactionGenerator) {
         super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
