@@ -4,6 +4,9 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItemType.BLOCK_ITEM;
 import static java.util.Objects.requireNonNull;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Scheduler;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -15,6 +18,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,17 +46,13 @@ public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
 
     /**
-     * Buffer that stores recent blocks. This buffer is unbounded, however when opening a new block the buffer will be
-     * pruned. Generally speaking, the buffer should contain only blocks that are recent (that is within the configured
-     * {@link BlockStreamConfig#blockBufferTtl() TTL}) and have yet to be acknowledged. There may be cases where older
-     * blocks still exist in the buffer if they are unacknowledged, but once they are acknowledged they will be pruned
-     * the next time {@link #openBlock(long)} is invoked.
+     * Buffer that stores recent blocks. This buffer is unbounded, however it is technically capped because back
+     * pressure will prevent blocks from being created. Generally speaking, the buffer should contain only blocks that
+     * are recent (that is within the configured {@link BlockStreamConfig#blockBufferTtl() TTL}) and have yet to be
+     * acknowledged. There may be cases where older blocks still exist in the buffer if they are unacknowledged, but
+     * once they are acknowledged they will be pruned the next time {@link #openBlock(long)} is invoked.
      */
-    private final Queue<BlockState> blockBuffer = new ConcurrentLinkedQueue<>();
-    /**
-     * Map for quickly looking up blocks by their ID/number. This will get pruned along with the buffer periodically.
-     */
-    private final ConcurrentMap<Long, BlockState> blockStatesById = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, BlockState> blockBuffer = new ConcurrentHashMap<>();
     /**
      * Flag to indicate if the buffer contains blocks that have expired but are still unacknowledged.
      */
@@ -114,6 +114,11 @@ public class BlockBufferService {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
         isStreamingEnabled.set(streamToBlockNodesEnabled());
+
+        Cache<Integer, String> c = Caffeine.newBuilder()
+                .scheduler(Scheduler.systemScheduler())
+                .expireAfterAccess(Duration.ofSeconds(30))
+                .build();
 
         // Only start the pruning thread if we're streaming to block nodes
         if (isStreamingEnabled.get()) {
@@ -241,8 +246,7 @@ public class BlockBufferService {
 
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
-        blockBuffer.add(blockState);
-        blockStatesById.put(blockNumber, blockState);
+        blockBuffer.put(blockNumber, blockState);
         this.lastProducedBlockNumber = blockNumber;
         blockStreamMetrics.setProducingBlockNumber(blockNumber);
         blockNodeConnectionManager.openBlock(blockNumber);
@@ -294,7 +298,7 @@ public class BlockBufferService {
      * @return the block state, or null if no block state exists for the given block number
      */
     public @Nullable BlockState getBlockState(final long blockNumber) {
-        return blockStatesById.get(blockNumber);
+        return blockBuffer.get(blockNumber);
     }
 
     /**
@@ -387,7 +391,7 @@ public class BlockBufferService {
     private @NonNull PruneResult pruneBuffer() {
         final Duration ttl = blockBufferTtl();
         final Instant cutoffInstant = Instant.now().minus(ttl);
-        final Iterator<BlockState> it = blockBuffer.iterator();
+        final Iterator<Map.Entry<Long, BlockState>> it = blockBuffer.entrySet().iterator();
         final long highestBlockAcked = highestAckedBlockNumber.get();
         /*
         Calculate the ideal max buffer size. This is calculated as the block buffer TTL (e.g. 5 minutes) divided by the
@@ -400,14 +404,14 @@ public class BlockBufferService {
         final AtomicReference<Instant> oldestUnackedTimestamp = new AtomicReference<>(Instant.MAX);
 
         while (it.hasNext()) {
-            final BlockState block = it.next();
+            final Map.Entry<Long, BlockState> blockEntry = it.next();
+            final BlockState block = blockEntry.getValue();
             ++numChecked;
 
             if (block.completionTimestamp() != null) {
                 if (block.blockNumber() <= highestBlockAcked) {
                     // this block is eligible for pruning if it is old enough
                     if (block.completionTimestamp().isBefore(cutoffInstant)) {
-                        blockStatesById.remove(block.blockNumber());
                         it.remove();
                         ++numPruned;
                     }
