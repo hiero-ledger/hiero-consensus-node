@@ -190,7 +190,7 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ github.ref }}"
+            "ref": "${{ github.sha }}",
             }'
 
   report-failure:
