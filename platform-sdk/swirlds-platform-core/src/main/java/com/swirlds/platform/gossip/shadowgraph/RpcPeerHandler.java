@@ -229,7 +229,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
                 logger.info(
                         LogMarker.RECONNECT.getMarker(),
                         "Latest event window is not really falling behind, will retry sync local ev={} remote ev={}",
-                        latestShadowWindow,
+                        latestShadowWindow.getEventWindow(),
                         remoteEventWindow);
                 return true;
             }

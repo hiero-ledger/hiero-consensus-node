@@ -183,6 +183,110 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
                 connection, timing, sendList, syncConfig.syncKeepalivePeriod(), syncConfig.maxSyncTime());
     }
 
+    @NonNull
+    private List<ShadowEvent> getTips() {
+        final List<ShadowEvent> myTips = shadowGraph.getTips();
+        syncMetrics.updateTipsPerSync(myTips.size());
+        syncMetrics.updateMultiTipsPerSync(SyncUtils.computeMultiTipCount(myTips));
+        return myTips;
+    }
+
+    /**
+     * Decide if we have fallen behind with respect to this peer.
+     *
+     * @param self       our event window
+     * @param other      their event window
+     * @param connection the connection to use
+     * @return true if we have fallen behind, false otherwise
+     */
+    private boolean fallenBehind(
+            @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final Connection connection) {
+        Objects.requireNonNull(self);
+        Objects.requireNonNull(other);
+        Objects.requireNonNull(connection);
+
+        final SyncFallenBehindStatus status = SyncFallenBehindStatus.getStatus(self, other);
+        if (status == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+            fallenBehindManager.reportFallenBehind(connection.getOtherId());
+        } else {
+            fallenBehindManager.clearFallenBehind(connection.getOtherId());
+        }
+
+        if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
+            logger.info(SYNC_INFO.getMarker(), "{} aborting sync due to {}", connection.getDescription(), status);
+            return true; // abort the sync
+        }
+        return false;
+    }
+
+    /**
+     * Create a list of events to send to the peer.
+     *
+     * @param selfId           the id of this node
+     * @param knownSet         the set of events that the peer already has (this is incomplete at this stage and is
+     *                         added to during this method)
+     * @param myEventWindow    the event window of this node
+     * @param theirEventWindow the event window of the peer
+     * @return a list of events to send to the peer
+     */
+    @NonNull
+    private List<PlatformEvent> createSendList(
+            @NonNull final NodeId selfId,
+            @NonNull final Set<ShadowEvent> knownSet,
+            @NonNull final EventWindow myEventWindow,
+            @NonNull final EventWindow theirEventWindow) {
+
+        Objects.requireNonNull(selfId);
+        Objects.requireNonNull(knownSet);
+        Objects.requireNonNull(myEventWindow);
+        Objects.requireNonNull(theirEventWindow);
+
+        // add to knownSet all the ancestors of each known event
+        final Set<ShadowEvent> knownAncestors = shadowGraph.findAncestors(
+                knownSet, SyncUtils.unknownNonAncient(knownSet, myEventWindow, theirEventWindow, ancientMode));
+
+        // since knownAncestors is a lot bigger than knownSet, it is a lot cheaper to add knownSet to knownAncestors
+        // then vice versa
+        knownAncestors.addAll(knownSet);
+
+        syncMetrics.knownSetSize(knownAncestors.size());
+
+        // predicate used to search for events to send
+        final Predicate<ShadowEvent> knownAncestorsPredicate =
+                SyncUtils.unknownNonAncient(knownAncestors, myEventWindow, theirEventWindow, ancientMode);
+
+        // in order to get the peer the latest events, we get a new set of tips to search from
+        final List<ShadowEvent> myNewTips = shadowGraph.getTips();
+
+        // find all ancestors of tips that are not known
+        final List<ShadowEvent> unknownTips =
+                myNewTips.stream().filter(knownAncestorsPredicate).collect(Collectors.toList());
+        final Set<ShadowEvent> sendSet = shadowGraph.findAncestors(unknownTips, knownAncestorsPredicate);
+        // add the tips themselves
+        sendSet.addAll(unknownTips);
+
+        final List<PlatformEvent> eventsTheyMayNeed =
+                sendSet.stream().map(ShadowEvent::getEvent).collect(Collectors.toCollection(ArrayList::new));
+
+        SyncUtils.sort(eventsTheyMayNeed);
+
+        List<PlatformEvent> sendList;
+        if (filterLikelyDuplicates) {
+            final long startFilterTime = time.nanoTime();
+            sendList = filterLikelyDuplicates(selfId, nonAncestorFilterThreshold, time.now(), eventsTheyMayNeed);
+            final long endFilterTime = time.nanoTime();
+            syncMetrics.recordSyncFilterTime(endFilterTime - startFilterTime);
+        } else {
+            sendList = eventsTheyMayNeed;
+        }
+
+        if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
+            sendList = sendList.subList(0, maximumEventsPerSync);
+        }
+
+        return sendList;
+    }
+
     /**
      * By this point in time, we have figured out which events we want to send the peer, and the peer has figured out
      * which events it wants to send us. In parallel, send and receive those events.
