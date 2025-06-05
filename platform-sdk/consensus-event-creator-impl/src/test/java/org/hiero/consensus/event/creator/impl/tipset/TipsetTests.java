@@ -73,11 +73,10 @@ class TipsetTests {
 
         for (var entry : roster.rosterEntries()) {
             maxTipset.advance(NodeId.of(entry.nodeId()), Long.MAX_VALUE);
-            final long generation = random.nextLong();
-            biggerTipset.advance(
-                    NodeId.of(entry.nodeId()), generation == Long.MAX_VALUE ? Long.MAX_VALUE : generation + 1);
+            final long generation = random.nextLong(1, Long.MAX_VALUE - 1);
+            biggerTipset.advance(NodeId.of(entry.nodeId()), generation + 1);
             randomTipset.advance(NodeId.of(entry.nodeId()), generation);
-            smallerTipset.advance(NodeId.of(entry.nodeId()), generation == 0 ? 0 : generation - 1);
+            smallerTipset.advance(NodeId.of(entry.nodeId()), generation - 1);
         }
 
         // verify that an empty tipset merged against any other the result is the other
