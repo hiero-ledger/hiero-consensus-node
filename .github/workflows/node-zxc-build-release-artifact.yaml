@@ -50,6 +50,11 @@ on:
         type: string
         required: false
         default: "wrapper"
+      ref:
+        description: "Git Reference (branch, tag, or commit SHA)"
+        type: string
+        required: false
+        default: ""
 
     secrets:
       access-token:
