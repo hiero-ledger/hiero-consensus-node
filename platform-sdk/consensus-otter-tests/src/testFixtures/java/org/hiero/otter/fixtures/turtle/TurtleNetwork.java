@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -48,7 +49,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
     private final List<TurtleNode> nodes = new ArrayList<>();
     private final TurtleTransactionGenerator transactionGenerator;
 
-    private List<Node> publicNodes = List.of();
+    private List<Node> publicNodes = Collections.unmodifiableList(nodes);
     private ExecutorService executorService;
     private SimulatedNetwork simulatedNetwork;
 
@@ -131,7 +132,6 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
                 .toList();
         nodes.addAll(nodeList);
 
-        publicNodes = nodes.stream().map(Node.class::cast).toList();
         return publicNodes;
     }
 
@@ -170,7 +170,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         }
 
         simulatedNetwork.tick(now);
-        transactionGenerator.tick(now, publicNodes);
+        transactionGenerator.tick(now, nodes);
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
@@ -186,7 +186,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
      *
      * @throws InterruptedException if the thread is interrupted while the network is being destroyed
      */
-    public void destroy() throws InterruptedException {
+    void destroy() throws InterruptedException {
         log.info("Destroying network...");
         transactionGenerator.stop();
         for (final TurtleNode node : nodes) {

@@ -13,7 +13,7 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
  */
 public class SoloTestEnvironment implements TestEnvironment {
 
-    private final Network network;
+    private final SoloNetwork network;
     private final RegularTimeManager timeManager = new RegularTimeManager();
     private final SoloTransactionGenerator transactionGenerator = new SoloTransactionGenerator();
 
@@ -56,6 +56,6 @@ public class SoloTestEnvironment implements TestEnvironment {
      */
     @Override
     public void destroy() throws InterruptedException {
-        network.shutdown();
+        network.destroy();
     }
 }

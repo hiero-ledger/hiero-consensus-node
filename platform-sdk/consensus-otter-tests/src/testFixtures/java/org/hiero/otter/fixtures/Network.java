@@ -51,6 +51,8 @@ public interface Network {
     /**
      * Get the list of nodes in the network.
      *
+     * <p>The returned list is automatically updated when nodes are added or removed.
+     *
      * @return a list of nodes in the network
      */
     @NonNull
