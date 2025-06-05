@@ -14,6 +14,7 @@ import com.swirlds.component.framework.wires.input.TaskSchedulerInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -38,6 +39,7 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     private final TraceableWiringModel model;
     private final String name;
     private final TaskSchedulerType type;
+    private final UncaughtExceptionHandler uncaughtExceptionHandler;
     private final StandardOutputWire<OUT> primaryOutputWire;
     private final boolean insertionIsBlocking;
 
@@ -50,18 +52,21 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     /**
      * Constructor.
      *
-     * @param model               the wiring model containing this task scheduler
-     * @param name                the name of the task scheduler
-     * @param type                the type of task scheduler
-     * @param flushEnabled        if true, then {@link #flush()} will be enabled, otherwise it will throw.
-     * @param squelchingEnabled   if true, then squelching will be enabled, otherwise trying to squelch will throw.
-     * @param insertionIsBlocking when data is inserted into this task scheduler, will it block until capacity is
-     *                            available?
+     * @param model                    the wiring model containing this task scheduler
+     * @param name                     the name of the task scheduler
+     * @param type                     the type of task scheduler
+     * @param uncaughtExceptionHandler the handler for uncaught exceptions
+     * @param flushEnabled             if true, then {@link #flush()} will be enabled, otherwise it will throw.
+     * @param squelchingEnabled        if true, then squelching will be enabled, otherwise trying to squelch will
+     *                                 throw.
+     * @param insertionIsBlocking      when data is inserted into this task scheduler, will it block until capacity is
+     *                                 available?
      */
     protected TaskScheduler(
             @NonNull final TraceableWiringModel model,
             @NonNull final String name,
             @NonNull final TaskSchedulerType type,
+            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler,
             final boolean flushEnabled,
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
@@ -69,6 +74,7 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
         this.model = Objects.requireNonNull(model);
         this.name = Objects.requireNonNull(name);
         this.type = Objects.requireNonNull(type);
+        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.flushEnabled = flushEnabled;
 
         if (squelchingEnabled) {
@@ -104,7 +110,7 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     @NonNull
     protected StandardOutputWire<OUT> buildPrimaryOutputWire(
             @NonNull final TraceableWiringModel model, @NonNull final String name) {
-        return new StandardOutputWire<>(model, name);
+        return new StandardOutputWire<>(model, name, getUncaughtExceptionHandler());
     }
 
     /**
@@ -135,7 +141,7 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     public <T> StandardOutputWire<T> buildSecondaryOutputWire() {
         // Intentionally do not register this with the model. Connections using this output wire will be represented
         // in the model in the same way as connections to the primary output wire.
-        return new StandardOutputWire<>(model, name);
+        return new StandardOutputWire<>(model, name, getUncaughtExceptionHandler());
     }
 
     /**
@@ -156,6 +162,16 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     @NonNull
     public TaskSchedulerType getType() {
         return type;
+    }
+
+    /**
+     * Return the handler for uncaught exceptions
+     *
+     * @return the handler for uncaught exceptions
+     */
+    @NonNull
+    protected UncaughtExceptionHandler getUncaughtExceptionHandler() {
+        return uncaughtExceptionHandler;
     }
 
     /**
