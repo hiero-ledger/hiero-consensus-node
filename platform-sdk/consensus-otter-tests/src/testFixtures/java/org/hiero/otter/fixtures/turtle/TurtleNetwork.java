@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -80,9 +81,9 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron the random generator
-     * @param timeManager the time manager
-     * @param logging the logging utility
+     * @param randotron           the random generator
+     * @param timeManager         the time manager
+     * @param logging             the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
      */
@@ -194,6 +195,26 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
+    public void setVersion(@NonNull final SemanticVersion version) {
+        for (final TurtleNode node : nodes) {
+            node.setVersion(version);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void bumpConfigVersion() {
+        for (final TurtleNode node : nodes) {
+            node.bumpConfigVersion();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public MultipleNodeConsensusResults getConsensusResults() {
         final List<SingleNodeConsensusResult> results =
@@ -271,7 +292,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     }
 
     /**
-     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given {@link PlatformStatus}.
+     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given
+     * {@link PlatformStatus}.
      *
      * @param status the status to check
      * @return the {@link BooleanSupplier}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -18,6 +19,11 @@ import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
  */
 @SuppressWarnings("unused")
 public interface Node {
+
+    /**
+     * The default software version of the node when no specific version is set for the node.
+     */
+    SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
 
     /**
      * Kill the node without prior cleanup.
@@ -97,6 +103,32 @@ public interface Node {
      */
     @Nullable
     PlatformStatus platformStatus();
+
+    /**
+     * Gets the software version of the node.
+     *
+     * @return the software version of the node
+     */
+    @NonNull
+    SemanticVersion getVersion();
+
+    /**
+     * Sets the software version of the node.
+     *
+     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used.
+     *
+     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     *
+     * @param version the software version to set for the node
+     */
+    void setVersion(@NonNull SemanticVersion version);
+
+    /**
+     * This method updates the version to trigger a "config only upgrade" on the next restart.
+     *
+     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     */
+    void bumpConfigVersion();
 
     /**
      * Gets the consensus rounds of the node.
