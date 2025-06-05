@@ -12,7 +12,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -72,7 +71,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -166,6 +164,9 @@ class HandleWorkflowTest {
 
     @Mock
     private NodeRewardManager nodeRewardManager;
+
+    @Mock
+    private BlockBufferService blockBufferService;
 
     private HandleWorkflow subject;
 
@@ -482,14 +483,15 @@ class HandleWorkflowTest {
                 () -> PlatformStatus.ACTIVE,
                 blockHashSigner,
                 null,
-                nodeRewardManager);
+                nodeRewardManager,
+                blockBufferService);
     }
 
     @Test
     void startRoundShouldCallEnsureNewBlocksPermitted() {
         // Mock the round iterator and event
-        NodeId creatorId = NodeId.of(0);
-        Hash eventHash = CryptoRandomUtils.randomHash();
+        final NodeId creatorId = NodeId.of(0);
+        final Hash eventHash = CryptoRandomUtils.randomHash();
         given(event.getHash()).willReturn(eventHash);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
@@ -503,13 +505,8 @@ class HandleWorkflowTest {
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
 
-        // Use a static mock to verify the static method call
-        try (final MockedStatic<BlockBufferService> mockedStatic = mockStatic(BlockBufferService.class)) {
-            // Execute the method
-            subject.handleRound(state, round, txn -> {});
+        subject.handleRound(state, round, txn -> {});
 
-            // Verify that ensureNewBlocksPermitted was called
-            mockedStatic.verify(BlockBufferService::ensureNewBlocksPermitted);
-        }
+        verify(blockBufferService).ensureNewBlocksPermitted();
     }
 }

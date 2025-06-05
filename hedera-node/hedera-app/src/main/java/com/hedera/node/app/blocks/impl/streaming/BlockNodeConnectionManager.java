@@ -47,6 +47,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
@@ -64,6 +66,7 @@ import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
  *   <li>Coordinating block streaming across connections</li>
  * </ul>
  */
+@Singleton
 public class BlockNodeConnectionManager {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
@@ -139,7 +142,7 @@ public class BlockNodeConnectionManager {
     /**
      * Reference to the worker thread that handles creating requests and sending requests to the connected block node.
      */
-    private AtomicReference<Thread> blockStreamWorkerThreadRef;
+    private final AtomicReference<Thread> blockStreamWorkerThreadRef = new AtomicReference<>();
     /**
      * Map that contains one or more connections to block nodes. The connections in this map will be a subset (or all)
      * of the available block node connections. (see {@link BlockNodeConnectionManager#availableBlockNodes})
@@ -161,6 +164,7 @@ public class BlockNodeConnectionManager {
      * @param blockStreamMetrics the block stream metrics to track
      * @param executorService the scheduled executor service used to perform async connection operations (e.g. reconnect)
      */
+    @Inject
     public BlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
@@ -175,18 +179,18 @@ public class BlockNodeConnectionManager {
         final String endpoint =
                 BlockStreamPublishServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
         grpcEndpoint = requireNonNull(endpoint, "gRPC endpoint is missing");
-
         isStreamingEnabled.set(isStreamingEnabled());
+
         if (isStreamingEnabled.get()) {
             final String blockNodeConnectionConfigPath = blockNodeConnectionFileDir();
 
             availableBlockNodes = new ArrayList<>(extractBlockNodesConfigurations(blockNodeConnectionConfigPath));
             logger.info("Loaded block node configuration from {}", blockNodeConnectionConfigPath);
             logger.info("Block node configuration: {}", availableBlockNodes);
+            blockStreamMetrics.registerMetrics();
         } else {
             logger.info("Block node streaming is disabled; will not setup connections to block nodes");
             availableBlockNodes = new ArrayList<>();
-            blockStreamWorkerThreadRef = new AtomicReference<>(null);
         }
     }
 
@@ -390,12 +394,12 @@ public class BlockNodeConnectionManager {
             throw new IllegalStateException("Connection manager already started");
         }
 
-        final Thread workerThread =
-                Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
-        blockStreamMetrics.registerMetrics();
-        blockStreamWorkerThreadRef = new AtomicReference<>(workerThread);
+        // start worker thread
+        final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
+        blockStreamWorkerThreadRef.set(t);
 
         if (!selectNewBlockNodeForStreaming()) {
+            isConnectionManagerActive.set(false);
             throw new IllegalStateException("No block nodes available to connect to");
         }
     }

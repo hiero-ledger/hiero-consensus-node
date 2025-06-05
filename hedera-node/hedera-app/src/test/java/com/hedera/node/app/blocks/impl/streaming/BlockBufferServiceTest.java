@@ -31,6 +31,7 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
@@ -60,18 +61,17 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         try {
             final Lookup lookup = MethodHandles.lookup();
             blockBufferHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "blockBuffer", Queue.class);
+                    .findVarHandle(BlockBufferService.class, "blockBuffer", ConcurrentMap.class);
             execSvcHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
             isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findStaticVarHandle(BlockBufferService.class, "isStreamingEnabled", AtomicBoolean.class);
+                    .findVarHandle(BlockBufferService.class, "isStreamingEnabled", AtomicBoolean.class);
             blockStreamItemQueueHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "blockStreamItemQueue", Queue.class);
             isBufferSaturatedHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "isBufferSaturated", AtomicBoolean.class);
             backPressureFutureRefHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findStaticVarHandle(
-                            BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
+                    .findVarHandle(BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
 
             final Method checkBufferMethod = BlockBufferService.class.getDeclaredMethod("checkBuffer");
             checkBufferMethod.setAccessible(true);
@@ -108,7 +108,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @AfterEach
     void afterEach() throws InterruptedException {
-        final CompletableFuture<Boolean> f = backpressureCompletableFutureRef().getAndSet(null);
+        final CompletableFuture<Boolean> f =
+                backpressureCompletableFutureRef(blockBufferService).getAndSet(null);
         if (f != null) {
             f.complete(false);
         }
@@ -361,7 +362,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(connectionManager);
-        final Queue<BlockState> buffer = bufferQueue(blockBufferService);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
         final AtomicBoolean isBufferSaturated = isBufferSaturated(blockBufferService);
 
         // IdealMaxBufferSize = BlockTtl (5s) / BlockPeriod (1s) = 5
@@ -382,8 +383,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         checkBufferHandle.invoke(blockBufferService);
         assertThat(isBufferSaturated).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(80.0); // the buffer is 80% saturated
-        long oldestUnackedMillis =
-                blockBufferService.getBlockState(1L).completionTimestamp().toEpochMilli();
+        long oldestUnackedMillis = buffer.get(1L).completionTimestamp().toEpochMilli();
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
         assertThat(buffer).hasSize(4);
 
@@ -397,8 +397,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // the buffer is now marked as saturated because multiple blocks have not been acked yet and they are expired
         assertThat(isBufferSaturated).isTrue();
         verify(blockStreamMetrics).updateBlockBufferSaturation(100.0); // the buffer is 100% saturated
-        oldestUnackedMillis =
-                blockBufferService.getBlockState(1L).completionTimestamp().toEpochMilli();
+        oldestUnackedMillis = buffer.get(1L).completionTimestamp().toEpochMilli();
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
 
         // reset the block stream metrics mock to capture the next interaction that has the same value as before
@@ -412,8 +411,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         checkBufferHandle.invoke(blockBufferService);
         assertThat(isBufferSaturated).isTrue();
         verify(blockStreamMetrics).updateBlockBufferSaturation(120.0); // the buffer is 120% saturated
-        oldestUnackedMillis =
-                blockBufferService.getBlockState(1L).completionTimestamp().toEpochMilli();
+        oldestUnackedMillis = buffer.get(1L).completionTimestamp().toEpochMilli();
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(6);
@@ -431,8 +429,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         checkBufferHandle.invoke(blockBufferService);
         assertThat(isBufferSaturated).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(60.0); // the buffer is 60% saturated
-        oldestUnackedMillis =
-                blockBufferService.getBlockState(4L).completionTimestamp().toEpochMilli();
+        oldestUnackedMillis = buffer.get(4L).completionTimestamp().toEpochMilli();
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(3);
@@ -453,8 +450,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         checkBufferHandle.invoke(blockBufferService);
         assertThat(isBufferSaturated).isFalse();
         verify(blockStreamMetrics).updateBlockBufferSaturation(20.0); // the buffer is 20% saturated
-        oldestUnackedMillis =
-                blockBufferService.getBlockState(7L).completionTimestamp().toEpochMilli();
+        oldestUnackedMillis = buffer.get(7L).completionTimestamp().toEpochMilli();
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(1);
@@ -519,10 +515,10 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // Add another block to trigger the prune, then verify the state... there should only be blocks 6 and 7 buffered
         blockBufferService.openBlock(7L);
 
-        final Queue<BlockState> buffer = bufferQueue(blockBufferService);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
         assertThat(buffer).hasSize(2);
-        assertThat(blockBufferService.getBlockState(6L)).isNotNull();
-        assertThat(blockBufferService.getBlockState(7L)).isNotNull();
+        assertThat(buffer.get(6L)).isNotNull();
+        assertThat(buffer.get(7L)).isNotNull();
     }
 
     @Test
@@ -552,7 +548,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 startLatch.await();
 
                 final long start = System.currentTimeMillis();
-                BlockBufferService.ensureNewBlocksPermitted();
+                blockBufferService.ensureNewBlocksPermitted();
                 final long durationMs = System.currentTimeMillis() - start;
                 waitDurationMs.set(durationMs);
             } catch (final Exception e) {
@@ -648,9 +644,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOpenBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final Queue<BlockState> buffer = bufferQueue(blockBufferService);
+        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
 
         isStreamingEnabled.set(false);
 
@@ -664,8 +660,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testAddItem_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
         final Queue<BlockStreamQueueItem> itemQueue = blockStreamItemQueue(blockBufferService);
 
         isStreamingEnabled.set(false);
@@ -684,8 +680,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testCloseBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
 
         isStreamingEnabled.set(false);
 
@@ -697,8 +693,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testStreamPreBlockProofItems_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
 
         isStreamingEnabled.set(false);
 
@@ -710,8 +706,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSetLatestAcknowledgedBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
 
         isStreamingEnabled.set(false);
 
@@ -723,9 +719,10 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testEnsureNewBlocksPermitted_streamingDisabled() throws InterruptedException {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef = backpressureCompletableFutureRef();
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
+                backpressureCompletableFutureRef(blockBufferService);
 
         isStreamingEnabled.set(false);
         backPressureFutureRef.set(new CompletableFuture<>());
@@ -733,7 +730,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final CountDownLatch doneLatch = new CountDownLatch(1);
 
         ForkJoinPool.commonPool().execute(() -> {
-            BlockBufferService.ensureNewBlocksPermitted();
+            blockBufferService.ensureNewBlocksPermitted();
             doneLatch.countDown();
         });
 
@@ -745,23 +742,24 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     // Utilities
 
-    private AtomicBoolean isBufferSaturated(final BlockBufferService stateManager) {
-        return (AtomicBoolean) isBufferSaturatedHandle.get(stateManager);
+    private AtomicBoolean isBufferSaturated(final BlockBufferService bufferService) {
+        return (AtomicBoolean) isBufferSaturatedHandle.get(bufferService);
     }
 
-    private Queue<BlockStreamQueueItem> blockStreamItemQueue(final BlockBufferService stateManager) {
-        return (Queue<BlockStreamQueueItem>) blockStreamItemQueueHandle.get(stateManager);
+    private Queue<BlockStreamQueueItem> blockStreamItemQueue(final BlockBufferService bufferService) {
+        return (Queue<BlockStreamQueueItem>) blockStreamItemQueueHandle.get(bufferService);
     }
 
-    private AtomicBoolean isStreamingEnabled() {
-        return (AtomicBoolean) isStreamingEnabledHandle.get();
+    private AtomicBoolean isStreamingEnabled(final BlockBufferService bufferService) {
+        return (AtomicBoolean) isStreamingEnabledHandle.get(bufferService);
     }
 
-    private AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef() {
-        return (AtomicReference<CompletableFuture<Boolean>>) backPressureFutureRefHandle.get();
+    private AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef(
+            final BlockBufferService bufferService) {
+        return (AtomicReference<CompletableFuture<Boolean>>) backPressureFutureRefHandle.get(bufferService);
     }
 
-    private Queue<BlockState> bufferQueue(final BlockBufferService stateManager) {
-        return (Queue<BlockState>) blockBufferHandle.get(stateManager);
+    private ConcurrentMap<Long, BlockState> blockBuffer(final BlockBufferService bufferService) {
+        return (ConcurrentMap<Long, BlockState>) blockBufferHandle.get(bufferService);
     }
 }
