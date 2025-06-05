@@ -728,6 +728,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
         }
+        if(!state.toBytes().equals(getBytes(VM_STATE_KEY))) {
+            put(VM_STATE_KEY, state, null, state.toBytes());
+        }
     }
 
     /**
@@ -1103,6 +1106,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     public Hash getHash() {
         if (hash.get() == null) {
             pipeline.hashCopy(this);
+//            System.out.println("getHash with stacktrace: {}" + StackTrace.getStackTrace());
+//            logger.error(EXCEPTION.getMarker(), "getHash with stacktrace: {}", StackTrace.getStackTrace());
         }
         return hash.get();
     }
