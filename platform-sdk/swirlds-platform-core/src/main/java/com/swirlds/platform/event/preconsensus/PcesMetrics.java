@@ -7,7 +7,6 @@ import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 
 /**
  * Metrics for preconsensus events.
@@ -15,7 +14,6 @@ import java.util.Objects;
 public class PcesMetrics {
 
     private static final String CATEGORY = "platform";
-    private final Metrics metrics;
 
     private static final LongGauge.Config PRECONSENSUS_EVENT_FILE_COUNT_CONFIG = new LongGauge.Config(
                     CATEGORY, "preconsensusEventFileCount")
@@ -77,7 +75,6 @@ public class PcesMetrics {
      * @param metrics the metrics manager for the platform
      */
     public PcesMetrics(final @NonNull Metrics metrics) {
-        this.metrics = Objects.requireNonNull(metrics);
         preconsensusEventFileCount = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_COUNT_CONFIG);
         preconsensusEventFileAverageSizeMB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_AVERAGE_SIZE_MB_CONFIG);
         preconsensusEventFileTotalSizeGB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_TOTAL_SIZE_GB_CONFIG);
