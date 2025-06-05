@@ -229,6 +229,7 @@ jobs:
       - name: Collect run logs in a log file
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
         run: |
           for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
             echo "Fetching logs for job $job_id..."
@@ -245,14 +246,23 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
         with:
           path: run.log
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        run: |
+          echo "commit-hash=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' HEAD)" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' HEAD)" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
-          EMAIL: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-email }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
         run: |
           SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
             -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
@@ -343,7 +353,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
                         },
                         {
                           "type": "mrkdwn",
@@ -351,7 +361,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+                          "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
                         },
                         {
                           "type": "mrkdwn",

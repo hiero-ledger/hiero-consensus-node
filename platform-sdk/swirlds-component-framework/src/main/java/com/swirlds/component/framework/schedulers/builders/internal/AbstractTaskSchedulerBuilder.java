@@ -4,7 +4,6 @@ package com.swirlds.component.framework.schedulers.builders.internal;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.MultiObjectCounter;
@@ -12,6 +11,7 @@ import com.swirlds.component.framework.counters.NoOpObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.counters.StandardObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -267,8 +267,7 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
         if (uncaughtExceptionHandler != null) {
             return uncaughtExceptionHandler;
         } else {
-            return (thread, throwable) ->
-                    logger.error(EXCEPTION.getMarker(), "Uncaught exception in scheduler {}", name, throwable);
+            return ExceptionHandlers.defaultExceptionHandler(name);
         }
     }
 

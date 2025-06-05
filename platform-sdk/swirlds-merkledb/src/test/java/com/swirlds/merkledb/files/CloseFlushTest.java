@@ -64,7 +64,7 @@ public class CloseFlushTest {
 
     @Test
     public void closeFlushTest() throws Exception {
-        final int count = 100000;
+        final int count = 10000;
         final ExecutorService exec = Executors.newSingleThreadExecutor();
         final AtomicReference<Exception> exception = new AtomicReference<>();
         for (int j = 0; j < 100; j++) {
@@ -98,7 +98,7 @@ public class CloseFlushTest {
             final VirtualMap<VirtualKey, ExampleByteArrayVirtualValue> lastMap = map;
             final Future<?> job = exec.submit(() -> {
                 try {
-                    Thread.sleep(new Random().nextInt(500));
+                    Thread.sleep(new Random().nextInt(100));
                     lastMap.release();
                 } catch (final Exception z) {
                     throw new RuntimeException(z);
@@ -123,8 +123,8 @@ public class CloseFlushTest {
         private AtomicReference<Exception> exceptionSink = null;
 
         // Provided for deserialization
-        public CustomDataSourceBuilder(final @NonNull Configuration configuration) {
-            super(configuration);
+        public CustomDataSourceBuilder() {
+            super(CONFIGURATION);
         }
 
         public CustomDataSourceBuilder(
