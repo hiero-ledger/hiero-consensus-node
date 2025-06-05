@@ -10,8 +10,7 @@ import java.util.List;
 @ConfigData("contracts.ops.duration")
 public record OpsDurationConfig(
         // The duration of the operations in microseconds. The key is the operation number and the value is the
-        // duration.
-        // The op codes are broken into sets of 64 values.
+        // duration. The op codes are broken into sets of 64 values.
         @ConfigProperty(
                         defaultValue =
                                 "1-123,2-105,3-93,4-100,5-116,6-212,7-208,8-290,9-262,10-307,11-106,16-55,17-56,18-77,19-77,20-63,21-35,22-91,23-92,24-92,25-85,26-63,27-136,28-149,29-131,32-693,48-23,49-270,50-23,51-23,52-23,53-69,54-28,55-161,56-29,57-243,58-23,59-271,60-349,61-30,62-106,63-279,64-49")
