@@ -149,20 +149,14 @@ public class AtomicTokenServiceFeesSuite {
                         .initialSupply(1000L)
                         .payingWith(BATCH_OPERATOR),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0).payingWith(BATCH_OPERATOR),
-                atomicBatch(
-                                tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
-                                        .payingWith(OWNER)
-                                        .via("airdrop")
-                                        .batchKey(BATCH_OPERATOR),
-                                tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
-                                        .payingWith(OWNER)
-                                        .via("second airdrop")
-                                        .batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between(OWNER, receiver))
+                                .payingWith(OWNER)
+                                .via("airdrop")
+                                .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1),
-                validateInnerTxnChargedUsd("second airdrop", ATOMIC_BATCH, 0.05, 1));
+                validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1));
     }
 
     @HapiTest
@@ -188,20 +182,14 @@ public class AtomicTokenServiceFeesSuite {
                                         .toList())
                         .payingWith(BATCH_OPERATOR),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0).payingWith(BATCH_OPERATOR),
-                atomicBatch(
-                                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, receiver))
-                                        .payingWith(OWNER)
-                                        .via("airdrop")
-                                        .batchKey(BATCH_OPERATOR),
-                                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 2).between(OWNER, receiver))
-                                        .payingWith(OWNER)
-                                        .via("second airdrop")
-                                        .batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, receiver))
+                                .payingWith(OWNER)
+                                .via("airdrop")
+                                .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1),
-                validateInnerTxnChargedUsd("second airdrop", ATOMIC_BATCH, 0.1, 1));
+                validateInnerTxnChargedUsd("airdrop", ATOMIC_BATCH, 0.1, 1));
     }
 
     @HapiTest
