@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static java.util.Collections.emptyList;
@@ -109,6 +109,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -1064,8 +1065,7 @@ public class BlockStreamBuilder
 
         accountId = null;
 
-        // null out contractId only if aborted (used gas is 0)
-        if (contractFunctionResult != null && (contractFunctionResult.gasUsed() == 0 || status.equals(SUCCESS))) {
+        if (Objects.equals(functionality, CONTRACT_CREATE)) {
             contractId = null;
         }
 
