@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.solo;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TransactionGenerator;
 
 /**
@@ -11,14 +9,12 @@ import org.hiero.otter.fixtures.TransactionGenerator;
  */
 public class SoloTransactionGenerator implements TransactionGenerator {
 
-    private static final Logger log = LogManager.getLogger();
-
     /**
      * {@inheritDoc}
      */
     @Override
     public void start() {
-        log.info("SoloTransactionGenerator not implemented yet! Doing nothing...");
+        throw new UnsupportedOperationException("Not implemented yet!");
     }
 
     /**
@@ -26,6 +22,6 @@ public class SoloTransactionGenerator implements TransactionGenerator {
      */
     @Override
     public void stop() {
-        log.info("SoloTransactionGenerator not implemented yet!");
+        throw new UnsupportedOperationException("Not implemented yet!");
     }
 }
