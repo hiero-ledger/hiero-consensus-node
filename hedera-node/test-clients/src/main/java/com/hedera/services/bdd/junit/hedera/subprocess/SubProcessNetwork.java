@@ -363,6 +363,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         configTxt = configTxtForLocal(
                 networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(configTxt);
+        if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
+            executePostInitWorkingDirActions(node);
+        }
+
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -661,6 +665,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         } catch (IOException e) {
             log.error("Error updating log4j2.xml: {}", e.getMessage());
         }
+    }
+
+    public BlockNodeMode getBlockNodeMode() {
+        return blockNodeMode;
     }
 
     /**

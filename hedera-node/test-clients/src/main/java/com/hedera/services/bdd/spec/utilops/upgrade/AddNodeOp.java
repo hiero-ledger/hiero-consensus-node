@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
+import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK;
+
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
@@ -20,6 +24,16 @@ public class AddNodeOp extends UtilOp {
         if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork)) {
             throw new IllegalStateException("Can only add nodes to a SubProcessNetwork");
         }
+
+        if (BlockNodeMode.SIMULATOR.equals(subProcessNetwork.getBlockNodeMode())) {
+            BlockNodeNetwork blockNodeNetwork = SHARED_BLOCK_NODE_NETWORK.get();
+            blockNodeNetwork.getBlockNodeModeById().put(nodeId, BlockNodeMode.SIMULATOR);
+            blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(nodeId, new long[] {nodeId});
+            blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(nodeId, new long[] {0});
+            blockNodeNetwork.addSimulatorNode(nodeId);
+            SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
+        }
+
         subProcessNetwork.addNode(nodeId);
         return false;
     }

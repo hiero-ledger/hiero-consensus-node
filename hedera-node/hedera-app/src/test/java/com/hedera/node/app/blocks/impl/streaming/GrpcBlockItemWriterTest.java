@@ -20,15 +20,20 @@ class GrpcBlockItemWriterTest {
     @Mock
     private BlockBufferService blockBufferService;
 
+    @Mock
+    private BlockNodeConnectionManager blockNodeConnectionManager;
+
     @Test
     void testGrpcBlockItemWriterConstructor() {
-        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        final GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
         assertThat(grpcBlockItemWriter).isNotNull();
     }
 
     @Test
     void testOpenBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         grpcBlockItemWriter.openBlock(0);
 
@@ -37,7 +42,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testOpenBlockNegativeBlockNumber() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         assertThatThrownBy(() -> grpcBlockItemWriter.openBlock(-1), "Block number must be non-negative")
                 .isInstanceOf(IllegalArgumentException.class);
@@ -45,7 +51,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testWriteItemUnsupported() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         assertThatThrownBy(
                         () -> grpcBlockItemWriter.writeItem(new byte[] {1, 2, 3, 4, 5}),
@@ -55,7 +62,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testWritePbjItem() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -70,7 +78,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testWritePreBlockProofItems() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         grpcBlockItemWriter.openBlock(0);
         grpcBlockItemWriter.writePreBlockProofItems();
@@ -80,7 +89,8 @@ class GrpcBlockItemWriterTest {
 
     @Test
     void testCompleteBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        GrpcBlockItemWriter grpcBlockItemWriter =
+                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
         grpcBlockItemWriter.openBlock(0);
         grpcBlockItemWriter.closeCompleteBlock();

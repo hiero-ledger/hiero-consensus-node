@@ -128,9 +128,9 @@ public class BlockBufferService {
                 .streamToBlockNodes();
     }
 
-    public void setBlockNumberToJumpTo(long blockNumber) {
-        logger.debug("Setting target block number to jump to {}", blockNumber);
-        blockNodeConnectionManager.setJumpTargetBlock(blockNumber);
+    public void shutdown() {
+        execSvc.shutdownNow();
+        blockNodeConnectionManager.shutdown();
     }
 
     /**

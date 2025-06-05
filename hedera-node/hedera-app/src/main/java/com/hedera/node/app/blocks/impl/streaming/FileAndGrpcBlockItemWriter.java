@@ -31,9 +31,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
     }
 
     @Override
