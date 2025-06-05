@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -244,7 +243,8 @@ public class Evm46ValidationSuite {
                 withOpContext((spec, ctxLog) -> spec.registry()
                         .saveContractId(
                                 "nonExistingMirrorAddress",
-                                asContractIdWithEvmAddress(ByteString.copyFrom(unhex(NON_EXISTING_MIRROR_ADDRESS))))),
+                                spec,
+                                ByteString.copyFrom(unhex(NON_EXISTING_MIRROR_ADDRESS)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi("nonExistingMirrorAddress", getABIFor(FUNCTION, NAME, ERC_721_ABI))
@@ -274,8 +274,8 @@ public class Evm46ValidationSuite {
                 withOpContext((spec, ctxLog) -> spec.registry()
                         .saveContractId(
                                 "nonExistingNonMirrorAddress",
-                                asContractIdWithEvmAddress(
-                                        ByteString.copyFrom(unhex(NON_EXISTING_NON_MIRROR_ADDRESS))))),
+                                spec,
+                                ByteString.copyFrom(unhex(NON_EXISTING_NON_MIRROR_ADDRESS)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(
@@ -1342,9 +1342,7 @@ public class Evm46ValidationSuite {
         return hapiTest(
                 cryptoCreate("account").balance(ONE_HUNDRED_HBARS),
                 withOpContext((spec, opLog) -> spec.registry()
-                        .saveContractId(
-                                "contract",
-                                asContractIdWithEvmAddress(ByteString.copyFrom(asSolidityAddress(spec, 629))))),
+                        .saveContractId("contract", spec, ByteString.copyFrom(asSolidityAddress(spec, 629)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi("contract", getABIFor(FUNCTION, NAME, ERC_721_ABI))

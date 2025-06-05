@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static java.util.Objects.nonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -36,11 +34,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -62,16 +58,10 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final TransactionSupplier transactionSupplier,
-            @NonNull final AncientMode ancientMode) {
+            @NonNull final TransactionSupplier transactionSupplier) {
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withTime(time)
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(
-                                "event.useBirthRoundAncientThreshold", AncientMode.BIRTH_ROUND_THRESHOLD == ancientMode)
-                        .getOrCreateConfig())
-                .build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().withTime(time).build();
 
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
@@ -91,15 +81,10 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final TransactionSupplier transactionSupplier,
-            @NonNull final AncientMode ancientMode) {
+            @NonNull final TransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(
-                        EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                        ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .withTime(time)
@@ -108,13 +93,12 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntry address : roster.rosterEntries()) {
 
             final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator =
-                    buildEventCreator(random, time, roster, selfId, transactionSupplier, ancientMode);
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
-            eventCreator.setEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+            eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
+            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
@@ -191,20 +175,6 @@ public class TipsetEventCreatorTestUtils {
             }
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }
-
-        // Generation should be max of parents plus one
-        final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
-        assertEquals(expectedGeneration, newEvent.getNGen());
-
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
-                        || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
-                "Parent's birth round should never be higher to the event's birth round.");
-
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getGeneration() >= newEvent.getGeneration())
-                        || (nonNull(otherParent) && otherParent.getGeneration() >= newEvent.getGeneration()),
-                "Parent's generation should never be higher or equal to the event's generation.");
 
         // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
         // with nanosecond precision for transaction.

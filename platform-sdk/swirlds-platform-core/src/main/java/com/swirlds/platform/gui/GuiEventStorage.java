@@ -73,7 +73,7 @@ public class GuiEventStorage {
         this.linker = linker;
         this.configuration = configuration;
         maxGeneration = linker.getNonAncientEvents().stream()
-                .mapToLong(EventImpl::getGeneration)
+                .mapToLong(EventImpl::getNGen)
                 .max()
                 .orElse(FIRST_GENERATION);
     }
