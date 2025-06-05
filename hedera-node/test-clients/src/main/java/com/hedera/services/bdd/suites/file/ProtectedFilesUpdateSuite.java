@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
-import static com.hedera.services.bdd.spec.PropertySource.asAccount;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;

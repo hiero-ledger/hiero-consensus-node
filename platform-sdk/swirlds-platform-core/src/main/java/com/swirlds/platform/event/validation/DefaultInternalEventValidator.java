@@ -3,7 +3,6 @@ package com.swirlds.platform.event.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
-import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
 import com.hedera.hapi.platform.event.EventCore;
@@ -26,7 +25,6 @@ import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.TransactionConfig;
 import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -231,27 +229,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
         // If a parent is not missing, then the generation and birth round must be valid.
         final EventDescriptorWrapper selfParent = event.getSelfParent();
-        if (selfParent != null) {
-            if (selfParent.eventDescriptor().generation() < FIRST_GENERATION) {
-                invalidParentsLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Event %s has self parent with generation less than the FIRST_GENERATION. self-parent generation: %s"
-                                .formatted(event, selfParent.eventDescriptor().generation()));
-                invalidParentsAccumulator.update(1);
-                return false;
-            }
-        }
-
-        for (final EventDescriptorWrapper otherParent : event.getOtherParents()) {
-            if (otherParent.eventDescriptor().generation() < FIRST_GENERATION) {
-                invalidParentsLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Event %s has other parent with generation less than the FIRST_GENERATION. other-parent: %s"
-                                .formatted(event, otherParent));
-                invalidParentsAccumulator.update(1);
-                return false;
-            }
-        }
 
         // only single node networks are allowed to have identical self-parent and other-parent hashes
         if (!singleNodeNetwork && selfParent != null) {
@@ -271,43 +248,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     }
 
     /**
-     * Checks whether the generation of an event is valid. A valid generation is one greater than the maximum generation
-     * of the event's parents.
-     *
-     * @param event the event to check
-     * @return true if the generation of the event is valid, otherwise false
-     */
-    private boolean isEventGenerationValid(@NonNull final PlatformEvent event) {
-        final long eventGeneration = event.getGeneration();
-
-        if (eventGeneration < FIRST_GENERATION) {
-            invalidGenerationLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Event %s has an invalid generation. Event generation: %s, the min generation is: %s"
-                            .formatted(event, eventGeneration, FIRST_GENERATION));
-            invalidGenerationAccumulator.update(1);
-            return false;
-        }
-
-        long maxParentGeneration = EventConstants.GENERATION_UNDEFINED;
-        for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            maxParentGeneration =
-                    Math.max(maxParentGeneration, parent.eventDescriptor().generation());
-        }
-
-        if (eventGeneration != maxParentGeneration + 1) {
-            invalidGenerationLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Event %s has an invalid generation. Event generation: %s, the max of all parent generations is: %s"
-                            .formatted(event, eventGeneration, maxParentGeneration));
-            invalidGenerationAccumulator.update(1);
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
      * Checks whether the birth round of an event is valid. A child cannot have a birth round prior to the birth round
      * of its parents.
      *
@@ -315,11 +255,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * @return true if the birth round of the event is valid, otherwise false
      */
     private boolean isEventBirthRoundValid(@NonNull final PlatformEvent event) {
-        if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
-            // Don't validate birth rounds in generation mode.
-            return true;
-        }
-
         final long eventBirthRound = event.getDescriptor().eventDescriptor().birthRound();
 
         long maxParentBirthRound = ROUND_NEGATIVE_INFINITY;
@@ -351,7 +286,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
                 && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
                 && areParentsInternallyConsistent(event)
-                && isEventGenerationValid(event)
                 && isEventBirthRoundValid(event)) {
             return event;
         } else {

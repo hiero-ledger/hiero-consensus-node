@@ -19,7 +19,6 @@ import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusActio
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -81,8 +80,8 @@ class DefaultTransactionHandlerTests {
         final ConsensusRound round = new ConsensusRound(
                 roster,
                 events,
-                EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD),
-                SyntheticSnapshot.getGenesisSnapshot(AncientMode.GENERATION_THRESHOLD),
+                EventWindow.getGenesisEventWindow(),
+                SyntheticSnapshot.getGenesisSnapshot(),
                 pcesRound,
                 random.nextInstant());
 

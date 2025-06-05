@@ -24,23 +24,7 @@ public class EventWindowBuilder {
      * @return a new instance of {@link EventWindowBuilder}
      */
     public static @NonNull EventWindowBuilder builder() {
-        return new EventWindowBuilder();
-    }
-
-    /**
-     * Creates a new instance with the ancient mode set to birth round threshold.
-     * @return a new instance of {@link EventWindowBuilder} with birth round mode
-     */
-    public static @NonNull EventWindowBuilder birthRoundMode() {
         return new EventWindowBuilder().setAncientMode(AncientMode.BIRTH_ROUND_THRESHOLD);
-    }
-
-    /**
-     * Creates a new instance with the ancient mode set to generation threshold.
-     * @return a new instance of {@link EventWindowBuilder} with generation mode
-     */
-    public static @NonNull EventWindowBuilder generationMode() {
-        return new EventWindowBuilder().setAncientMode(AncientMode.GENERATION_THRESHOLD);
     }
 
     /**
@@ -125,7 +109,7 @@ public class EventWindowBuilder {
      * @param ancientMode the mode for determining ancient events
      * @return the builder instance
      */
-    public @NonNull EventWindowBuilder setAncientMode(@NonNull final AncientMode ancientMode) {
+    private @NonNull EventWindowBuilder setAncientMode(@NonNull final AncientMode ancientMode) {
         this.ancientMode = ancientMode;
         return this;
     }

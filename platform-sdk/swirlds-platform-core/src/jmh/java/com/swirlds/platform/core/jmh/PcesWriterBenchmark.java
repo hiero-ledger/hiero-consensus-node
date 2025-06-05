@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -51,7 +50,7 @@ public class PcesWriterBenchmark {
                 .setOtherParent(new TestingEventBuilder(r).build())
                 .build();
         directory = Files.createTempDirectory("PcesWriterBenchmark");
-        final PcesFile file = PcesFile.of(AncientMode.GENERATION_THRESHOLD, r.nextInstant(), 1, 0, 100, 0, directory);
+        final PcesFile file = PcesFile.of(r.nextInstant(), 1, 0, 100, 0, directory);
 
         mutableFile = file.getMutableFile(pcesFileWriterType);
     }

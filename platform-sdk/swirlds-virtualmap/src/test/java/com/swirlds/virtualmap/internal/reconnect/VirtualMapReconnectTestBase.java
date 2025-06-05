@@ -16,7 +16,6 @@ import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -360,6 +359,5 @@ public abstract class VirtualMapReconnectTestBase {
         if (learnerMap.getReservationCount() > 0) {
             learnerMap.release();
         }
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

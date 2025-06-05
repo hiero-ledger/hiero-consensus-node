@@ -275,7 +275,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: Hedera Services - eXtended Test Suite Passing Report",
+                        "text": ":tada: Hiero Consensus Node - eXtended Test Suite Passing Report",
                         "emoji": true
                       }
                     },
@@ -412,6 +412,7 @@ jobs:
       - name: Collect run logs in a log file
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
         run: |
           for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
             echo "Fetching logs for job $job_id..."
@@ -428,17 +429,19 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
         with:
           path: run.log
 
       - name: Report failure (PagerDuty)
+        continue-on-error: true
         run: |
           curl --request 'POST' \
           --url 'https://events.pagerduty.com/v2/enqueue' \
           --header 'Content-Type: application/json' \
           --data '{
             "payload": {
-              "summary": "Hedera Services - eXtended Test Suite Failure",
+              "summary": "Hiero Consensus Node - eXtended Test Suite Failure",
               "severity": "error",
               "source": "GitHub Actions - eXtended Test Suite",
               "custom_details": {
@@ -458,6 +461,7 @@ jobs:
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
+        continue-on-error: true
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
           EMAIL: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-email }}
@@ -491,7 +495,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - eXtended Test Suite Error Report",
+                        "text": ":grey_exclamation: Hiero Consensus Node - eXtended Test Suite Error Report",
                         "emoji": true
                       }
                     },
