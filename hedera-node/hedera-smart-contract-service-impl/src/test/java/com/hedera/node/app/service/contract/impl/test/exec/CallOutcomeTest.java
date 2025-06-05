@@ -38,7 +38,7 @@ class CallOutcomeTest {
     @Test
     void setsAbortCallResult() {
         final var abortedCall = new CallOutcome(
-                ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, null, null, opsDuration);
+                ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, null, null, null, opsDuration);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
@@ -48,7 +48,7 @@ class CallOutcomeTest {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, opsDuration);
+                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, null, opsDuration);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
 
@@ -56,7 +56,7 @@ class CallOutcomeTest {
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, opsDuration);
+                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, null, opsDuration);
         assertNull(outcome.recipientIdIfCreated());
     }
 
@@ -67,6 +67,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT.asProtoResultOf(updater),
                 INVALID_CONTRACT_ID,
                 CALLED_CONTRACT_ID,
+                null,
                 null,
                 null,
                 opsDuration);

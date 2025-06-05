@@ -1,18 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.hapi.block.stream.BlockItem.ItemOneOfType.TRACE_DATA;
+import static com.hedera.hapi.block.stream.BlockItem.ItemOneOfType.TRANSACTION_OUTPUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_BLOCK_STREAM_DIR;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -138,6 +142,8 @@ public class BlockContentsValidator implements BlockStreamValidator {
         return currentIndex;
     }
 
+    private static final Set<BlockItem.ItemOneOfType> OPTIONAL_ITEM_TYPES = Set.of(TRANSACTION_OUTPUT, TRACE_DATA);
+
     /**
      * Validates a transaction group (transaction + result + optional outputs).
      * Returns the index of the next item after this group.
@@ -156,12 +162,24 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
         // Check for optional transaction outputs
         int currentIndex = transactionIndex + 2;
-        while (currentIndex < items.size() && items.get(currentIndex).hasTransactionOutput()) {
-            // Check that transaction output is not equal to TransactionOutput.DEFAULT
-            if (TransactionOutput.DEFAULT.equals(items.get(currentIndex).transactionOutput())) {
-                logger.error("Transaction output at index {} is equal to TransactionOutput.DEFAULT", currentIndex);
-                Assertions.fail(
-                        "Transaction output at index " + currentIndex + " is equal to TransactionOutput.DEFAULT");
+        while (currentIndex < items.size()
+                && OPTIONAL_ITEM_TYPES.contains(items.get(currentIndex).item().kind())) {
+            final var item = items.get(currentIndex);
+            switch (item.item().kind()) {
+                case TRANSACTION_OUTPUT -> {
+                    if (TransactionOutput.DEFAULT.equals(item.transactionOutputOrThrow())) {
+                        Assertions.fail("Transaction output at index " + currentIndex
+                                + " is equal to TransactionOutput.DEFAULT");
+                    }
+                }
+                case TRACE_DATA -> {
+                    if (TraceData.DEFAULT.equals(item.traceDataOrThrow())) {
+                        Assertions.fail("Found default trace data at index " + currentIndex);
+                    }
+                }
+                default ->
+                    throw new IllegalStateException("Should be unreachable, but got "
+                            + items.get(currentIndex).item());
             }
             currentIndex++;
         }
