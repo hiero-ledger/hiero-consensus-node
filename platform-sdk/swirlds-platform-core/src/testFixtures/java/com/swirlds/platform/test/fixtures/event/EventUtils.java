@@ -84,16 +84,16 @@ public final class EventUtils {
     public static boolean areBirthRoundNumbersValid(
             @NonNull final Iterable<EventImpl> events, final int numberOfNodes) {
         Objects.requireNonNull(events, "events must not be null");
-        final Map<NodeId, Long> previousGenNumber = new HashMap<>(numberOfNodes);
+        final Map<NodeId, Long> previousBirthRound = new HashMap<>(numberOfNodes);
 
         for (final EventImpl event : events) {
             final NodeId nodeId = event.getCreatorId();
-            if (previousGenNumber.containsKey(nodeId)) {
-                if (previousGenNumber.get(nodeId) > event.getBirthRound()) {
+            if (previousBirthRound.containsKey(nodeId)) {
+                if (previousBirthRound.get(nodeId) > event.getBirthRound()) {
                     return false;
                 }
             }
-            previousGenNumber.put(nodeId, event.getBirthRound());
+            previousBirthRound.put(nodeId, event.getBirthRound());
         }
         return true;
     }
