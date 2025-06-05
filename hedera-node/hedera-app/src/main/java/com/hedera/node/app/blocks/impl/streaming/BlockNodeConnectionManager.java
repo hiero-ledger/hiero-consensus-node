@@ -113,7 +113,7 @@ public class BlockNodeConnectionManager {
      * List of available block nodes this consensus node can connect to, or at least attempt to. This list is read upon
      * startup from the configuration file(s) on disk.
      */
-    private List<BlockNodeConfig> availableBlockNodes;
+    private final List<BlockNodeConfig> availableBlockNodes;
     /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
