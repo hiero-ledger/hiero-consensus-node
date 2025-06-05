@@ -51,9 +51,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -76,12 +74,6 @@ class FrameUtilsTest {
 
     @Mock
     private MessageFrame initialFrame;
-
-    @Mock
-    private MutableAccount account;
-
-    @Mock
-    private WorldUpdater worldUpdater;
 
     @Mock
     private ProxyWorldUpdater proxyWorldUpdater;

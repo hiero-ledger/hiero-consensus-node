@@ -9,14 +9,14 @@ import org.hiero.consensus.model.event.AncientMode;
 /**
  * Configuration for event handling inside the platform.
  *
- * @param eventStreamQueueCapacity          capacity of the blockingQueue from which we take events and write to
- *                                          EventStream files
- * @param eventsLogPeriod                   period of generating eventStream file
- * @param eventsLogDir                      eventStream files will be generated in this directory.
- * @param enableEventStreaming              enable stream event to server.
- * @param useBirthRoundAncientThreshold     if true, use birth rounds instead of generations for deciding if an event is
- *                                          ancient or not. Once this setting has been enabled on a network, it can
- *                                          never be disabled again (migration pathway is one-way).
+ * @param eventStreamQueueCapacity      capacity of the blockingQueue from which we take events and write to EventStream
+ *                                      files
+ * @param eventsLogPeriod               period of generating eventStream file
+ * @param eventsLogDir                  eventStream files will be generated in this directory.
+ * @param enableEventStreaming          enable stream event to server.
+ * @param useBirthRoundAncientThreshold if true, use birth rounds instead of generations for deciding if an event is
+ *                                      ancient or not. Once this setting has been enabled on a network, it can never be
+ *                                      disabled again (migration pathway is one-way).
  */
 @ConfigData("event")
 public record EventConfig(

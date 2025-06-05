@@ -510,7 +510,9 @@ class DataFileCollectionCompactionTest {
                 // during merge,
                 // it depends on where pauseCompaction() happens inside
                 // compactFiles() above
-                assertTrue(List.of(2, 3).contains(store.getAllCompletedFiles().size()));
+                assertTrue(
+                        List.of(2, 3).contains(store.getAllCompletedFiles().size()),
+                        "Unexpected files after compaction: " + store.getAllCompletedFiles());
             } catch (final Exception e) {
                 throw new RuntimeException(e);
             } finally {
