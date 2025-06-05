@@ -7,7 +7,7 @@ import static org.apache.logging.log4j.Level.CATEGORY;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.metrics.api.Metrics;
-import javax.annotation.Nonnull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Used by {@link DefaultInlinePcesWriter} to keep track of the write and sync duration.
@@ -38,7 +38,7 @@ class PcesWriterPerEventMetrics {
     private long writeStart;
     private long syncStart;
 
-    PcesWriterPerEventMetrics(@Nonnull final Metrics metrics, @Nonnull final Time time) {
+    PcesWriterPerEventMetrics(@NonNull final Metrics metrics, @NonNull final Time time) {
         this.avgWriteMetric = metrics.getOrCreate(PCES_AVG_WRITE_DURATION);
         this.avgSyncMetric = metrics.getOrCreate(PCES_AVG_SYNC_DURATION);
         this.avgTotalWrite = metrics.getOrCreate(PCES_AVG_TOTAL_WRITE_DURATION);
@@ -56,21 +56,21 @@ class PcesWriterPerEventMetrics {
     /**
      * marks the start of the sync operation.
      */
-    void startSyncToFile() {
+    void startFileSync() {
         this.syncStart = time.nanoTime();
     }
 
     /**
      * marks the start of the write operation.
      */
-    void startWriteToFile() {
+    void startFileWrite() {
         this.writeStart = time.nanoTime();
     }
 
     /**
      * reports the duration of the write operation
      */
-    void endWriteToFile(long size) {
+    void endFileWrite(long size) {
         avgWriteMetric.update(getDurationInNanos(writeStart), 1);
         this.avgEventSizeMetric.update(asInt(size), 1);
     }
@@ -85,7 +85,7 @@ class PcesWriterPerEventMetrics {
     /**
      * reports the duration of the sync operation
      */
-    void endSyncToFile() {
+    void endFileSync() {
         avgSyncMetric.update(getDurationInNanos(syncStart), 1);
     }
 

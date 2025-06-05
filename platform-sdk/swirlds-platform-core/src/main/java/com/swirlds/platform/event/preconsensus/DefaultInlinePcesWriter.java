@@ -65,17 +65,17 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
 
         try {
             commonPcesWriter.prepareOutputStream(event);
-            pcesWriterPerEventMetrics.startWriteToFile();
+            pcesWriterPerEventMetrics.startFileWrite();
             final long size = commonPcesWriter.getCurrentMutableFile().writeEvent(event);
-            pcesWriterPerEventMetrics.endWriteToFile(size);
+            pcesWriterPerEventMetrics.endFileWrite(size);
 
             if (fileSyncOption == FileSyncOption.EVERY_EVENT
                     || (fileSyncOption == FileSyncOption.EVERY_SELF_EVENT
                             && event.getCreatorId().equals(selfId))) {
 
-                pcesWriterPerEventMetrics.startSyncToFile();
+                pcesWriterPerEventMetrics.startFileSync();
                 commonPcesWriter.getCurrentMutableFile().sync();
-                pcesWriterPerEventMetrics.endSyncToFile();
+                pcesWriterPerEventMetrics.endFileSync();
             }
             return event;
         } catch (final IOException e) {
