@@ -61,7 +61,7 @@ public class TestGuiSource {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-        this.orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
+        this.orphanBuffer = new DefaultOrphanBuffer(platformContext.getConfiguration(),platformContext.getMetrics(), new NoOpIntakeEventCounter());
     }
 
     public void runGui() {

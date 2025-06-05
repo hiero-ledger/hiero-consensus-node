@@ -8,9 +8,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.Mnemonics;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -203,8 +206,10 @@ class OrphanBufferTests {
                 })
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
+        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), intakeEventCounter);
+                new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
 
         long latestConsensusRound = ConsensusConstants.ROUND_FIRST;
 
@@ -253,9 +258,11 @@ class OrphanBufferTests {
     @Test
     @DisplayName("Test that events sorted by nGen result in a valid topological ordering")
     void topologicalOrderByNGen() {
+        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), intakeEventCounter);
+                new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
 
         final List<PlatformEvent> emittedEvents = new ArrayList<>();
         for (final PlatformEvent intakeEvent : intakeEvents) {
@@ -337,8 +344,10 @@ class OrphanBufferTests {
         final PlatformEvent genesisEvent =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
 
+        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
 
         final List<PlatformEvent> unorphanedEvents = orphanBuffer.handleEvent(genesisEvent);
         assertThat(unorphanedEvents.size())
@@ -374,8 +383,10 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
+        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -427,8 +438,10 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
+        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();
@@ -508,8 +521,10 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
+        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(TestPlatformContextBuilder.create().build(), mock(IntakeEventCounter.class));
+                new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
         orphanBuffer.setEventWindow(eventWindow);
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(node0AncientEvent));

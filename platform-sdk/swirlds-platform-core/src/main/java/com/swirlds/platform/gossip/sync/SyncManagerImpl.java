@@ -3,8 +3,8 @@ package com.swirlds.platform.gossip.sync;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Set;
@@ -22,21 +22,19 @@ public class SyncManagerImpl implements FallenBehindManager {
     /**
      * Creates a new SyncManager
      *
-     * @param platformContext         the platform context
+     * @param metrics                 the metrics to use
      * @param fallenBehindManager     the fallen behind manager
      */
     public SyncManagerImpl(
-            @NonNull final PlatformContext platformContext, @NonNull final FallenBehindManager fallenBehindManager) {
+            @NonNull final Metrics metrics, @NonNull final FallenBehindManager fallenBehindManager) {
 
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
 
-        platformContext
-                .getMetrics()
+        metrics
                 .getOrCreate(new FunctionGauge.Config<>(
                                 INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
                         .withDescription("has this node fallen behind?"));
-        platformContext
-                .getMetrics()
+        metrics
                 .getOrCreate(new FunctionGauge.Config<>(
                                 INTERNAL_CATEGORY,
                                 "numReportFallenBehind",

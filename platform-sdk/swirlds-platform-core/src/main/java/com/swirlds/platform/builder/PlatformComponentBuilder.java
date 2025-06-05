@@ -428,7 +428,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public OrphanBuffer buildOrphanBuffer() {
         if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext(), blocks.intakeEventCounter());
+            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext().getConfiguration(), blocks.platformContext().getMetrics(), blocks.intakeEventCounter());
         }
         return orphanBuffer;
     }
@@ -478,7 +478,9 @@ public class PlatformComponentBuilder {
     public EventCreationManager buildEventCreationManager() {
         if (eventCreationManager == null) {
             final EventCreator eventCreator = new TipsetEventCreator(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
                     blocks.randomBuilder().buildNonCryptographicRandom(),
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
@@ -487,7 +489,10 @@ public class PlatformComponentBuilder {
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
-                    blocks.platformContext(), blocks.transactionPoolNexus(), eventCreator);
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    blocks.transactionPoolNexus(), eventCreator);
         }
         return eventCreationManager;
     }

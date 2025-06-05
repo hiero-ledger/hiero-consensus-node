@@ -201,7 +201,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode());
-        orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
+        orphanBuffer = new DefaultOrphanBuffer(platformContext.getConfiguration(), platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
 
     /**
