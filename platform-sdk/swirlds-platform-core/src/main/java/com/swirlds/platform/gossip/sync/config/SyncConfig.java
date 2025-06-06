@@ -60,6 +60,6 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
         @ConfigProperty(defaultValue = "0ms") Duration syncPeriod,
-        @ConfigProperty(defaultValue = "false") boolean broadcast,
+        @ConfigProperty(defaultValue = "true") boolean broadcast,
         @ConfigProperty(defaultValue = "5ms") Duration idleWritePollTimeout,
         @ConfigProperty(defaultValue = "5ms") Duration idleDispatchPollTimeout) {}
