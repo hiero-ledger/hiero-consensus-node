@@ -17,7 +17,7 @@ dependencies {
 
 val autoService = "1.1.1"
 val besu = "24.3.3"
-val bouncycastle = "1.80"
+val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "11.1.0"
 val grpc = "1.72.0"
@@ -26,9 +26,9 @@ val helidon = "4.2.2"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
-val mockito = "5.17.0"
+val mockito = "5.18.0"
 val pbj = "0.11.6" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
-val protobuf = "4.31.0"
+val protobuf = "4.31.1"
 val testContainers = "1.21.0"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"

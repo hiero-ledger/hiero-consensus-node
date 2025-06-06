@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
@@ -24,6 +25,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.EmptyReadableStates;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -42,6 +44,14 @@ class PlatformStateFacadeTest {
         emptyState = new TestMerkleStateRoot();
         platformStateFacade = new TestPlatformStateFacade();
         platformStateModifier = randomPlatformState(state, platformStateFacade);
+    }
+
+    @AfterAll
+    static void tearDown() {
+        state.release();
+        emptyState.release();
+
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
@@ -96,6 +106,7 @@ class PlatformStateFacadeTest {
         final TestMerkleStateRoot noPlatformState = new TestMerkleStateRoot();
         noPlatformState.getReadableStates(PlatformStateService.NAME);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
+        noPlatformState.release();
     }
 
     @Test
@@ -189,6 +200,7 @@ class PlatformStateFacadeTest {
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);
         assertEquals(newSnapshot, platformStateModifier.getSnapshot());
+        randomState.release();
     }
 
     @Test

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.test.fixtures.hashgraph;
 
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -15,7 +16,6 @@ public class EventWindowBuilder {
     private Long newEventBirthRound;
     private Long ancientThreshold;
     private Long expiredThreshold;
-    private AncientMode ancientMode;
 
     private EventWindowBuilder() {}
 
@@ -25,22 +25,6 @@ public class EventWindowBuilder {
      */
     public static @NonNull EventWindowBuilder builder() {
         return new EventWindowBuilder();
-    }
-
-    /**
-     * Creates a new instance with the ancient mode set to birth round threshold.
-     * @return a new instance of {@link EventWindowBuilder} with birth round mode
-     */
-    public static @NonNull EventWindowBuilder birthRoundMode() {
-        return new EventWindowBuilder().setAncientMode(AncientMode.BIRTH_ROUND_THRESHOLD);
-    }
-
-    /**
-     * Creates a new instance with the ancient mode set to generation threshold.
-     * @return a new instance of {@link EventWindowBuilder} with generation mode
-     */
-    public static @NonNull EventWindowBuilder generationMode() {
-        return new EventWindowBuilder().setAncientMode(AncientMode.GENERATION_THRESHOLD);
     }
 
     /**
@@ -85,10 +69,7 @@ public class EventWindowBuilder {
      * @throws IllegalArgumentException if the ancient mode is not set
      */
     public @NonNull EventWindowBuilder setAncientThresholdOrGenesis(final long ancientThreshold) {
-        if (ancientMode == null) {
-            throw new IllegalArgumentException("Ancient mode must be set");
-        }
-        this.ancientThreshold = Math.max(ancientMode.getGenesisIndicator(), ancientThreshold);
+        this.ancientThreshold = Math.max(ROUND_FIRST, ancientThreshold);
         return this;
     }
 
@@ -112,21 +93,7 @@ public class EventWindowBuilder {
      * @throws IllegalArgumentException if the ancient mode is not set
      */
     public @NonNull EventWindowBuilder setExpiredThresholdOrGenesis(final long expiredThreshold) {
-        if (ancientMode == null) {
-            throw new IllegalArgumentException("Ancient mode must be set");
-        }
-        this.expiredThreshold = Math.max(ancientMode.getGenesisIndicator(), expiredThreshold);
-        return this;
-    }
-
-    /**
-     * Sets the ancient mode.
-     *
-     * @param ancientMode the mode for determining ancient events
-     * @return the builder instance
-     */
-    public @NonNull EventWindowBuilder setAncientMode(@NonNull final AncientMode ancientMode) {
-        this.ancientMode = ancientMode;
+        this.expiredThreshold = Math.max(ROUND_FIRST, expiredThreshold);
         return this;
     }
 
@@ -137,14 +104,10 @@ public class EventWindowBuilder {
      * @throws IllegalArgumentException if any required fields are invalid
      */
     public @NonNull EventWindow build() {
-        if (this.ancientMode == null) {
-            throw new IllegalArgumentException("Ancient mode must be set");
-        }
         return new EventWindow(
                 latestConsensusRound == null ? ConsensusConstants.ROUND_FIRST : latestConsensusRound,
                 newEventBirthRound == null ? ConsensusConstants.ROUND_FIRST : newEventBirthRound,
-                ancientThreshold == null ? ancientMode.getGenesisIndicator() : ancientThreshold,
-                expiredThreshold == null ? ancientMode.getGenesisIndicator() : expiredThreshold,
-                ancientMode);
+                ancientThreshold == null ? ROUND_FIRST : ancientThreshold,
+                expiredThreshold == null ? ROUND_FIRST : expiredThreshold);
     }
 }

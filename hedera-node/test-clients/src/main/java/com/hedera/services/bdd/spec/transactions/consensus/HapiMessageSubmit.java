@@ -19,7 +19,6 @@ import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.ConsensusMessageChunkInfo;
 import com.hederahashgraph.api.proto.java.ConsensusSubmitMessageTransactionBody;
 import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.FixedCustomFee;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.SubType;
@@ -27,7 +26,6 @@ import com.hederahashgraph.api.proto.java.TopicID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -47,7 +45,7 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
     private Optional<String> initialTransactionPayer = Optional.empty();
     private Optional<TransactionID> initialTransactionID = Optional.empty();
     private boolean clearMessage = false;
-    private final List<Function<HapiSpec, FixedCustomFee>> maxCustomFeeList = new ArrayList<>();
+    private boolean omitTopicId = false;
 
     public HapiMessageSubmit(final String topic) {
         this.topic = Optional.ofNullable(topic);
@@ -73,6 +71,11 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
 
     public Optional<ByteString> getMessage() {
         return message;
+    }
+
+    public HapiMessageSubmit omittingTopicId() {
+        omitTopicId = true;
+        return this;
     }
 
     public HapiMessageSubmit message(final ByteString s) {
@@ -119,7 +122,9 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
         final ConsensusSubmitMessageTransactionBody opBody = spec.txns()
                 .<ConsensusSubmitMessageTransactionBody, ConsensusSubmitMessageTransactionBody.Builder>body(
                         ConsensusSubmitMessageTransactionBody.class, b -> {
-                            b.setTopicID(id);
+                            if (!omitTopicId) {
+                                b.setTopicID(id);
+                            }
                             message.ifPresent(m -> b.setMessage(m));
                             if (clearMessage) {
                                 b.clearMessage();

@@ -8,6 +8,7 @@ import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,10 +19,11 @@ import java.util.Objects;
  * A scheduler that produces heartbeats at a specified rate.
  */
 public abstract class AbstractHeartbeatScheduler {
+    /** Name used by the heartbeat task scheduler */
+    public static final String HEARTBEAT_SCHEDULER_NAME = "Heartbeat";
 
     private final TraceableWiringModel model;
     protected final Time time;
-    protected final String name;
     protected final List<HeartbeatTask> tasks = new ArrayList<>();
     protected boolean started;
 
@@ -30,15 +32,15 @@ public abstract class AbstractHeartbeatScheduler {
      *
      * @param model the wiring model containing this heartbeat scheduler
      * @param time  provides wall clock time
-     * @param name  the name of the heartbeat scheduler
      */
-    public AbstractHeartbeatScheduler(
-            @NonNull final TraceableWiringModel model, @NonNull final Time time, @NonNull final String name) {
+    public AbstractHeartbeatScheduler(@NonNull final TraceableWiringModel model, @NonNull final Time time) {
         this.model = Objects.requireNonNull(model);
         this.time = Objects.requireNonNull(time);
-        this.name = Objects.requireNonNull(name);
         model.registerVertex(
-                name, TaskSchedulerType.SEQUENTIAL, platformCommonHyperlink(AbstractHeartbeatScheduler.class), false);
+                HEARTBEAT_SCHEDULER_NAME,
+                TaskSchedulerType.SEQUENTIAL,
+                platformCommonHyperlink(AbstractHeartbeatScheduler.class),
+                false);
     }
 
     /**
@@ -46,14 +48,16 @@ public abstract class AbstractHeartbeatScheduler {
      * of heartbeats may vary. This is a best effort algorithm, and actual rates may vary depending on a variety of
      * factors.
      *
-     * @param period the period of the heartbeat. For example, setting a period of 100ms will cause the heartbeat to be
-     *               sent at 10 hertz. Note that time is measured at millisecond precision, and so periods less than 1ms
-     *               are not supported.
+     * @param period           the period of the heartbeat. For example, setting a period of 100ms will cause the
+     *                         heartbeat to be sent at 10 hertz. Note that time is measured at millisecond precision,
+     *                         and so periods less than 1ms are not supported.
+     * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
      * @return the output wire
      * @throws IllegalStateException if start has already been called
      */
     @NonNull
-    public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
+    public OutputWire<Instant> buildHeartbeatWire(
+            @NonNull final Duration period, @NonNull final UncaughtExceptionHandler exceptionHandler) {
         if (started) {
             throw new IllegalStateException("Cannot create heartbeat wires after the heartbeat has started");
         }
@@ -68,7 +72,7 @@ public abstract class AbstractHeartbeatScheduler {
                             + "Requested period: " + period);
         }
 
-        final HeartbeatTask task = new HeartbeatTask(model, name, time, period);
+        final HeartbeatTask task = new HeartbeatTask(model, HEARTBEAT_SCHEDULER_NAME, time, period, exceptionHandler);
         tasks.add(task);
 
         return task.getOutputWire();
@@ -79,16 +83,18 @@ public abstract class AbstractHeartbeatScheduler {
      * of heartbeats may vary. This is a best effort algorithm, and actual rates may vary depending on a variety of
      * factors.
      *
-     * @param frequency the frequency of the heartbeat in hertz. Note that time is measured at millisecond precision,
-     *                  and so frequencies greater than 1000hz are not supported.
+     * @param frequency        the frequency of the heartbeat in hertz. Note that time is measured at millisecond
+     *                         precision, and so frequencies greater than 1000hz are not supported.
+     * @param exceptionHandler the handler for uncaught exceptions thrown by the heartbeat task
      * @return the output wire
      */
-    public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
+    public OutputWire<Instant> buildHeartbeatWire(
+            final double frequency, @NonNull final UncaughtExceptionHandler exceptionHandler) {
         if (frequency <= 0) {
             throw new IllegalArgumentException("Frequency must be positive");
         }
         final Duration period = Duration.ofMillis((long) (1000.0 / frequency));
-        return buildHeartbeatWire(period);
+        return buildHeartbeatWire(period, exceptionHandler);
     }
 
     /**

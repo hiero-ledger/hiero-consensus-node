@@ -180,6 +180,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return finalizedTxn(spec, opBodyDef(spec));
     }
 
+    public void setTransactionSubmitted(final Transaction txn) {
+        this.txnSubmitted = txn;
+    }
+
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         configureTlsFor(spec);
@@ -236,7 +240,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 }
             } finally {
                 /* Used by superclass to perform standard housekeeping. */
-                txnSubmitted = txn;
+                setTransactionSubmitted(txn);
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
