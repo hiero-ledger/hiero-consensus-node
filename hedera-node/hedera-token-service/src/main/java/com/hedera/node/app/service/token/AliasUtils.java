@@ -83,7 +83,7 @@ public final class AliasUtils {
      * address. This address can be explicit (as part of the alias), or it can be based on the entity ID number. When
      * based on the entity number, the first 12 bytes will be defined to be zero which indicates the current networks
      * shard and realm, while the last 8 bytes represent the entity number. In the case where such an address is detected,
-     * the resultant entity id extract from such an address will be <local shard>.<local realm>.<entity number>.
+     * the resultant entity id extract from such an address will be {@literal <local shard>.<local realm>.<entity number>}.
      * Because the shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as the "long-zero" alias.
      *
      * @param alias The alias to check
