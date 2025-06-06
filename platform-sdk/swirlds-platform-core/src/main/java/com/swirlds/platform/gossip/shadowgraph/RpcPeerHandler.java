@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -183,8 +184,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         if (state.mySyncData == null || state.remoteSyncData == null) {
             return;
         }
+        var remoteEventWindow = state.remoteSyncData.eventWindow();
 
-        this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow());
+        this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), remoteEventWindow);
 
         final SyncFallenBehindStatus behindStatus = gossipRpcShadowgraphSynchronizer.hasFallenBehind(
                 state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), otherNodeId);
@@ -195,20 +197,47 @@ public class RpcPeerHandler implements GossipRpcReceiver {
                     behindStatus,
                     state.mySyncData.eventWindow(),
                     state.remoteSyncData.eventWindow());
+
             clearInternalState();
             if (behindStatus == SyncFallenBehindStatus.OTHER_FALLEN_BEHIND) {
                 this.syncMetrics.reportSyncPhase(otherNodeId, SyncPhase.OTHER_FALLEN_BEHIND);
                 state.remoteFallenBehind = true;
             } else {
+                if (tryFixSelfFallBehind(remoteEventWindow)) {
+                    this.syncMetrics.reportSyncPhase(otherNodeId, SyncPhase.IDLE);
+                    return;
+                }
                 this.syncMetrics.reportSyncPhase(otherNodeId, SyncPhase.SELF_FALLEN_BEHIND);
                 sender.breakConversation();
             }
+
             return;
         }
 
         this.syncMetrics.reportSyncPhase(otherNodeId, SyncPhase.EXCHANGING_TIPS);
 
         sendKnownTips();
+    }
+
+    private boolean tryFixSelfFallBehind(final EventWindow remoteEventWindow) {
+        final ReservedEventWindow latestShadowWindow = gossipRpcShadowgraphSynchronizer.getReserveEventWindow();
+        try {
+            final SyncFallenBehindStatus behindStatus = gossipRpcShadowgraphSynchronizer.hasFallenBehind(
+                    latestShadowWindow.getEventWindow(), remoteEventWindow, otherNodeId);
+            if (behindStatus != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+                // we seem to be ok after all, let's wait for another sync to happen
+                logger.info(
+                        LogMarker.RECONNECT.getMarker(),
+                        "Latest event window is not really falling behind, will retry sync local ev={} remote ev={}",
+                        latestShadowWindow,
+                        remoteEventWindow);
+                return true;
+            }
+
+            return false;
+        } finally {
+            latestShadowWindow.close();
+        }
     }
 
     /**
