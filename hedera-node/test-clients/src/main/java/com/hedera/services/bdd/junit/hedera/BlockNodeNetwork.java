@@ -117,20 +117,37 @@ public class BlockNodeNetwork {
 
     private void startBlockNodesAsApplicable() {
         for (Map.Entry<Long, BlockNodeMode> entry : blockNodeModeById.entrySet()) {
-            if (entry.getValue() == BlockNodeMode.REAL) {
-                // TODO
-            } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
+            final long blockNodeId = entry.getKey();
+            final BlockNodeMode mode = entry.getValue();
+            if (mode == BlockNodeMode.REAL) {
+                startRealBlockNodeContainer(blockNodeId, findAvailablePort());
+            } else if (mode == BlockNodeMode.SIMULATOR) {
                 // Find an available port
                 int port = findAvailablePort();
-                SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
+                final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
                 try {
                     server.start();
                 } catch (Exception e) {
                     throw new RuntimeException("Failed to start simulated block node on port " + port, e);
                 }
                 logger.info("Started shared simulated block node @ localhost:{}", port);
-                simulatedBlockNodeById.put(entry.getKey(), server);
+                simulatedBlockNodeById.put(blockNodeId, server);
             }
+        }
+    }
+
+    private void startRealBlockNodeContainer(final long blockNodeId, final int port) {
+        try {
+            final BlockNodeContainer container = new BlockNodeContainer(blockNodeId, port);
+
+            container.start();
+            container.waitForHealthy(Duration.ofMinutes(2));
+
+            blockNodeContainerById.put(blockNodeId, container);
+
+            logger.info("Started real block node container {} @ {}", blockNodeId, container);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start real block node container " + blockNodeId, e);
         }
     }
 
@@ -145,7 +162,9 @@ public class BlockNodeNetwork {
             long blockNodeId = blockNodeIds[blockNodeIndex];
             BlockNodeMode mode = blockNodeModeById.get(blockNodeId);
             if (mode == BlockNodeMode.REAL) {
-                throw new UnsupportedOperationException("Real block nodes are not supported yet");
+                final BlockNodeContainer blockNode = blockNodeContainerById.get(blockNodeId);
+                int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
+                blockNodes.add(new BlockNodeConfig(blockNode.getHost(), blockNode.getGrpcPort(), priority));
             } else if (mode == BlockNodeMode.SIMULATOR) {
                 SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
                 int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];

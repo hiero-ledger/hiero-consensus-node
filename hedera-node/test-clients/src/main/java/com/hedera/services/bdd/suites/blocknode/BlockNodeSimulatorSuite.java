@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE_SIMULATOR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.utilops.BlockNodeContainerVerbs.blockNodeContainer;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
@@ -65,7 +66,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(0)
+    @Order(1)
     final Stream<DynamicTest> node0StreamingBufferFull() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
@@ -98,8 +99,41 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {3},
                         blockNodePriorities = {0}),
             })
-    @Order(1)
+    @Order(2)
     final Stream<DynamicTest> allNodesStreamingHappyPath() {
+        return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL),
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {1},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {2},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {3},
+                        blockNodePriorities = {0}),
+            })
+    @Order(3)
+    final Stream<DynamicTest> allNodesStreamingHappyPathWithTestContainers() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
@@ -115,7 +149,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(2)
+    @Order(4)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsCanStreamGenesisBlock() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -151,7 +185,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3})
             })
-    @Order(3)
+    @Order(5)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
         final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -213,6 +247,81 @@ public class BlockNodeSimulatorSuite {
 
     @HapiTest
     @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {0, 1, 2, 3})
+            })
+    @Order(6)
+    final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickleWithContainers() {
+        final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                    portNumbers.add(spec.getBlockNodePortById(2));
+                    portNumbers.add(spec.getBlockNodePortById(3));
+                }),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeContainer(0).shutDownImmediately(), // Pri 0
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(10, SECONDS),
+                        Duration.of(45, SECONDS),
+                        "Error on stream from block node localhost:" + portNumbers.getFirst(),
+                        "Selected block node localhost:" + portNumbers.get(1) + " for connection attempt.",
+                        "Connection task for block node localhost:" + portNumbers.get(1) + " ConnectionState: ACTIVE")),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeContainer(1).shutDownImmediately(), // Pri 1
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(10, SECONDS),
+                        Duration.of(45, SECONDS),
+                        "Error on stream from block node localhost:" + portNumbers.get(1),
+                        "Selected block node localhost:" + portNumbers.get(2) + " for connection attempt.",
+                        "Connection task for block node localhost:" + portNumbers.get(2) + " ConnectionState: ACTIVE")),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeContainer(2).shutDownImmediately(), // Pri 2
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(10, SECONDS),
+                        Duration.of(45, SECONDS),
+                        "Error on stream from block node localhost:" + portNumbers.get(2),
+                        "Selected block node localhost:" + portNumbers.get(3) + " for connection attempt.",
+                        "Connection task for block node localhost:" + portNumbers.get(3) + " ConnectionState: ACTIVE")),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeContainer(1).startImmediately(),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(15, SECONDS),
+                        Duration.of(45, SECONDS),
+                        "Connection task for block node localhost:" + portNumbers.get(1) + " ConnectionState: PENDING",
+                        "Connection task for block node localhost:" + portNumbers.get(2)
+                                + " is stopping due to active connection with higher priority",
+                        "Transitioning higher priority pending connection: localhost:" + portNumbers.get(1)
+                                + " Priority: 1 to ACTIVE")),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
             networkSize = 2,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
@@ -225,7 +334,7 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0})
             })
-    @Order(4)
+    @Order(7)
     final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
