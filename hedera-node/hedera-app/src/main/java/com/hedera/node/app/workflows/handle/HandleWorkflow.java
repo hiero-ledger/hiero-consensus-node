@@ -803,7 +803,7 @@ public class HandleWorkflow {
             @NonNull final Instant now,
             @NonNull final Runnable action) {
         if (streamMode != RECORDS) {
-            immediateStateChangeListener.reset();
+            immediateStateChangeListener.resetKvStateChanges();
         }
         action.run();
         ((CommittableWritableStates) writableStates).commit();
@@ -811,7 +811,7 @@ public class HandleWorkflow {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = immediateStateChangeListener.getStateChanges();
+            final var changes = immediateStateChangeListener.getKvStateChanges();
             if (!changes.isEmpty()) {
                 final var stateChangesItem = BlockItem.newBuilder()
                         .stateChanges(new StateChanges(asTimestamp(now), new ArrayList<>(changes)))

@@ -12,7 +12,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.node.app.HederaStateRoot;
+import com.hedera.node.app.HederaNewStateRoot;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -22,7 +22,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -61,12 +60,12 @@ class DependencyMigrationTest extends MerkleTestBase {
 
     private ConfigProviderImpl configProvider;
 
-    private HederaStateRoot merkleTree;
+    private HederaNewStateRoot merkleTree;
 
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        merkleTree = new HederaStateRoot();
+        merkleTree = new HederaNewStateRoot(CONFIGURATION, new NoOpMetrics());
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
     }
@@ -94,7 +93,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             CURRENT_VERSION,
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
-                            mock(Metrics.class),
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -112,7 +110,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             VERSIONED_CONFIG,
                             VERSIONED_CONFIG,
-                            mock(Metrics.class),
                             startupNetworks,
                             storeMetricsService,
                             configProvider,
@@ -129,25 +126,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             CURRENT_VERSION,
                             null,
-                            null,
-                            mock(Metrics.class),
-                            startupNetworks,
-                            storeMetricsService,
-                            configProvider,
-                            TEST_PLATFORM_STATE_FACADE))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        void metricsRequired() {
-            final var subject = new OrderedServiceMigrator();
-            Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
-                            servicesRegistry,
-                            null,
-                            CURRENT_VERSION,
-                            VERSIONED_CONFIG,
-                            VERSIONED_CONFIG,
                             null,
                             startupNetworks,
                             storeMetricsService,
@@ -240,7 +218,6 @@ class DependencyMigrationTest extends MerkleTestBase {
                 SemanticVersion.newBuilder().major(1).build(),
                 VERSIONED_CONFIG,
                 VERSIONED_CONFIG,
-                mock(Metrics.class),
                 startupNetworks,
                 storeMetricsService,
                 configProvider,
@@ -257,8 +234,8 @@ class DependencyMigrationTest extends MerkleTestBase {
                         "DependentService#migrate");
     }
 
-    // This class represents a service that depends on EntityIdService. This class will create a simple mapping from an
-    // entity ID to a string value.
+    // This class represents a service that depends on EntityIdService. This class will create a simple mapping from
+    // an entity ID to a string value.
     private static class DependentService implements Service {
         static final String NAME = "TokenService";
         static final String STATE_KEY = "ACCOUNTS";

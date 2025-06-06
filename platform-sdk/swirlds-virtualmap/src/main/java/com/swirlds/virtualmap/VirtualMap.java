@@ -488,7 +488,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             statistics = new VirtualMapStatistics(state.getLabel());
         }
 
-        persistState();
+        persistNonEmptyState();
 
         // VM size metric value is updated in add() and remove(). However, if no elements are added or
         // removed, the metric may have a stale value for a long time. Update it explicitly here
@@ -501,7 +501,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         pipeline.registerCopy(this);
     }
 
-    private void persistState() {
+    /**
+     * Adds {@link VirtualMapState} to the map if the state is not empty.
+     */
+    private void persistNonEmptyState() {
+        if (state.getSize() == 0) {
+            // If the state is empty, we do not persist it.
+            return;
+        }
+
         if (!isHashed()) {
             putBytes(VM_STATE_KEY, state.toBytes());
         } else {
@@ -691,6 +699,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
+            if (size() == 0 && !key.equals(VM_STATE_KEY)) {
+                // Currently, state is (-1, -1) and it's going to be stored as such.
+                // However, it's not a problem because it's going to be updated at the end of the round
+                add(VM_STATE_KEY, state, null, state.toBytes());
+            }
 
             final long path = records.findKey(key);
             if (path == INVALID_PATH) {
@@ -722,10 +735,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * @return The removed value. May return null if there was no value to remove or if the value was null.
      */
     public <V> V remove(@NonNull final Bytes key, @Nullable final Codec<V> valueCodec) {
+        return remove(key, valueCodec, false);
+    }
+
+    private <V> V remove(
+            @NonNull final Bytes key, @Nullable final Codec<V> valueCodec, final boolean allowStateRemoval) {
         throwIfImmutable();
         requireNonNull(key);
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
-        if (key.equals(VM_STATE_KEY)) {
+        if (!allowStateRemoval && key.equals(VM_STATE_KEY)) {
             throw new IllegalArgumentException("Cannot remove the virtual map state key");
         }
         try {
@@ -794,6 +812,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             return valueCodec != null ? leafToDelete.value(valueCodec) : null;
         } finally {
             assert currentModifyingThreadRef.compareAndSet(Thread.currentThread(), null);
+            // In this case the only leaf we have left is the VM_STATE_KEY leaf.
+            if (size() == 1) {
+                remove(VM_STATE_KEY, null, true);
+            }
         }
     }
 
@@ -1447,11 +1469,16 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             }
             logger.info(RECONNECT.getMarker(), "call postInit()");
             nodeRemover = null;
+            VirtualMapState originalMapState = originalMap.getState();
             originalMap = null;
-            state = new VirtualMapState(reconnectRecords
-                    .getDataSource()
-                    .loadLeafRecord(VM_STATE_KEY)
-                    .valueBytes());
+            VirtualLeafBytes reconnectedStateBytes =
+                    reconnectRecords.getDataSource().loadLeafRecord(VM_STATE_KEY);
+            // if we can't find the state, then the teacher map was empty
+            if (reconnectedStateBytes == null) {
+                state = new VirtualMapState(originalMapState.getLabel());
+            } else {
+                state = new VirtualMapState(reconnectedStateBytes.valueBytes());
+            }
             postInit(state);
         } catch (IOException e) {
             final var message = "VirtualMap@" + getRoute() + " failed to get load VirtualMapState after reconnect";
@@ -1591,7 +1618,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     public VirtualMap copy() {
         throwIfImmutable();
         throwIfDestroyed();
-        persistState();
+        persistNonEmptyState();
 
         final VirtualMap copy = new VirtualMap(this);
         setImmutable(true);
@@ -1606,7 +1633,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     @Override
-    public MerkleNode migrate(int version) {
+    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
         if (version < ClassVersion.NO_VIRTUAL_ROOT_NODE) {
             // removing VirtualMapState
             super.setChild(0, null);
@@ -1731,14 +1758,21 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      **/
 
     /*
-     * Gets the number of elements in this map.
-     * Note that even freshly created instance of {@code VirtualMap} contains
-     * at least one element - an instance of {@link VirtualMapState}
+     * Gets the number of elements in this map. The map is considered as empty if it contains the state element only.
      *
      * @return The number of key/value pairs in the map.
      */
     public long size() {
         return state.getSize();
+    }
+
+    /*
+     * Gets whether this map is empty.
+     *
+     * @return True if the map is empty
+     */
+    public boolean isEmpty() {
+        return size() == 0;
     }
 
     public void remove(@NonNull final Bytes key) {

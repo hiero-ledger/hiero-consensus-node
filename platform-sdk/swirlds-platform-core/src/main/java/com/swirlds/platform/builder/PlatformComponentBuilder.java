@@ -770,6 +770,7 @@ public class PlatformComponentBuilder {
 
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
+                    blocks.swirldStateManager(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.appVersion(),
                     ignorePreconsensusSignatures,
@@ -954,7 +955,8 @@ public class PlatformComponentBuilder {
                     state -> blocks.loadReconnectStateReference().get().accept(state),
                     () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
-                    blocks.platformStateFacade());
+                    blocks.platformStateFacade(),
+                    blocks.stateRootFunction());
         }
         return gossip;
     }

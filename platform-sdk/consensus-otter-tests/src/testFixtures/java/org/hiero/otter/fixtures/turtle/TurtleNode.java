@@ -418,12 +418,13 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(currentConfiguration, roster, version),
+                () -> TurtleAppState.createGenesisState(currentConfiguration, roster, metrics, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 selfId,
                 platformStateFacade,
-                platformContext);
+                platformContext,
+                TurtleAppState::new);
         final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
@@ -441,7 +442,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
                         selfId,
                         eventStreamLoc,
                         rosterHistory,
-                        platformStateFacade)
+                        platformStateFacade,
+                        TurtleAppState::new)
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)

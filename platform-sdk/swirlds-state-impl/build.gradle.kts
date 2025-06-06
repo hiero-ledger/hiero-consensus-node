@@ -11,8 +11,11 @@ testModuleInfo {
     requires("com.swirlds.state.impl.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
     runtimeOnly("com.swirlds.config.api")
     runtimeOnly("com.swirlds.config.impl")
+    requires("org.mockito")
+    requires("org.mockito.junit.jupiter")
 }
