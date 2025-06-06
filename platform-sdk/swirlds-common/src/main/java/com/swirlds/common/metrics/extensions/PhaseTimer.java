@@ -106,6 +106,10 @@ public class PhaseTimer<T extends Enum<T>> {
         activePhase = phase;
     }
 
+    /**
+     * Returns current phase which was last activated on this time
+     * @return active phase
+     */
     public T getActivePhase() {
         return activePhase;
     }

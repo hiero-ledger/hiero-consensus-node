@@ -163,9 +163,8 @@ public class SyncGossipModular implements Gossip {
 
         this.protocols = new ArrayList<>();
 
-        if (!protocolConfig.rpcGossip()) {
-            this.protocols.add(HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()));
-        }
+        this.protocols.add(HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()));
+
         this.protocols.add(createReconnectProtocol(
                 platformContext,
                 syncManager,

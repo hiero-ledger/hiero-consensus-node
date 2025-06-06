@@ -142,6 +142,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private final AncientMode ancientMode;
 
     private final long idleWritePollTimeoutMs;
+
     private final long idleDispatchPollTimeoutMs;
 
     /**
@@ -176,6 +177,13 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private final long maxWaitForConversationFinishMs;
 
     private SyncPhase previousPhase = SyncPhase.IDLE;
+
+    private static final Runnable POISON_PILL = new Runnable() {
+        @Override
+        public void run() {
+            logger.error("Poison pill should never be executed");
+        }
+    };
 
     /**
      * Constructs a new rpc protocol
@@ -308,10 +316,13 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private void dispatchInputMessages() throws InterruptedException {
         syncMetrics.rpcDispatchThreadRunning(+1);
         try {
-            while (shouldContinueProcessingMessages()) {
+            while (true) {
                 syncMetrics.rpcInputQueueSize(remotePeerId, inputQueue.size());
-                final var message = inputQueue.poll(idleDispatchPollTimeoutMs, TimeUnit.MILLISECONDS);
+                final Runnable message = inputQueue.poll(idleDispatchPollTimeoutMs, TimeUnit.MILLISECONDS);
                 if (message != null) {
+                    if (message == POISON_PILL) {
+                        break;
+                    }
                     message.run();
                 }
                 // TODO: can be possibly replaced with timer from last finish of sync?
@@ -401,11 +412,11 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         syncMetrics.rpcReadThreadRunning(+1);
         try {
             while (true) {
-
                 // check if other side should be already sending us end of conversation marker; if it is the case
                 // and they haven't for long enough, break the connection, they might be malicious
                 if (conversationFinishPending > 0
                         && time.currentTimeMillis() - conversationFinishPending > maxWaitForConversationFinishMs) {
+                    inputQueue.clear();
                     throw new SyncTimeoutException(
                             Duration.ofMillis(time.currentTimeMillis() - conversationFinishPending),
                             Duration.ofMillis(maxWaitForConversationFinishMs));
@@ -459,8 +470,9 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 }
             }
         } finally {
-            syncMetrics.rpcReadThreadRunning(-1);
+            inputQueue.add(POISON_PILL);
             processMessages = false;
+            syncMetrics.rpcReadThreadRunning(-1);
         }
     }
 

@@ -316,11 +316,11 @@ public class SyncMetrics {
                 "the number of creators that have more than one tip at the start of each sync",
                 "%5d");
 
-        this.outputQueuePollTime = new AverageAndMax(
+        outputQueuePollTime = new AverageAndMax(
                 metrics,
                 PLATFORM_CATEGORY,
                 "rpc_output_queue_poll_time",
-                "amount of us spent sleeping waiting for poll to happen or timeout",
+                "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
     }
 
@@ -574,10 +574,23 @@ public class SyncMetrics {
                 .update(size);
     }
 
+    /**
+     * Time spent sleeping waiting for poll to happen or timeout. Please note that you are supposed to pass nanos here,
+     * but metric will be reporting microseconds
+     *
+     * @param nanos amount of nanoseconds which have passed
+     */
     public void outputQueuePollTime(final long nanos) {
         outputQueuePollTime.update(nanos / 1000);
     }
 
+    /**
+     * Report current rpc sync phase going against specific node
+     *
+     * @param node      node id for which this is report
+     * @param syncPhase phase we are in
+     * @return previously reported phase ({@link SyncPhase#OUTSIDE_OF_RPC} initially)
+     */
     public SyncPhase reportSyncPhase(@NonNull final NodeId node, @NonNull final SyncPhase syncPhase) {
         PhaseTimer<SyncPhase> phaseMetric = syncPhasePerNode.computeIfAbsent(
                 node, nodeId -> new PhaseTimerBuilder<SyncPhase>(metrics, time, "platform", SyncPhase.class)
@@ -592,14 +605,29 @@ public class SyncMetrics {
         }
     }
 
+    /**
+     * Update amount of rpc read threads running concurrently
+     *
+     * @param change +1 or -1 depending if thread is started or stopped
+     */
     public void rpcReadThreadRunning(final int change) {
         rpcReadThreadRunning.update(change);
     }
 
+    /**
+     * Update amount of rpc write threads running concurrently
+     *
+     * @param change +1 or -1 depending if thread is started or stopped
+     */
     public void rpcWriteThreadRunning(final int change) {
         rpcWriteThreadRunning.update(change);
     }
 
+    /**
+     * Update amount of rpc dispatch threads running concurrently
+     *
+     * @param change +1 or -1 depending if thread is started or stopped
+     */
     public void rpcDispatchThreadRunning(final int change) {
         rpcDispatchThreadRunning.update(change);
     }
