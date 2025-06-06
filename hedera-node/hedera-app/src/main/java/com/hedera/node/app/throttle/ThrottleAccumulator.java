@@ -169,16 +169,20 @@ public class ThrottleAccumulator {
      * @param txnInfo the transaction to update the throttle requirements for
      * @param now the instant of time the transaction throttling should be checked for
      * @param state the current state of the node
+     * @param throttleUsages if not null, a list to accumulate throttle usages into
      * @return whether the transaction should be throttled
      */
     public boolean checkAndEnforceThrottle(
-            @NonNull final TransactionInfo txnInfo, @NonNull final Instant now, @NonNull final State state) {
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final Instant now,
+            @NonNull final State state,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
         if (throttleType == NOOP_THROTTLE) {
             return false;
         }
         resetLastAllowedUse();
         lastTxnWasGasThrottled = false;
-        if (shouldThrottleTxn(false, txnInfo, now, state)) {
+        if (shouldThrottleTxn(false, txnInfo, now, state, throttleUsages)) {
             reclaimLastAllowedUse();
             return true;
         }
@@ -231,9 +235,9 @@ public class ThrottleAccumulator {
             final var tokenConfig = configuration.getConfigData(TokensConfig.class);
             final int associationCount =
                     Math.clamp(getAssociationCount(query, accountStore), 1, tokenConfig.maxRelsPerInfoQuery());
-            allReqMet = manager.allReqsMetAt(now, associationCount, ONE_TO_ONE);
+            allReqMet = manager.allReqsMetAt(now, associationCount, ONE_TO_ONE, null);
         } else {
-            allReqMet = manager.allReqsMetAt(now);
+            allReqMet = manager.allReqsMetAt(now, null);
         }
 
         if (!allReqMet) {
@@ -272,7 +276,7 @@ public class ThrottleAccumulator {
         if (manager == null) {
             return true;
         }
-        if (!manager.allReqsMetAt(consensusTime, n, ONE_TO_ONE)) {
+        if (!manager.allReqsMetAt(consensusTime, n, ONE_TO_ONE, null)) {
             reclaimLastAllowedUse();
             return true;
         }
@@ -378,7 +382,8 @@ public class ThrottleAccumulator {
             final boolean isScheduled,
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
-            @NonNull final State state) {
+            @NonNull final State state,
+            List<ThrottleUsage> throttleUsages) {
         final var function = txnInfo.functionality();
         final var configuration = configSupplier.get();
         final boolean isJumboTransactionsEnabled =
@@ -396,7 +401,7 @@ public class ThrottleAccumulator {
             return false;
         }
 
-        if (isGasExhausted(txnInfo, now, configuration)) {
+        if (isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
             lastTxnWasGasThrottled = true;
             return true;
         }
@@ -410,7 +415,7 @@ public class ThrottleAccumulator {
                         configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
 
                 final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
-                if (shouldThrottleBasedExcessBytes(excessBytes, now)) {
+                if (shouldThrottleBasedExcessBytes(excessBytes, now, throttleUsages)) {
                     return true;
                 }
             }
@@ -426,9 +431,10 @@ public class ThrottleAccumulator {
                 if (isScheduled) {
                     throw new IllegalStateException("ScheduleCreate cannot be a child!");
                 }
-                yield shouldThrottleScheduleCreate(manager, txnInfo, now, state);
+                yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
             }
-            case TOKEN_MINT -> shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration);
+            case TOKEN_MINT ->
+                shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
@@ -437,18 +443,24 @@ public class ThrottleAccumulator {
                         now,
                         configuration,
                         getImplicitCreationsCount(txnInfo.txBody(), accountStore),
-                        getAutoAssociationsCount(txnInfo.txBody(), relationStore));
+                        getAutoAssociationsCount(txnInfo.txBody(), relationStore),
+                        throttleUsages);
             }
             case ETHEREUM_TRANSACTION -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                yield shouldThrottleEthTxn(manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore));
+                yield shouldThrottleEthTxn(
+                        manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore), throttleUsages);
             }
-            default -> !manager.allReqsMetAt(now);
+            default -> !manager.allReqsMetAt(now, throttleUsages);
         };
     }
 
     private boolean shouldThrottleScheduleCreate(
-            final ThrottleReqsManager manager, final TransactionInfo txnInfo, final Instant now, final State state) {
+            final ThrottleReqsManager manager,
+            final TransactionInfo txnInfo,
+            final Instant now,
+            final State state,
+            List<ThrottleUsage> throttleUsages) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         final var scheduled = op.scheduledTransactionBodyOrThrow();
@@ -471,7 +483,7 @@ public class ThrottleAccumulator {
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         if (!schedulingConfig.longTermEnabled()) {
             if (scheduledFunction == CRYPTO_TRANSFER) {
-                final var transfer = scheduled.cryptoTransfer();
+                final var transfer = scheduled.cryptoTransferOrThrow();
                 if (usesAliases(transfer)) {
                     final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                     final var transferTxnBody = TransactionBody.newBuilder()
@@ -479,14 +491,14 @@ public class ThrottleAccumulator {
                             .build();
                     final int implicitCreationsCount = getImplicitCreationsCount(transferTxnBody, accountStore);
                     if (implicitCreationsCount > 0) {
-                        return shouldThrottleImplicitCreations(implicitCreationsCount, now);
+                        return shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages);
                     }
                 }
             }
-            return !manager.allReqsMetAt(now);
+            return !manager.allReqsMetAt(now, throttleUsages);
         } else {
             // We first enforce the limit on the ScheduleCreate TPS
-            if (!manager.allReqsMetAt(now)) {
+            if (!manager.allReqsMetAt(now, throttleUsages)) {
                 return true;
             }
             // And then at ingest, ensure that not too many schedules will expire in a given second
@@ -563,26 +575,35 @@ public class ThrottleAccumulator {
     private boolean isGasExhausted(
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
         final boolean shouldThrottleByGas =
                 configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
-        return shouldThrottleByGas
-                && isGasThrottled(txnInfo.functionality())
-                && !gasThrottle.allow(now, getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality()));
+        if (shouldThrottleByGas && isGasThrottled(txnInfo.functionality())) {
+            final long amount = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());
+            final boolean answer = !gasThrottle.allow(now, amount);
+            if (!answer && throttleUsages != null) {
+                throttleUsages.add(new BucketThrottleUsage(gasThrottle, amount));
+            }
+            return answer;
+        } else {
+            return false;
+        }
     }
 
     private boolean shouldThrottleMint(
             @NonNull final ThrottleReqsManager manager,
             @NonNull final TokenMintTransactionBody op,
             @NonNull final Instant now,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            List<ThrottleUsage> throttleUsages) {
         final int numNfts = op.metadata().size();
         if (numNfts == 0) {
-            return !manager.allReqsMetAt(now);
+            return !manager.allReqsMetAt(now, throttleUsages);
         } else {
             final var nftsMintThrottleScaleFactor =
                     configuration.getConfigData(TokensConfig.class).nftsMintThrottleScaleFactor();
-            return !manager.allReqsMetAt(now, numNfts, nftsMintThrottleScaleFactor);
+            return !manager.allReqsMetAt(now, numNfts, nftsMintThrottleScaleFactor, throttleUsages);
         }
     }
 
@@ -591,21 +612,25 @@ public class ThrottleAccumulator {
             @NonNull final Instant now,
             @NonNull final Configuration configuration,
             final int implicitCreationsCount,
-            final int autoAssociationsCount) {
+            final int autoAssociationsCount,
+            List<ThrottleUsage> throttleUsages) {
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
         if (implicitCreationsCount > 0) {
-            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
+            return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages);
         } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
-            return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now);
+            return shouldThrottleBasedOnAutoAssociations(manager, autoAssociationsCount, now, throttleUsages);
         } else {
-            return !manager.allReqsMetAt(now);
+            return !manager.allReqsMetAt(now, throttleUsages);
         }
     }
 
     private boolean shouldThrottleEthTxn(
-            @NonNull final ThrottleReqsManager manager, @NonNull final Instant now, final int implicitCreationsCount) {
-        return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now);
+            @NonNull final ThrottleReqsManager manager,
+            @NonNull final Instant now,
+            final int implicitCreationsCount,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
+        return shouldThrottleBasedOnImplicitCreations(manager, implicitCreationsCount, now, throttleUsages);
     }
 
     public int getImplicitCreationsCount(
@@ -666,8 +691,7 @@ public class ThrottleAccumulator {
     private int hbarAdjustsImplicitCreationsCount(
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final CryptoTransferTransactionBody cryptoTransferBody) {
-        if (cryptoTransferBody.transfers() == null
-                || cryptoTransferBody.transfers().accountAmounts() == null) {
+        if (cryptoTransferBody.transfers() == null) {
             return 0;
         }
 
@@ -685,22 +709,27 @@ public class ThrottleAccumulator {
     private int tokenAdjustsImplicitCreationsCount(
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final CryptoTransferTransactionBody cryptoTransferBody) {
-        if (cryptoTransferBody.tokenTransfers() == null) {
+        if (cryptoTransferBody.tokenTransfers().isEmpty()) {
             return 0;
         }
 
         int implicitCreationsCount = 0;
         for (var tokenAdjust : cryptoTransferBody.tokenTransfers()) {
             for (final var adjust : tokenAdjust.transfers()) {
-                if (referencesAliasNotInUse(adjust.accountID(), accountStore) && isPlausibleAutoCreate(adjust)) {
-                    implicitCreationsCount++;
+                if (adjust.hasAccountID()) {
+                    if (referencesAliasNotInUse(adjust.accountIDOrThrow(), accountStore)
+                            && isPlausibleAutoCreate(adjust)) {
+                        implicitCreationsCount++;
+                    }
                 }
             }
 
             for (final var change : tokenAdjust.nftTransfers()) {
-                if (referencesAliasNotInUse(change.receiverAccountID(), accountStore)
-                        && isPlausibleAutoCreate(change)) {
-                    implicitCreationsCount++;
+                if (change.hasReceiverAccountID()) {
+                    if (referencesAliasNotInUse(change.receiverAccountIDOrThrow(), accountStore)
+                            && isPlausibleAutoCreate(change)) {
+                        implicitCreationsCount++;
+                    }
                 }
             }
         }
@@ -768,32 +797,46 @@ public class ThrottleAccumulator {
     }
 
     private boolean shouldThrottleBasedOnImplicitCreations(
-            @NonNull final ThrottleReqsManager manager, final int implicitCreationsCount, @NonNull final Instant now) {
+            @NonNull final ThrottleReqsManager manager,
+            final int implicitCreationsCount,
+            @NonNull final Instant now,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
         return (implicitCreationsCount == 0)
-                ? !manager.allReqsMetAt(now)
-                : shouldThrottleImplicitCreations(implicitCreationsCount, now);
+                ? !manager.allReqsMetAt(now, throttleUsages)
+                : shouldThrottleImplicitCreations(implicitCreationsCount, now, throttleUsages);
     }
 
-    private boolean shouldThrottleBasedExcessBytes(final long bytesUsed, @NonNull final Instant now) {
+    private boolean shouldThrottleBasedExcessBytes(
+            final long bytesUsed, @NonNull final Instant now, @Nullable final List<ThrottleUsage> throttleUsages) {
         // If the bucket doesn't allow the txn enforce the throttle
-        return bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed);
+        final boolean shouldThrottle = bytesThrottle != null && !bytesThrottle.allow(now, bytesUsed);
+        // If the bucket allows the txn, record the usage
+        if (!shouldThrottle && throttleUsages != null) {
+            throttleUsages.add(new BucketThrottleUsage(bytesThrottle, bytesUsed));
+        }
+        return shouldThrottle;
     }
 
     private boolean shouldThrottleBasedOnAutoAssociations(
-            @NonNull final ThrottleReqsManager manager, final int autoAssociations, @NonNull final Instant now) {
+            @NonNull final ThrottleReqsManager manager,
+            final int autoAssociations,
+            @NonNull final Instant now,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
         return (autoAssociations == 0)
-                ? !manager.allReqsMetAt(now)
-                : shouldThrottleAutoAssociations(autoAssociations, now);
+                ? !manager.allReqsMetAt(now, throttleUsages)
+                : shouldThrottleAutoAssociations(autoAssociations, now, throttleUsages);
     }
 
-    private boolean shouldThrottleImplicitCreations(final int n, @NonNull final Instant now) {
+    private boolean shouldThrottleImplicitCreations(
+            final int n, @NonNull final Instant now, @Nullable final List<ThrottleUsage> throttleUsages) {
         final var manager = functionReqs.get(CRYPTO_CREATE);
-        return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE);
+        return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
     }
 
-    private boolean shouldThrottleAutoAssociations(final int n, @NonNull final Instant now) {
+    private boolean shouldThrottleAutoAssociations(
+            final int n, @NonNull final Instant now, @Nullable final List<ThrottleUsage> throttleUsages) {
         final var manager = functionReqs.get(TOKEN_ASSOCIATE_TO_ACCOUNT);
-        return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE);
+        return manager == null || !manager.allReqsMetAt(now, n, ONE_TO_ONE, throttleUsages);
     }
 
     /**
