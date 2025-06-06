@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
@@ -78,11 +77,6 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetMetrics tipsetMetrics;
 
     /**
-     * Defines the current ancient mode.
-     */
-    private final AncientMode ancientMode;
-
-    /**
      * The last event created by this node.
      */
     private PlatformEvent lastSelfEvent;
@@ -128,11 +122,7 @@ public class TipsetEventCreator implements EventCreator {
 
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
         tipsetMetrics = new TipsetMetrics(platformContext, roster);
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-        tipsetTracker = new TipsetTracker(time, selfId, roster, ancientMode);
+        tipsetTracker = new TipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessOtherEventTracker);
@@ -141,7 +131,7 @@ public class TipsetEventCreator implements EventCreator {
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventWindow = EventWindow.getGenesisEventWindow();
         eventHasher = new PbjStreamHasher();
     }
 
@@ -412,9 +402,7 @@ public class TipsetEventCreator implements EventCreator {
                 selfId,
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
-                eventWindow.ancientMode() == AncientMode.BIRTH_ROUND_THRESHOLD
-                        ? eventWindow.newEventBirthRound()
-                        : ConsensusConstants.ROUND_FIRST,
+                eventWindow.newEventBirthRound(),
                 timeCreated,
                 transactionSupplier.getTransactions());
         eventHasher.hashUnsignedEvent(event);
@@ -430,7 +418,7 @@ public class TipsetEventCreator implements EventCreator {
         tipsetTracker.clear();
         childlessOtherEventTracker.clear();
         tipsetWeightCalculator.clear();
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventWindow = EventWindow.getGenesisEventWindow();
         lastSelfEvent = null;
     }
 

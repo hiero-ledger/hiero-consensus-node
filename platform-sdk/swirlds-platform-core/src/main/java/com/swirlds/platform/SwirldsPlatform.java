@@ -284,7 +284,7 @@ public class SwirldsPlatform implements Platform {
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
             startingRound = 0;
-            platformWiring.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+            platformWiring.updateEventWindow(EventWindow.getGenesisEventWindow());
         } else {
             initialAncientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();

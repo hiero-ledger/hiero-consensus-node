@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sync;
 
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -90,7 +89,7 @@ class ShadowgraphByBirthRoundTests {
                 .build();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
 
         for (int i = 0; i < numEvents; i++) {
             final EventImpl event = emitter.emitEvent();
@@ -625,7 +624,7 @@ class ShadowgraphByBirthRoundTests {
         r1.close();
 
         shadowGraph.clear();
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
 
         assertEquals(0, shadowGraph.getTips().size(), "Shadow graph should not have any tips after being cleared.");
         for (final EventImpl generatedEvent : generatedEvents) {

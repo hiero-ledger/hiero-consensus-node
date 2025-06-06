@@ -846,7 +846,7 @@ public class PlatformComponentBuilder {
         if (staleEventDetector == null) {
             final PlatformContext context = blocks.platformContext();
             staleEventDetector =
-                    new DefaultStaleEventDetector(context.getConfiguration(), context.getMetrics(), blocks.selfId());
+                    new DefaultStaleEventDetector(context.getMetrics(), blocks.selfId());
         }
         return staleEventDetector;
     }

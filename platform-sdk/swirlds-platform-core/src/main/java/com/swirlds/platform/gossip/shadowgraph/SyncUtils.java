@@ -604,7 +604,7 @@ public final class SyncUtils {
                 // by default, we set the birth round to the pending round
                 latestConsensusRound + 1,
                 ancientThreshold,
-                expiredThreshold,
-                ancientMode);
+                expiredThreshold
+        );
     }
 }

@@ -87,7 +87,7 @@ public class TipsetTracker {
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
         this.ancientMode = Objects.requireNonNull(ancientMode);
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        this.eventWindow = EventWindow.getGenesisEventWindow();
     }
 
     /**
@@ -241,7 +241,7 @@ public class TipsetTracker {
      * Reset the tipset tracker to its initial state.
      */
     public void clear() {
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventWindow = EventWindow.getGenesisEventWindow();
         latestGenerations = new Tipset(roster);
         tipsets.clear();
     }

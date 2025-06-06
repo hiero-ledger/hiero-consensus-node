@@ -130,7 +130,7 @@ public class EventWindowBuilder {
                 latestConsensusRound == null ? ConsensusConstants.ROUND_FIRST : latestConsensusRound,
                 newEventBirthRound == null ? ConsensusConstants.ROUND_FIRST : newEventBirthRound,
                 ancientThreshold == null ? ROUND_FIRST : ancientThreshold,
-                expiredThreshold == null ? ROUND_FIRST : expiredThreshold,
-                ancientMode);
+                expiredThreshold == null ? ROUND_FIRST : expiredThreshold
+        );
     }
 }

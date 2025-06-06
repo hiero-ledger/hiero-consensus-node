@@ -196,7 +196,6 @@ public class PcesFileManager {
         }
 
         final PcesFile descriptor = PcesFile.of(
-                newFileType,
                 time.now(),
                 getNextSequenceNumber(),
                 lowerBoundForFile,

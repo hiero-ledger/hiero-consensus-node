@@ -57,7 +57,7 @@ public class FutureEventBuffer {
         final AncientMode ancientMode =
                 configuration.getConfigData(EventConfig.class).getAncientMode();
 
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventWindow = EventWindow.getGenesisEventWindow();
 
         metrics.getOrCreate(
                 new FunctionGauge.Config<>("platform", "futureEventBuffer", Long.class, bufferedEventCount::get)

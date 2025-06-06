@@ -43,7 +43,7 @@ public class ConsensusOutput implements Clearable {
         nonAncientEvents = new StandardSequenceSet<>(0, 1024, true, event -> event.getBirthRound());
         nonAncientConsensusEvents = new StandardSequenceSet<>(0, 1024, true,
                 eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventWindow = EventWindow.getGenesisEventWindow();
     }
 
     public void eventAdded(@NonNull final PlatformEvent event) {

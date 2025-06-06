@@ -88,7 +88,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        this.eventWindow = EventWindow.getGenesisEventWindow();
         missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,
                 eventDescriptor1 -> eventDescriptor1.eventDescriptor().birthRound());
         eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,

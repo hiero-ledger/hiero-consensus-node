@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.hashgraph;
 
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Describes the current window of events that the platform is using.
+ *
  * @param latestConsensusRound the latest round that has come to consensus
- * @param newEventBirthRound      the round that newly created events should use as a birth round
+ * @param newEventBirthRound   the round that newly created events should use as a birth round
  * @param ancientThreshold     the minimum ancient indicator value for an event to be considered non-ancient
  * @param expiredThreshold     the minimum ancient indicator value for an event to be considered not expired
  */
@@ -22,8 +21,8 @@ public record EventWindow(
         long latestConsensusRound,
         long newEventBirthRound,
         long ancientThreshold,
-        long expiredThreshold,
-        @NonNull AncientMode ancientMode) {
+        long expiredThreshold
+) {
 
     /**
      * Create a new EventWindow with the given bounds. The latestConsensusRound must be greater than or equal to the
@@ -64,19 +63,7 @@ public record EventWindow(
      */
     @NonNull
     public static EventWindow getGenesisEventWindow() {
-        return getGenesisEventWindow(BIRTH_ROUND_THRESHOLD);
-    }
-
-    /**
-     * Creates a genesis event window for the given ancient mode.
-     *
-     * @param ancientMode the ancient mode to use
-     * @return a genesis event window.
-     */
-    @NonNull
-    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
-    public static EventWindow getGenesisEventWindow(@NonNull final AncientMode ancientMode) {
-        return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, ROUND_FIRST, ROUND_FIRST, ancientMode);
+        return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, ROUND_FIRST, ROUND_FIRST);
     }
 
     /**

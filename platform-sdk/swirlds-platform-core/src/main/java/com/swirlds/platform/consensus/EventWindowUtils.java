@@ -48,7 +48,7 @@ public final class EventWindowUtils {
                 // by default, we set the birth round to the pending round
                 snapshot.round() + 1,
                 ancientThreshold,
-                ancientThreshold,
-                ancientMode);
+                ancientThreshold
+        );
     }
 }

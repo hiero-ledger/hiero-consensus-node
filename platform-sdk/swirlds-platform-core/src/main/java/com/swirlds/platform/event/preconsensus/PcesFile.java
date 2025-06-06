@@ -140,10 +140,8 @@ public final class PcesFile implements Comparable<PcesFile> {
      * @param timestamp      the timestamp of when the writing of this file began
      * @param sequenceNumber the sequence number of the file. All file sequence numbers are unique. Sequence numbers are
      *                       allocated in monotonically increasing order.
-     * @param lowerBound     the upper bound of events that are permitted to be in this file, either a generation or a
-     *                       birth round depending on the {@link AncientMode}.
-     * @param upperBound     the lower bound of events that are permitted to be in this file, either a generation or a
-     *                       birth round depending on the {@link AncientMode}.
+     * @param lowerBound     the upper bound of event's birth round that are permitted to be in this file
+     * @param upperBound     the lower bound of event's birth round that are permitted to be in this file
      * @param origin         the origin of the stream file, signals the round from which the stream is unbroken
      * @param path           the location where this file can be found
      */
@@ -256,7 +254,7 @@ public final class PcesFile implements Comparable<PcesFile> {
         }
 
         final String fileName = filePath.getFileName().toString();
-        final AncientMode fileType = determineFileType(fileName);
+        final AncientMode fileType = BIRTH_ROUND_THRESHOLD;
 
         final String[] elements = fileName.substring(0, fileName.length() - EVENT_FILE_EXTENSION.length())
                 .split(EVENT_FILE_SEPARATOR);
@@ -270,47 +268,13 @@ public final class PcesFile implements Comparable<PcesFile> {
                     fileType,
                     parseSanitizedTimestamp(elements[0]),
                     Long.parseLong(elements[1].replace(SEQUENCE_NUMBER_PREFIX, "")),
-                    Long.parseLong(elements[2].replace(getLowerBoundPrefix(fileType), "")),
-                    Long.parseLong(elements[3].replace(getUpperBoundPrefix(fileType), "")),
+                    Long.parseLong(elements[2].replace(MINIMUM_BIRTH_ROUND_PREFIX, "")),
+                    Long.parseLong(elements[3].replace(MAXIMUM_BIRTH_ROUND_PREFIX, "")),
                     Long.parseLong(elements[4].replace(ORIGIN_PREFIX, "")),
                     filePath);
         } catch (final DateTimeParseException | IllegalArgumentException ex) {
             throw new IOException("unable to parse " + filePath, ex);
         }
-    }
-
-    /**
-     * Determine the type of the pces file based on its file name.
-     *
-     * @param fileName the name of the file
-     * @return the type of the file
-     * @throws IOException if the file type could not be determined
-     */
-    @NonNull
-    private static AncientMode determineFileType(@NonNull final String fileName) throws IOException {
-        return BIRTH_ROUND_THRESHOLD;
-    }
-
-    /**
-     * Get the prefix used to identify the lower bound in the file name.
-     *
-     * @param fileType the type of the file
-     * @return the prefix used to identify the lower bound in the file name
-     */
-    @NonNull
-    private static String getLowerBoundPrefix(@NonNull final AncientMode fileType) {
-        return MINIMUM_BIRTH_ROUND_PREFIX;
-    }
-
-    /**
-     * Get the prefix used to identify the upper bound in the file name.
-     *
-     * @param fileType the type of the file
-     * @return the prefix used to identify the upper bound in the file name
-     */
-    @NonNull
-    private static String getUpperBoundPrefix(@NonNull final AncientMode fileType) {
-        return MAXIMUM_BIRTH_ROUND_PREFIX;
     }
 
     /**
@@ -508,10 +472,10 @@ public final class PcesFile implements Comparable<PcesFile> {
                 .append(SEQUENCE_NUMBER_PREFIX)
                 .append(sequenceNumber)
                 .append(EVENT_FILE_SEPARATOR)
-                .append(getLowerBoundPrefix(fileType))
+                .append(MINIMUM_BIRTH_ROUND_PREFIX)
                 .append(minimumBound)
                 .append(EVENT_FILE_SEPARATOR)
-                .append(getUpperBoundPrefix(fileType))
+                .append(MAXIMUM_BIRTH_ROUND_PREFIX)
                 .append(maximumBound)
                 .append(EVENT_FILE_SEPARATOR)
                 .append(ORIGIN_PREFIX)
