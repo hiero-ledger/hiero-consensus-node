@@ -1,0 +1,1315 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.services.bdd.suites.token;
+
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNftPendingAirdrop;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+
+import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
+import com.hederahashgraph.api.proto.java.TokenKycStatus;
+import com.hederahashgraph.api.proto.java.TokenPauseStatus;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
+
+@HapiTestLifecycle
+public class AtomicBatchTokenServiceEndToEndTests {
+
+    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
+    private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
+    private static final String NFT_FOR_END_TO_END = "nftForEndToEnd";
+    private static final String FT_FOR_TOKEN_PAUSE = "ftForTokenPause";
+    private static final String NFT_FOR_TOKEN_FREEZE = "nftForTokenFreeze";
+    private static final String FT_FOR_TOKEN_BURN = "ftForTokenBurn";
+    private static final String FT_FOR_TOKEN_KYC = "ftForTokenKyc";
+    private static final String OWNER = "owner";
+    private static final String RECEIVER_ASSOCIATED_FIRST = "receiverAssociatedFirst";
+    private static final String RECEIVER_ASSOCIATED_SECOND = "receiverAssociatedSecond";
+    private static final String RECEIVER_NOT_ASSOCIATED = "receiverNotAssociated";
+    private static final String RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS = "receiverWithFreeAutoAssociations";
+    private static final String RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS = "receiverWithUnlimitedAutoAssociations";
+    private static final String RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS = "receiverWithoutFreeAutoAssociations";
+    private static final String RECEIVER_WITH_0_AUTO_ASSOCIATIONS = "receiverWith0AutoAssociations";
+    private static final String BATCH_OPERATOR = "batchOperator";
+    private static final String nftSupplyKey = "nftSupplyKey";
+    private static final String pauseKey = "pauseKey";
+    private static final String freezeKey = "freezeKey";
+    private static final String adminKey = "adminKey";
+    private static final String supplyKey = "supplyKey";
+    private static final String wipeKey = "wipeKey";
+    private static final String kycKey = "kycKey";
+    private static final String newKycKey = "newKycKey";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
+        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+    }
+
+    // Token Lifecycle tests
+    @Nested
+    @DisplayName("Token Associate and Transfer Tests - including auto-associations and airdrops")
+    class TokenAssociateAndTransferTests {
+        @HapiTest
+        @DisplayName("Associate and multiple transfers of fungible token without custom fees success in batch")
+        public Stream<DynamicTest> associateAndMultipleTransfersFTWithoutCustomFeesSuccessInBatch() {
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END)
+                    .batchKey(BATCH_OPERATOR)
+                    .payingWith(OWNER)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var associateSecondReceiver = tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_END_TO_END)
+                    .batchKey(BATCH_OPERATOR)
+                    .payingWith(OWNER)
+                    .via("associateSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create transfer tokens inner transactions
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenAirdrops = tokenAirdrop(
+                            moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS),
+                            moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
+                            moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                            moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                    .payingWith(OWNER)
+                    .via("airdropsTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts
+                    createAccounts(),
+
+                    // fill in the 1 free auto-association slot
+                    tokenCreate("dummy")
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L),
+                    cryptoTransfer(moving(10, "dummy").between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
+
+                    // create fungible token
+                    tokenCreate(FT_FOR_END_TO_END)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1000L),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                                    associateFirstReceiver,
+                                    associateSecondReceiver,
+                                    tokenTransferFirstReceiver,
+                                    tokenTransferSecondReceiver,
+                                    tokenAirdrops)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 10L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_END_TO_END, 10L),
+                    getAccountBalance(RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS).hasTokenBalance(FT_FOR_END_TO_END, 10L),
+                    getAccountBalance(RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                            .hasTokenBalance(FT_FOR_END_TO_END, 10L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 960L),
+
+                    // validate pending token airdrops
+                    getTxnRecord("airdropsTxn")
+                            .hasPriority(recordWith()
+                                    .pendingAirdrops(includingFungiblePendingAirdrop(
+                                            moving(10, FT_FOR_END_TO_END)
+                                                    .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                                            moving(10, FT_FOR_END_TO_END)
+                                                    .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))))));
+        }
+
+        @HapiTest
+        @DisplayName("Associate and multiple transfers of NFT token without custom fees success in batch")
+        public Stream<DynamicTest> associateAndMultipleTransfersNFTWithoutCustomFeesSuccessInBatch() {
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_END_TO_END)
+                    .batchKey(BATCH_OPERATOR)
+                    .payingWith(OWNER)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var associateSecondReceiver = tokenAssociate(RECEIVER_ASSOCIATED_SECOND, NFT_FOR_END_TO_END)
+                    .batchKey(BATCH_OPERATOR)
+                    .payingWith(OWNER)
+                    .via("associateSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create transfer tokens inner transactions
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                            movingUnique(NFT_FOR_END_TO_END, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenAirdrops = tokenAirdrop(
+                            movingUnique(NFT_FOR_END_TO_END, 3L).between(OWNER, RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS),
+                            movingUnique(NFT_FOR_END_TO_END, 4L)
+                                    .between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
+                            movingUnique(NFT_FOR_END_TO_END, 5L)
+                                    .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                            movingUnique(NFT_FOR_END_TO_END, 6L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                    .payingWith(OWNER)
+                    .via("airdropsTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts
+                    newKeyNamed(nftSupplyKey),
+                    createAccounts(),
+
+                    // fill in the 1 free auto-association slot
+                    tokenCreate("dummy")
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L),
+                    cryptoTransfer(moving(10, "dummy").between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
+
+                    // create and mint non-fungible token
+                    tokenCreate(NFT_FOR_END_TO_END)
+                            .treasury(OWNER)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .name(NFT_FOR_END_TO_END)
+                            .supplyKey(nftSupplyKey),
+                    mintToken(
+                            NFT_FOR_END_TO_END,
+                            IntStream.range(0, 10)
+                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                    .toList()),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                                    associateFirstReceiver,
+                                    associateSecondReceiver,
+                                    tokenTransferFirstReceiver,
+                                    tokenTransferSecondReceiver,
+                                    tokenAirdrops)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                            .hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 6L),
+
+                    // validate pending token airdrops
+                    getTxnRecord("airdropsTxn")
+                            .hasPriority(recordWith()
+                                    .pendingAirdrops(includingNftPendingAirdrop(
+                                            movingUnique(NFT_FOR_END_TO_END, 5L)
+                                                    .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                                            movingUnique(NFT_FOR_END_TO_END, 6L)
+                                                    .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))))));
+        }
+    }
+
+    @Nested
+    @DisplayName("Token Operations Tests - including Pause, Unpause, Freeze, Unfreeze, Burn, Wipe and Delete")
+    class TokenOperationsTests {
+
+        // Pause and Unpause tests
+        @HapiTest
+        @DisplayName("Unpause, Transfer and Pause fungible token in batch")
+        public Stream<DynamicTest> unpauseTransferAndPauseFTSuccessInBatch() {
+
+            // unpause the fungible token
+            final var unpauseFungibleToken = tokenUnpause(FT_FOR_TOKEN_PAUSE)
+                    .payingWith(OWNER)
+                    .via("unpauseTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated accounts
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // pause the fungible token
+            final var pauseFungibleToken = tokenPause(FT_FOR_TOKEN_PAUSE)
+                    .payingWith(OWNER)
+                    .via("pauseTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(pauseKey),
+                    tokenCreate(FT_FOR_TOKEN_PAUSE)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey)
+                            .pauseKey(pauseKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
+                    tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_PAUSE),
+                    tokenPause(FT_FOR_TOKEN_PAUSE),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                                    unpauseFungibleToken,
+                                    tokenTransferFirstReceiver,
+                                    tokenTransferSecondReceiver,
+                                    pauseFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_PAUSE, 10L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_TOKEN_PAUSE, 10L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_PAUSE, 80L),
+                    getTokenInfo(FT_FOR_TOKEN_PAUSE)
+                            .hasTokenType(FUNGIBLE_COMMON)
+                            .hasPauseStatus(TokenPauseStatus.Paused)));
+        }
+
+        @HapiTest
+        @DisplayName("Token Transfer of Paused token fails in batch")
+        public Stream<DynamicTest> tokenTransferOfPausedFTFailsInBatch() {
+
+            // transfer tokens to associated accounts
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // pause the fungible token
+            final var pauseFungibleToken = tokenPause(FT_FOR_TOKEN_PAUSE)
+                    .payingWith(OWNER)
+                    .via("pauseTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(pauseKey),
+                    tokenCreate(FT_FOR_TOKEN_PAUSE)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey)
+                            .pauseKey(pauseKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(pauseFungibleToken, tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_PAUSE, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_PAUSE, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_PAUSE)
+                            .hasTokenType(FUNGIBLE_COMMON)
+                            .hasPauseStatus(TokenPauseStatus.Unpaused)));
+        }
+
+        @HapiTest
+        @DisplayName("Transfer and Pause of token without pause key fails in batch")
+        public Stream<DynamicTest> tokenTransferAndPauseOfFTWithoutPauseKeyFailsInBatch() {
+
+            // transfer tokens to associated accounts
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // pause the fungible token
+            final var pauseFungibleToken = tokenPause(FT_FOR_TOKEN_PAUSE)
+                    .payingWith(OWNER)
+                    .via("pauseTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    tokenCreate(FT_FOR_TOKEN_PAUSE)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(tokenTransferFirstReceiver, pauseFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_PAUSE, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_PAUSE, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_PAUSE)
+                            .hasTokenType(FUNGIBLE_COMMON)
+                            .hasPauseStatus(TokenPauseStatus.PauseNotApplicable)));
+        }
+
+        // Freeze and Unfreeze tests
+        @HapiTest
+        @DisplayName("Unfreeze and Freeze non-fungible token in batch")
+        public Stream<DynamicTest> unfreezeTransferAndFreezeNFTSuccessInBatch() {
+
+            // unfreeze the non-fungible token
+            final var unfreezeNonFungibleToken = tokenUnfreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("unfreezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated accounts
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // freeze the non-fungible token
+            final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("freezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(freezeKey),
+                    newKeyNamed(nftSupplyKey),
+                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
+                            .treasury(OWNER)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .name(NFT_FOR_TOKEN_FREEZE)
+                            .adminKey(adminKey)
+                            .freezeKey(freezeKey)
+                            .supplyKey(nftSupplyKey),
+                    mintToken(
+                            NFT_FOR_TOKEN_FREEZE,
+                            IntStream.range(0, 10)
+                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                    .toList()),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
+                    tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(unfreezeNonFungibleToken, tokenTransferFirstReceiver, freezeNonFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 1L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 9L),
+                    getTokenInfo(NFT_FOR_TOKEN_FREEZE)
+                            .hasTokenType(NON_FUNGIBLE_UNIQUE)
+                            .hasFreezeDefault(TokenFreezeStatus.Frozen)));
+        }
+
+        @HapiTest
+        @DisplayName("Transfer of Freezed NFT token fails in batch")
+        public Stream<DynamicTest> tokenTransferOfFreezedNFTFailsInBatch() {
+
+            // transfer tokens to associated accounts
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // freeze the non-fungible token
+            final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("freezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(freezeKey),
+                    newKeyNamed(nftSupplyKey),
+                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
+                            .treasury(OWNER)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .name(NFT_FOR_TOKEN_FREEZE)
+                            .adminKey(adminKey)
+                            .freezeKey(freezeKey)
+                            .supplyKey(nftSupplyKey),
+                    mintToken(
+                            NFT_FOR_TOKEN_FREEZE,
+                            IntStream.range(0, 10)
+                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                    .toList()),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(freezeNonFungibleToken, tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 10L),
+                    getTokenInfo(NFT_FOR_TOKEN_FREEZE)
+                            .hasTokenType(NON_FUNGIBLE_UNIQUE)
+                            .hasFreezeDefault(TokenFreezeStatus.Unfrozen)));
+        }
+
+        @HapiTest
+        @DisplayName("Transfer and Freeze non-fungible token without freeze key fails in batch")
+        public Stream<DynamicTest> tokenTransferAndFreezeOfNFTWithoutFreezeKeyFailsInBatch() {
+
+            // transfer tokens to associated accounts
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // freeze the non-fungible token
+            final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("freezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(nftSupplyKey),
+                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
+                            .treasury(OWNER)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .name(NFT_FOR_TOKEN_FREEZE)
+                            .adminKey(adminKey)
+                            .supplyKey(nftSupplyKey),
+                    mintToken(
+                            NFT_FOR_TOKEN_FREEZE,
+                            IntStream.range(0, 10)
+                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                    .toList()),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(tokenTransferFirstReceiver, freezeNonFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 10L),
+                    getTokenInfo(NFT_FOR_TOKEN_FREEZE)
+                            .hasTokenType(NON_FUNGIBLE_UNIQUE)
+                            .hasFreezeDefault(TokenFreezeStatus.FreezeNotApplicable)));
+        }
+
+        @HapiTest
+        @DisplayName("Multiple transfers of Unfreezed for one account only non-fungible token fails in batch")
+        public Stream<DynamicTest> multipleTransferOfNFTUnfreezedForOneAccountOnlyFailInBatch() {
+
+            // unfreeze the non-fungible token
+            final var unfreezeNonFungibleTokenForOneAccount = tokenUnfreeze(
+                            NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("unfreezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated accounts
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                            movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // freeze the non-fungible token for one of the accounts
+            final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("freezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(freezeKey),
+                    newKeyNamed(nftSupplyKey),
+                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
+                            .treasury(OWNER)
+                            .tokenType(NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .name(NFT_FOR_TOKEN_FREEZE)
+                            .adminKey(adminKey)
+                            .freezeKey(freezeKey)
+                            .supplyKey(nftSupplyKey),
+                    mintToken(
+                            NFT_FOR_TOKEN_FREEZE,
+                            IntStream.range(0, 10)
+                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                    .toList()),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
+                    tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                                    unfreezeNonFungibleTokenForOneAccount,
+                                    tokenTransferFirstReceiver,
+                                    tokenTransferSecondReceiver,
+                                    freezeNonFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 0L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 10L),
+                    getTokenInfo(NFT_FOR_TOKEN_FREEZE)
+                            .hasTokenType(NON_FUNGIBLE_UNIQUE)
+                            .hasFreezeDefault(TokenFreezeStatus.Frozen)));
+        }
+
+        // Burn, Wipe and Delete tests
+        @HapiTest
+        @DisplayName("Burn and Wipe fungible token in batch")
+        public Stream<DynamicTest> burnAndWipeFTSuccessInBatch() {
+
+            // burn the fungible token
+            final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
+                    .payingWith(OWNER)
+                    .via("burnTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // wipe the fungible token
+            final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 5L)
+                    .payingWith(OWNER)
+                    .via("wipeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(supplyKey),
+                    newKeyNamed(wipeKey),
+                    tokenCreate(FT_FOR_TOKEN_BURN)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey)
+                            .supplyKey(supplyKey)
+                            .wipeKey(wipeKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(tokenTransferFirstReceiver, burnFungibleToken, wipeFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_BURN, 5L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_BURN, 80L),
+                    getTokenInfo(FT_FOR_TOKEN_BURN).hasTokenType(FUNGIBLE_COMMON)));
+        }
+
+        @HapiTest
+        @DisplayName("Token Transfer after Burn and Wipe fungible token in batch")
+        public Stream<DynamicTest> transferAfterBurnAndWipeFTFailsInBatch() {
+
+            // burn the fungible token
+            final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 100L)
+                    .payingWith(OWNER)
+                    .via("burnTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // wipe the fungible token
+            final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 10L)
+                    .payingWith(OWNER)
+                    .via("wipeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferOwner = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(supplyKey),
+                    newKeyNamed(wipeKey),
+                    tokenCreate(FT_FOR_TOKEN_BURN)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey)
+                            .supplyKey(supplyKey)
+                            .wipeKey(wipeKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(tokenTransferFirstReceiver, burnFungibleToken, wipeFungibleToken, tokenTransferOwner)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_BURN, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_BURN, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_BURN)
+                            .hasTokenType(FUNGIBLE_COMMON)
+                            .hasTotalSupply(100L)));
+        }
+
+        @HapiTest
+        @DisplayName("Burn and Wipe of fungible token not signed by the supply key fails in batch")
+        public Stream<DynamicTest> burnAndWipeFTNotSignedBySupplyKeyFailsInBatch() {
+
+            // burn the fungible token
+            final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
+                    .payingWith(OWNER)
+                    .via("burnTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // wipe the fungible token
+            final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 5L)
+                    .payingWith(OWNER)
+                    .via("wipeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(wipeKey),
+                    tokenCreate(FT_FOR_TOKEN_BURN)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey)
+                            .wipeKey(wipeKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(tokenTransferFirstReceiver, burnFungibleToken, wipeFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_BURN, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_BURN, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_BURN).hasTokenType(FUNGIBLE_COMMON)));
+        }
+
+        @HapiTest
+        @DisplayName("Burn and Wipe of fungible token not signed by the wipe key fails in batch")
+        public Stream<DynamicTest> burnAndWipeFTNotSignedByWipeKeyFailsInBatch() {
+
+            // burn the fungible token
+            final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
+                    .payingWith(OWNER)
+                    .via("burnTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // wipe the fungible token
+            final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 5L)
+                    .payingWith(OWNER)
+                    .via("wipeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(supplyKey),
+                    tokenCreate(FT_FOR_TOKEN_BURN)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey)
+                            .wipeKey(supplyKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(tokenTransferFirstReceiver, burnFungibleToken, wipeFungibleToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_BURN, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_BURN, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_BURN).hasTokenType(FUNGIBLE_COMMON)));
+        }
+    }
+
+    @Nested
+    @DisplayName("Token KYC Tests - including Grant, Revoke, Transfer and Update KYC")
+    class TokenKycTests {
+
+        @HapiTest
+        @DisplayName("Grant KYC, Transfer FT and Revoke kYC success in batch")
+        public Stream<DynamicTest> grantKYCTransferAndRevokeKycForFTSuccessInBatch() {
+
+            // grant KYC to the fungible token
+            final var grantTokenKYC = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // revoke KYC to the fungible token
+            final var revokeTokenKYC = revokeTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("revokeKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(kycKey),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .kycKey(kycKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(grantTokenKYC, tokenTransferFirstReceiver, revokeTokenKYC)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 10L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 90L),
+                    getTokenInfo(FT_FOR_TOKEN_KYC).hasKycDefault(TokenKycStatus.Revoked)));
+        }
+
+        @HapiTest
+        @DisplayName("Grant KYC, Transfer FT and Second Transfer from Account With kYC success in batch")
+        public Stream<DynamicTest> grantKYCTransferAndSecondTransferFromAccountWithKYCForFTSuccessInBatch() {
+
+            // grant KYC to the fungible token
+            final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var grantTokenKYCSecondReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_SECOND)
+                    .payingWith(OWNER)
+                    .via("revokeKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                            moving(5L, FT_FOR_TOKEN_KYC).between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(kycKey),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .kycKey(kycKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
+                    tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_KYC),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                                    grantTokenKYCFirstReceiver,
+                                    grantTokenKYCSecondReceiver,
+                                    tokenTransferFirstReceiver,
+                                    tokenTransferSecondReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 5L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_TOKEN_KYC, 5L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 90L),
+                    getTokenInfo(FT_FOR_TOKEN_KYC).hasKycDefault(TokenKycStatus.Granted)));
+        }
+
+        @HapiTest
+        @DisplayName("Transfer FT after Revoke kYC fails in batch")
+        public Stream<DynamicTest> transferFTAfterRevokeKYCFailsInBatch() {
+
+            // grant KYC to the fungible token
+            final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var grantTokenKYCSecondReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_SECOND)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // revoke KYC to the fungible token
+            final var revokeTokenKYCSecondReceiver = revokeTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_SECOND)
+                    .payingWith(OWNER)
+                    .via("revokeKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(kycKey),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .kycKey(kycKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
+                    tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_KYC),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                                    grantTokenKYCFirstReceiver,
+                                    grantTokenKYCSecondReceiver,
+                                    tokenTransferFirstReceiver,
+                                    revokeTokenKYCSecondReceiver,
+                                    tokenTransferSecondReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 0L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_TOKEN_KYC, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_KYC).hasKycDefault(TokenKycStatus.KycNotApplicable)));
+        }
+
+        @HapiTest
+        @DisplayName("Grant kYC and Transfer to not Associated Account fails in batch")
+        public Stream<DynamicTest> GrantKYCAndTransferToNotAssociatedAccountFailsInBatch() {
+
+            // grant KYC to the fungible token
+            final var grantTokenKYC = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_NOT_ASSOCIATED)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to not associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_NOT_ASSOCIATED))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(kycKey),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .kycKey(kycKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(grantTokenKYC, tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_NOT_ASSOCIATED).hasTokenBalance(FT_FOR_TOKEN_KYC, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_KYC).hasKycDefault(TokenKycStatus.KycNotApplicable)));
+        }
+
+        @HapiTest
+        @DisplayName("Grant KYC and Transfer to Receiver for FT without KYC key fails in batch")
+        public Stream<DynamicTest> grantKycForFTWithoutKYCKeyFailsInBatch() {
+
+            // grant KYC to the fungible token for one account only
+            final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(grantTokenKYCFirstReceiver, tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_KYC).hasKycDefault(TokenKycStatus.KycNotApplicable)));
+        }
+
+        @HapiTest
+        @DisplayName("Transfer FT with KYC to Receiver without KYC granted fails in batch")
+        public Stream<DynamicTest> transferFTWithKYCToReceiverWithoutKYCFailsInBatch() {
+
+            // grant KYC to the fungible token for one account only
+            final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account but without KYC granted
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(kycKey),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .kycKey(kycKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
+                    tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_KYC),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(grantTokenKYCFirstReceiver, tokenTransferFirstReceiver, tokenTransferSecondReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 0L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_TOKEN_KYC, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 100L),
+                    getTokenInfo(FT_FOR_TOKEN_KYC).hasKycDefault(TokenKycStatus.KycNotApplicable)));
+        }
+
+        // Update KYC key tests
+        @HapiTest
+        @DisplayName("Update FT with KYC key and Transfer success in batch")
+        public Stream<DynamicTest> updateFTWithKYCKeyAndTransferFTSuccessInBatch() {
+
+            // grant KYC to the fungible token
+            final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // update the KYC key for the fungible token
+            final var updateTokenWithKYCKey = tokenUpdate(FT_FOR_TOKEN_KYC)
+                    .kycKey(kycKey)
+                    .signedBy(adminKey)
+                    .payingWith(OWNER)
+                    .via("updateKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(kycKey),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(updateTokenWithKYCKey, grantTokenKYCFirstReceiver, tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 10L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 90L),
+                    withOpContext((spec, opLog) -> {
+                        final var newKycFromRegistry = spec.registry().getKey(kycKey);
+                        final var tokenInfoOperation = getTokenInfo(FT_FOR_TOKEN_KYC)
+                                .hasKycDefault(TokenKycStatus.Granted)
+                                .hasKycKey(toPbj(newKycFromRegistry));
+                        allRunFor(spec, tokenInfoOperation);
+                    })));
+        }
+
+        @HapiTest
+        @DisplayName("Update KYC key for FT and Transfer success in batch")
+        public Stream<DynamicTest> grantUpdateKYCAndTransferFTSuccessInBatch() {
+
+            // grant KYC to the fungible token
+            final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // update the KYC key for the fungible token
+            final var updateTokenKYCKey = tokenUpdate(FT_FOR_TOKEN_KYC)
+                    .kycKey(newKycKey)
+                    .signedBy(adminKey)
+                    .payingWith(OWNER)
+                    .via("updateKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccounts(),
+                    newKeyNamed(adminKey),
+                    newKeyNamed(kycKey),
+                    newKeyNamed(newKycKey),
+                    tokenCreate(FT_FOR_TOKEN_KYC)
+                            .treasury(OWNER)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(100L)
+                            .adminKey(adminKey)
+                            .kycKey(kycKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(grantTokenKYCFirstReceiver, updateTokenKYCKey, tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 10L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 90L),
+                    withOpContext((spec, opLog) -> {
+                        final var newKycFromRegistry = spec.registry().getKey(newKycKey);
+                        final var tokenInfoOperation = getTokenInfo(FT_FOR_TOKEN_KYC)
+                                .hasKycDefault(TokenKycStatus.Granted)
+                                .hasKycKey(toPbj(newKycFromRegistry));
+                        allRunFor(spec, tokenInfoOperation);
+                    })));
+        }
+    }
+
+    private List<SpecOperation> createAccounts() {
+        return List.of(
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER_ASSOCIATED_FIRST),
+                cryptoCreate(RECEIVER_ASSOCIATED_SECOND),
+                cryptoCreate(RECEIVER_NOT_ASSOCIATED),
+                cryptoCreate(RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(10),
+                cryptoCreate(RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(-1),
+                cryptoCreate(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(0),
+                cryptoCreate(RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(1));
+    }
+}
