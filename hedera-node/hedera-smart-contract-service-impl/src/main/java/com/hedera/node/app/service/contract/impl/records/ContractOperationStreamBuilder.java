@@ -3,14 +3,18 @@ package com.hedera.node.app.service.contract.impl.records;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -58,10 +62,18 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      */
     default ContractOperationStreamBuilder withCommonFieldsSetFrom(@NonNull final CallOutcome outcome) {
         if (outcome.actions() != null) {
-            addContractActions(outcome.actions(), false);
+            // (FUTURE) Remove after switching to block stream
+            addContractActions(new ContractActions(outcome.actions()), false);
+            // No-op for the RecordStreamBuilder
+            addActions(outcome.actions());
         }
+        // (FUTURE) Remove after switching to block stream
         if (outcome.hasStateChanges()) {
             addContractStateChanges(requireNonNull(outcome.stateChanges()), false);
+        }
+        // No-op for the RecordStreamBuilder
+        if (outcome.hasSlotUsages()) {
+            addContractSlotUsages(outcome.slotUsagesOrThrow());
         }
         opsDuration(outcome.hederaOpsDuration());
         return this;
@@ -75,7 +87,16 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractOperationStreamBuilder addContractActions(@NonNull ContractActions contractActions, boolean isMigration);
+
+    /**
+     * Updates this record builder to include contract actions.
+     * @param actions the contract actions
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addActions(@NonNull List<ContractAction> actions);
 
     /**
      * Updates this record builder to include contract bytecode.
@@ -85,7 +106,16 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractOperationStreamBuilder addContractBytecode(@NonNull ContractBytecode contractBytecode, boolean isMigration);
+
+    /**
+     * Updates this builder to include contract initcode.
+     * @param initcode the contract initcode
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addInitcode(@NonNull ContractInitcode initcode);
 
     /**
      * Updates this record builder to include contract state changes.
@@ -95,8 +125,17 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractOperationStreamBuilder addContractStateChanges(
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration);
+
+    /**
+     * Updates this stream builder to include contract slot usages.
+     * @param slotUsages the contract slot usages
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addContractSlotUsages(@NonNull List<ContractSlotUsage> slotUsages);
 
     /**
      * Sets the hedera gas used.
