@@ -238,7 +238,7 @@ public class TipsetWeightCalculator {
 
         // Don't bother advancing the self generation in this theoretical tipset,
         // since self advancement doesn't contribute to tipset advancement weight.
-        final Tipset newTipset = Tipset.merge(parentTipsets);
+        final Tipset newTipset = new Tipset(roster).merge(parentTipsets);
 
         return snapshot.getTipAdvancementWeight(selfId, newTipset).minus(previousAdvancementWeight);
     }
