@@ -60,13 +60,7 @@ class ContextQueryProcessorTest {
         final var processors = processorsForAllCurrentEvmVersions(processor);
 
         final var subject = new ContextQueryProcessor(
-                context,
-                hederaEvmContext,
-                tracer,
-                proxyWorldUpdater,
-                hevmStaticTransactionFactory,
-                processors,
-                hederaOpsDuration);
+                context, hederaEvmContext, tracer, proxyWorldUpdater, hevmStaticTransactionFactory, processors);
 
         given(context.configuration()).willReturn(CONFIGURATION);
         given(context.query()).willReturn(Query.DEFAULT);

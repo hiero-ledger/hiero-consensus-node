@@ -2,19 +2,16 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.OpsDurationConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
@@ -33,7 +30,6 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
     private final ProxyWorldUpdater worldUpdater;
     private final HevmStaticTransactionFactory hevmStaticTransactionFactory;
     private final Map<HederaEvmVersion, TransactionProcessor> processors;
-    private final HederaOpsDuration hederaOpsDuration;
 
     /**
      * @param context the context of the query
@@ -50,23 +46,18 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final ProxyWorldUpdater worldUpdater,
             @NonNull final HevmStaticTransactionFactory hevmStaticTransactionFactory,
-            @NonNull final Map<HederaEvmVersion, TransactionProcessor> processors,
-            @NonNull final HederaOpsDuration hederaOpsDuration) {
+            @NonNull final Map<HederaEvmVersion, TransactionProcessor> processors) {
         this.context = Objects.requireNonNull(context);
         this.tracer = Objects.requireNonNull(tracer);
         this.processors = Objects.requireNonNull(processors);
         this.worldUpdater = Objects.requireNonNull(worldUpdater);
         this.hederaEvmContext = Objects.requireNonNull(hederaEvmContext);
         this.hevmStaticTransactionFactory = Objects.requireNonNull(hevmStaticTransactionFactory);
-        this.hederaOpsDuration = Objects.requireNonNull(hederaOpsDuration);
     }
 
     @Override
     public CallOutcome call() {
         try {
-            // Apply the latest ops duration schedule from the configuration
-            setOpsDurationValues();
-
             // Try to translate the HAPI operation to a Hedera EVM transaction, throw HandleException on failure
             final var hevmTransaction = hevmStaticTransactionFactory.fromHapiQuery(context.query());
 
@@ -91,10 +82,5 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
                     hevmTransaction.exception().getStatus());
             return CallOutcome.fromResultsWithoutSidecars(result.asQueryResult(worldUpdater), result);
         }
-    }
-
-    private void setOpsDurationValues() {
-        final var opsDurationConfig = context.configuration().getConfigData(OpsDurationConfig.class);
-        hederaOpsDuration.applyDurationFromConfig(requireNonNull(opsDurationConfig));
     }
 }

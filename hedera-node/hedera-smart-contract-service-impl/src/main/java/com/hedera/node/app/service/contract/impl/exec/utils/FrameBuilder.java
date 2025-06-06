@@ -123,8 +123,8 @@ public class FrameBuilder {
             contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.recordBuilder());
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
+            contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(0L));
         }
-        contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(0L));
         return contextEntries;
     }
 

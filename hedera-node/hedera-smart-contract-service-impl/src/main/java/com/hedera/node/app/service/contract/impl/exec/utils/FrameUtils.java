@@ -387,8 +387,10 @@ public class FrameUtils {
     public static void incrementOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
         final HederaOpsDurationCounter opsDurationCounter =
                 initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
-        opsDurationCounter.incrementOpsDuration(opsDuration);
-        checkHederaOpsDuration(frame, opsDuration);
+        if (opsDurationCounter != null) {
+            opsDurationCounter.incrementOpsDuration(opsDuration);
+            checkHederaOpsDuration(frame, opsDuration);
+        }
     }
 
     /**
