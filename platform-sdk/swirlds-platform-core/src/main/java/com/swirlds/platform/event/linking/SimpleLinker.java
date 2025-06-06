@@ -50,9 +50,7 @@ public class SimpleLinker {
      */
     public SimpleLinker() {
         this.parentDescriptorMap =
-                new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor -> eventDescriptor
-                        .eventDescriptor()
-                        .birthRound());
+                new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
     }
 
     /**

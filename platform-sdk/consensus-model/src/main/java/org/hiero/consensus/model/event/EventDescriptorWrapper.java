@@ -23,7 +23,7 @@ public record EventDescriptorWrapper(
      *
      * @return the event's birth round
      */
-    public long getBirthRound() {
+    public long birthRound() {
         return eventDescriptor.birthRound();
     }
 

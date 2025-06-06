@@ -94,7 +94,7 @@ public record EventWindow(
      * @return true if the event is ancient, false otherwise.
      */
     public boolean isAncient(@NonNull final EventDescriptorWrapper event) {
-        return event.eventDescriptor().birthRound() < ancientThreshold;
+        return event.birthRound() < ancientThreshold;
     }
 
     /**

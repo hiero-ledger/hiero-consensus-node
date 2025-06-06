@@ -102,14 +102,14 @@ class ShadowgraphByBirthRoundTests {
                     shadowGraph.isHashInGraph(hash),
                     "Event that was just added to the shadow graph should still be in the shadow graph.");
             generatedEvents.add(event);
-            if (!birthRoundToShadows.containsKey(event.getBaseEvent().getBirthRound())) {
-                birthRoundToShadows.put(event.getBaseEvent().getBirthRound(), new HashSet<>());
+            if (!birthRoundToShadows.containsKey(event.getBirthRound())) {
+                birthRoundToShadows.put(event.getBirthRound(), new HashSet<>());
             }
             birthRoundToShadows
-                    .get(event.getBaseEvent().getBirthRound())
+                    .get(event.getBirthRound())
                     .add(shadowGraph.shadow(event.getBaseEvent().getDescriptor()));
-            if (event.getBaseEvent().getBirthRound() > maxBirthRound) {
-                maxBirthRound = event.getBaseEvent().getBirthRound();
+            if (event.getBirthRound() > maxBirthRound) {
+                maxBirthRound = event.getBirthRound();
             }
         }
     }
@@ -556,7 +556,7 @@ class ShadowgraphByBirthRoundTests {
 
         final EventImpl newEvent = emitter.emitEvent();
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setExpiredThreshold(newEvent.getBaseEvent().getBirthRound())
+                .setExpiredThreshold(newEvent.getBirthRound())
                 .build();
         shadowGraph.updateEventWindow(eventWindow);
 

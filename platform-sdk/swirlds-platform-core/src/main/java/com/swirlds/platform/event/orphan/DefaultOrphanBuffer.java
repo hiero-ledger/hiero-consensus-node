@@ -82,12 +82,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
                         .withDescription("number of orphaned events currently in the orphan buffer")
                         .withUnit("events"));
         this.eventWindow = EventWindow.getGenesisEventWindow();
-        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor1 -> eventDescriptor1
-                .eventDescriptor()
-                .birthRound());
-        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor -> eventDescriptor
-                .eventDescriptor()
-                .birthRound());
+        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
+        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
     }
 
     /**

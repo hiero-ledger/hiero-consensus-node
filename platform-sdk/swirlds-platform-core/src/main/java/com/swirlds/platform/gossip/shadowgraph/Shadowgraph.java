@@ -612,7 +612,7 @@ public class Shadowgraph implements Clearable {
      * @return true iff the given event is expired
      */
     private boolean expired(final EventDescriptorWrapper event) {
-        return event.getBirthRound() < oldestUnexpiredIndicator;
+        return event.birthRound() < oldestUnexpiredIndicator;
     }
 
     /*

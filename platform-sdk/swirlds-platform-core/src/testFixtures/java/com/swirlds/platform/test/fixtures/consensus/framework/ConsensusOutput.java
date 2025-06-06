@@ -37,10 +37,8 @@ public class ConsensusOutput implements Clearable {
         consensusRounds = new LinkedList<>();
         staleEvents = new LinkedList<>();
 
-        nonAncientEvents = new StandardSequenceSet<>(0, 1024, true, event -> event.getBirthRound());
-        nonAncientConsensusEvents = new StandardSequenceSet<>(0, 1024, true, eventDescriptor -> eventDescriptor
-                .eventDescriptor()
-                .birthRound());
+        nonAncientEvents = new StandardSequenceSet<>(0, 1024, true, PlatformEvent::getBirthRound);
+        nonAncientConsensusEvents = new StandardSequenceSet<>(0, 1024, true, EventDescriptorWrapper::birthRound);
         eventWindow = EventWindow.getGenesisEventWindow();
     }
 

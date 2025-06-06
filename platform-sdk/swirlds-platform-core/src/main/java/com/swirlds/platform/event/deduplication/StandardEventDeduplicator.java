@@ -89,9 +89,7 @@ public class StandardEventDeduplicator implements EventDeduplicator {
                         .withUnit("hz"));
         this.avgDuplicatePercent = metrics.getOrCreate(AVG_DUPLICATE_PERCENT_CONFIG);
         this.eventWindow = EventWindow.getGenesisEventWindow();
-        this.observedEvents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor -> eventDescriptor
-                .eventDescriptor()
-                .birthRound());
+        this.observedEvents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
     }
 
     /**

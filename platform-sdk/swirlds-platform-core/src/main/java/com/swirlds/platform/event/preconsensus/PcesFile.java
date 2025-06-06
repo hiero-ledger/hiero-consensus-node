@@ -63,19 +63,9 @@ public final class PcesFile implements Comparable<PcesFile> {
     public static final String SEQUENCE_NUMBER_PREFIX = "seq";
 
     /**
-     * Written before the minimum generation in the file name. Improves readability for humans.
-     */
-    public static final String MINIMUM_GENERATION_PREFIX = "ming";
-
-    /**
      * Written before the minimum birth round in the file name. Improves readability for humans.
      */
     public static final String MINIMUM_BIRTH_ROUND_PREFIX = "minr";
-
-    /**
-     * Written before the maximum generation in the file name. Improves readability for humans.
-     */
-    public static final String MAXIMUM_GENERATION_PREFIX = "maxg";
 
     /**
      * Written before the maximum birth round in the file name. Improves readability for humans.
@@ -171,8 +161,6 @@ public final class PcesFile implements Comparable<PcesFile> {
         this.timestamp = Objects.requireNonNull(timestamp);
         this.path = Objects.requireNonNull(path);
     }
-
-    // we no longer support multiple ancient modes
 
     /**
      * Create a new event file descriptor.
