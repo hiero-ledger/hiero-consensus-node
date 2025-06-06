@@ -1067,12 +1067,6 @@ public class RecordStreamBuilder
         return this;
     }
 
-    @Override
-    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
-        this.opsDuration = opsDuration;
-        return this;
-    }
-
     /**
      * Adds contractActions to sidecar records.
      *

@@ -23,15 +23,13 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param recipientId if known, the Hedera id of the contract that was called
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
- * @param hederaOpsDuration the duration of the evm ops performed during the transaction
  */
 public record CallOutcome(
         @NonNull ContractFunctionResult result,
         @NonNull ResponseCodeEnum status,
         @Nullable ContractID recipientId,
         @Nullable ContractActions actions,
-        @Nullable ContractStateChanges stateChanges,
-        long hederaOpsDuration) {
+        @Nullable ContractStateChanges stateChanges) {
 
     /**
      * @return whether some state changes appeared from the execution of the contract
@@ -52,8 +50,7 @@ public record CallOutcome(
                 hevmResult.finalStatus(),
                 hevmResult.recipientId(),
                 hevmResult.actions(),
-                hevmResult.stateChanges(),
-                hevmResult.opsDuration());
+                hevmResult.stateChanges());
     }
 
     /**
@@ -64,7 +61,7 @@ public record CallOutcome(
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
-                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, hevmResult.opsDuration());
+                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null);
     }
 
     /**

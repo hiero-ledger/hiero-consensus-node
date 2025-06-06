@@ -223,8 +223,7 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
                 CALLED_CONTRACT_ID,
                 null,
-                null,
-                opsDuration / 2);
+                null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -264,8 +263,7 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
                 CALLED_CONTRACT_ID,
                 null,
-                null,
-                opsDuration / 2);
+                null);
 
         given(createRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);

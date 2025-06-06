@@ -17,7 +17,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.is
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.COMPLETED_SUCCESS;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
-
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
@@ -94,18 +93,16 @@ public class FrameRunner {
 
         // And return the result, success or failure
         final var gasUsed = effectiveGasUsed(gasLimit, frame);
-        final var opsDuration = getHederaOpsDuration(frame);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
                     gasUsed,
-                    opsDuration,
                     senderId,
                     recipientMetadata.hederaId(),
                     asEvmContractId(entityIdFactory, recipientAddress),
                     frame,
                     tracer);
         } else {
-            return failureFrom(gasUsed, opsDuration, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
+            return failureFrom(gasUsed, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
         }
     }
 

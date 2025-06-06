@@ -42,13 +42,11 @@ class ContractOperationStreamBuilderTest {
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
                 ContractActions.DEFAULT,
-                stateChanges,
-                opsDuration);
+                stateChanges);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
         verify(subject).addContractStateChanges(stateChanges, false);
-        verify(subject).opsDuration(opsDuration);
         assertSame(subject, builder);
     }
 
@@ -59,13 +57,11 @@ class ContractOperationStreamBuilderTest {
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
                 null,
-                ContractStateChanges.DEFAULT,
-                opsDuration);
+                ContractStateChanges.DEFAULT);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());
-        verify(subject).opsDuration(opsDuration);
         assertSame(subject, builder);
     }
 }

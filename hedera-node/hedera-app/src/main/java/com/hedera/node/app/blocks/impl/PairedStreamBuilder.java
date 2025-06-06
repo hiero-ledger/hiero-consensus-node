@@ -401,13 +401,6 @@ public class PairedStreamBuilder
         return this;
     }
 
-    @Override
-    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
-        recordStreamBuilder.opsDuration(opsDuration);
-        blockStreamBuilder.opsDuration(opsDuration);
-        return this;
-    }
-
     @NonNull
     @Override
     public CreateFileStreamBuilder fileID(@NonNull FileID fileID) {

@@ -120,7 +120,7 @@ class ContextTransactionProcessorTest {
         final var protoResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater);
         final var expectedResult =
-                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, opsDuration / 2);
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null);
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
         assertEquals(expectedResult, subject.call());
     }
@@ -152,7 +152,7 @@ class ContextTransactionProcessorTest {
         final var protoResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, rootProxyWorldUpdater);
         final var expectedResult =
-                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, opsDuration / 2);
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }
@@ -182,7 +182,7 @@ class ContextTransactionProcessorTest {
 
         final var protoResult = SUCCESS_RESULT.asProtoResultOf(null, rootProxyWorldUpdater);
         final var expectedResult =
-                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, opsDuration / 2);
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }
