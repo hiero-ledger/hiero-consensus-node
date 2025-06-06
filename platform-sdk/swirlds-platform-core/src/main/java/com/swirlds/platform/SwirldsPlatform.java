@@ -4,7 +4,6 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
-import static com.swirlds.platform.state.BirthRoundStateMigration.modifyStateForBirthRoundMigration;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static org.hiero.base.CompareTo.isLessThan;
 
@@ -176,6 +175,8 @@ public class SwirldsPlatform implements Platform {
 
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
 
+        // Set these fields to zero so they can be removed in a future version.
+        // These fields were required for birth round migration which has taken place.
         blocks.platformStateFacade().bulkUpdateOf(initialState.getState(), v -> {
             v.setFirstVersionInBirthRoundMode(SemanticVersion.newBuilder().build());
             v.setLastRoundBeforeBirthRoundMode(0);
