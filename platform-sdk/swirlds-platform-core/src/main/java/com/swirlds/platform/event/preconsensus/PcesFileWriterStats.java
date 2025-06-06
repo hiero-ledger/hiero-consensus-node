@@ -6,6 +6,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Keeps local stats of the writing process.
+ * The class is independent of the time unit selected for averaging the results
+ * The consistency metrics units should be managed by the caller.
+ * The suggested time unit for the events is nanoseconds.
  * Used by {@link PcesFileWriter}
  */
 public class PcesFileWriterStats {
@@ -17,8 +20,8 @@ public class PcesFileWriterStats {
 
     /**
      * Updates the stats related to the total write operation
-     * @param startTime when the operation started in ms
-     * @param endTime when the operation finished in ms
+     * @param startTime when the operation started
+     * @param endTime when the operation finished
      * @param size the written event size in bytes
      * @param bufferExpanded whether a buffer expansion happened
      */
@@ -32,8 +35,8 @@ public class PcesFileWriterStats {
 
     /**
      * Updates the stats related to the total and partial write operation
-     * @param startTime when the operation started in ms
-     * @param endTime when the operation finished in ms
+     * @param startTime when the operation started
+     * @param endTime when the operation finished
      * @param size the written event size in bytes
      */
     void updateWriteStats(final long startTime, final long endTime, final int size) {
@@ -43,8 +46,8 @@ public class PcesFileWriterStats {
 
     /**
      * Updates the stats related to the partial write operation
-     * @param startTime when the operation started in ms
-     * @param endTime when the operation finished in ms
+     * @param startTime when the operation started
+     * @param endTime when the operation finished
      */
     void updatePartialWriteStats(final long startTime, final long endTime) {
         averageWriteDuration.add(endTime - startTime);
@@ -52,8 +55,8 @@ public class PcesFileWriterStats {
 
     /**
      * Updates the stats related to the sync operation
-     * @param startTime when the operation started in ms
-     * @param endTime when the operation finished in ms
+     * @param startTime when the operation started
+     * @param endTime when the operation finished
      */
     void updateSyncStats(final long startTime, final long endTime) {
         averageSyncDuration.add(endTime - startTime);
@@ -67,7 +70,7 @@ public class PcesFileWriterStats {
     }
 
     /**
-     * @return the average write operation time in ms
+     * @return the average write operation time
      */
     public long averageTotalWriteDuration() {
         return averageTotalWriteDuration.getAverage();
@@ -81,14 +84,14 @@ public class PcesFileWriterStats {
     }
 
     /**
-     * @return the average sync operation time in ms
+     * @return the average sync operation time
      */
     public long averageSyncDuration() {
         return averageSyncDuration.getAverage();
     }
 
     /**
-     * @return the number of times the buffer was expandeds
+     * @return the number of times the buffer was expanded
      */
     public long totalExpansions() {
         return totalExpansions.get();

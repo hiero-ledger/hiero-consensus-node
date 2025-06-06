@@ -48,11 +48,11 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         try {
             out.writePbjRecord(event, GossipEvent.PROTOBUF);
         } finally {
-            stats.updateWriteStats(startTime, System.currentTimeMillis(), GossipEvent.PROTOBUF.measureRecord(event));
+            stats.updateWriteStats(startTime, System.nanoTime(), GossipEvent.PROTOBUF.measureRecord(event));
         }
     }
 
@@ -63,14 +63,14 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
 
     @Override
     public void sync() throws IOException {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         out.flush();
         try {
             fileDescriptor.sync();
         } catch (final SyncFailedException e) {
             throw new IOException("Failed to sync file", e);
         } finally {
-            stats.updateSyncStats(startTime, System.currentTimeMillis());
+            stats.updateSyncStats(startTime, System.nanoTime());
         }
     }
 
