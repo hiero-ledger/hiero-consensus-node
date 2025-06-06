@@ -843,8 +843,7 @@ public class PlatformComponentBuilder {
     public StaleEventDetector buildStaleEventDetector() {
         if (staleEventDetector == null) {
             final PlatformContext context = blocks.platformContext();
-            staleEventDetector =
-                    new DefaultStaleEventDetector(context.getConfiguration(), context.getMetrics(), blocks.selfId());
+            staleEventDetector = new DefaultStaleEventDetector(context.getMetrics(), blocks.selfId());
         }
         return staleEventDetector;
     }

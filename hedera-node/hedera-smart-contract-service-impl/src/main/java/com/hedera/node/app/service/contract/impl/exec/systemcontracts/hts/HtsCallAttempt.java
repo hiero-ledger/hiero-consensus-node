@@ -121,7 +121,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
      */
     public @Nullable Token linkedToken(@NonNull final byte[] evmAddress) {
         requireNonNull(evmAddress);
-        if (isLongZeroAddress(enhancement().nativeOperations().entityIdFactory(), evmAddress)) {
+        if (isLongZeroAddress(evmAddress)) {
             return enhancement()
                     .nativeOperations()
                     .getToken(nativeOperations().entityIdFactory().newTokenId(numberOfLongZero(evmAddress)));
