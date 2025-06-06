@@ -22,6 +22,10 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.common.EntityCreate;
+import com.hedera.node.app.hapi.fees.apis.common.FeesHelper;
+import com.hedera.node.app.hapi.fees.apis.common.YesOrNo;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -44,7 +48,10 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -425,7 +432,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
                         meta.getNumTokens(), meta.getFungibleNumTransfers(), meta.getNftsTransfers())
                 * USAGE_PROPERTIES.legacyReceiptStorageSecs();
 
-        return feeContext
+        final var oldFees = feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(tokenSubTypeFrom(
                         type, op.hasFeeScheduleKey() || !op.customFees().isEmpty()))
@@ -434,6 +441,21 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
                 .addNetworkRamByteSeconds(meta.getNetworkRecordRb() * USAGE_PROPERTIES.legacyReceiptStorageSecs())
                 .addRamByteSeconds((meta.getBaseSize() + meta.getCustomFeeScheduleSize()) * meta.getLifeTime())
                 .calculate();
+
+        EntityCreate entity = FeesHelper.makeEntity(HederaFunctionality.TOKEN_CREATE, "Create a token type", 7, true);
+        Map<String, Object> params = new HashMap<>();
+        params.put("numSignatures", feeContext.numTxnSignatures());
+        params.put("numKeys", 0);
+        params.put("hasCustomFee", YesOrNo.NO);
+        params.put("numFTWithCustomFeeEntries",1);
+        if(op.hasFeeScheduleKey()) {
+            params.put("hasCustomFee", YesOrNo.YES);
+            for(final var fee : op.customFees() ) {
+                System.out.println("fee is " + fee.fixedFee());
+            }
+        }
+        FeeResult simpleFee = entity.computeFee(params);
+        return new Fees(oldFees.nodeFee(), 0, oldFees.serviceFee(), simpleFee.fee);
     }
 
     /**

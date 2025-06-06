@@ -22,6 +22,8 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.file.FileOperations;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
@@ -43,6 +45,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.LongPair;
@@ -51,6 +54,8 @@ import com.hederahashgraph.api.proto.java.KeyList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#FILE_UPDATE}.
@@ -189,11 +194,22 @@ public class FileUpdateHandler implements TransactionHandler {
             return Fees.FREE;
         }
 
-        return feeContext
+        final var oldFees = feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj ->
                         usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj, CommonPbjConverters.fromPbj(file)));
+        if(feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            FileOperations transfer = new FileOperations("FileUpdate", "dummy description");
+            Map<String, Object> params = new HashMap<>();
+            params.put("numSignatures", feeContext.numTxnSignatures());
+            params.put("numKeys", 1);
+            params.put("numBytes", (int)op.fileUpdateOrThrow().contents().length());
+            FeeResult simpleFee = transfer.computeFee(params);
+            return new Fees(oldFees.nodeFee(), 0, oldFees.serviceFee(), simpleFee.fee);
+        } else {
+            return oldFees;
+        }
     }
 
     private void handleUpdateUpgradeFile(FileUpdateTransactionBody fileUpdate, HandleContext handleContext) {

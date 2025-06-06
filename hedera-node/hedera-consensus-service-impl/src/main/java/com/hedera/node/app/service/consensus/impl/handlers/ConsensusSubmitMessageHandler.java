@@ -40,6 +40,9 @@ import com.hedera.hapi.node.transaction.CustomFeeLimit;
 import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.common.YesOrNo;
+import com.hedera.node.app.hapi.fees.apis.consensus.HCSSubmit;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -528,10 +531,20 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                     .calculate();
         }
 
-        return calculatorFactory
+        final var oldFees = calculatorFactory
                 .feeCalculator(SubType.DEFAULT)
                 .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + msgSize)
                 .addNetworkRamByteSeconds((LONG_SIZE + TX_HASH_SIZE) * RECEIPT_STORAGE_TIME_SEC)
                 .calculate();
+
+        HCSSubmit submit = new HCSSubmit();
+        Map<String, Object> params = new HashMap<>();
+        params.put("numSignatures", feeContext.numTxnSignatures());
+        params.put("numKeys", 0);
+        params.put("hasCustomFee", YesOrNo.NO);
+        params.put("numBytes",(int)op.message().length());
+        FeeResult simpleFee = submit.computeFee(params);
+        System.out.println("simple fee is " + simpleFee);
+        return new Fees(oldFees.nodeFee(), 0, oldFees.serviceFee(), simpleFee.fee);
     }
 }
