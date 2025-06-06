@@ -700,12 +700,12 @@ public class PlatformWiring {
     /**
      * Get the input wire for the roster history update.
      * <p>
-     * Future work: this is a temporary hook to update the address book in the new intake pipeline.
+     * Future work: this is a temporary hook to update the rosters in the new intake pipeline.
      *
-     * @return the input method for the address book update
+     * @return the input wire for the roster history update.
      */
     @NonNull
-    public InputWire<RosterHistory> getRosterUpdateInput() {
+    public InputWire<RosterHistory> getRosterHistoryInput() {
         return eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosters);
     }
 

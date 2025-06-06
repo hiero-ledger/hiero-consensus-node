@@ -292,7 +292,7 @@ class WritableRosterStoreTest {
         final Bytes rosterHash = readableRosterStore.getCurrentRosterHash();
 
         // Now set the same roster as active, but for the next round. Given that the active roster AND this roster are
-        // the same, it will not "rotate" the active roster to the previous roster
+        // the same, it will not set the roster
         writableRosterStore.putActiveRoster(roster, 2);
 
         final List<RoundRosterPair> history = readableRosterStore.getRosterHistory();

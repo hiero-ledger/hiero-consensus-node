@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -34,7 +35,6 @@ import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -70,12 +70,12 @@ class EventSignatureValidatorTests {
      * @param nodeId the node id to use for the address
      * @return a mock roster entry
      */
-    private static RosterEntry generateMockRosterEntry(final long nodeId) {
+    private static RosterEntry generateMockRosterEntry(final NodeId nodeId) {
         try {
             return new RosterEntry(
-                    nodeId,
+                    nodeId.id(),
                     10,
-                    Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId)
+                    Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId.id())
                             .getCertificate()
                             .getEncoded()),
                     List.of());
@@ -99,8 +99,9 @@ class EventSignatureValidatorTests {
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
 
-        // create two addresses, one for the previous roster and one for the current roster
-        rosterHistory = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND);
+        // create a rosterHistory with a previous roster and a current roster
+        rosterHistory = buildRosterHistory(
+                PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
 
         validatorWithTrueVerifier =
                 new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
@@ -109,12 +110,13 @@ class EventSignatureValidatorTests {
                 new DefaultEventSignatureValidator(platformContext, falseVerifier, rosterHistory, intakeEventCounter);
     }
 
-    public RosterHistory buildRosterHistory(final long previousRound, final long round) {
+    public RosterHistory buildRosterHistory(
+            final long previousRound, final long round, Function<NodeId, RosterEntry> rosterEntryGenerator) {
         final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
 
-        final RosterEntry previousNodeRosterEntry = generateMockRosterEntry(PREVIOUS_ROSTER_NODE_ID.id());
-        final RosterEntry currentNodeRosterEntry = generateMockRosterEntry(CURRENT_ROSTER_NODE_ID.id());
+        final RosterEntry previousNodeRosterEntry = rosterEntryGenerator.apply(PREVIOUS_ROSTER_NODE_ID);
+        final RosterEntry currentNodeRosterEntry = rosterEntryGenerator.apply(CURRENT_ROSTER_NODE_ID);
 
         final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
         final Roster currentRoster = new Roster(List.of(currentNodeRosterEntry));
@@ -131,21 +133,8 @@ class EventSignatureValidatorTests {
     }
 
     @Test
-    @DisplayName("Events with higher version than the app should always fail validation")
-    @Disabled // Does this not apply anymore, since any bround higgher needs to pass
-    void irreconcilableVersions() {
-        final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND + 1)
-                .build();
-
-        assertNull(validatorWithTrueVerifier.validateSignature(event));
-        assertEquals(1, exitedIntakePipelineCount.get());
-    }
-
-    @Test
-    @DisplayName("Lower version event with missing previous roster")
-    void versionMismatchWithNullPreviousRoster() {
+    @DisplayName("An event with a lower round than the available in roster history should not validate")
+    void rosterNotFoundForRound() {
         final EventSignatureValidator signatureValidator =
                 new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
 
@@ -174,12 +163,20 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Node has a null public key")
     void missingPublicKey() {
+
+        final Function<NodeId, RosterEntry> generateMockRosterEntry =
+                id -> new RosterEntry(id.id(), 10, null, List.of());
+        RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
+
+        EventSignatureValidator validator =
+                new DefaultEventSignatureValidator(platformContext, trueVerifier, rh, intakeEventCounter);
+
         final NodeId nodeId = NodeId.of(88);
 
         final PlatformEvent event =
                 new TestingEventBuilder(random).setCreatorId(nodeId).build();
 
-        assertNull(validatorWithTrueVerifier.validateSignature(event));
+        assertNull(validator.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 

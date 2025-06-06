@@ -142,7 +142,7 @@ public class ReconnectStateLoader {
             platformWiring.consensusSnapshotOverride(consensusSnapshot);
 
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-            platformWiring.getRosterUpdateInput().inject(rosterHistory);
+            platformWiring.getRosterHistoryInput().inject(rosterHistory);
 
             platformWiring.updateEventWindow(
                     EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));

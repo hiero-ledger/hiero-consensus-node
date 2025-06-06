@@ -155,9 +155,7 @@ public final class RosterUtils {
      *
      * @param roster a roster
      * @return {@code Map<Long, RosterEntry>}
-     * @deprecated use {@link RosterUtils#wrap(Roster)} or {@link RosterUtils#optionalWrap(Roster)}
      */
-    @Deprecated
     @Nullable
     public static Map<Long, RosterEntry> toMap(@Nullable final Roster roster) {
         if (roster == null) {
@@ -218,9 +216,7 @@ public final class RosterUtils {
      * @param nodeId a node id
      * @return a RosterEntry
      * @throws RosterEntryNotFoundException if RosterEntry is not found in Roster
-     * @deprecated use {@link RosterUtils#wrap(Roster)} or {@link RosterUtils#optionalWrap(Roster)}
      */
-    @Deprecated
     public static RosterEntry getRosterEntry(@NonNull final Roster roster, final long nodeId) {
         final RosterEntry entry = getRosterEntryOrNull(roster, nodeId);
         if (entry != null) {
@@ -264,9 +260,7 @@ public final class RosterUtils {
      * @param roster the roster to search
      * @param nodeId the ID of the node to retrieve
      * @return the found roster entry that matches the specified node ID, else null
-     * @deprecated use {@link RosterUtils#optionalWrap(Roster)}
      */
-    @Deprecated
     public static RosterEntry getRosterEntryOrNull(@NonNull final Roster roster, final long nodeId) {
         requireNonNull(roster, "roster");
 
@@ -421,52 +415,56 @@ public final class RosterUtils {
     }
 
     /**
-     * Returns a RosterWrapper from a Roster instance.
-     * Uses a local thread safe cache to retrieve the wrapper if it was already requested in the past.
-     * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
-     * @return a WrappedRoster
+     * @return a cache/factory that can be used to retrieve {@link RosterView} objects from a {@link Roster}
      */
-    public static @NonNull WrappedRoster wrap(@NonNull final Roster roster) {
-        return WrappedRoster.fromRoster(roster);
+    public static RosterViewCache rosterViewCache() {
+        return new RosterViewCache();
     }
 
     /**
-     * Returns a RosterWrapper from a Roster instance.
-     * Uses a local thread safe cache to retrieve the wrapper if it was already requested in the past.
-     * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
-     * @return a WrappedRoster
+     *  This class acts as a factory and cache for RosterView instances.
+     *  Its goal is to prevent redundant transformations of Roster into RosterView objects.
      */
-    public static @Nullable WrappedRoster optionalWrap(@Nullable final Roster roster) {
-        if (roster == null) {
-            return null;
-        }
-        return wrap(roster);
-    }
-    /**
-     * WrappedRoster allows accessing and managing roster entries and its information like: X.509 certificates and weights.
-     * Uses a static thread-safe global cache for transforming a `Roster` object into a `RosterWrapper`,
-     *  so that the same roster object (according to its equals and hashCode method) is not transformed twice.
-     */
-    public static class WrappedRoster {
+    public static class RosterViewCache {
+        private final Map<Roster, RosterView> cache = new ConcurrentHashMap<>();
 
-        private static final Map<Roster, WrappedRoster> ROSTER_CACHE = new ConcurrentHashMap<>();
-        private final Map<Long, RosterEntry> entryMap;
-        private final Map<Long, X509Certificate> certificateMap = new HashMap<>();
+        private RosterViewCache() {}
 
-        private WrappedRoster(final @NonNull Map<Long, RosterEntry> entryMap) {
-            this.entryMap = Objects.requireNonNull(entryMap);
+        /**
+         * Retrieves or creates a {@link RosterView} instance from a given {@link Roster} object.
+         *
+         * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
+         * @return A {@link RosterView} instance corresponding to the provided {@link Roster}.
+         */
+        @NonNull
+        private RosterView get(final @NonNull Roster roster) {
+            return cache.computeIfAbsent(roster, r -> new RosterView(requireNonNull(toMap(r))));
         }
 
         /**
-         * Retrieves or creates a {@code WrappedRoster} instance from a given {@link Roster} object,
-         * using a static, global cache (`ROSTER_CACHE`) to avoid reprocessing.
-         *
+         * Returns a RosterView from a Roster instance.
+         * Uses a local thread safe cache to retrieve the wrapper if it was already requested in the past.
          * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
-         * @return A {@link WrappedRoster} instance corresponding to the provided {@link Roster}.
+         * @return a WrappedRoster
          */
-        @NonNull
-        private static WrappedRoster fromRoster(final @NonNull Roster roster) {
-            return ROSTER_CACHE.computeIfAbsent(roster, r -> new WrappedRoster(requireNonNull(toMap(r))));
+        public @Nullable RosterView getOrNull(@Nullable final Roster roster) {
+            if (roster == null) {
+                return null;
+            }
+            return this.get(roster);
+        }
+    }
+    /**
+     * RosterView provides methods to access specific roster information (entries, certificates, weights, endpoints)
+     * indexed by nodeId
+     */
+    public static class RosterView {
+
+        private final Map<Long, RosterEntry> entryMap;
+        private final Map<Long, X509Certificate> certificateMap = new ConcurrentHashMap<>();
+
+        private RosterView(final @NonNull Map<Long, RosterEntry> entryMap) {
+            this.entryMap = Objects.requireNonNull(entryMap);
         }
 
         @Nullable
@@ -477,7 +475,6 @@ public final class RosterUtils {
         /**
          * Retrieves the gossip CA {@link X509Certificate} for a given {@link NodeId}.
          *
-         * Warning: this current implementation is NOT threadsafe
          *
          * @param nodeId The {@link NodeId} for which to retrieve the certificate.
          * @return The {@link X509Certificate} for the given Node ID, or {@code null}

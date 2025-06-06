@@ -23,7 +23,8 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.RosterUtils.WrappedRoster;
+import org.hiero.consensus.roster.RosterUtils.RosterView;
+import org.hiero.consensus.roster.RosterUtils.RosterViewCache;
 
 /**
  * Default implementation for verifying event signatures
@@ -42,7 +43,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private final SignatureVerifier signatureVerifier;
 
     /**
-     * The completeRosterHistory
+     * The complete roster history, i.e. all rosters for non-ancient rounds.
      */
     private RosterHistory rosterHistory;
 
@@ -60,6 +61,10 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * A logger for validation errors
      */
     private final RateLimitedLogger rateLimitedLogger;
+    /**
+     * a cache/factory to transform Roster objects into RosterView
+     */
+    private final RosterViewCache rosterViewCache;
 
     private static final LongAccumulator.Config VALIDATION_FAILED_CONFIG = new LongAccumulator.Config(
                     PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
@@ -93,6 +98,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
                 .getConfiguration()
                 .getConfigData(EventConfig.class)
                 .getAncientMode());
+        this.rosterViewCache = RosterUtils.rosterViewCache();
     }
 
     /**
@@ -102,8 +108,8 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * @return true if the event has a valid signature, otherwise false
      */
     private boolean isSignatureValid(@NonNull final PlatformEvent event) {
-        final WrappedRoster applicableRoster =
-                RosterUtils.optionalWrap(rosterHistory.getRosterForRound(event.getBirthRound()));
+        final RosterView applicableRoster =
+                rosterViewCache.getOrNull(rosterHistory.getRosterForRound(event.getBirthRound()));
         if (applicableRoster == null) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),

@@ -8,7 +8,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -32,9 +31,6 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     /**
      * The roster state singleton. This is the state that holds the candidate roster hash and the list of pairs of
      * active roster hashes and the round number in which those rosters became active.
-     *
-     * @implNote the use of {@link ReadablePlatformStateStore} and {@link WritablePlatformStateStore} to provide access
-     * to the roster states (beyond just the {@link PlatformState}) is deliberate, for convenience.
      */
     private final WritableSingletonState<RosterState> rosterState;
 
