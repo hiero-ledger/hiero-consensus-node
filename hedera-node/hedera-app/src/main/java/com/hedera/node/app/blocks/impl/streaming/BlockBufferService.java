@@ -4,9 +4,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItemType.BLOCK_ITEM;
 import static java.util.Objects.requireNonNull;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.Scheduler;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -30,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -42,6 +41,7 @@ import org.apache.logging.log4j.Logger;
  *     <li>Pruning the buffer based on TTL and saturation</li>
  * </ul>
  */
+@Singleton
 public class BlockBufferService {
     private static final Logger logger = LogManager.getLogger(BlockBufferService.class);
 
@@ -74,7 +74,7 @@ public class BlockBufferService {
      * blocking/backpressure is needed. If the value is {@code false} then it means this future was completed but
      * another one took its place and backpressure is still enabled.
      */
-    private static final AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef =
+    private final AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef =
             new AtomicReference<>();
     /**
      * The most recent produced block number (i.e. the last block to be opened). A value of -1 indicates that no blocks
@@ -101,7 +101,7 @@ public class BlockBufferService {
     /**
      * Flag that indicates if streaming to block nodes is enabled. This flag is set once upon startup and cannot change.
      */
-    private static final AtomicBoolean isStreamingEnabled = new AtomicBoolean(false);
+    private final AtomicBoolean isStreamingEnabled = new AtomicBoolean(false);
 
     /**
      * Creates a new BlockBufferService with the given configuration.
@@ -109,16 +109,12 @@ public class BlockBufferService {
      * @param configProvider the configuration provider
      * @param blockStreamMetrics metrics factory for monitoring block streaming
      */
+    @Inject
     public BlockBufferService(
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
         isStreamingEnabled.set(streamToBlockNodesEnabled());
-
-        Cache<Integer, String> c = Caffeine.newBuilder()
-                .scheduler(Scheduler.systemScheduler())
-                .expireAfterAccess(Duration.ofSeconds(30))
-                .build();
 
         // Only start the pruning thread if we're streaming to block nodes
         if (isStreamingEnabled.get()) {
@@ -357,7 +353,7 @@ public class BlockBufferService {
      * Ensures that there is enough capacity in the block buffer to permit a new block being created. If there is not
      * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
-    public static void ensureNewBlocksPermitted() {
+    public void ensureNewBlocksPermitted() {
         if (!isStreamingEnabled.get()) {
             return;
         }

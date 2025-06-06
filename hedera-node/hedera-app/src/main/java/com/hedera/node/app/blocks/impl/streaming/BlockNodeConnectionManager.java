@@ -47,6 +47,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
@@ -64,6 +66,7 @@ import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
  *   <li>Coordinating block streaming across connections</li>
  * </ul>
  */
+@Singleton
 public class BlockNodeConnectionManager {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
@@ -161,6 +164,7 @@ public class BlockNodeConnectionManager {
      * @param blockStreamMetrics the block stream metrics to track
      * @param executorService the scheduled executor service used to perform async connection operations (e.g. reconnect)
      */
+    @Inject
     public BlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
@@ -389,7 +393,7 @@ public class BlockNodeConnectionManager {
         if (!isConnectionManagerActive.compareAndSet(false, true)) {
             throw new IllegalStateException("Connection manager already started");
         }
-        
+
         // start worker thread
         final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
         blockStreamWorkerThreadRef.set(t);

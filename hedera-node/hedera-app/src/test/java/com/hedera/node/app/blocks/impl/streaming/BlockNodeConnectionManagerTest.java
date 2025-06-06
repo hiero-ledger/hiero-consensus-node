@@ -48,8 +48,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,8 +58,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
-
-    private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManagerTest.class);
 
     private static final VarHandle isManagerActiveHandle;
     private static final VarHandle workerThreadRefHandle;
@@ -145,8 +141,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
 
-        // Disable the background worker thread to make testing in isolation better
-        //disableWorkerThread();
         resetMocks();
 
         lenient().when(bufferService.getBlockStreamItemQueue()).thenReturn(blockStreamItemQueue);
@@ -389,7 +383,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(1);
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CONNECTING);
-        
+
         verify(bufferService, atLeast(1)).getBlockStreamItemQueue();
 
         verifyNoMoreInteractions(executorService);
@@ -1594,34 +1588,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private AtomicReference<Thread> workerThread() {
         return (AtomicReference<Thread>) workerThreadRefHandle.get(connectionManager);
-    }
-
-    private void disableWorkerThread() {
-        logger.info("--- Disabling worker thread -->");
-        final AtomicBoolean isActive = isActiveFlag();
-        isActive.set(false); // set the flag to false so we can shutdown the worker thread
-
-        // wait for the worker thread to die
-        final Thread workerThread = workerThread().get();
-        if (workerThread != null) {
-            workerThread.interrupt();
-            final long startMillis = System.currentTimeMillis();
-
-            do {
-                final long durationMs = System.currentTimeMillis() - startMillis;
-                if (durationMs >= 3_000) {
-                    fail("Worker thread did not terminate in allotted time");
-                    break;
-                }
-
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
-            } while (State.TERMINATED != workerThread.getState());
-        }
-
-        isActive.set(true); // set the flag back to true now that the worker thread is dead
-
-        resetMocks();
-        logger.info("<-- Worker thread disabled ---");
     }
 
     private void resetMocks() {
