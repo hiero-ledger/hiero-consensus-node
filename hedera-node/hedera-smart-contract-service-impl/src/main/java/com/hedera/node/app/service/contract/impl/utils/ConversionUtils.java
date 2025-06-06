@@ -17,6 +17,8 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -293,11 +295,14 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a PBJ {@link ContractStateChanges}.
-     *
      * @param storageAccesses the {@link StorageAccesses}
      * @return the PBJ {@link ContractStateChanges}
      */
-    public static ContractStateChanges asPbjStateChanges(@NonNull final List<StorageAccesses> storageAccesses) {
+    public static @Nullable ContractStateChanges asPbjStateChanges(
+            @Nullable final List<StorageAccesses> storageAccesses) {
+        if (storageAccesses == null) {
+            return null;
+        }
         final List<ContractStateChange> allStateChanges = new ArrayList<>();
         for (final var storageAccess : storageAccesses) {
             final List<StorageChange> changes = new ArrayList<>();
@@ -313,6 +318,40 @@ public class ConversionUtils {
             allStateChanges.add(new ContractStateChange(storageAccess.contractID(), changes));
         }
         return new ContractStateChanges(allStateChanges);
+    }
+
+    /**
+     * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
+     *
+     * @param storageAccesses the {@link StorageAccesses}
+     * @return the list of slot usages
+     */
+    public static @Nullable List<ContractSlotUsage> asPbjSlotUsages(
+            @Nullable final List<StorageAccesses> storageAccesses) {
+        if (storageAccesses == null) {
+            return null;
+        }
+        final List<ContractSlotUsage> slotUsages = new ArrayList<>();
+        for (final var storageAccess : storageAccesses) {
+            final List<SlotRead> reads = new ArrayList<>();
+            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = new ArrayList<>();
+            for (final var access : storageAccess.accesses()) {
+                if (!access.isReadOnly()) {
+                    writes.add(access.trimmedKeyBytes());
+                    reads.add(SlotRead.newBuilder()
+                            .index(writes.size() - 1)
+                            .readValue(access.trimmedValueBytes())
+                            .build());
+                } else {
+                    reads.add(SlotRead.newBuilder()
+                            .key(access.trimmedKeyBytes())
+                            .readValue(access.trimmedValueBytes())
+                            .build());
+                }
+            }
+            slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), writes, reads));
+        }
+        return slotUsages;
     }
 
     /**
@@ -538,21 +577,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Converts a long-zero address to a PBJ {@link AccountID} with id number instead of alias.
-     *
-     * @param entityIdFactory the entity id factory
-     * @param address the EVM address
-     * @return the PBJ {@link AccountID}
-     */
-    public static AccountID asNumberedAccountId(
-            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
-        if (!isLongZero(entityIdFactory, address)) {
-            throw new IllegalArgumentException("Cannot extract id number from address " + address);
-        }
-        return entityIdFactory.newAccountId(numberOfLongZero(address));
-    }
-
-    /**
      * Converts a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
      *
      * @param entityIdFactory the entity id factory
@@ -733,21 +757,6 @@ public class ConversionUtils {
         arraycopy(Longs.toByteArray(num), 0, evmAddress, 12, 8);
 
         return evmAddress;
-    }
-
-    /**
-     * Given a value and a destination byte array, copies the value to the destination array, left-padded.
-     *
-     * @param value the value
-     * @param dest the destination byte array
-     * @return the destination byte array
-     */
-    public static byte[] copyToLeftPaddedByteArray(long value, final byte[] dest) {
-        for (int i = 7, j = dest.length - 1; i >= 0; i--, j--) {
-            dest[j] = (byte) (value & 0xffL);
-            value >>= 8;
-        }
-        return dest;
     }
 
     /**

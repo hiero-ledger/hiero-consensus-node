@@ -584,6 +584,7 @@ public class TestHelpers {
             pbjToTuweniBytes(CALL_DATA),
             List.of(BESU_LOG),
             null,
+            null,
             null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE =
@@ -596,6 +597,7 @@ public class TestHelpers {
                             CALLED_CONTRACT_EVM_ADDRESS,
                             pbjToTuweniBytes(CALL_DATA),
                             List.of(BESU_LOG),
+                            null,
                             null,
                             null)
                     .withSignerNonce(SIGNER_NONCE);
@@ -611,6 +613,7 @@ public class TestHelpers {
             INVALID_SIGNATURE,
             null,
             Collections.emptyList(),
+            null,
             null,
             null,
             null,

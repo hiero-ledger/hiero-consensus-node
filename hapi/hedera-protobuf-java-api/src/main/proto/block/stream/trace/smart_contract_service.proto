@@ -29,75 +29,112 @@ import "google/protobuf/wrappers.proto";
  * Usage of a contract's storage slots in an EVM transaction.<br/>
  */
 message ContractSlotUsage {
-  /**
-   * The contract using the storage slots.
-   */
-  proto.ContractID contract_id = 1;
+    /**
+     * The contract using the storage slots.
+     */
+    proto.ContractID contract_id = 1;
 
-  /**
-   * The keys of storage slots that were written to in the EVM transaction.
-   * These keys are 256-bit words, left-padded with zeros if necessary.<br/>
-   * Interested consumers can get the written values from the state changes
-   * block item of the transactional unit containing this trace data.
-   */
-  repeated bytes written_slot_keys = 2;
+    /**
+     * The storage slots that were written to in the EVM transaction.
+     * <p>
+     * The written value can be unambiguously derived from the block items
+     * in this EVM transaction's Hiero transactional unit. In particular,
+     * 1. If a following EVM trace modifies the same slot, the value written
+     * in this EVM transaction was whatever value the following trace read.
+     * 2. If the slot was not modified in a following EVM trace, the value
+     * is whatever value was committed to the Merkle state for the slot.
+     */
+    repeated bytes written_slot_keys = 2;
 
-  /**
-   * The storage slots that were read in this EVM execution. They may or
-   * may not have associated slot writes.
-   */
-  repeated SlotRead slot_reads = 3;
+    /**
+     * The storage slots that were read in this EVM execution. They may or
+     * may not have associated slot writes.
+     */
+    repeated SlotRead slot_reads = 3;
 }
 
 /**
- * A read slot in a contract's storage, as used in an EVM transaction.<br/>
+ * A slot read in a contract's storage, as used in an EVM transaction.<br/>
  */
 message SlotRead {
-  oneof identifier {
-    /**
-    * If this slot was also written, the index in the ContractSlotUsage#written_slot_keys
-    * list above.
-    */
-    int32 index = 1;
+    oneof identifier {
+        /**
+        * If this slot was also written, the index of the written key in the
+        * ContractSlotUsage#slot_writes list above.
+        */
+        int32 index = 1;
+
+        /**
+        * If this slot was only read, its key; may be left-padded with zeros to 32 bytes.
+        */
+        bytes key = 2;
+    }
 
     /**
-    * If this slot was only read, its key; may be left-padded with zeros to form a
-    * 256-bit word.
+    * The storage value in this slot, may be left-padded with zeros to 32 bytes.
     */
-    bytes key = 2;
-  }
-
-  /**
-  * The storage value in this slot, may be left-padded with zeros to form a 256-bit word.
-  */
-  bytes read_value = 3;
+    bytes read_value = 3;
 }
 
 /**
- * The initcode of a contract, possibly deduplicated if the runtime part
- * is already externalized in state changes.
+ * Information about the initcode of a contract whose creation was attempted
+ * during the EVM transaction.
  */
 message ContractInitcode {
-  /**
-   * The contract created from the initcode.
-   */
-  proto.ContractID contract_id = 1;
+    oneof code {
+        /**
+         * The initcode used for a failed top-level creation.
+         */
+        bytes failed_initcode = 2;
 
-  /**
-   * The bytecode that precedes and deploys the runtime bytecode of a contract.
-   */
-  bytes deploy_bytecode = 2;
+        /**
+         * The initcode "bookends" around a newly created contract's runtime bytecode.
+         */
+        ExecutedInitcode executed_initcode = 3;
+    }
+}
 
-  /**
-   * If not externalized in state, the bytecode that defines a deployed
-   * contracts logic.
-   */
-  google.protobuf.BytesValue runtime_bytecode = 3;
+/**
+  * Information about the initcode executed to create a contract.
+ */
+message ExecutedInitcode {
+    /**
+     * The id of the contract created by the initcode.
+     */
+    proto.ContractID contract_id = 1;
 
-  /**
-   * The bytecode that follows the runtime bytecode in a contracts deployment.
-   */
-  bytes metadata_bytecode = 4;
+    oneof initcode {
+        /**
+         * If the runtime bytecode follows the common convention of appearing as a subsequence
+         * of the initcode, the initcode pieces that surround the runtime bytecode (which is
+         * necessarily in the Hiero transactional unit's state changes).
+         */
+        InitcodeBookends initcode_bookends = 2;
+
+        /**
+         * If the runtime bytecode is not a subsequence of the initcode, the explicit initcode.
+         */
+        bytes explicit_initcode = 3;
+    }
+}
+
+/**
+  * The initcode bookends of a contract, which are the deploy bytecode and metadata
+  * bytecode that surround the runtime bytecode in a contract's deployment.
+  * <p>
+  * The runtime bytecode is not included here, as it is externalized via a state change
+  * with the matching contract id in the Hiero transactional unit.
+ */
+message InitcodeBookends {
+    /**
+     * The bytecode that precedes the runtime bytecode of a contract in initcode.
+     */
+    bytes deploy_bytecode = 1;
+
+    /**
+     * The bytecode that follows the runtime bytecode of a contract in initcode.
+     */
+    bytes metadata_bytecode = 2;
 }
 
 /**
@@ -105,20 +142,20 @@ message ContractInitcode {
  * Stream consumers may compute bloom values from topics and data if desired.
  */
 message EVMTransactionLog {
-  /**
-   * The contract emitting the log.
-   */
-  proto.ContractID contract_id = 1;
+    /**
+     * The contract emitting the log.
+     */
+    proto.ContractID contract_id = 1;
 
-  /**
-   * The logged data.
-   */
-  bytes data = 2;
+    /**
+     * The logged data.
+     */
+    bytes data = 2;
 
-  /**
-   * The log's topics; may be left-padded with zeros to form 256-bit words.
-   */
-  repeated bytes topics = 3;
+    /**
+     * The log's topics; may be left-padded with zeros to form 256-bit words.
+     */
+    repeated bytes topics = 3;
 }
 
 /**
@@ -130,30 +167,30 @@ message EVMTransactionLog {
  * 5. Full error message, if any, produced by the contract call.
  */
 message EVMTraceData {
-  /**
-   * The initcode of child contracts created during execution.
-   */
-  repeated ContractInitcode initcodes = 1;
+    /**
+     * The initcode of child contracts created during execution.
+     */
+    repeated ContractInitcode initcodes = 1;
 
-  /**
-   * All contract actions executed during the transaction.
-   */
-  repeated proto.ContractAction contract_actions = 2;
+    /**
+     * All contract actions executed during the transaction.
+     */
+    repeated proto.ContractAction contract_actions = 2;
 
-  /**
-   * Contract slot usages in the transaction, by contract id.
-   */
-  repeated ContractSlotUsage contract_slot_usages = 3;
+    /**
+     * Contract slot usages in the transaction, by contract id.
+     */
+    repeated ContractSlotUsage contract_slot_usages = 3;
 
-  /**
-   * Log events produced during the transaction, by contract id.
-   */
-  repeated EVMTransactionLog logs = 4;
+    /**
+     * Log events produced during the transaction, by contract id.
+     */
+    repeated EVMTransactionLog logs = 4;
 
-  /**
-   * Additional details of any error message in the EVM transaction result.
-   * <p>
-   * This SHALL be unset if the contract call succeeded.
-   */
-  string error_details = 5;
+    /**
+     * Additional details of any error message in the EVM transaction result.
+     * <p>
+     * This SHALL be unset if the contract call succeeded.
+     */
+    string error_details = 5;
 }
