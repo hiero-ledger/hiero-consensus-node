@@ -27,9 +27,7 @@ public class PcesMultiFileIterator implements IOIterator<PlatformEvent> {
      *                     not returned
      * @param fileIterator an iterator that walks over event files
      */
-    public PcesMultiFileIterator(
-            final long lowerBound,
-            @NonNull final Iterator<PcesFile> fileIterator) {
+    public PcesMultiFileIterator(final long lowerBound, @NonNull final Iterator<PcesFile> fileIterator) {
 
         this.fileIterator = Objects.requireNonNull(fileIterator);
         this.lowerBound = lowerBound;

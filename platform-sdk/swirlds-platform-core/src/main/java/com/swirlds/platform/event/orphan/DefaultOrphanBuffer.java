@@ -14,7 +14,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -83,10 +82,12 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
                         .withDescription("number of orphaned events currently in the orphan buffer")
                         .withUnit("events"));
         this.eventWindow = EventWindow.getGenesisEventWindow();
-        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,
-                eventDescriptor1 -> eventDescriptor1.eventDescriptor().birthRound());
-        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,
-                eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
+        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor1 -> eventDescriptor1
+                .eventDescriptor()
+                .birthRound());
+        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor -> eventDescriptor
+                .eventDescriptor()
+                .birthRound());
     }
 
     /**

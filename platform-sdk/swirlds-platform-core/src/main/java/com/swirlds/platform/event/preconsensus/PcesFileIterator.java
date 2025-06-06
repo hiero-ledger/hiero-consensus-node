@@ -31,9 +31,7 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
      * @param lowerBound     the lower bound for all events to be returned, corresponds to either generation or birth
      *                       round depending on the {@link PcesFile} type
      */
-    public PcesFileIterator(
-            @NonNull final PcesFile fileDescriptor, final long lowerBound)
-            throws IOException {
+    public PcesFileIterator(@NonNull final PcesFile fileDescriptor, final long lowerBound) throws IOException {
 
         this.lowerBound = lowerBound;
         stream = new SerializableDataInputStream(new BufferedInputStream(

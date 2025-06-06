@@ -195,8 +195,7 @@ public final class PcesFile implements Comparable<PcesFile> {
             @NonNull final Path rootDirectory) {
 
         final Path parentDirectory = buildParentDirectory(rootDirectory, timestamp);
-        final String fileName = buildFileName(timestamp, sequenceNumber, minimumBound,
-                maximumBound, origin);
+        final String fileName = buildFileName(timestamp, sequenceNumber, minimumBound, maximumBound, origin);
         final Path path = parentDirectory.resolve(fileName);
 
         return new PcesFile(timestamp, sequenceNumber, minimumBound, maximumBound, origin, path);
@@ -262,8 +261,7 @@ public final class PcesFile implements Comparable<PcesFile> {
                 buildFileName(timestamp, sequenceNumber, lowerBound, maximumBoundaryValueInFile, origin);
         final Path newPath = parentDirectory.resolve(fileName);
 
-        return new PcesFile(
-                timestamp, sequenceNumber, lowerBound, maximumBoundaryValueInFile, origin, newPath);
+        return new PcesFile(timestamp, sequenceNumber, lowerBound, maximumBoundaryValueInFile, origin, newPath);
     }
 
     /**

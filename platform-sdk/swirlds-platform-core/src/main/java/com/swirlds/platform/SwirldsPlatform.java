@@ -387,10 +387,7 @@ public class SwirldsPlatform implements Platform {
         final IOIterator<PlatformEvent> iterator =
                 initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
 
-        logger.info(
-                STARTUP.getMarker(),
-                "replaying preconsensus event stream starting at {}",
-                pcesReplayLowerBound);
+        logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
 
         platformWiring.getPcesReplayerIteratorInput().inject(iterator);
 

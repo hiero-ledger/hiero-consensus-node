@@ -3,7 +3,6 @@ package com.swirlds.platform.consensus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.linking.SimpleLinker;
@@ -15,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.hiero.consensus.config.EventConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 

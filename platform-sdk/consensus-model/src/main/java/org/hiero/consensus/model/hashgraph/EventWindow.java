@@ -18,11 +18,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * @param expiredThreshold     the minimum ancient indicator value for an event to be considered not expired
  */
 public record EventWindow(
-        long latestConsensusRound,
-        long newEventBirthRound,
-        long ancientThreshold,
-        long expiredThreshold
-) {
+        long latestConsensusRound, long newEventBirthRound, long ancientThreshold, long expiredThreshold) {
 
     /**
      * Create a new EventWindow with the given bounds. The latestConsensusRound must be greater than or equal to the
@@ -53,7 +49,6 @@ public record EventWindow(
             throw new IllegalArgumentException(
                     "the minimum round non-expired cannot be lower than the first round of consensus.");
         }
-
     }
 
     /**

@@ -61,8 +61,9 @@ public class TipsetTracker {
         this.selfId = Objects.requireNonNull(selfId);
         this.latestGenerations = new Tipset(roster);
 
-        tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true,
-                eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
+        tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, eventDescriptor -> eventDescriptor
+                .eventDescriptor()
+                .birthRound());
 
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         this.eventWindow = EventWindow.getGenesisEventWindow();

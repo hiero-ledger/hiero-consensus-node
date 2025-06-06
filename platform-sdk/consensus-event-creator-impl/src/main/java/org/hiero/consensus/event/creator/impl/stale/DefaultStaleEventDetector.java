@@ -47,11 +47,11 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
      * @param metrics       the {@link Metrics} system
      * @param selfId        the ID of this node
      */
-    public DefaultStaleEventDetector(
-            @NonNull final Metrics metrics, @NonNull final NodeId selfId) {
+    public DefaultStaleEventDetector(@NonNull final Metrics metrics, @NonNull final NodeId selfId) {
         this.selfId = Objects.requireNonNull(selfId);
-        this.selfEvents = new StandardSequenceMap<>(0, 1024, true,
-                eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
+        this.selfEvents = new StandardSequenceMap<>(0, 1024, true, eventDescriptor -> eventDescriptor
+                .eventDescriptor()
+                .birthRound());
         this.metrics = new StaleEventDetectorMetrics(metrics);
     }
 

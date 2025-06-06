@@ -34,8 +34,7 @@ public class PcesFileTracker {
     /**
      * Constructor.
      */
-    public PcesFileTracker() {
-    }
+    public PcesFileTracker() {}
 
     /**
      * Get the first file in the file list.

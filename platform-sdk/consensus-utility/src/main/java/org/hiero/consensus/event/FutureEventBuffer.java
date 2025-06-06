@@ -47,8 +47,7 @@ public class FutureEventBuffer {
      * Constructor.
      */
     public FutureEventBuffer(
-            @NonNull final Metrics metrics,
-            @NonNull final FutureEventBufferingOption bufferingOption) {
+            @NonNull final Metrics metrics, @NonNull final FutureEventBufferingOption bufferingOption) {
         this.bufferingOption = bufferingOption;
         eventWindow = EventWindow.getGenesisEventWindow();
 

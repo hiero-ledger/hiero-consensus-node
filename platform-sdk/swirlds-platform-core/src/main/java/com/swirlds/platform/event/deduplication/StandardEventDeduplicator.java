@@ -18,7 +18,6 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -90,8 +89,9 @@ public class StandardEventDeduplicator implements EventDeduplicator {
                         .withUnit("hz"));
         this.avgDuplicatePercent = metrics.getOrCreate(AVG_DUPLICATE_PERCENT_CONFIG);
         this.eventWindow = EventWindow.getGenesisEventWindow();
-        this.observedEvents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,
-                eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
+        this.observedEvents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor -> eventDescriptor
+                .eventDescriptor()
+                .birthRound());
     }
 
     /**

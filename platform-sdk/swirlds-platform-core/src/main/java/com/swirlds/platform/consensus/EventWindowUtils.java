@@ -23,8 +23,7 @@ public final class EventWindowUtils {
     public static @NonNull EventWindow createEventWindow(
             @NonNull final ConsensusSnapshot snapshot, @NonNull final Configuration configuration) {
         return createEventWindow(
-                snapshot,
-                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
+                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
     }
 
     /**
@@ -35,15 +34,13 @@ public final class EventWindowUtils {
      * @return a new instance of {@link EventWindow}
      */
     public static @NonNull EventWindow createEventWindow(
-            @NonNull final ConsensusSnapshot snapshot,
-            final int roundsNonAncient) {
+            @NonNull final ConsensusSnapshot snapshot, final int roundsNonAncient) {
         final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
         return new EventWindow(
                 snapshot.round(),
                 // by default, we set the birth round to the pending round
                 snapshot.round() + 1,
                 ancientThreshold,
-                ancientThreshold
-        );
+                ancientThreshold);
     }
 }

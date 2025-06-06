@@ -587,8 +587,7 @@ public final class SyncUtils {
      * @return the deserialized event window
      */
     @NonNull
-    public static EventWindow deserializeEventWindow(
-            @NonNull final SerializableDataInputStream in) throws IOException {
+    public static EventWindow deserializeEventWindow(@NonNull final SerializableDataInputStream in) throws IOException {
 
         final long latestConsensusRound = in.readLong();
         final long ancientThreshold = in.readLong();
@@ -599,7 +598,6 @@ public final class SyncUtils {
                 // by default, we set the birth round to the pending round
                 latestConsensusRound + 1,
                 ancientThreshold,
-                expiredThreshold
-        );
+                expiredThreshold);
     }
 }

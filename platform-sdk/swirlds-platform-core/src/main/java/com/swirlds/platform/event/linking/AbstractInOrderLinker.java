@@ -18,7 +18,6 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -91,8 +90,10 @@ abstract class AbstractInOrderLinker implements InOrderLinker {
         this.timeCreatedMismatchLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
 
         this.eventWindow = EventWindow.getGenesisEventWindow();
-        this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,
-                eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
+        this.parentDescriptorMap =
+                new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, eventDescriptor -> eventDescriptor
+                        .eventDescriptor()
+                        .birthRound());
     }
 
     /**
