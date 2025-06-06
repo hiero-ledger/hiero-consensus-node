@@ -4,7 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
@@ -18,7 +17,6 @@ import java.time.Instant;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -108,12 +106,7 @@ public class PcesFileManager {
 
         this.currentOrigin = PcesUtilities.getInitialOrigin(files, startingRound);
 
-        this.newFileType = platformContext
-                        .getConfiguration()
-                        .getConfigData(EventConfig.class)
-                        .useBirthRoundAncientThreshold()
-                ? BIRTH_ROUND_THRESHOLD
-                : GENERATION_THRESHOLD;
+        this.newFileType = BIRTH_ROUND_THRESHOLD;
 
         initializeMetrics();
     }

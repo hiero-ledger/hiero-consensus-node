@@ -144,7 +144,7 @@ public class ConsensusRounds {
      * Notifies the instance that the current elections have been decided. This will start the next election.
      */
     public void currentElectionDecided() {
-        minimumJudgeStorage.add(roundElections.getRound(), roundElections.createMinimumJudgeInfo(ancientMode));
+        minimumJudgeStorage.add(roundElections.getRound(), roundElections.createMinimumJudgeInfo());
         consensusRelevantNGen = roundElections.getMinNGen();
         roundElections.startNextElection();
         // Delete the oldest rounds with round number which is expired

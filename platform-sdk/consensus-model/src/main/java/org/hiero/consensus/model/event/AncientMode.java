@@ -9,10 +9,6 @@ package org.hiero.consensus.model.event;
  */
 public enum AncientMode {
     /**
-     * The ancient threshold is defined by generations.
-     */
-    GENERATION_THRESHOLD,
-    /**
      * The ancient threshold is defined by birth rounds.
      */
     BIRTH_ROUND_THRESHOLD;

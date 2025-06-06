@@ -4,7 +4,6 @@ package com.swirlds.platform.event.preconsensus;
 import static com.swirlds.common.formatting.StringFormattingUtils.parseSanitizedTimestamp;
 import static com.swirlds.common.formatting.StringFormattingUtils.sanitizeTimestamp;
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.common.io.utility.RecycleBin;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -289,13 +288,7 @@ public final class PcesFile implements Comparable<PcesFile> {
      */
     @NonNull
     private static AncientMode determineFileType(@NonNull final String fileName) throws IOException {
-        if (fileName.contains(MINIMUM_GENERATION_PREFIX) && fileName.contains(MAXIMUM_GENERATION_PREFIX)) {
-            return GENERATION_THRESHOLD;
-        } else if (fileName.contains(MINIMUM_BIRTH_ROUND_PREFIX) && fileName.contains(MAXIMUM_BIRTH_ROUND_PREFIX)) {
-            return BIRTH_ROUND_THRESHOLD;
-        } else {
-            throw new IOException("Unable to determine file type from " + fileName);
-        }
+        return BIRTH_ROUND_THRESHOLD;
     }
 
     /**
@@ -306,7 +299,7 @@ public final class PcesFile implements Comparable<PcesFile> {
      */
     @NonNull
     private static String getLowerBoundPrefix(@NonNull final AncientMode fileType) {
-        return fileType == GENERATION_THRESHOLD ? MINIMUM_GENERATION_PREFIX : MINIMUM_BIRTH_ROUND_PREFIX;
+        return MINIMUM_BIRTH_ROUND_PREFIX;
     }
 
     /**
@@ -317,7 +310,7 @@ public final class PcesFile implements Comparable<PcesFile> {
      */
     @NonNull
     private static String getUpperBoundPrefix(@NonNull final AncientMode fileType) {
-        return fileType == GENERATION_THRESHOLD ? MAXIMUM_GENERATION_PREFIX : MAXIMUM_BIRTH_ROUND_PREFIX;
+        return MAXIMUM_BIRTH_ROUND_PREFIX;
     }
 
     /**

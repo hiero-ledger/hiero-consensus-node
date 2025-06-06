@@ -189,8 +189,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * than this value are ancient.
      *
      * <p>
-     * When running in {@link AncientMode#GENERATION_THRESHOLD}, this value is the minimum generation non-ancient. When
-     * running in {@link AncientMode#BIRTH_ROUND_THRESHOLD}, this value is the minimum birth round non-ancient.
+     * This value is the minimum birth round non-ancient.
      * </p>
      *
      * @return the ancient threshold after this round has reached consensus

@@ -137,9 +137,7 @@ public class CommonPcesWriter {
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
 
-        fileType = eventConfig.useBirthRoundAncientThreshold()
-                ? AncientMode.BIRTH_ROUND_THRESHOLD
-                : AncientMode.GENERATION_THRESHOLD;
+        fileType = eventConfig.getAncientMode();
     }
 
     /**

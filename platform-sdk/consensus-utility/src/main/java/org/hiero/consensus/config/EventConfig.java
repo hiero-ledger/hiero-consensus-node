@@ -31,10 +31,6 @@ public record EventConfig(
      */
     @NonNull
     public AncientMode getAncientMode() {
-        if (useBirthRoundAncientThreshold()) {
             return AncientMode.BIRTH_ROUND_THRESHOLD;
-        } else {
-            return AncientMode.GENERATION_THRESHOLD;
-        }
     }
 }

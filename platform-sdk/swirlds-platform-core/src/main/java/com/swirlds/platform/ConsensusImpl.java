@@ -952,7 +952,7 @@ public class ConsensusImpl implements Consensus {
      * @return true if the event is ancient
      */
     private boolean ancient(@Nullable final EventImpl x) {
-        return x == null || x.getAgeValue(ancientMode) < rounds.getAncientThreshold();
+        return x == null || x.getBirthRound() < rounds.getAncientThreshold();
     }
 
     /**
