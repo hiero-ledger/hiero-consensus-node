@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
-import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -83,8 +82,9 @@ public final class AliasUtils {
      * <p>Every entity in the system (accounts, tokens, etc.) may be represented within ethereum with a 20-byte EVM
      * address. This address can be explicit (as part of the alias), or it can be based on the entity ID number. When
      * based on the entity number, the first 12 bytes will be defined to be zero which indicates the current networks
-     * shard and realm, while the last 8 bytes represent the entity number. Because the shard and realm are zero, this
-     * prefix is all zeros, which is why it is sometimes known as the "long-zero" alias.
+     * shard and realm, while the last 8 bytes represent the entity number. In the case where such an address is detected,
+     * the resultant entity id extract from such an address will be <local shard>.<local realm>.<entity number>.
+     * Because the shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as the "long-zero" alias.
      *
      * @param alias The alias to check
      * @return True if the alias is an entity num alias
@@ -152,29 +152,6 @@ public final class AliasUtils {
             // documentation for ReadableStreamingData as well as the parse method for all the various exceptions.
             return false;
         }
-    }
-
-    /**
-     * A utility method that, given an address alias, extracts the shard (skipping shard and ID number).
-     *
-     * @param shard The shard for the network.  Return this value if the extracted shard is zero.
-     * @param addressAlias The address alias, where the 0.0.1234 style address has been encoded into 20 bytes
-     * @return The shard of the account or contract.
-     */
-    public static Integer extractShardFromAddressAlias(final Bytes addressAlias, final long shard) {
-        return addressAlias.getInt(0) == 0 ? toIntExact(shard) : addressAlias.getInt(0);
-    }
-
-    /**
-     * A utility method that, given an address alias, extracts the realm (skipping shard and ID number).
-     *
-     * @param realm The realm for the network.  Return this value if the extracted realm is zero.
-     * @param addressAlias The address alias, where the 0.0.1234 style address has been encoded into 20 bytes
-     * @return The realm of the account or contract
-     */
-    public static Long extractRealmFromAddressAlias(final Bytes addressAlias, final long realm) {
-
-        return addressAlias.getLong(4) == 0 ? realm : addressAlias.getLong(4);
     }
 
     /**

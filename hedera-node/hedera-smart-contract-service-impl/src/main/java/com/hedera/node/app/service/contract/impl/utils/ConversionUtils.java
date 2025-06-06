@@ -107,9 +107,8 @@ public class ConversionUtils {
     /**
      * Given a {@link com.esaulpaugh.headlong.abi.Address}, returns its implied token id.
      *
-     * <p><b>IMPORTANT:</b> Mono-service ignores the shard and realm, c.f. De
-     * codingFacade#convertAddressBytesToTokenID(), so we continue to do that here; might
-     * want to revisit this later
+     * Use the passed in EntityIdFactory to create the TokenID.  This means that the new TokenID
+     * will have the same shard and realm as the EntityIdFactory's default shard and realm which it reads from configuration.
      *
      * @param address the {@link com.esaulpaugh.headlong.abi.Address}
      * @return the implied token id

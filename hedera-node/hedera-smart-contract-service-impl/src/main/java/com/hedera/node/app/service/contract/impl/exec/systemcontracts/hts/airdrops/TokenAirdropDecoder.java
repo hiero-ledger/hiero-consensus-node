@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.airdr
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_REFERENCE_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
-import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -13,7 +12,6 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.data.LedgerConfig;
@@ -41,25 +39,22 @@ public class TokenAirdropDecoder {
     // Validation constant
     private static final Long LAST_RESERVED_SYSTEM_ACCOUNT = 1000L;
 
-    private HtsCallAttempt attempt;
-
     @Inject
     public TokenAirdropDecoder() {
         // Dagger2
     }
 
     public TransactionBody decodeAirdrop(@NonNull final HtsCallAttempt attempt) {
-        this.attempt = requireNonNull(attempt);
         final var call = TokenAirdropTranslator.TOKEN_AIRDROP.decodeCall(attempt.inputBytes());
         final var transferList = (Tuple[]) call.get(0);
         final var ledgerConfig = attempt.configuration().getConfigData(LedgerConfig.class);
-        final var tokenAirdrop = bodyForAirdrop(transferList, attempt.addressIdConverter(), ledgerConfig);
+        final var tokenAirdrop = bodyForAirdrop(transferList, attempt, ledgerConfig);
         return TransactionBody.newBuilder().tokenAirdrop(tokenAirdrop).build();
     }
 
     private TokenAirdropTransactionBody bodyForAirdrop(
             @NonNull final Tuple[] transferList,
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final LedgerConfig ledgerConfig) {
         final var transferBuilderList = new ArrayList<TokenTransferList>();
         validateSemantics(transferList, ledgerConfig);
@@ -74,7 +69,7 @@ public class TokenAirdropDecoder {
                 final var aaList = new ArrayList<AccountAmount>();
                 Arrays.stream(tokenAmountsTuple).forEach(tokenAmount -> {
                     final var amount = (long) tokenAmount.get(TOKEN_AMOUNT);
-                    final var account = addressIdConverter.convert(tokenAmount.get(TOKEN_ACCOUNT_ID));
+                    final var account = attempt.addressIdConverter().convert(tokenAmount.get(TOKEN_ACCOUNT_ID));
                     // Check if the receiver is a system account
                     if (amount > 0) {
                         checkForSystemAccount(account);
@@ -92,8 +87,8 @@ public class TokenAirdropDecoder {
                 final var nftTransfersList = new ArrayList<NftTransfer>();
                 Arrays.stream(nftAmountsTuple).forEach(nftAmount -> {
                     final var serial = (long) nftAmount.get(NFT_SERIAL);
-                    final var sender = addressIdConverter.convert(nftAmount.get(NFT_SENDER));
-                    final var receiver = addressIdConverter.convert(nftAmount.get(NFT_RECEIVER));
+                    final var sender = attempt.addressIdConverter().convert(nftAmount.get(NFT_SENDER));
+                    final var receiver = attempt.addressIdConverter().convert(nftAmount.get(NFT_RECEIVER));
                     checkForSystemAccount(receiver);
                     final var isApproval = (boolean) nftAmount.get(NFT_IS_APPROVAL);
                     final var nftTransfer = NftTransfer.newBuilder()

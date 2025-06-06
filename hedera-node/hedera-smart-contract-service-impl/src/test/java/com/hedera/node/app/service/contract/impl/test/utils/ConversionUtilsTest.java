@@ -20,8 +20,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_ST
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TOPIC;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asExactLongValueOrZero;
@@ -45,7 +43,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
-import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -271,12 +268,8 @@ class ConversionUtilsTest {
 
     @Test
     void evmAddressConversionTest() {
-        final long shard = 0L;
-        final long realm = 0L;
         final long num = 3L;
         final byte[] expected = new byte[20];
-        System.arraycopy(Ints.toByteArray((int) shard), 0, expected, 0, 4);
-        System.arraycopy(Longs.toByteArray(realm), 0, expected, 4, 8);
         System.arraycopy(Longs.toByteArray(num), 0, expected, 12, 8);
 
         final byte[] actual = asEvmAddress(num);
