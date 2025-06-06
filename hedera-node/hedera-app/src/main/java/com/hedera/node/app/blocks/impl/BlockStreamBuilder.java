@@ -271,31 +271,7 @@ public class BlockStreamBuilder
     private final List<TokenAssociation> automaticTokenAssociations = new LinkedList<>();
 
     // --- Fields used to build the TransactionOutput(s) ---
-    /**
-     * Enumerates the types of contract operations that may have a result.
-     */
-    private enum ContractOpType {
-        /**
-         * A contract creation operation.
-         */
-        CREATE,
-        /**
-         * A contract call operation.
-         */
-        CALL,
-        /**
-         * An Ethereum transaction that was throttled by gas.
-         */
-        ETH_THROTTLED,
-        /**
-         * An Ethereum transaction that created a contract.
-         */
-        ETH_CREATE,
-        /**
-         * An Ethereum transaction that called a contract.
-         */
-        ETH_CALL,
-    }
+
     /**
      * The type of contract operation that was performed.
      */

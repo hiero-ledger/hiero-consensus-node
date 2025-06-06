@@ -60,7 +60,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
         outcome.addCallDetailsTo(streamBuilder);
 
-        throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
+        throwIfUnsuccessfulCall(outcome, component.hederaOperations());
     }
 
     @Override
