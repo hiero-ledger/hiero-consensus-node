@@ -13,7 +13,6 @@ import java.util.Objects;
 import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -28,8 +27,6 @@ public class ConsensusRounds {
     private static final Logger logger = LogManager.getLogger(ConsensusRounds.class);
     /** consensus configuration */
     private final ConsensusConfig config;
-    /** the ancient mode currently in use */
-    private final AncientMode ancientMode;
     /** stores the minimum judge ancient identifier for all decided and non-expired rounds */
     private final SequentialRingBuffer<MinimumJudgeInfo> minimumJudgeStorage;
     /** a derivative of the only roster currently in use, until roster changes are implemented */
@@ -50,10 +47,8 @@ public class ConsensusRounds {
     /** Constructs an empty object */
     public ConsensusRounds(
             @NonNull final ConsensusConfig config,
-            @NonNull final AncientMode ancientMode,
             @NonNull final Roster roster) {
         this.config = Objects.requireNonNull(config);
-        this.ancientMode = Objects.requireNonNull(ancientMode);
         this.minimumJudgeStorage =
                 new SequentialRingBuffer<>(ConsensusConstants.ROUND_FIRST, config.roundsExpired() * 2);
         this.rosterEntryMap = RosterUtils.toMap(Objects.requireNonNull(roster));

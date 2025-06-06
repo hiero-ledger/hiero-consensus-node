@@ -83,7 +83,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer = new FutureEventBuffer(
-                platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 

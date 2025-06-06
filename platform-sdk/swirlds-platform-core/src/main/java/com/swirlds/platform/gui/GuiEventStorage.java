@@ -56,7 +56,7 @@ public class GuiEventStorage {
         this.consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
         this.linker =
-                new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
+                new SimpleLinker();
     }
 
     /**

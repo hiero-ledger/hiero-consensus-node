@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
@@ -43,16 +42,13 @@ public class SimpleLinker {
      */
     private final Map<Hash, EventImpl> parentHashMap = new HashMap<>(INITIAL_CAPACITY);
 
-    private final AncientMode ancientMode;
     private long nonAncientThreshold = 0;
 
     /**
      * Constructor
      *
-     * @param ancientMode the ancient mode
      */
-    public SimpleLinker(@NonNull final AncientMode ancientMode) {
-        this.ancientMode = ancientMode;
+    public SimpleLinker() {
         this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,
                 eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
     }

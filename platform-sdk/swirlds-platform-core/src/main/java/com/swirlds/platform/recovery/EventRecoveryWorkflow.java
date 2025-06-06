@@ -187,10 +187,6 @@ public final class EventRecoveryWorkflow {
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 
             final PcesFile preconsensusEventFile = PcesFile.of(
-                    platformContext
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode(),
                     Instant.now(),
                     0,
                     recoveredState.judge().getGeneration(),
@@ -387,10 +383,6 @@ public final class EventRecoveryWorkflow {
                     lastEvent.getConsensusOrder(),
                     currentRoundTimestamp,
                     config,
-                    platformContext
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode(),
                     lastEvent));
             v.setCreationSoftwareVersion(platformStateFacade.creationSoftwareVersionOf(previousState.getState()));
         });

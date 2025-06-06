@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * As the name suggest, the sole purpose of this class is to accumulate changes, so that they could be applied to the

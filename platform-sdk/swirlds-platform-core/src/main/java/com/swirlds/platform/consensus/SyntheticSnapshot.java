@@ -9,7 +9,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.LongStream;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
@@ -37,7 +36,6 @@ public final class SyntheticSnapshot {
      * @param lastConsensusOrder the last consensus order of all events that have reached consensus
      * @param roundTimestamp     the timestamp of the round
      * @param config             the consensus configuration
-     * @param ancientMode        the ancient mode
      * @param judge              the judge event
      * @return the synthetic snapshot
      */
@@ -46,7 +44,6 @@ public final class SyntheticSnapshot {
             final long lastConsensusOrder,
             @NonNull final Instant roundTimestamp,
             @NonNull final ConsensusConfig config,
-            @NonNull final AncientMode ancientMode,
             @NonNull final PlatformEvent judge) {
         final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(
                         RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)

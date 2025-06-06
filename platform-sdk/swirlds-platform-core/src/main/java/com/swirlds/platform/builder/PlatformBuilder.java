@@ -422,11 +422,7 @@ public final class PlatformBuilder {
                     platformContext,
                     databaseDirectory,
                     initialState.get().getRound(),
-                    preconsensusEventStreamConfig.permitGaps(),
-                    platformContext
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode());
+                    preconsensusEventStreamConfig.permitGaps());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

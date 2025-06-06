@@ -15,7 +15,6 @@ import com.swirlds.platform.test.fixtures.consensus.TestIntake;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.junit.jupiter.api.Disabled;

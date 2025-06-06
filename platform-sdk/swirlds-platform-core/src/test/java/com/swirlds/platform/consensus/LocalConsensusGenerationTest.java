@@ -31,10 +31,8 @@ class LocalConsensusGenerationTest {
     @Test
     void simpleGraphTest() {
         final Randotron randotron = Randotron.create();
-        final PlatformContext context = TestPlatformContextBuilder.create().build();
         // We need a linker to created EventImpl objects that hold the cGen value
-        final SimpleLinker linker = new SimpleLinker(
-                context.getConfiguration().getConfigData(EventConfig.class).getAncientMode());
+        final SimpleLinker linker = new SimpleLinker();
         // We need an orphan buffer to assign nGen values to the events
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create().build(), Mockito.mock(IntakeEventCounter.class));

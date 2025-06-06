@@ -20,7 +20,6 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -45,11 +44,9 @@ public final class PcesUtilities {
     public static PcesFile compactPreconsensusEventFile(
             @NonNull final PcesFile originalFile, final long previousUpperBound) {
 
-        final AncientMode fileType = originalFile.getFileType();
-
         // Find the true upper bound in the file.
         long newUpperBound = originalFile.getLowerBound();
-        try (final IOIterator<PlatformEvent> iterator = new PcesFileIterator(originalFile, 0, fileType)) {
+        try (final IOIterator<PlatformEvent> iterator = new PcesFileIterator(originalFile, 0)) {
 
             while (iterator.hasNext()) {
                 final PlatformEvent next = iterator.next();

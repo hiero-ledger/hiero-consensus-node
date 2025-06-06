@@ -108,10 +108,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
 
         this.validationFailedAccumulator = platformContext.getMetrics().getOrCreate(VALIDATION_FAILED_CONFIG);
 
-        eventWindow = EventWindow.getGenesisEventWindow(platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode());
+        eventWindow = EventWindow.getGenesisEventWindow();
     }
 
     /**

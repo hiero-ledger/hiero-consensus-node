@@ -29,8 +29,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -84,11 +82,6 @@ public class Shadowgraph implements Clearable {
     private final int numberOfNodes;
 
     /**
-     * Describes the current ancient mode.
-     */
-    private final AncientMode ancientMode;
-
-    /**
      * The most recent event window we know about.
      */
     private EventWindow eventWindow;
@@ -109,12 +102,6 @@ public class Shadowgraph implements Clearable {
             @NonNull final PlatformContext platformContext,
             @NonNull final int numberOfNodes,
             @NonNull final IntakeEventCounter intakeEventCounter) {
-
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-
         this.metrics = new ShadowgraphMetrics(platformContext);
         this.numberOfNodes = numberOfNodes;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);

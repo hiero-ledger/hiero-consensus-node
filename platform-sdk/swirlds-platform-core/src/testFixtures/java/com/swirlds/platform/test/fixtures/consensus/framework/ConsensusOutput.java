@@ -7,7 +7,6 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import org.hiero.base.Clearable;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -32,10 +31,8 @@ public class ConsensusOutput implements Clearable {
 
     /**
      * Creates a new instance.
-     *
-     * @param ancientMode the ancient mode
      */
-    public ConsensusOutput(@NonNull final AncientMode ancientMode) {
+    public ConsensusOutput() {
         addedEvents = new LinkedList<>();
         consensusRounds = new LinkedList<>();
         staleEvents = new LinkedList<>();

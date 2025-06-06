@@ -18,7 +18,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
@@ -30,7 +29,6 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
 
     private final NodeId nodeId;
     private final PcesFileTracker pcesFileTracker;
-    private final AncientMode ancientMode;
 
     /**
      * Constructor for {@code PcesFilesResultImpl}.
@@ -44,7 +42,6 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
         final Configuration configuration = platformContext.getConfiguration();
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
         final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
-        this.ancientMode = eventConfig.getAncientMode();
 
         try {
 
@@ -54,8 +51,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
                     platformContext,
                     databaseDirectory,
                     NO_LOWER_BOUND,
-                    pcesConfig.permitGaps(),
-                    eventConfig.getAncientMode());
+                    pcesConfig.permitGaps());
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
         }
@@ -85,6 +81,6 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
     @Override
     @NonNull
     public PcesMultiFileIterator pcesEvents() {
-        return new PcesMultiFileIterator(NO_LOWER_BOUND, pcesFiles(), ancientMode);
+        return new PcesMultiFileIterator(NO_LOWER_BOUND, pcesFiles());
     }
 }
