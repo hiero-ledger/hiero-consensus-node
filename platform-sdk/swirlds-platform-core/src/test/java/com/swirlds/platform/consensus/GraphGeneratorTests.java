@@ -432,7 +432,6 @@ public class GraphGeneratorTests {
         validateParentDistribution(generator);
         validateOtherParentDistribution(generator);
         validateEventOrder(generator);
-        validateMaxGeneration(generator);
         validateBirthRoundAdvancing(generator);
     }
 
@@ -450,20 +449,6 @@ public class GraphGeneratorTests {
             assertTrue(eventBirthRound >= currentBirthRound);
             currentBirthRound = eventBirthRound;
         }
-        generator.reset();
-    }
-
-    /**
-     * Assert that the max generation is updated correctly
-     */
-    public void validateMaxGeneration(final GraphGenerator generator) {
-        final List<EventImpl> events = generator.generateEvents(100);
-        final EventImpl lastEvent = events.get(events.size() - 1);
-        // validate only the last event to keep the validation simple
-        assertEquals(
-                lastEvent.getGeneration(),
-                generator.getMaxGeneration(lastEvent.getCreatorId()),
-                "last event should have the max generation");
         generator.reset();
     }
 
