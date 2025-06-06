@@ -60,13 +60,13 @@ public class PcesMutableFile {
      * @param event the event to write
      */
     public void writeEvent(final PlatformEvent event) throws IOException {
-        if (!descriptor.canContain(descriptor.getFileType().selectIndicator(event))) {
+        if (!descriptor.canContain(event.getBirthRound())) {
             throw new IllegalStateException("Cannot write event " + event.getHash() + " with ancient indicator "
-                    + descriptor.getFileType().selectIndicator(event) + " to file " + descriptor);
+                    + event.getBirthRound() + " to file " + descriptor);
         }
         writer.writeEvent(event.getGossipEvent());
         highestAncientIdentifierInFile = Math.max(
-                highestAncientIdentifierInFile, descriptor.getFileType().selectIndicator(event));
+                highestAncientIdentifierInFile, event.getBirthRound());
     }
 
     /**

@@ -51,7 +51,7 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
             return event;
         }
 
-        if (commonPcesWriter.getFileType().selectIndicator(event) < commonPcesWriter.getNonAncientBoundary()) {
+        if (event.getBirthRound() < commonPcesWriter.getNonAncientBoundary()) {
             // don't do anything with ancient events
             return event;
         }

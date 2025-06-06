@@ -252,7 +252,7 @@ public class CommonPcesWriter {
     public boolean prepareOutputStream(@NonNull final PlatformEvent eventToWrite) throws IOException {
         boolean fileClosed = false;
         if (currentMutableFile != null) {
-            final boolean fileCanContainEvent = currentMutableFile.canContain(fileType.selectIndicator(eventToWrite));
+            final boolean fileCanContainEvent = currentMutableFile.canContain(eventToWrite.getBirthRound());
             final boolean fileIsFull =
                     UNIT_BYTES.convertTo(currentMutableFile.fileSize(), UNIT_MEGABYTES) >= preferredFileSizeMegabytes;
 
@@ -269,7 +269,7 @@ public class CommonPcesWriter {
         // if the block above closed the file, then we need to create a new one
         if (currentMutableFile == null) {
             final long upperBound =
-                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, fileType.selectIndicator(eventToWrite));
+                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, eventToWrite.getBirthRound());
 
             currentMutableFile = fileManager
                     .getNextFileDescriptor(nonAncientBoundary, upperBound)

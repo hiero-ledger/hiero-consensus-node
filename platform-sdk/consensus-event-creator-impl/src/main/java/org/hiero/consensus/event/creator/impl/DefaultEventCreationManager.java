@@ -157,7 +157,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
         creator.clear();
         phase.activatePhase(IDLE);
         futureEventBuffer.clear();
-        final EventWindow eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        final EventWindow eventWindow = EventWindow.getGenesisEventWindow();
         futureEventBuffer.updateEventWindow(eventWindow);
     }
 

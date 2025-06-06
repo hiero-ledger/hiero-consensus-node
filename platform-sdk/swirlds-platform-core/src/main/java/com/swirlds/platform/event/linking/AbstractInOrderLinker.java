@@ -96,7 +96,8 @@ abstract class AbstractInOrderLinker implements InOrderLinker {
                 .getConfigData(EventConfig.class)
                 .getAncientMode();
         this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
+        this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true,
+                eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
     }
 
     /**

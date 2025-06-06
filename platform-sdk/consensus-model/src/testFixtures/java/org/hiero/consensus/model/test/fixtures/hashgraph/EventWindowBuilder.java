@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.test.fixtures.hashgraph;
 
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -72,7 +74,7 @@ public class EventWindowBuilder {
         if (ancientMode == null) {
             throw new IllegalArgumentException("Ancient mode must be set");
         }
-        this.ancientThreshold = Math.max(ancientMode.getGenesisIndicator(), ancientThreshold);
+        this.ancientThreshold = Math.max(ROUND_FIRST, ancientThreshold);
         return this;
     }
 
@@ -99,7 +101,7 @@ public class EventWindowBuilder {
         if (ancientMode == null) {
             throw new IllegalArgumentException("Ancient mode must be set");
         }
-        this.expiredThreshold = Math.max(ancientMode.getGenesisIndicator(), expiredThreshold);
+        this.expiredThreshold = Math.max(ROUND_FIRST, expiredThreshold);
         return this;
     }
 
@@ -127,8 +129,8 @@ public class EventWindowBuilder {
         return new EventWindow(
                 latestConsensusRound == null ? ConsensusConstants.ROUND_FIRST : latestConsensusRound,
                 newEventBirthRound == null ? ConsensusConstants.ROUND_FIRST : newEventBirthRound,
-                ancientThreshold == null ? ancientMode.getGenesisIndicator() : ancientThreshold,
-                expiredThreshold == null ? ancientMode.getGenesisIndicator() : expiredThreshold,
+                ancientThreshold == null ? ROUND_FIRST : ancientThreshold,
+                expiredThreshold == null ? ROUND_FIRST : expiredThreshold,
                 ancientMode);
     }
 }

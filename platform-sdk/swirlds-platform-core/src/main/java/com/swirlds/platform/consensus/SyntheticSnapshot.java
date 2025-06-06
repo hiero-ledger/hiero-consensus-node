@@ -50,7 +50,7 @@ public final class SyntheticSnapshot {
             @NonNull final PlatformEvent judge) {
         final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(
                         RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
-                .mapToObj(r -> new MinimumJudgeInfo(r, ancientMode.selectIndicator(judge)))
+                .mapToObj(r -> new MinimumJudgeInfo(r, judge.getBirthRound()))
                 .toList();
         return ConsensusSnapshot.newBuilder()
                 .round(round)

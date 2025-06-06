@@ -53,7 +53,7 @@ public final class PcesUtilities {
 
             while (iterator.hasNext()) {
                 final PlatformEvent next = iterator.next();
-                newUpperBound = Math.max(newUpperBound, fileType.selectIndicator(next));
+                newUpperBound = Math.max(newUpperBound, next.getBirthRound());
             }
 
         } catch (final IOException e) {

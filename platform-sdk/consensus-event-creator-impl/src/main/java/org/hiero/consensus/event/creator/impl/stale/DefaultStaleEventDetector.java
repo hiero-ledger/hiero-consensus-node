@@ -56,7 +56,8 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
         this.selfId = Objects.requireNonNull(selfId);
         final AncientMode ancientMode =
                 configuration.getConfigData(EventConfig.class).getAncientMode();
-        this.selfEvents = new StandardSequenceMap<>(0, 1024, true, ancientMode::selectIndicator);
+        this.selfEvents = new StandardSequenceMap<>(0, 1024, true,
+                eventDescriptor -> eventDescriptor.eventDescriptor().birthRound());
         this.metrics = new StaleEventDetectorMetrics(metrics);
     }
 

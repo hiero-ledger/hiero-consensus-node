@@ -2,8 +2,6 @@
 package org.hiero.consensus.model.hashgraph;
 
 import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
-import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
@@ -19,7 +17,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * @param newEventBirthRound      the round that newly created events should use as a birth round
  * @param ancientThreshold     the minimum ancient indicator value for an event to be considered non-ancient
  * @param expiredThreshold     the minimum ancient indicator value for an event to be considered not expired
- * @param ancientMode          the ancient mode
  */
 public record EventWindow(
         long latestConsensusRound,
@@ -49,25 +46,15 @@ public record EventWindow(
                     "The event birth round cannot be less than the first round (%d)".formatted(ROUND_FIRST));
         }
 
-        if (ancientMode == GENERATION_THRESHOLD) {
-            if (ancientThreshold < FIRST_GENERATION) {
-                throw new IllegalArgumentException(
-                        "the minimum generation non-ancient cannot be lower than the first generation for events.");
-            }
-            if (expiredThreshold < FIRST_GENERATION) {
-                throw new IllegalArgumentException(
-                        "the minimum generation non-expired cannot be lower than the first generation for events.");
-            }
-        } else {
-            if (ancientThreshold < ROUND_FIRST) {
-                throw new IllegalArgumentException(
-                        "the minimum round non-ancient cannot be lower than the first round of consensus.");
-            }
-            if (expiredThreshold < ROUND_FIRST) {
-                throw new IllegalArgumentException(
-                        "the minimum round non-expired cannot be lower than the first round of consensus.");
-            }
+        if (ancientThreshold < ROUND_FIRST) {
+            throw new IllegalArgumentException(
+                    "the minimum round non-ancient cannot be lower than the first round of consensus.");
         }
+        if (expiredThreshold < ROUND_FIRST) {
+            throw new IllegalArgumentException(
+                    "the minimum round non-expired cannot be lower than the first round of consensus.");
+        }
+
     }
 
     /**
@@ -89,8 +76,7 @@ public record EventWindow(
     @NonNull
     @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
     public static EventWindow getGenesisEventWindow(@NonNull final AncientMode ancientMode) {
-        final long firstIndicator = ancientMode == GENERATION_THRESHOLD ? FIRST_GENERATION : ROUND_FIRST;
-        return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, firstIndicator, firstIndicator, ancientMode);
+        return new EventWindow(ROUND_NEGATIVE_INFINITY, ROUND_FIRST, ROUND_FIRST, ROUND_FIRST, ancientMode);
     }
 
     /**
@@ -116,7 +102,7 @@ public record EventWindow(
      * @return true if the event is ancient, false otherwise.
      */
     public boolean isAncient(@NonNull final PlatformEvent event) {
-        return ancientMode.selectIndicator(event) < ancientThreshold;
+        return event.getBirthRound() < ancientThreshold;
     }
 
     /**
@@ -126,7 +112,7 @@ public record EventWindow(
      * @return true if the event is ancient, false otherwise.
      */
     public boolean isAncient(@NonNull final EventDescriptorWrapper event) {
-        return ancientMode.selectIndicator(event) < ancientThreshold;
+        return event.eventDescriptor().birthRound() < ancientThreshold;
     }
 
     /**
@@ -144,7 +130,6 @@ public record EventWindow(
     public String toString() {
         return new ToStringBuilder(this)
                 .append("latestConsensusRound", latestConsensusRound)
-                .append("ancientMode", ancientMode)
                 .append("ancientThreshold", ancientThreshold)
                 .append("expiredThreshold", expiredThreshold)
                 .toString();

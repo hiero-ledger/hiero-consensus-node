@@ -4,6 +4,7 @@ package com.swirlds.platform.gossip.shadowgraph;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -142,7 +143,7 @@ public class Shadowgraph implements Clearable {
      */
     public synchronized void clear() {
         eventWindow = null;
-        oldestUnexpiredIndicator = ancientMode.getGenesisIndicator();
+        oldestUnexpiredIndicator = ROUND_FIRST;
         disconnectShadowEvents();
         tips.clear();
         hashToShadowEvent.clear();
@@ -608,7 +609,7 @@ public class Shadowgraph implements Clearable {
 
         hashToShadowEvent.put(se.getEventBaseHash(), se);
 
-        final long ancientIndicator = ancientMode.selectIndicator(event);
+        final long ancientIndicator = event.getBirthRound();
         if (!indicatorToShadowEvent.containsKey(ancientIndicator)) {
             indicatorToShadowEvent.put(ancientIndicator, new HashSet<>());
         }
