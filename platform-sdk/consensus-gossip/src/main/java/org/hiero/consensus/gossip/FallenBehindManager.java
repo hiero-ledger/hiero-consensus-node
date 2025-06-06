@@ -10,10 +10,17 @@ public interface FallenBehindManager {
      * Notify the fallen behind manager that a node has reported that they don't have events we need. This means we have
      * probably fallen behind and will need to reconnect
      *
-     * @param id
-     * 		the id of the node who says we have fallen behind
+     * @param id the id of the node who says we have fallen behind
      */
     void reportFallenBehind(@NonNull NodeId id);
+
+    /**
+     * Notify the fallen behind manager that a node has reported that node is providing us with events we need. This
+     * means we are not in fallen behind state against that node.
+     *
+     * @param id the id of the node who is providing us with up to date events
+     */
+    void clearFallenBehind(@NonNull NodeId id);
 
     /**
      * We have determined that we have not fallen behind, or we have reconnected, so reset everything to the initial
@@ -31,8 +38,7 @@ public interface FallenBehindManager {
     /**
      * Should I attempt a reconnect with this neighbor?
      *
-     * @param peerId
-     * 		the ID of the neighbor
+     * @param peerId the ID of the neighbor
      * @return true if I should attempt a reconnect
      */
     boolean shouldReconnectFrom(@NonNull NodeId peerId);
@@ -44,7 +50,8 @@ public interface FallenBehindManager {
 
     /**
      * Notify about changes in list of node ids we should be taking into account for falling behind
-     * @param added node ids which were added from the roster
+     *
+     * @param added   node ids which were added from the roster
      * @param removed node ids which were removed from the roster
      */
     void addRemovePeers(@NonNull Set<NodeId> added, @NonNull Set<NodeId> removed);

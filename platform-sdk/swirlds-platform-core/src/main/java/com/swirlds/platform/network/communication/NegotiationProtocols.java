@@ -107,4 +107,13 @@ public class NegotiationProtocols {
             throw new IllegalStateException("no protocol initiated");
         }
     }
+
+    /**
+     * Perform optional cleanup on all peer protocols
+     */
+    public void cleanup() {
+        for (PeerProtocol peerProtocol : allPeerProtocols) {
+            peerProtocol.cleanup();
+        }
+    }
 }

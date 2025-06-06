@@ -4,7 +4,6 @@ package com.swirlds.platform.gossip;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_UNDEFINED;
 
-import com.google.common.collect.ImmutableList;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -21,11 +20,13 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
+import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.network.protocol.ReconnectProtocol;
 import com.swirlds.platform.network.protocol.SyncProtocol;
+import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
 import com.swirlds.platform.reconnect.ReconnectController;
 import com.swirlds.platform.reconnect.ReconnectLearnerFactory;
@@ -44,6 +45,7 @@ import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -62,16 +64,16 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * Utility class for wiring various subcomponents of gossip module. In particular, it abstracts away
- * specific protocols from network component using them and connects all of these to wiring framework.
+ * Utility class for wiring various subcomponents of gossip module. In particular, it abstracts away specific protocols
+ * from network component using them and connects all of these to wiring framework.
  */
 public class SyncGossipModular implements Gossip {
 
     private static final Logger logger = LogManager.getLogger(SyncGossipModular.class);
 
     private final PeerCommunication network;
-    private final ImmutableList<Protocol> protocols;
-    private final SyncProtocol syncProtocol;
+    private final List<Protocol> protocols;
+    private final AbstractSyncProtocol<?> syncProtocol;
     private final SyncManagerImpl syncManager;
 
     // this is not a nice dependency, should be removed as well as the sharedState
@@ -136,31 +138,47 @@ public class SyncGossipModular implements Gossip {
                         statusActionSubmitter,
                         platformContext.getConfiguration().getConfigData(ReconnectConfig.class)));
 
-        this.syncProtocol = SyncProtocol.create(
+        final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
+
+        if (protocolConfig.rpcGossip()) {
+            this.syncProtocol = RpcProtocol.create(
+                    platformContext,
+                    syncManager,
+                    event -> receivedEventHandler.accept(event),
+                    intakeEventCounter,
+                    threadManager,
+                    peers.size() + 1,
+                    selfId,
+                    this.network.getNetworkMetrics());
+
+        } else {
+            this.syncProtocol = SyncProtocol.create(
+                    platformContext,
+                    syncManager,
+                    event -> receivedEventHandler.accept(event),
+                    intakeEventCounter,
+                    threadManager,
+                    peers.size() + 1);
+        }
+
+        this.protocols = new ArrayList<>();
+
+        this.protocols.add(HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()));
+
+        this.protocols.add(createReconnectProtocol(
                 platformContext,
                 syncManager,
-                event -> receivedEventHandler.accept(event),
-                intakeEventCounter,
                 threadManager,
-                peers.size() + 1);
+                latestCompleteState,
+                roster,
+                loadReconnectState,
+                clearAllPipelinesForReconnect,
+                swirldStateManager,
+                selfId,
+                this.syncProtocol,
+                platformStateFacade));
+        this.protocols.add(syncProtocol);
 
-        this.protocols = ImmutableList.of(
-                HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
-                createReconnectProtocol(
-                        platformContext,
-                        syncManager,
-                        threadManager,
-                        latestCompleteState,
-                        roster,
-                        loadReconnectState,
-                        clearAllPipelinesForReconnect,
-                        swirldStateManager,
-                        selfId,
-                        this.syncProtocol,
-                        platformStateFacade),
-                syncProtocol);
-
-        final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
         final VersionCompareHandshake versionCompareHandshake =
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
         final List<ProtocolRunnable> handshakeProtocols = List.of(versionCompareHandshake);
@@ -215,7 +233,8 @@ public class SyncGossipModular implements Gossip {
             }
         };
 
-        var throttle = new ReconnectLearnerThrottle(platformContext.getTime(), selfId, reconnectConfig);
+        final ReconnectLearnerThrottle throttle =
+                new ReconnectLearnerThrottle(platformContext.getTime(), selfId, reconnectConfig);
 
         final ReconnectSyncHelper reconnectNetworkHelper = new ReconnectSyncHelper(
                 swirldStateManager::getConsensusState,

@@ -17,6 +17,11 @@ public class TestingSyncManager implements FallenBehindManager {
     }
 
     @Override
+    public void clearFallenBehind(@NonNull final NodeId id) {
+        fallenBehind = false;
+    }
+
+    @Override
     public void resetFallenBehind() {
         fallenBehind = false;
     }

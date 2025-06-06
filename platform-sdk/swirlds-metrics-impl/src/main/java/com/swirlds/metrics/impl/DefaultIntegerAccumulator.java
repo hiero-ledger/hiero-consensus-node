@@ -20,6 +20,7 @@ public class DefaultIntegerAccumulator extends AbstractMetric implements Integer
     private final AtomicInteger container;
     private final IntBinaryOperator accumulator;
     private final IntSupplier initializer;
+    private final boolean resetOnSnapshot;
 
     public DefaultIntegerAccumulator(@NonNull final Config config) {
         super(config);
@@ -27,6 +28,7 @@ public class DefaultIntegerAccumulator extends AbstractMetric implements Integer
         final int initialValue = config.getInitialValue();
         this.initializer = config.getInitializer() != null ? config.getInitializer() : () -> initialValue;
         this.container = new AtomicInteger(this.initializer.getAsInt());
+        this.resetOnSnapshot = config.isResetOnSnapshot();
     }
 
     /**
@@ -43,7 +45,13 @@ public class DefaultIntegerAccumulator extends AbstractMetric implements Integer
     @NonNull
     @Override
     public List<SnapshotEntry> takeSnapshot() {
-        return List.of(new SnapshotEntry(VALUE, container.getAndSet(initializer.getAsInt())));
+        final int snap;
+        if (resetOnSnapshot) {
+            snap = container.getAndSet(initializer.getAsInt());
+        } else {
+            snap = container.get();
+        }
+        return List.of(new SnapshotEntry(VALUE, snap));
     }
 
     /**

@@ -14,10 +14,12 @@ import java.util.function.IntSupplier;
 /**
  * An {@code IntegerAccumulator} accumulates an {@code int}-value.
  * <p>
- * It is reset in regular intervals. The exact timing depends on the implementation.
+ * It is reset in regular intervals if {@code resetOnSnapshot} is set to true (which is a default). The exact timing
+ * depends on the implementation.
+ *
  * <p>
- * An {@code IntegerAccumulator} is reset to the {@link #getInitialValue() initialValue}.
- * If no {@code initialValue} was specified, the {@code IntegerAccumulator} is reset to {@code 0}.
+ * An {@code IntegerAccumulator} is reset to the {@link #getInitialValue() initialValue}. If no {@code initialValue} was
+ * specified, the {@code IntegerAccumulator} is reset to {@code 0}.
  */
 public interface IntegerAccumulator extends Metric {
 
@@ -82,8 +84,7 @@ public interface IntegerAccumulator extends Metric {
      * The function is applied with the current value as its first argument, and the provided {@code other} as the
      * second argument.
      *
-     * @param other
-     * 		the second parameter
+     * @param other the second parameter
      */
     void update(final int other);
 
@@ -96,18 +97,17 @@ public interface IntegerAccumulator extends Metric {
         private final @Nullable IntSupplier initializer;
 
         private final int initialValue;
+        private final boolean resetOnSnapshot;
 
         /**
          * Constructor of {@code IntegerGauge.Config}
+         * <p>
+         * By default, the {@link #getAccumulator() accumulator} is set to {@code Integer::max}, the
+         * {@link #getInitialValue() initialValue} is set to {@code 0}, {@link #getFormat() format} is set to
+         * {@code "%d"}, and {@link #isResetOnSnapshot() resetOnSnapshot} is set to {@code true}.
          *
-         * By default, the {@link #getAccumulator() accumulator} is set to {@code Integer::max},
-         * the {@link #getInitialValue() initialValue} is set to {@code 0},
-         * and {@link #getFormat() format} is set to {@code "%d"}.
-         *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
+         * @param category the kind of metric (metrics are grouped or filtered by this)
+         * @param name     a short name for the metric
          * @throws NullPointerException     if one of the parameters is {@code null}
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
@@ -116,22 +116,22 @@ public interface IntegerAccumulator extends Metric {
             this.accumulator = Integer::max;
             this.initializer = null;
             this.initialValue = 0;
+            this.resetOnSnapshot = true;
         }
 
         /**
          * Constructor of {@code IntegerGauge.Config}
+         * <p>
+         * By default, the {@link #getAccumulator() accumulator} is set to {@code Integer::max}, the
+         * {@link #getInitialValue() initialValue} is set to {@code 0}, {@link #getFormat() format} is set to
+         * {@code "%d"}, and {@link #isResetOnSnapshot() resetOnSnapshot} is set to {@code true}..
          *
-         * By default, the {@link #getAccumulator() accumulator} is set to {@code Integer::max},
-         * the {@link #getInitialValue() initialValue} is set to {@code 0},
-         * and {@link #getFormat() format} is set to {@code "%d"}.
-         *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
-         * @param description metric description
-         * @param unit        metric unit
-         * @param accumulator accumulator for metric
+         * @param category        the kind of metric (metrics are grouped or filtered by this)
+         * @param name            a short name for the metric
+         * @param description     metric description
+         * @param unit            metric unit
+         * @param accumulator     accumulator for metric
+         * @param resetOnSnapshot should value be reset to initial value on snapshot
          * @throws NullPointerException     if one of the parameters is {@code null}
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
@@ -143,12 +143,14 @@ public interface IntegerAccumulator extends Metric {
                 @NonNull final String format,
                 @NonNull final IntBinaryOperator accumulator,
                 final IntSupplier initializer,
-                final int initialValue) {
+                final int initialValue,
+                final boolean resetOnSnapshot) {
 
             super(category, name, description, unit, format);
             this.accumulator = Objects.requireNonNull(accumulator, "accumulator must not be null");
             this.initializer = initializer;
             this.initialValue = initialValue;
+            this.resetOnSnapshot = resetOnSnapshot;
         }
 
         /**
@@ -165,7 +167,8 @@ public interface IntegerAccumulator extends Metric {
                     getFormat(),
                     getAccumulator(),
                     getInitializer(),
-                    getInitialValue());
+                    getInitialValue(),
+                    isResetOnSnapshot());
         }
 
         /**
@@ -182,14 +185,14 @@ public interface IntegerAccumulator extends Metric {
                     getFormat(),
                     getAccumulator(),
                     getInitializer(),
-                    getInitialValue());
+                    getInitialValue(),
+                    isResetOnSnapshot());
         }
 
         /**
          * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
          *
-         * @param format
-         * 		the format-string
+         * @param format the format-string
          * @return a new configuration-object with updated {@code format}
          * @throws NullPointerException     if {@code format} is {@code null}
          * @throws IllegalArgumentException if {@code format} consists only of whitespaces
@@ -204,7 +207,8 @@ public interface IntegerAccumulator extends Metric {
                     format,
                     getAccumulator(),
                     getInitializer(),
-                    getInitialValue());
+                    getInitialValue(),
+                    isResetOnSnapshot());
         }
 
         /**
@@ -220,11 +224,10 @@ public interface IntegerAccumulator extends Metric {
         /**
          * Fluent-style setter of the accumulator.
          * <p>
-         * The accumulator should be side-effect-free, since it may be re-applied when attempted updates fail
-         * due to contention among threads.
+         * The accumulator should be side-effect-free, since it may be re-applied when attempted updates fail due to
+         * contention among threads.
          *
-         * @param accumulator
-         * 		The {@link IntBinaryOperator} that is used to accumulate the value.
+         * @param accumulator The {@link IntBinaryOperator} that is used to accumulate the value.
          * @return a new configuration-object with updated {@code initialValue}
          */
         @NonNull
@@ -237,7 +240,8 @@ public interface IntegerAccumulator extends Metric {
                     getFormat(),
                     accumulator,
                     getInitializer(),
-                    getInitialValue());
+                    getInitialValue(),
+                    isResetOnSnapshot());
         }
 
         /**
@@ -255,8 +259,7 @@ public interface IntegerAccumulator extends Metric {
          * <p>
          * If both {@code initializer} and {@code initialValue} are set, the {@code initialValue} is ignored
          *
-         * @param initializer
-         * 		the initializer
+         * @param initializer the initializer
          * @return a new configuration-object with updated {@code initializer}
          */
         public IntegerAccumulator.Config withInitializer(final IntSupplier initializer) {
@@ -268,7 +271,8 @@ public interface IntegerAccumulator extends Metric {
                     getFormat(),
                     getAccumulator(),
                     Objects.requireNonNull(initializer, "initializer"),
-                    getInitialValue());
+                    getInitialValue(),
+                    isResetOnSnapshot());
         }
 
         /**
@@ -283,8 +287,7 @@ public interface IntegerAccumulator extends Metric {
         /**
          * Fluent-style setter of the initial value.
          *
-         * @param initialValue
-         * 		the initial value
+         * @param initialValue the initial value
          * @return a new configuration-object with updated {@code initialValue}
          */
         @NonNull
@@ -297,7 +300,28 @@ public interface IntegerAccumulator extends Metric {
                     getFormat(),
                     getAccumulator(),
                     getInitializer(),
-                    initialValue);
+                    initialValue,
+                    isResetOnSnapshot());
+        }
+
+        /**
+         * Fluent-style setter of the reset on snapshot behaviour.
+         *
+         * @param resetOnSnapshot the new behaviour of reset on snapshot
+         * @return a new configuration-object with updated {@code resetOnSnapshot}
+         */
+        @NonNull
+        public IntegerAccumulator.Config withResetOnSnapshot(final boolean resetOnSnapshot) {
+            return new IntegerAccumulator.Config(
+                    getCategory(),
+                    getName(),
+                    getDescription(),
+                    getUnit(),
+                    getFormat(),
+                    getAccumulator(),
+                    getInitializer(),
+                    getInitialValue(),
+                    resetOnSnapshot);
         }
 
         /**
@@ -307,6 +331,15 @@ public interface IntegerAccumulator extends Metric {
         @Override
         public Class<IntegerAccumulator> getResultClass() {
             return IntegerAccumulator.class;
+        }
+
+        /**
+         * Fluent-style setter of reset on snapshot behaviour.
+         *
+         * @return is reset on snapshot currently enabled
+         */
+        public boolean isResetOnSnapshot() {
+            return resetOnSnapshot;
         }
 
         /**
@@ -326,6 +359,7 @@ public interface IntegerAccumulator extends Metric {
             return new ToStringBuilder(this)
                     .appendSuper(super.toString())
                     .append("initialValue", initializer != null ? initializer.getAsInt() : initialValue)
+                    .append("resetOnSnapshot", resetOnSnapshot)
                     .toString();
         }
     }
