@@ -7,7 +7,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -111,8 +110,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT.finalStatus(), CALLED_CONTRACT_ID, null, null);
+        final var expectedOutcome =
+                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), CALLED_CONTRACT_ID, null, null);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
 
@@ -131,8 +130,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        final var expectedOutcome =
-                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, null, null);
+        final var expectedOutcome = new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);

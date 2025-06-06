@@ -60,8 +60,7 @@ public record CallOutcome(
      */
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
-        return new CallOutcome(
-                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null);
+        return new CallOutcome(result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null);
     }
 
     /**
