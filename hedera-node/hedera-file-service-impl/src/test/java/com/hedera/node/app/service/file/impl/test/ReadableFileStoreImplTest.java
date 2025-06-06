@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -39,7 +40,8 @@ class ReadableFileStoreImplTest extends FileTestBase {
     @Test
     void missingFileIsNull() {
         readableFileState.reset();
-        final var state = MapReadableKVState.<Long, File>builder(FILES).build();
+        final var state =
+                MapReadableKVState.<Long, File>builder(FileService.NAME, FILES).build();
         given(readableStates.<Long, File>get(FILES)).willReturn(state);
         subject = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 

@@ -37,6 +37,7 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.common.utility.StopWatch;
@@ -50,9 +51,7 @@ import com.swirlds.demo.platform.fs.stresstest.proto.TestTransactionWrapper;
 import com.swirlds.demo.platform.nft.NftQueryController;
 import com.swirlds.demo.virtualmerkle.config.VirtualMerkleConfig;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
-import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
-import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
 import com.swirlds.demo.virtualmerkle.state.VirtualMerkleStateInitializer;
 import com.swirlds.demo.virtualmerkle.transaction.handler.VirtualMerkleTransactionHandler;
 import com.swirlds.fcqueue.FCQueue;
@@ -78,6 +77,9 @@ import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -100,6 +102,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -867,6 +870,22 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
     /**
      * {@inheritDoc}
+     * <p>
+     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+     * </p>
+     */
+    @Override
+    public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public StateLifecycleManager newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl(new NoOpMetrics());
+    }
+
+    /**
+     * {@inheritDoc}
      */
     @Override
     @NonNull
@@ -1025,10 +1044,10 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
             final AtomicLong maxAccountIdFromLoadedState = new AtomicLong(0);
             if (state.getVirtualMap() != null) {
-                new MerkleIterator<VirtualLeafNode<AccountVirtualMapKey, AccountVirtualMapValue>>(state.getVirtualMap())
+                new MerkleIterator<VirtualLeafNode>(state.getVirtualMap())
                         .setFilter(node -> node instanceof VirtualLeafNode)
                         .forEachRemaining(leaf -> {
-                            final AccountVirtualMapKey key = leaf.getKey();
+                            final AccountVirtualMapKey key = AccountVirtualMapKey.fromBytes(leaf.getKey());
                             maxAccountIdFromLoadedState.set(
                                     Math.max(key.getAccountID() + 1, maxAccountIdFromLoadedState.get()));
                         });
@@ -1036,11 +1055,11 @@ public class PlatformTestingToolMain implements SwirldMain<PlatformTestingToolSt
 
             final AtomicLong maxSmartContractIdFromLoadedState = new AtomicLong(0);
             if (state.getVirtualMapForSmartContractsByteCode() != null) {
-                new MerkleIterator<VirtualLeafNode<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>>(
-                                state.getVirtualMapForSmartContractsByteCode())
+                new MerkleIterator<VirtualLeafNode>(state.getVirtualMapForSmartContractsByteCode())
                         .setFilter(node -> node instanceof VirtualLeafNode)
                         .forEachRemaining(leaf -> {
-                            final SmartContractByteCodeMapKey key = leaf.getKey();
+                            final SmartContractByteCodeMapKey key =
+                                    SmartContractByteCodeMapKey.fromBytes(leaf.getKey());
                             maxSmartContractIdFromLoadedState.set(
                                     Math.max(key.getContractId() + 1, maxSmartContractIdFromLoadedState.get()));
                         });

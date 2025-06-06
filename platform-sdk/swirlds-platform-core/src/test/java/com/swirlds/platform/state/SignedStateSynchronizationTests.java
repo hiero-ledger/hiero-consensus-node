@@ -35,6 +35,7 @@ public class SignedStateSynchronizationTests {
     public void SignedStateSynchronization() throws Exception {
         SignedState state = SignedStateUtils.randomSignedState(1234);
         state.getState().setHash(null); // FUTURE WORK root has a hash but other parts do not...
-        MerkleTestUtils.hashAndTestSynchronization(null, state.getState().getRoot(), reconnectConfig);
+        MerkleTestUtils.hashAndTestSynchronization(
+                null, ((MerkleNodeState) state.getState()).getRoot(), reconnectConfig);
     }
 }

@@ -53,7 +53,7 @@ import java.time.Duration;
  * 		The interval between flushing of copies. This value defines the value of N where every Nth copy is flushed. The
  * 		value must be positive and will typically be a fairly small number, such as 20. The first copy is not flushed,
  * 		but every Nth copy thereafter is.
- * @param copyFlushThreshold
+ * @param copyFlushCandidateThreshold
  *      Virtual root copy flush threshold. A copy can be flushed to disk only if it's size exceeds this
  *      threshold. If set to zero, size-based flushes aren't used, and copies are flushed based on {@link
  *      #flushInterval} instead.
@@ -69,6 +69,8 @@ import java.time.Duration;
  * 		increase the amount of time required to make a fast copy by this amount of time.
  * @param maximumFlushThrottlePeriod
  * 		The maximum amount of time that any virtual map fast copy will be delayed due to a flush backlog.
+ * @param validateMigrationEnabled
+ *      Feature flag to enable validation during migration to the single Virtual Map (see {@code MerkleStateRoot}).
  */
 @ConfigData("virtualMap")
 public record VirtualMapConfig(
@@ -86,11 +88,12 @@ public record VirtualMapConfig(
         @ConstraintMethod("virtualMapWarningIntervalValidation") @Min(1) @ConfigProperty(defaultValue = "100000")
                 long virtualMapWarningInterval,
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
-        @ConfigProperty(defaultValue = "200000000") long copyFlushThreshold,
-        @ConfigProperty(defaultValue = "2000000000") long familyThrottleThreshold,
+        @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
+        @ConfigProperty(defaultValue = "5000000000") long familyThrottleThreshold,
         @ConfigProperty(defaultValue = "10000") int preferredFlushQueueSize,
         @ConfigProperty(defaultValue = "200ms") Duration flushThrottleStepSize,
-        @ConfigProperty(defaultValue = "5s") Duration maximumFlushThrottlePeriod) {
+        @ConfigProperty(defaultValue = "5s") Duration maximumFlushThrottlePeriod,
+        @ConfigProperty(defaultValue = "false") boolean validateMigrationEnabled) {
 
     private static final double UNIT_FRACTION_PERCENT = 100.0;
 

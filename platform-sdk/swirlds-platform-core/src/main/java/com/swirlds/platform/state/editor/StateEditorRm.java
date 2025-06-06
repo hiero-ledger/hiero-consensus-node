@@ -43,7 +43,8 @@ public class StateEditorRm extends StateEditorOperation {
         final int indexInParent = parentInfo.indexInParent();
 
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorRm.run()")) {
-            final MerkleNodeState state = reservedSignedState.get().getState();
+            final MerkleNodeState state =
+                    (MerkleNodeState) reservedSignedState.get().getState();
             final MerkleNode child = state.getRoot().getNodeAtRoute(destinationRoute);
 
             if (logger.isInfoEnabled(LogMarker.CLI.getMarker())) {

@@ -15,11 +15,8 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
@@ -50,18 +47,15 @@ public final class SignedStateFileWriter {
      * human needs to decide what is contained within a signed state file. If the file already exists in the given
      * directory then it is overwritten.
      *
-     * @param platformContext the platform context
      * @param state           the state that is being written
      * @param directory       the directory where the state is being written
      */
     public static void writeHashInfoFile(
-            @NonNull final PlatformContext platformContext,
             @NonNull final Path directory,
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-        final String platformInfo = platformStateFacade.getInfoString(state, stateConfig.debugHashDepth());
+        final String platformInfo = platformStateFacade.getInfoString(state);
 
         logger.info(
                 STATE_TO_DISK.getMarker(),
@@ -72,11 +66,8 @@ public final class SignedStateFileWriter {
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
-        final String hashInfo = new MerkleTreeVisualizer(state.getRoot())
-                .setDepth(stateConfig.debugHashDepth())
-                .render();
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(hashInfoFile.toFile()))) {
-            writer.write(hashInfo);
+            writer.write(platformInfo);
         }
     }
 
@@ -148,7 +139,7 @@ public final class SignedStateFileWriter {
 
         state.createSnapshot(directory);
         writeSignatureSetFile(directory, signedState);
-        writeHashInfoFile(platformContext, directory, signedState.getState(), platformStateFacade);
+        writeHashInfoFile(directory, signedState.getState(), platformStateFacade);
         writeMetadataFile(selfId, directory, signedState, platformStateFacade);
         writeEmergencyRecoveryFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();

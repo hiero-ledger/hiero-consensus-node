@@ -12,7 +12,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.state.State;
@@ -297,11 +296,11 @@ public class PlatformStateFacade {
     /**
      * Generate a string that describes this state.
      *
-     * @param hashDepth the depth of the tree to visit and print
      */
     @NonNull
-    public String getInfoString(@NonNull final State state, final int hashDepth) {
-        return createInfoString(hashDepth, readablePlatformStateStore(state), state.getHash(), (MerkleNode) state);
+    public String getInfoString(@NonNull final State state) {
+        return createInfoString(readablePlatformStateStore(state), state.getHash())
+                .concat(state.getInfoJson());
     }
 
     private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {

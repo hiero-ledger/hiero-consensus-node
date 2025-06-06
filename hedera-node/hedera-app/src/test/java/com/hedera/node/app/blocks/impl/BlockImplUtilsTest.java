@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -60,18 +61,20 @@ class BlockImplUtilsTest {
     @MethodSource("stateIdsByName")
     void stateIdsByNameAsExpected(@NonNull final String stateName, @NonNull final StateIdentifier stateId) {
         final var parts = stateName.split("\\.");
-        assertThat(BlockImplUtils.stateIdFor(parts[0], parts[1])).isEqualTo(stateId.protoOrdinal());
+        assertThat(StateUtils.stateIdFor(parts[0], parts[1])).isEqualTo(stateId.protoOrdinal());
     }
 
     public static Stream<Arguments> stateIdsByName() {
         return Arrays.stream(StateIdentifier.values())
-                .filter(v -> v != StateIdentifier.UNKNOWN)
+                .filter(v -> v != StateIdentifier.UNKNOWN && v != StateIdentifier.STATE_ID_VIRTUAL_MAP_STATE)
                 .map(stateId -> Arguments.of(nameOf(stateId), stateId));
     }
 
     private static String nameOf(@NonNull final StateIdentifier stateId) {
         return switch (stateId) {
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
+            case STATE_ID_VIRTUAL_MAP_STATE ->
+                throw new IllegalArgumentException("No mapping for STATE_ID_VIRTUAL_MAP_STATE");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";

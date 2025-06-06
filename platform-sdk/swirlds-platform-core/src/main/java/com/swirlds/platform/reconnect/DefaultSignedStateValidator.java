@@ -67,7 +67,7 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
                             {}
                             Original reconnect state:
                             {}""",
-                    platformStateFacade.getInfoString(state, hashDepth),
+                    platformStateFacade.getInfoString(state),
                     previousStateData.getInfoString());
             throw new SignedStateInvalidException(("Received signed state is for a round smaller than or a "
                             + "consensus earlier than what we started with. Original round %d, received round %d. "

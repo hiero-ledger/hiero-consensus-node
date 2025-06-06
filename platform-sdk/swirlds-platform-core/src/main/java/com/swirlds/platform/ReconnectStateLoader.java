@@ -16,7 +16,6 @@ import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
@@ -24,6 +23,8 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -36,50 +37,49 @@ import org.hiero.consensus.roster.RosterRetriever;
 /**
  * Encapsulates the logic for loading the reconnect state.
  */
-public class ReconnectStateLoader {
+public class ReconnectStateLoader<T extends MerkleNodeState> {
 
     private static final Logger logger = LogManager.getLogger(ReconnectStateLoader.class);
     private final Platform platform;
     private final PlatformContext platformContext;
     private final PlatformWiring platformWiring;
-    private final SwirldStateManager swirldStateManager;
     private final SignedStateNexus latestImmutableStateNexus;
     private final SavedStateController savedStateController;
     private final Roster roster;
     private final ConsensusStateEventHandler consensusStateEventHandler;
     private final PlatformStateFacade platformStateFacade;
+    private final StateLifecycleManager stateLifecycleManager;
 
     /**
      * Constructor.
      *
-     * @param platform                  the platform
-     * @param platformContext           the platform context
-     * @param platformWiring            the platform wiring
-     * @param swirldStateManager        manages the mutable state
-     * @param latestImmutableStateNexus holds the latest immutable state
-     * @param savedStateController      manages how states are saved
-     * @param roster                    the current roster
-     * @param consensusStateEventHandler           state lifecycle event handler
+     * @param platform                   the platform
+     * @param platformContext            the platform context
+     * @param platformWiring             the platform wiring
+     * @param latestImmutableStateNexus  holds the latest immutable state
+     * @param savedStateController       manages how states are saved
+     * @param roster                     the current roster
+     * @param consensusStateEventHandler state lifecycle event handler
      */
     public ReconnectStateLoader(
             @NonNull final Platform platform,
             @NonNull final PlatformContext platformContext,
             @NonNull final PlatformWiring platformWiring,
-            @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final SavedStateController savedStateController,
             @NonNull final Roster roster,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
         this.platform = Objects.requireNonNull(platform);
         this.platformContext = Objects.requireNonNull(platformContext);
         this.platformWiring = Objects.requireNonNull(platformWiring);
-        this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
         this.latestImmutableStateNexus = Objects.requireNonNull(latestImmutableStateNexus);
         this.savedStateController = Objects.requireNonNull(savedStateController);
         this.roster = Objects.requireNonNull(roster);
         this.consensusStateEventHandler = consensusStateEventHandler;
         this.platformStateFacade = platformStateFacade;
+        this.stateLifecycleManager = stateLifecycleManager;
     }
 
     /**
@@ -97,7 +97,7 @@ public class ReconnectStateLoader {
             // It's important to call init() before loading the signed state. The loading process makes copies
             // of the state, and we want to be sure that the first state in the chain of copies has been initialized.
             final Hash reconnectHash = signedState.getState().getHash();
-            final MerkleNodeState state = signedState.getState();
+            final State state = signedState.getState();
             final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
             signedState.init(platformContext);
             consensusStateEventHandler.onStateInitialized(
@@ -119,7 +119,8 @@ public class ReconnectStateLoader {
                         + Roster.JSON.toJSON(stateRoster) + ")");
             }
 
-            swirldStateManager.loadFromSignedState(signedState);
+            stateLifecycleManager.overwriteExistingState(signedState.getState());
+
             // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
             // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
             platformWiring

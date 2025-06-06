@@ -3,13 +3,10 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.QueuePopChange;
-import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -25,7 +22,6 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
@@ -44,6 +40,7 @@ import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -61,12 +58,10 @@ import java.util.function.Supplier;
  * them in bulk. In the current system, these are the singleton and queue updates.
  */
 public class BoundaryStateChangeListener implements StateChangeListener {
-    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON, QUEUE);
+    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON);
 
     private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
-    private final SortedMap<Integer, List<StateChange>> queueUpdates = new TreeMap<>();
-    private static final int ENTITY_COUNTS_STATE_ID =
-            BlockImplUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
+    private static final int ENTITY_COUNTS_STATE_ID = StateUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
     @NonNull
     private final StoreMetricsService storeMetricsService;
@@ -146,7 +141,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         boundaryTimestamp = null;
         lastConsensusTime = null;
         singletonUpdates.clear();
-        queueUpdates.clear();
     }
 
     /**
@@ -157,7 +151,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(boundaryTimestamp);
         final var stateChanges = new StateChanges(boundaryTimestamp, allStateChanges());
         singletonUpdates.clear();
-        queueUpdates.clear();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 
@@ -169,9 +162,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         final var allStateChanges = new LinkedList<StateChange>();
         for (final var entry : singletonUpdates.entrySet()) {
             allStateChanges.add(entry.getValue());
-        }
-        for (final var entry : queueUpdates.entrySet()) {
-            allStateChanges.addAll(entry.getValue());
         }
         return allStateChanges;
     }
@@ -192,26 +182,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     @Override
     public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
-        return BlockImplUtils.stateIdFor(serviceName, stateKey);
-    }
-
-    @Override
-    public <V> void queuePushChange(final int stateId, @NonNull final V value) {
-        requireNonNull(value);
-        final var stateChange = StateChange.newBuilder()
-                .stateId(stateId)
-                .queuePush(new QueuePushChange(queuePushChangeValueFor(value)))
-                .build();
-        queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
-    }
-
-    @Override
-    public void queuePopChange(final int stateId) {
-        final var stateChange = StateChange.newBuilder()
-                .stateId(stateId)
-                .queuePop(new QueuePopChange())
-                .build();
-        queueUpdates.computeIfAbsent(stateId, k -> new LinkedList<>()).add(stateChange);
+        return StateUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override
@@ -285,21 +256,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         tokenMetrics.updateCount(entityCounts.numTokens());
     }
 
-    private static <V> OneOf<QueuePushChange.ValueOneOfType> queuePushChangeValueFor(@NonNull final V value) {
-        switch (value) {
-            case ProtoBytes protoBytesElement -> {
-                return new OneOf<>(QueuePushChange.ValueOneOfType.PROTO_BYTES_ELEMENT, protoBytesElement.value());
-            }
-            case TransactionReceiptEntries transactionReceiptEntriesElement -> {
-                return new OneOf<>(
-                        QueuePushChange.ValueOneOfType.TRANSACTION_RECEIPT_ENTRIES_ELEMENT,
-                        transactionReceiptEntriesElement);
-            }
-            default -> throw new IllegalArgumentException(
-                    "Unknown value type " + value.getClass().getName());
-        }
-    }
-
     public static <V> @NonNull OneOf<SingletonUpdateChange.NewValueOneOfType> singletonUpdateChangeValueFor(
             @NonNull V value) {
         switch (value) {
@@ -362,8 +318,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             case CRSState crsState -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
             }
-            default -> throw new IllegalArgumentException(
-                    "Unknown value type " + value.getClass().getName());
+            default ->
+                throw new IllegalArgumentException(
+                        "Unknown value type " + value.getClass().getName());
         }
     }
 }

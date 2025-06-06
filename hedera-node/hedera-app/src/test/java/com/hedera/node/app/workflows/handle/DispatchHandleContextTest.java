@@ -57,6 +57,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -561,7 +562,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     final class DispatcherTest {
         private static final Predicate<Key> VERIFIER_CALLBACK = key -> true;
         private static final String FOOD_SERVICE = "FOOD_SERVICE";
-        private static final Map<String, String> BASE_DATA = Map.of(
+        private static final Map<ProtoBytes, String> BASE_DATA = Map.of(
                 A_KEY, APPLE,
                 B_KEY, BANANA,
                 C_KEY, CHERRY,
@@ -578,15 +579,16 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
         @BeforeEach
         void setup() {
-            final var baseKVState = new MapWritableKVState<>(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+            final var baseKVState =
+                    new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
             final var writableStates =
                     MapWritableStates.builder().state(baseKVState).build();
             final var readableStates = MapReadableStates.builder()
-                    .state(new MapReadableKVState(FRUIT_STATE_KEY, new HashMap<>(BASE_DATA)))
+                    .state(new MapReadableKVState(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA)))
                     .build();
             when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(readableStates);
             when(baseState.getWritableStates(FOOD_SERVICE)).thenReturn(writableStates);
-            final var accountsState = new MapWritableKVState<AccountID, Account>("ACCOUNTS");
+            final var accountsState = new MapWritableKVState<AccountID, Account>(TokenService.NAME, "ACCOUNTS");
             accountsState.put(ALICE.accountID(), ALICE.account());
             when(baseState.getWritableStates(TokenService.NAME))
                     .thenReturn(MapWritableStates.builder().state(accountsState).build());
@@ -681,7 +683,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         @Test
         void testDispatchPrecedingWithChangedDataDoesntFail() {
             final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-            final Map<String, String> newData = new HashMap<>(BASE_DATA);
+            final Map<ProtoBytes, String> newData = new HashMap<>(BASE_DATA);
             newData.put(B_KEY, BLUEBERRY);
 
             assertThatNoException()
@@ -834,8 +836,10 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         lenient()
                 .when(stack.getWritableStates(TokenService.NAME))
                 .thenReturn(MapWritableStates.builder()
-                        .state(MapWritableKVState.builder("ACCOUNTS").build())
-                        .state(MapWritableKVState.builder("ALIASES").build())
+                        .state(MapWritableKVState.builder(TokenService.NAME, "ACCOUNTS")
+                                .build())
+                        .state(MapWritableKVState.builder(TokenService.NAME, "ALIASES")
+                                .build())
                         .build());
         lenient().when(writableStates.<EntityNumber>getSingleton(anyString())).thenReturn(entityNumberState);
         lenient().when(writableStates.<EntityCounts>getSingleton(anyString())).thenReturn(entityCountsState);

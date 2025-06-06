@@ -19,7 +19,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.stateNameOf;
-import static com.hedera.services.bdd.junit.support.validators.block.ChildHashUtils.hashesByName;
+import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -72,6 +72,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -132,7 +133,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private Instant lastStateChangesTime;
     private StateChanges lastStateChanges;
-    private MerkleNodeState state;
+    private State state;
 
     @Nullable
     private final HintsLibrary hintsLibrary;
@@ -271,16 +272,16 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade());
-        this.state = hedera.newStateRoot();
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(), platformConfig);
+        this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
         state = state.copy();
         this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         // get the state hash before applying the state changes from current block
-        this.genesisStateHash = CRYPTO.digestTreeSync(stateToBeCopied.getRoot());
+        this.genesisStateHash = stateToBeCopied.getHash();
 
         logger.info("Registered all Service and migrated state definitions to version {}", servicesVersion);
     }
@@ -314,8 +315,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
-                startOfStateHash =
-                        CRYPTO.digestTreeSync(stateToBeCopied.getRoot()).getBytes();
+                startOfStateHash = stateToBeCopied.getHash().getBytes();
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
@@ -405,26 +405,27 @@ public class StateChangesValidator implements BlockStreamValidator {
                 state.getWritableStates(EntityIdService.NAME).<EntityCounts>getSingleton(ENTITY_COUNTS_KEY);
         assertEntityCountsMatch(entityCounts);
 
-        CRYPTO.digestTreeSync(state.getRoot());
+        // To make sure that VirtualMapState is persisted after all changes from the block stream were applied
+        state.copy();
+        state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
+
         if (!expectedRootHash.equals(rootHash)) {
-            final var expectedHashes = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
-            if (expectedHashes == null) {
-                throw new AssertionError("No expected hashes found in " + pathToNode0SwirldsLog);
+            final var expectedRootMnemonic = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
+            if (expectedRootMnemonic == null) {
+                throw new AssertionError("No expected root mnemonic found in " + pathToNode0SwirldsLog);
             }
-            final var actualHashes = hashesFor(state.getRoot());
+            final var actualRootMnemonic = rootMnemonicFor(((MerkleNodeState) state).getRoot());
             final var errorMsg = new StringBuilder("Hashes did not match for the following states,");
-            expectedHashes.forEach((stateName, expectedHash) -> {
-                final var actualHash = actualHashes.get(stateName);
-                if (!expectedHash.equals(actualHash)) {
-                    errorMsg.append("\n    * ")
-                            .append(stateName)
-                            .append(" - expected ")
-                            .append(expectedHash)
-                            .append(", was ")
-                            .append(actualHash);
-                }
-            });
+
+            if (!expectedRootMnemonic.equals(actualRootMnemonic)) {
+                errorMsg.append("\n    * ")
+                        .append("root mnemonic ")
+                        .append(" - expected ")
+                        .append(expectedRootMnemonic)
+                        .append(", was ")
+                        .append(actualRootMnemonic);
+            }
             Assertions.fail(errorMsg.toString());
         }
     }
@@ -564,11 +565,11 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
     }
 
-    private Map<String, String> hashesFor(@NonNull final MerkleNode state) {
+    private String rootMnemonicFor(@NonNull final MerkleNode state) {
         final var sb = new StringBuilder();
         new MerkleTreeVisualizer(state).setDepth(VISUALIZATION_HASH_DEPTH).render(sb);
         logger.info("Replayed hashes:\n{}", sb);
-        return hashesByName(sb.toString());
+        return extractRootMnemonic(sb.toString());
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
@@ -801,29 +802,22 @@ public class StateChangesValidator implements BlockStreamValidator {
                 && NUMBER_PATTERN.matcher(path.getFileName().toString()).matches();
     }
 
-    private static @Nullable Map<String, String> getMaybeLastHashMnemonics(final Path path) {
-        StringBuilder sb = null;
-        boolean sawAllChildHashes = false;
+    private static @Nullable String getMaybeLastHashMnemonics(final Path path) {
+        String rootMnemonicLine = null;
         try {
             final var lines = Files.readAllLines(path);
             for (final var line : lines) {
                 if (line.startsWith("(root)")) {
-                    sb = new StringBuilder();
-                    sawAllChildHashes = false;
-                } else if (sb != null) {
-                    final var childStateMatcher = CHILD_STATE_PATTERN.matcher(line);
-                    sawAllChildHashes |= !childStateMatcher.matches();
-                    if (!sawAllChildHashes) {
-                        sb.append(line).append('\n');
-                    }
+                    rootMnemonicLine = line;
+                    break;
                 }
             }
         } catch (IOException e) {
-            logger.error("Could not read hashes from {}", path, e);
+            logger.error("Could not read root mnemonic from {}", path, e);
             return null;
         }
-        logger.info("Read hashes:\n{}", sb);
-        return sb == null ? null : hashesByName(sb.toString());
+        logger.info("Read root mnemonic:\n{}", rootMnemonicLine);
+        return rootMnemonicLine == null ? null : extractRootMnemonic(rootMnemonicLine);
     }
 
     private static Object singletonPutFor(@NonNull final SingletonUpdateChange singletonUpdateChange) {

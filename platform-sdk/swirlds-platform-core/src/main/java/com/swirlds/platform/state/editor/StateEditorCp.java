@@ -12,6 +12,7 @@ import com.swirlds.common.merkle.copy.MerkleCopy;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,7 +65,8 @@ public class StateEditorCp extends StateEditorOperation {
 
         // Invalidate hashes in path down from root
         try (final ReservedSignedState reservedSignedState = getStateEditor().getState("StateEditorCp.run()")) {
-            new MerkleRouteIterator(reservedSignedState.get().getState().getRoot(), parent.getRoute())
+            new MerkleRouteIterator(
+                            ((MerkleNodeState) reservedSignedState.get().getState()).getRoot(), parent.getRoute())
                     .forEachRemaining(Hashable::invalidateHash);
         }
     }

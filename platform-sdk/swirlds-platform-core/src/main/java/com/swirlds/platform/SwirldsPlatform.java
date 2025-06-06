@@ -35,7 +35,7 @@ import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
@@ -55,10 +55,13 @@ import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -75,7 +78,7 @@ import org.hiero.consensus.model.node.NodeId;
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
  * transaction handling and state management.
  */
-public class SwirldsPlatform implements Platform {
+public class SwirldsPlatform<T extends MerkleNodeState> implements Platform {
 
     private static final Logger logger = LogManager.getLogger(SwirldsPlatform.class);
 
@@ -212,16 +215,15 @@ public class SwirldsPlatform implements Platform {
 
         initializeState(this, platformContext, initialState, consensusStateEventHandler, platformStateFacade);
 
+        final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        /**
-         * Handles all interaction with {@link ConsensusStateEventHandler}
-         */
-        SwirldStateManager swirldStateManager = blocks.swirldStateManager();
-        swirldStateManager.setInitialState(initialState.getState());
+
+        stateLifecycleManager.setInitialState(initialState.getState());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
+        blocks.freezeCheckHolder()
+                .setFreezeCheckRef(createInFreezePeriodPredicate(stateLifecycleManager, platformStateFacade));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
@@ -303,12 +305,12 @@ public class SwirldsPlatform implements Platform {
                 this,
                 platformContext,
                 platformWiring,
-                swirldStateManager,
                 latestImmutableStateNexus,
                 savedStateController,
                 currentRoster,
                 consensusStateEventHandler,
-                platformStateFacade);
+                platformStateFacade,
+                stateLifecycleManager);
 
         blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
         blocks.clearAllPipelinesForReconnectReference().set(platformWiring::clear);
@@ -319,6 +321,17 @@ public class SwirldsPlatform implements Platform {
         } else {
             pcesReplayLowerBound = 0;
         }
+    }
+
+    private static <T extends MerkleNodeState> Predicate<Instant> createInFreezePeriodPredicate(
+            StateLifecycleManager stateLifecycleManager, PlatformStateFacade platformStateFacade) {
+        return timestamp -> {
+            State mutableState = stateLifecycleManager.getMutableState();
+            return PlatformStateFacade.isInFreezePeriod(
+                    timestamp,
+                    platformStateFacade.freezeTimeOf(mutableState),
+                    platformStateFacade.lastFrozenTimeOf(mutableState));
+        };
     }
 
     /**

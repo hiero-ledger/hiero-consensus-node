@@ -75,6 +75,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Map;
@@ -203,6 +204,7 @@ class IngestCheckerTest extends AppTestBase {
     @AfterEach
     void tearDown() {
         state.release();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Nested

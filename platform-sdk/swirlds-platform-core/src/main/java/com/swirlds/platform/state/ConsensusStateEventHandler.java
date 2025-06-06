@@ -6,6 +6,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
@@ -20,7 +21,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * meant to be created once at the start of the application and then used for the lifetime of the application.
  *
  */
-public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
+public interface ConsensusStateEventHandler<T extends State> {
     /**
      * Called when an event is added to the hashgraph used to compute consensus ordering
      * for this node.

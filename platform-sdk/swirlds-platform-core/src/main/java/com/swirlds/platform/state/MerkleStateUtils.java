@@ -4,8 +4,6 @@ package com.swirlds.platform.state;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.utility.Mnemonics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -18,17 +16,12 @@ public class MerkleStateUtils {
     /**
      * Generate a string that describes this state.
      *
-     * @param hashDepth the depth of the tree to visit and print
      * @param platformState current platform state
-     * @param state current root node state
      *
      */
     @NonNull
     public static String createInfoString(
-            int hashDepth,
-            @NonNull final PlatformStateAccessor platformState,
-            @NonNull final Hash rootHash,
-            @NonNull final MerkleNode state) {
+            @NonNull final PlatformStateAccessor platformState, @NonNull final Hash rootHash) {
         final Hash hashEventsCons = platformState.getLegacyRunningEventHash();
 
         final ConsensusSnapshot snapshot = platformState.getSnapshot();
@@ -55,7 +48,6 @@ public class MerkleStateUtils {
                 .render(sb);
 
         sb.append("\n");
-        new MerkleTreeVisualizer(state).setDepth(hashDepth).render(sb);
         return sb.toString();
     }
 }

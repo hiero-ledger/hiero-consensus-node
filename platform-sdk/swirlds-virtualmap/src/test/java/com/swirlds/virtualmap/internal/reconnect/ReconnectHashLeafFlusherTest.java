@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
+import static com.swirlds.virtualmap.test.fixtures.TestKey.longToKey;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -13,13 +14,9 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.InMemoryDataSource;
-import com.swirlds.virtualmap.test.fixtures.TestKey;
-import com.swirlds.virtualmap.test.fixtures.TestKeySerializer;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.TestValueSerializer;
 import java.nio.ByteBuffer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -46,12 +43,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher<>(
-                        TestKeySerializer.INSTANCE,
-                        TestValueSerializer.INSTANCE,
-                        null,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        stats));
+                () -> new ReconnectHashLeafFlusher(null, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats));
     }
 
     @Test
@@ -59,12 +51,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualDataSource ds = new InMemoryDataSource("testNullStatsThrows");
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher<>(
-                        TestKeySerializer.INSTANCE,
-                        TestValueSerializer.INSTANCE,
-                        ds,
-                        VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                        null));
+                () -> new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), null));
     }
 
     @ParameterizedTest
@@ -80,12 +67,8 @@ public class ReconnectHashLeafFlusherTest {
     void testNadLeafPaths(long firstLeafPath, long lastLeafPath) {
         final VirtualDataSource ds = new InMemoryDataSource("testNadLeafPaths");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
-        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = new ReconnectHashLeafFlusher<>(
-                TestKeySerializer.INSTANCE,
-                TestValueSerializer.INSTANCE,
-                ds,
-                VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
-                stats);
+        final ReconnectHashLeafFlusher flusher =
+                new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
         assertThrows(IllegalArgumentException.class, () -> flusher.start(firstLeafPath, lastLeafPath));
     }
 
@@ -94,8 +77,7 @@ public class ReconnectHashLeafFlusherTest {
     void testHashesFlushed(final int flushInterval) throws Exception {
         final VirtualDataSource ds = new InMemoryDataSource("testHashesFlushed");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testHashesFlushed");
-        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = new ReconnectHashLeafFlusher<>(
-                TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, ds, flushInterval, stats);
+        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
         for (int i = 0; i < COUNT * 2 - 1; i++) {
@@ -115,8 +97,7 @@ public class ReconnectHashLeafFlusherTest {
     void testLeavesFlushed(final int flushInterval) throws Exception {
         final VirtualDataSource ds = new InMemoryDataSource("testLeavesFlushed");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesFlushed");
-        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = new ReconnectHashLeafFlusher<>(
-                TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, ds, flushInterval, stats);
+        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.start(COUNT - 1, COUNT * 2 - 2);
         for (int i = COUNT - 1; i < COUNT * 2 - 1; i++) {
@@ -128,12 +109,8 @@ public class ReconnectHashLeafFlusherTest {
         for (int i = COUNT - 1; i < COUNT * 2 - 1; i++) {
             VirtualLeafBytes bytes = ds.loadLeafRecord(i);
             assertNotNull(bytes);
-            VirtualLeafRecord<TestKey, TestValue> rec =
-                    bytes.toRecord(TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE);
-            assertEquals(leaf(i, i + 2, i * 2), rec);
-            bytes = ds.loadLeafRecord(
-                    TestKeySerializer.INSTANCE.toBytes(rec.getKey()),
-                    rec.getKey().hashCode());
+            assertEquals(leaf(i, i + 2, i * 2), bytes);
+            bytes = ds.loadLeafRecord(bytes.keyBytes());
             assertNotNull(bytes);
             assertEquals(i, bytes.path());
         }
@@ -148,13 +125,10 @@ public class ReconnectHashLeafFlusherTest {
                 COUNT / 2 + 99,
                 COUNT + 198,
                 Stream.of(),
-                IntStream.range(COUNT / 2 + 99, COUNT + 199)
-                        .mapToObj(i -> leaf(i, i, i))
-                        .map(r -> r.toBytes(TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE)),
+                IntStream.range(COUNT / 2 + 99, COUNT + 199).mapToObj(i -> leaf(i, i, i)),
                 Stream.of());
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesDeleted");
-        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = new ReconnectHashLeafFlusher<>(
-                TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, ds, flushInterval, stats);
+        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         flusher.start(COUNT - 1, COUNT * 2 - 2);
         for (int i = COUNT / 2 + 99; i < COUNT - 1; i++) {
             flusher.deleteLeaf(leaf(i, i, i));
@@ -174,12 +148,8 @@ public class ReconnectHashLeafFlusherTest {
         for (int i = COUNT - 1; i < COUNT + 199; i++) {
             VirtualLeafBytes bytes = ds.loadLeafRecord(i);
             assertNotNull(bytes);
-            VirtualLeafRecord<TestKey, TestValue> rec =
-                    bytes.toRecord(TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE);
-            assertEquals(leaf(i, i + 2, i * 2), rec);
-            bytes = ds.loadLeafRecord(
-                    TestKeySerializer.INSTANCE.toBytes(rec.getKey()),
-                    rec.getKey().hashCode());
+            assertEquals(leaf(i, i + 2, i * 2), bytes);
+            bytes = ds.loadLeafRecord(bytes.keyBytes());
             assertNotNull(bytes);
             assertEquals(i, bytes.path());
         }
@@ -195,9 +165,7 @@ public class ReconnectHashLeafFlusherTest {
         return new Hash(bytes);
     }
 
-    private static VirtualLeafRecord<TestKey, TestValue> leaf(final int path, final int k, final int v) {
-        final TestKey key = new TestKey(k);
-        final TestValue value = new TestValue(v);
-        return new VirtualLeafRecord<>(path, key, value);
+    private static VirtualLeafBytes leaf(final int path, final int k, final int v) {
+        return new VirtualLeafBytes<>(path, longToKey(k), new TestValue(v).toBytes());
     }
 }
