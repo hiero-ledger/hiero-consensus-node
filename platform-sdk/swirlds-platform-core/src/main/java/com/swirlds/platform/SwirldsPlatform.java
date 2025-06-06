@@ -4,11 +4,9 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
-import static com.swirlds.platform.state.BirthRoundStateMigration.modifyStateForBirthRoundMigration;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static org.hiero.base.CompareTo.isLessThan;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -66,10 +64,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -148,11 +144,6 @@ public class SwirldsPlatform implements Platform {
      */
     private final PlatformWiring platformWiring;
 
-    /**
-     * Indicates how ancient events are determined, e.g. based on the event's birth round or generation.
-     */
-    private final AncientMode ancientMode;
-
     private final long pcesReplayLowerBound;
 
     /**
@@ -166,18 +157,11 @@ public class SwirldsPlatform implements Platform {
         platformContext = blocks.platformContext();
         final ConsensusStateEventHandler consensusStateEventHandler = blocks.consensusStateEventHandler();
 
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-
         // The reservation on this state is held by the caller of this constructor.
         final SignedState initialState = blocks.initialState().get();
 
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
-        final SemanticVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
 
         selfId = blocks.selfId();
 
@@ -288,7 +272,7 @@ public class SwirldsPlatform implements Platform {
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
             startingRound = 0;
-            platformWiring.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+            platformWiring.updateEventWindow(EventWindow.getGenesisEventWindow());
         } else {
             initialAncientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
@@ -331,15 +315,7 @@ public class SwirldsPlatform implements Platform {
         blocks.latestImmutableStateProviderReference().set(latestImmutableStateNexus::getState);
 
         if (!initialState.isGenesisState()) {
-            final long lastRoundBeforeBirthRoundMode =
-                    platformStateFacade.lastRoundBeforeBirthRoundModeOf(initialState.getState());
-            final long ancientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
-            if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD && lastRoundBeforeBirthRoundMode >= ancientThreshold) {
-                // events were migrated so set the lower bound to 0 such that all PCES events will be read
-                pcesReplayLowerBound = 0;
-            } else {
-                pcesReplayLowerBound = initialAncientThreshold;
-            }
+            pcesReplayLowerBound = initialAncientThreshold;
         } else {
             pcesReplayLowerBound = 0;
         }
@@ -411,11 +387,7 @@ public class SwirldsPlatform implements Platform {
         final IOIterator<PlatformEvent> iterator =
                 initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
 
-        logger.info(
-                STARTUP.getMarker(),
-                "replaying preconsensus event stream starting at {} ({})",
-                pcesReplayLowerBound,
-                ancientMode);
+        logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
 
         platformWiring.getPcesReplayerIteratorInput().inject(iterator);
 
