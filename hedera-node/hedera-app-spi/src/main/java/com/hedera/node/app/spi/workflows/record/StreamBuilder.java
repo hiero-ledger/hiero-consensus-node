@@ -347,4 +347,30 @@ public interface StreamBuilder {
             return false;
         }
     }
+
+    /**
+     * Enumerates the types of contract operations that may have a result.
+     */
+    enum ContractOpType {
+        /**
+         * A contract creation operation.
+         */
+        CREATE,
+        /**
+         * A contract call operation.
+         */
+        CALL,
+        /**
+         * An Ethereum transaction that was throttled by gas.
+         */
+        ETH_THROTTLED,
+        /**
+         * An Ethereum transaction that created a contract.
+         */
+        ETH_CREATE,
+        /**
+         * An Ethereum transaction that called a contract.
+         */
+        ETH_CALL,
+    }
 }

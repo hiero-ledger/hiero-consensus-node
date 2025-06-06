@@ -33,7 +33,6 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
-import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -600,29 +599,8 @@ public class ConversionUtils {
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
      * @param outcome the outcome
      * @param hederaOperations the Hedera operations
-     * @param streamBuilder the stream builder
      */
-    public static void throwIfUnsuccessfulCall(
-            @NonNull final CallOutcome outcome,
-            @NonNull final HederaOperations hederaOperations,
-            @NonNull final ContractCallStreamBuilder streamBuilder) {
-        requireNonNull(outcome);
-        requireNonNull(hederaOperations);
-        requireNonNull(streamBuilder);
-        if (outcome.status() != SUCCESS) {
-            throw new HandleException(outcome.status(), feeChargingContext -> {
-                hederaOperations.replayGasChargingIn(feeChargingContext);
-                outcome.addCalledContractIfNotAborted(streamBuilder);
-            });
-        }
-    }
-
-    /**
-     * Throws a {@link HandleException} if the given outcome did not succeed for a call.
-     * @param outcome the outcome
-     * @param hederaOperations the Hedera operations
-     */
-    public static void throwIfUnsuccessfulCreate(
+    public static void throwIfUnsuccessful(
             @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
         requireNonNull(outcome);
         requireNonNull(hederaOperations);
