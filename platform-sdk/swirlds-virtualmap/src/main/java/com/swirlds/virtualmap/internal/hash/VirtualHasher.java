@@ -259,7 +259,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
     // rank is the rank of all chunk inputs (hashes). For example, the root chunk has input rank
     // defaultChunkHeight (if the virtual tree is large enough). There may be no chunks with
     // output ranks, which are not multipliers of defaultChunkHeight, except chunks of height 1
-    // with inputs at the first leaf rank and outputs at the last leaf rank.
+    // with inputs at the last leaf rank and outputs at the first leaf rank.
 
     // Chunk heights. Chunks with output ranks 0, defaultChunkHeight, defaultChunkHeight * 2, and so on
     // have height == defaultChunkHeight. There may be no chunks of heights less than defaultChunkHeight,
