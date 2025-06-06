@@ -17,11 +17,7 @@ public interface BlockItemWriter {
      *
      * @param blockNumber the number of the block to open
      */
-    default void openBlock(long blockNumber) {
-        openBlock(blockNumber, false);
-    }
-
-    void openBlock(long blockNumber, boolean isPending);
+    void openBlock(long blockNumber);
 
     /**
      * Writes an item and/or its serialized bytes to the destination stream.

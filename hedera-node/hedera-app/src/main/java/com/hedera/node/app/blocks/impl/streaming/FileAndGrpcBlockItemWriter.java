@@ -38,9 +38,9 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void openBlock(long blockNumber, boolean isPending) {
-        this.fileBlockItemWriter.openBlock(blockNumber, isPending);
-        this.grpcBlockItemWriter.openBlock(blockNumber, isPending);
+    public void openBlock(long blockNumber) {
+        this.fileBlockItemWriter.openBlock(blockNumber);
+        this.grpcBlockItemWriter.openBlock(blockNumber);
     }
 
     @Override

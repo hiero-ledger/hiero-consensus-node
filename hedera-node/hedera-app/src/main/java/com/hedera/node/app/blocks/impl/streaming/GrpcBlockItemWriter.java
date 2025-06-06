@@ -43,13 +43,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      * @param blockNumber the sequence number of the block to open
      */
     @Override
-    public void openBlock(long blockNumber, boolean isPending) {
+    public void openBlock(long blockNumber) {
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
         this.blockNumber = blockNumber;
         blockBufferService.openBlock(blockNumber);
-        if (isPending) {
-            blockNodeConnectionManager.setJumpTargetBlock(blockNumber);
-        }
         logger.debug("Started new block in GrpcBlockItemWriter {}", blockNumber);
     }
 
