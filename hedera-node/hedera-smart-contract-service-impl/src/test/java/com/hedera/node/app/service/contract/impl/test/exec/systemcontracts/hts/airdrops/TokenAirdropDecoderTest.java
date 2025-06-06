@@ -240,7 +240,6 @@ public class TokenAirdropDecoderTest {
         final var encoded = Bytes.wrapByteBuffer(TOKEN_AIRDROP.encodeCall(Tuple.singleton(tuple)));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
-        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
@@ -317,7 +316,6 @@ public class TokenAirdropDecoderTest {
         final var encoded = Bytes.wrapByteBuffer(TOKEN_AIRDROP.encodeCall(Tuple.singleton(tuple)));
         given(attempt.inputBytes()).willReturn(encoded.toArrayUnsafe());
         given(attempt.configuration()).willReturn(configuration);
-        given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
         given(ledgerConfig.tokenTransfersMaxLen()).willReturn(10);
         given(ledgerConfig.nftTransfersMaxLen()).willReturn(10);
