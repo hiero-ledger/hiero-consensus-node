@@ -4,11 +4,9 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
-import static com.swirlds.platform.state.BirthRoundStateMigration.modifyStateForBirthRoundMigration;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static org.hiero.base.CompareTo.isLessThan;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -175,9 +173,7 @@ public class SwirldsPlatform implements Platform {
         final SignedState initialState = blocks.initialState().get();
 
         // This method is a no-op if we are not in birth round mode, or if we have already migrated.
-        final SemanticVersion appVersion = blocks.appVersion();
         PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion, platformStateFacade);
 
         selfId = blocks.selfId();
 
