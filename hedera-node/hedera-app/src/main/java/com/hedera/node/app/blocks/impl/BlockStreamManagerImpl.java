@@ -337,7 +337,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 onDiskPendingBlocks.getFirst().number());
                     }
 
-                    pendingWriter.openBlock(block.number(), true);
+                    pendingWriter.openBlock(block.number());
                     block.items()
                             .forEach(
                                     item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
