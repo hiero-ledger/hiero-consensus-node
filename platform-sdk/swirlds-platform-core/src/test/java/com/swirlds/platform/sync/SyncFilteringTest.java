@@ -3,7 +3,6 @@ package com.swirlds.platform.sync;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -20,7 +19,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -183,10 +181,9 @@ class SyncFilteringTest {
         }
     }
 
-    private static void assertTopologicalOrder(final PlatformContext platformContext,
-            final List<PlatformEvent> events) {
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext,
-                new NoOpIntakeEventCounter());
+    private static void assertTopologicalOrder(
+            final PlatformContext platformContext, final List<PlatformEvent> events) {
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
         orphanBuffer.setEventWindow(
                 new EventWindow(1, 1, events.getFirst().getBirthRound(), 1, AncientMode.BIRTH_ROUND_THRESHOLD));
         // Verify topological ordering.
