@@ -103,7 +103,7 @@ contract NumericContract {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    Static HTS functions                    */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function getTokenKey(address token, uint keyType) public view {
+    function getTokenKey(address token, uint256 keyType) public view {
         (bool success, bytes memory result) = address(0x167).staticcall(abi.encodeWithSignature("getTokenKey(address,uint256)", token, keyType));
 
         if (success == false) {

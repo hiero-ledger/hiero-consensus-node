@@ -281,7 +281,7 @@ public class DispatchProcessor {
             dispatch.streamBuilder().status(authorizationFailure);
             return true;
         }
-        if (failsSignatureVerification(dispatch)) { //TODO Glib: INVALID_SIGNATURE
+        if (failsSignatureVerification(dispatch)) {
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
             return true;
         }

@@ -68,7 +68,7 @@ public class NumericValidation16c {
                 .andAssert(txn -> txn.hasKnownStatus(SUCCESS)));
     }
 
-    //TODO Glib: check
+    // TODO Glib: check
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for NFT")
     public Stream<DynamicTest> failToGetTokenKeyNFT() {
@@ -78,7 +78,7 @@ public class NumericValidation16c {
                         .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
     }
 
-    //TODO Glib: check
+    // TODO Glib: check
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for Fungible Token")
     public Stream<DynamicTest> failToGetTokenKeyFT() {
