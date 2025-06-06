@@ -295,7 +295,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 // But we catch it here to play it safe
                 response = createErrorResponse(handler, responseType, e.getStatus(), 0L);
             } catch (Exception e) {
-                e.printStackTrace();
                 logger.error("Unexpected exception while handling a query", e);
                 response = createErrorResponse(handler, responseType, FAIL_INVALID, 0L);
             }
