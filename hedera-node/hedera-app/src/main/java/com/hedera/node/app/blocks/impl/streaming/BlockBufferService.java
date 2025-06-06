@@ -129,6 +129,11 @@ public class BlockBufferService {
                 .streamToBlockNodes();
     }
 
+    public void shutdown() {
+        execSvc.shutdownNow();
+        blockNodeConnectionManager.shutdown();
+    }
+
     /**
      * The type of item that can be in the block stream queue.
      */

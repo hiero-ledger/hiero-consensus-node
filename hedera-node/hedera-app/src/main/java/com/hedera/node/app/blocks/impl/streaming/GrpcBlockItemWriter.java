@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
     private final BlockBufferService blockBufferService;
+    private final BlockNodeConnectionManager blockNodeConnectionManager;
     private long blockNumber;
 
     /**
@@ -27,8 +28,12 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      *
      * @param blockBufferService the block stream state manager that maintains the state of the block
      */
-    public GrpcBlockItemWriter(@NonNull final BlockBufferService blockBufferService) {
+    public GrpcBlockItemWriter(
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
+        this.blockNodeConnectionManager =
+                requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
     }
 
     /**
@@ -81,6 +86,12 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void writePreBlockProofItems() {
         blockBufferService.streamPreBlockProofItems(blockNumber);
+    }
+
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        logger.debug("Setting target block number to jump to {}", blockNumber);
+        blockNodeConnectionManager.setJumpTargetBlock(blockNumber);
     }
 
     /**

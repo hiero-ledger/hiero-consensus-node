@@ -31,9 +31,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
     }
 
     @Override
@@ -76,5 +77,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     public void writePreBlockProofItems() {
         // The FileBlockItemWriter doesn't support performPreBlockProofActions, so we don't call it here
         this.grpcBlockItemWriter.writePreBlockProofItems();
+    }
+
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
     }
 }

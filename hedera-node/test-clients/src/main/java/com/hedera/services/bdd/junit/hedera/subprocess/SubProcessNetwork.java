@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.hedera.subprocess;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
@@ -27,9 +28,11 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.AbstractGrpcNetwork;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
@@ -44,6 +47,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -98,6 +102,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final long realm;
 
     private List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
+    private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
+    private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
 
     /**
      * Wraps a runnable, allowing us to defer running it until we know we are the privileged runner
@@ -357,6 +363,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         configTxt = configTxtForLocal(
                 networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(configTxt);
+        if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
+            executePostInitWorkingDirActions(node);
+        }
+
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -591,5 +601,82 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     @Override
     public long realm() {
         return realm;
+    }
+
+    public void configureBlockNodeCommunicationLogLevel(HederaNode node) {
+        final Path loggerConfigPath = node.getExternalPath(LOG4J2_XML);
+        try {
+            // Read the existing XML file
+            final String xmlContent = Files.readString(loggerConfigPath);
+
+            // Check if the logger configurations already exist to avoid duplicates
+            if (!xmlContent.contains("com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection")) {
+                // Find the position to insert the new logger configurations (before the closing Loggers tag)
+                final int insertPosition = xmlContent.lastIndexOf("</Loggers>");
+                if (insertPosition != -1) {
+                    // Create the new logger configurations
+                    final StringBuilder newLoggers = new StringBuilder();
+
+                    newLoggers
+                            .append(
+                                    "    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection\" ")
+                            .append("level=\"DEBUG\" additivity=\"false\">\n")
+                            .append("      <AppenderRef ref=\"Console\"/>\n")
+                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
+                            .append("    </Logger>\n\n");
+
+                    newLoggers
+                            .append(
+                                    "    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager\" ")
+                            .append("level=\"DEBUG\" additivity=\"false\">\n")
+                            .append("      <AppenderRef ref=\"Console\"/>\n")
+                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
+                            .append("    </Logger>\n");
+
+                    newLoggers
+                            .append("    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockState\" ")
+                            .append("level=\"DEBUG\" additivity=\"false\">\n")
+                            .append("      <AppenderRef ref=\"Console\"/>\n")
+                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
+                            .append("    </Logger>\n\n");
+
+                    newLoggers
+                            .append(
+                                    "    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockBufferService\" ")
+                            .append("level=\"DEBUG\" additivity=\"false\">\n")
+                            .append("      <AppenderRef ref=\"Console\"/>\n")
+                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
+                            .append("    </Logger>\n\n");
+
+                    // Insert the new logger configurations
+                    final String updatedXmlContent =
+                            xmlContent.substring(0, insertPosition) + newLoggers + xmlContent.substring(insertPosition);
+
+                    // Write the updated XML back to the file
+                    Files.writeString(loggerConfigPath, updatedXmlContent);
+
+                    log.info("Successfully updated log4j2.xml with block node communication loggers");
+                } else {
+                    log.info("Could not find </Loggers> tag in log4j2.xml");
+                }
+            } else {
+                log.info("Block node communication loggers already exist in log4j2.xml");
+            }
+        } catch (IOException e) {
+            log.error("Error updating log4j2.xml: {}", e.getMessage());
+        }
+    }
+
+    public BlockNodeMode getBlockNodeMode() {
+        return blockNodeMode;
+    }
+
+    /**
+     * Configure the block node mode for this network.
+     * @param mode the block node mode to use
+     */
+    public void setBlockNodeMode(BlockNodeMode mode) {
+        log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
+        this.blockNodeMode = mode;
     }
 }

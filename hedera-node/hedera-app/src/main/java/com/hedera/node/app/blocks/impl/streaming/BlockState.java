@@ -150,8 +150,8 @@ public class BlockState {
         final PublishStreamRequest request =
                 PublishStreamRequest.newBuilder().blockItems(itemSet).build();
 
-        logger.debug("Added request to block {} - request count now: {}", blockNumber, requests.size());
         requests.add(request);
+        logger.debug("Added request to block {} - request count now: {}", blockNumber, requests.size());
 
         if (!items.isEmpty()) {
             createRequestFromCurrentItems(batchSize, forceCreation);
