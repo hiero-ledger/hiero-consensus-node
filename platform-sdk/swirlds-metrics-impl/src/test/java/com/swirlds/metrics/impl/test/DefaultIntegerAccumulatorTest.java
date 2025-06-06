@@ -155,6 +155,27 @@ class DefaultIntegerAccumulatorTest {
     }
 
     @Test
+    void testSnapshotWithResetDisabled() {
+        // given
+        final IntegerAccumulator.Config config = new IntegerAccumulator.Config(CATEGORY, NAME)
+                .withInitialValue(2)
+                .withResetOnSnapshot(false)
+                .withAccumulator(Integer::sum);
+        final DefaultIntegerAccumulator accumulator = new DefaultIntegerAccumulator(config);
+        accumulator.update(5);
+
+        // when
+        final List<SnapshotEntry> snapshot = accumulator.takeSnapshot();
+
+        accumulator.update(3);
+
+        // then
+        assertEquals(10, accumulator.get(), "Value should be 10");
+        assertEquals(10, accumulator.get(VALUE), "Value should be 10");
+        assertThat(snapshot).containsExactly(new SnapshotEntry(VALUE, 7));
+    }
+
+    @Test
     void testInvalidGets() {
         // given
         final IntegerAccumulator.Config config = new IntegerAccumulator.Config(CATEGORY, NAME);
