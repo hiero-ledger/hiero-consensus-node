@@ -89,18 +89,18 @@ public interface HederaRecordCache extends RecordCache {
      *     start within {@link HederaConfig#transactionMaxValidDuration()} seconds of the given consensus time
      *     (meaning it might still be duplicated).</li>
      * </ol>
-     *  @param state                        The state to commit the transaction receipts to
      *
+     * @param state                        The state to commit the transaction receipts to
+     * @param lastConsensus                The last consensus time
      * @param consensusNow                 The current consensus time
-     * @param consensusForBlockStream      The last time for putting into the block stream
      * @param immediateStateChangeListener The listener to capture the state changes
      * @param blockStreamManager           The block stream manager
      * @param streamMode                   The stream mode
      */
     void commitRoundReceipts(
             @NonNull State state,
+            @NonNull Instant lastConsensus,
             @NonNull Instant consensusNow,
-            @NonNull Instant consensusForBlockStream,
             @NonNull ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull BlockStreamManager blockStreamManager,
             @NonNull StreamMode streamMode);

@@ -287,13 +287,10 @@ public class HandleWorkflow {
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
-            final var consensusForBlockStream = blockHashSigner.isReady()
-                    ? boundaryStateChangeListener.lastConsensusTimeOrThrow()
-                    : round.getConsensusTimestamp();
             recordCache.commitRoundReceipts(
                     state,
+                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
                     round.getConsensusTimestamp(),
-                    consensusForBlockStream,
                     immediateStateChangeListener,
                     blockStreamManager,
                     streamMode);
@@ -806,7 +803,7 @@ public class HandleWorkflow {
             @NonNull final Instant now,
             @NonNull final Runnable action) {
         if (streamMode != RECORDS) {
-            immediateStateChangeListener.reset();
+            immediateStateChangeListener.resetKvStateChanges();
         }
         action.run();
         ((CommittableWritableStates) writableStates).commit();
@@ -814,7 +811,7 @@ public class HandleWorkflow {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = immediateStateChangeListener.getStateChanges();
+            final var changes = immediateStateChangeListener.getKvStateChanges();
             if (!changes.isEmpty()) {
                 final var stateChangesItem = BlockItem.newBuilder()
                         .stateChanges(new StateChanges(asTimestamp(now), new ArrayList<>(changes)))
