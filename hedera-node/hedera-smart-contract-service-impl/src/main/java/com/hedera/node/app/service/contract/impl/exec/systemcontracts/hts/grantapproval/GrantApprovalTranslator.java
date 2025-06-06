@@ -77,6 +77,7 @@ public class GrantApprovalTranslator extends AbstractCallTranslator<HtsCallAttem
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         requireNonNull(attempt);
+        // TODO Glib: why ERC_GRANT_APPROVAL_NFT not added to isMethod? and not added to callFrom isSelector
         return attempt.isMethod(GRANT_APPROVAL, GRANT_APPROVAL_NFT, ERC_GRANT_APPROVAL);
     }
 

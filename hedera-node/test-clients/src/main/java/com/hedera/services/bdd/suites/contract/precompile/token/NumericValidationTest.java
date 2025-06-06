@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -60,14 +61,16 @@ public class NumericValidationTest {
     @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS)
     static SpecAccount bob;
 
-    @FungibleToken(name = "fungibleToken", initialSupply = 1_000L, maxSupply = 1_200L)
+    @FungibleToken(name = "NumericValidationTestFT", initialSupply = 1_000L, maxSupply = 1_200L,
+            keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY, WIPE_KEY})
     static SpecFungibleToken fungibleToken;
 
     @NonFungibleToken(
             numPreMints = 5,
             keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY})
-    static SpecNonFungibleToken nft;
+    static SpecNonFungibleToken nftToken;
 
+    // TODO Glib: what is this mean? all functions are using uint 256/64 (unsigned). So this is really max Ulong
     private static final String NEGATIVE_ONE = "FFFFFFFFFFFFFFFF";
     private static final String MAX_LONG_PLUS_1 = "010000000000000000";
     public static final BigInteger NEGATIVE_ONE_BIG_INT =
@@ -75,57 +78,91 @@ public class NumericValidationTest {
     public static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
             new BigInteger(1, Bytes.fromHex(MAX_LONG_PLUS_1).toByteArray());
 
-    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {}
+    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {
+    }
+
+    // Big integer test cases for negative, and greater than Long.MAX_VALUE amounts with expected failed status, zero expected success
+    public static final List<BigIntegerTestCase> zeroSuccess = List.of(
+            new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
+            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS));
 
     // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
-    public static final List<BigIntegerTestCase> zeroNegativeAndGreaterThanLong = List.of(
+    public static final List<BigIntegerTestCase> allFail = List.of(
             new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
             new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
             new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED));
 
+    public record Int64TestCase(Long amount, ResponseCodeEnum status) {
+    }
+
+    public static final List<Int64TestCase> int64zeroSuccess = List.of(
+            new Int64TestCase(-1L, CONTRACT_REVERT_EXECUTED),
+            new Int64TestCase(0L, SUCCESS));
+
     /**
-     * Validate that functions calls to the HTS system contract that take numeric values
-     * handle error cases correctly.
+     * Validate that functions calls to the HTS system contract that take numeric values handle error cases correctly.
      */
     @Nested
     @DisplayName("calls fail to approve functions with invalid amounts")
     class ApproveTests {
+
+        @BeforeAll
+        public static void tokensAssociateBeforeAll(final @NonNull TestLifecycle lifecycle) {
+            lifecycle.doAdhoc(numericContract.associateTokens(fungibleToken),
+                    numericContract.associateTokens(nftToken));
+        }
+
+        // TODO Glib: how to check if in smart contract we are getting exactly this failures? there are silent halts now
+        // NEGATIVE_ONE = java.lang.ArithmeticException: BigInteger out of long range
+        // MAX_LONG_PLUS_1 = java.lang.ArithmeticException: BigInteger out of long range
+        // 0 = success (See CryptoApproveAllowanceHandler.pureChecks)
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using fungible token via redirect proxy contract")
         public Stream<DynamicTest> failToApproveViaProxyFungibleToken() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return zeroSuccess.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("approveRedirect", fungibleToken, numericContract, testCase.amount)
+                            .call("approveRedirect", fungibleToken, numericContractComplex, testCase.amount)
                             .gas(1_000_000L)
-                            .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status))
+                    ));
         }
 
+        // NEGATIVE_ONE = java.lang.ArithmeticException: BigInteger out of long range
+        // MAX_LONG_PLUS_1 = java.lang.ArithmeticException: BigInteger out of long range
+        // 0 = INVALID_TOKEN_NFT_SERIAL_NUMBER (See AllowanceValidator.validateSerialNums)
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using nft via redirect proxy contract")
         public Stream<DynamicTest> failToApproveViaProxyNft() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("approveRedirect", nft, numericContract, testCase.amount)
+                            .call("approveRedirect", nftToken, numericContractComplex, testCase.amount)
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
+        // NEGATIVE_ONE = java.lang.ArithmeticException: BigInteger out of long range
+        // MAX_LONG_PLUS_1 = java.lang.ArithmeticException: BigInteger out of long range
+        // 0 = success (See CryptoApproveAllowanceHandler.pureChecks)
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using fungible token hts system contract")
         public Stream<DynamicTest> failToApproveFungibleToken() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return zeroSuccess.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("approve", fungibleToken, numericContract, testCase.amount)
+                            .call("approve", fungibleToken, numericContractComplex, testCase.amount)
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
+        // NEGATIVE_ONE = java.lang.ArithmeticException: BigInteger out of long range
+        // MAX_LONG_PLUS_1 = java.lang.ArithmeticException: BigInteger out of long range
+        // 0 = INVALID_TOKEN_NFT_SERIAL_NUMBER (See AllowanceValidator.validateSerialNums)
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using nft hts system contract")
         public Stream<DynamicTest> failToApproveNft() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("approveNFT", nft, numericContract, testCase.amount)
+                            .call("approveNFT", nftToken, numericContractComplex, testCase.amount)
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
@@ -134,54 +171,72 @@ public class NumericValidationTest {
     @Nested
     @DisplayName("calls fail to burn functions with invalid amounts")
     class BurnTests {
-        @HapiTest
+
+        // NEGATIVE_ONE = java.lang.ArithmeticException: BigInteger out of long range
+        // MAX_LONG_PLUS_1 = not matching function signature
+        // 0 = INVALID_SIGNATURE (See DispatchProcessor.alreadyFailed) // TODO Glib:
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using fungible tokens via the V1 version of the burn function")
         public Stream<DynamicTest> failToBurnFTV1() {
-            // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
-            // to send number greater than Long.MAX_VALUE
-            return hapiTest(numericContract
-                    .call("burnTokenV1", fungibleToken, NEGATIVE_ONE_BIG_INT, new long[0])
-                    .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+            return Stream.of(NEGATIVE_ONE_BIG_INT, BigInteger.ZERO)
+                    .flatMap(amount -> hapiTest(numericContract
+                            .call("burnTokenV1", fungibleToken, amount, new long[0])
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
         }
 
-        @HapiTest
+        // NEGATIVE_ONE = java.lang.ArithmeticException: BigInteger out of long range
+        // MAX_LONG_PLUS_1 = not matching function signature
+        // 0 = INVALID_SIGNATURE // TODO Glib:
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using nft via the V1 version of the burn function")
         public Stream<DynamicTest> failToBurnNftV1() {
-            // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
-            // to send number greater than Long.MAX_VALUE
-            return hapiTest(numericContract
-                    .call("burnTokenV1", nft, BigInteger.ZERO, new long[] {-1L})
-                    .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+            return Stream.of(NEGATIVE_ONE_BIG_INT, BigInteger.ZERO)
+                    .flatMap(amount -> hapiTest(numericContract
+                            .call("burnTokenV1", nftToken, amount, new long[]{1L})
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                    ));
         }
 
-        @HapiTest
+        // -1 = INVALID_TOKEN_BURN_AMOUNT
+        // 0 = INVALID_SIGNATURE // TODO Glib:
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using fungible tokens via the V2 version of the burn function")
         public Stream<DynamicTest> failToBurnFTV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
-            return hapiTest(numericContract
-                    .call("burnTokenV2", fungibleToken, -1L, new long[0])
-                    .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+            return int64zeroSuccess.stream()
+                    .flatMap(testCase -> hapiTest(numericContract
+                            .call("burnTokenV2", fungibleToken, testCase.amount(), new long[0])
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))
+                    ));
         }
 
-        @HapiTest
+        // -1 = INVALID_TOKEN_BURN_AMOUNT
+        // 0 = INVALID_SIGNATURE // TODO Glib:
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using nft via the V2 version of the burn function")
         public Stream<DynamicTest> failToBurnNftV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
-            return hapiTest(numericContract
-                    .call("burnTokenV2", nft, 0L, new long[] {-1L})
-                    .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+            return int64zeroSuccess.stream()
+                    .flatMap(testCase -> hapiTest(numericContract
+                            .call("burnTokenV2", nftToken, testCase.amount(), new long[]{1L})
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))
+                    ));
         }
     }
 
     @Nested
     @DisplayName("calls fail to mint functions with invalid amounts")
     class MintTests {
+
+        // NEGATIVE_ONE = java.lang.ArithmeticException: BigInteger out of long range
+        // MAX_LONG_PLUS_1 = not matching function signature
+        // 0 = INVALID_SIGNATURE (See DispatchProcessor.alreadyFailed) // TODO Glib:
         @HapiTest
         @DisplayName("when using fungible tokens via the V1 version of the mint function")
         public Stream<DynamicTest> failToMintFTV1() {
@@ -199,7 +254,7 @@ public class NumericValidationTest {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
             return hapiTest(numericContract
-                    .call("mintTokenV1", nft, BigInteger.ZERO, new byte[][] {{(byte) 0x1}})
+                    .call("mintTokenV1", nftToken, BigInteger.ZERO, new byte[][]{{(byte) 0x1}})
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -221,7 +276,7 @@ public class NumericValidationTest {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
             return hapiTest(numericContract
-                    .call("mintTokenV2", nft, 0L, new byte[][] {{(byte) 0x1}})
+                    .call("mintTokenV2", nftToken, 0L, new byte[][]{{(byte) 0x1}})
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -236,15 +291,18 @@ public class NumericValidationTest {
          ** the abi definition will block an attempt to send
          */
 
+        // -1 = INVALID_WIPING_AMOUNT
+        // 0 = INVALID_SIGNATURE // TODO Glib:
         @HapiTest
         @DisplayName("when using fungible tokens via the V2 version of the wipe function")
         public Stream<DynamicTest> failToWipeFTV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
-            return hapiTest(numericContract
-                    .call("wipeFungibleV2", fungibleToken, numericContract, -1L)
+            return int64zeroSuccess.stream()
+                    .flatMap(testCase ->  hapiTest(numericContract
+                    .call("wipeFungibleV2", fungibleToken, numericContract, testCase.amount())
                     .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+                    .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         @HapiTest
@@ -254,7 +312,7 @@ public class NumericValidationTest {
             // block an attempt
             // to send number greater than Long.MAX_VALUE
             return hapiTest(numericContract
-                    .call("wipeNFT", nft, numericContract, new long[] {-1L})
+                    .call("wipeNFT", nftToken, numericContract, new long[]{-1L})
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -267,25 +325,25 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using tokenURI")
         public Stream<DynamicTest> failTokenURI() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("tokenURI", nft, testCase.amount)
+                            .call("tokenURI", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for NFT")
         public Stream<DynamicTest> failToGetTokenKeyNFT() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("getTokenKey", nft, testCase.amount)
+                            .call("getTokenKey", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getTokenKey for Fungible Token")
         public Stream<DynamicTest> failToGetTokenKeyFT() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("getTokenKey", fungibleToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
@@ -295,34 +353,34 @@ public class NumericValidationTest {
         @DisplayName("when using getNonFungibleTokenInfo")
         public Stream<DynamicTest> failToGetNonFungibleTokenInfo() {
             return hapiTest(numericContract
-                    .call("getNonFungibleTokenInfo", nft, -1L)
+                    .call("getNonFungibleTokenInfo", nftToken, -1L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getApproved")
         public Stream<DynamicTest> failToGetApproved() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("getApproved", nft, testCase.amount)
+                            .call("getApproved", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using getApprovedERC")
         public Stream<DynamicTest> failToGetApprovedERC() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("getApprovedERC", nft, testCase.amount)
+                            .call("getApprovedERC", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using ownerOf")
         public Stream<DynamicTest> failToOwnerOf() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("ownerOf", nft, testCase.amount)
+                            .call("ownerOf", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
     }
@@ -338,18 +396,18 @@ public class NumericValidationTest {
         static SpecAccount spender;
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("when using hbarAllowance")
+        @DisplayName("when using hbarApprove via redirect proxy contract")
         public Stream<DynamicTest> failToApproveHbar() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("hbarApproveProxy", spender, testCase.amount())
+                            .call("hbarApproveProxy", owner, spender, testCase.amount())
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using hbarApprove")
         public Stream<DynamicTest> failToHbarApprove() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("hbarApprove", owner, spender, testCase.amount())
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -357,14 +415,14 @@ public class NumericValidationTest {
     }
 
     @Nested
-    // TODO Glib: failed
+    // TODO Glib: all zeroNegativeAndGreaterThanLong are success
     @DisplayName("fail to call Exchange Rate System contract functions")
     class ExchangeRateSystemContractTests {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when converting tinycents to tinybars")
         public Stream<DynamicTest> convertTinycentsToTinybars() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("convertTinycentsToTinybars", testCase.amount())
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -373,7 +431,7 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when converting tinybars to tinycents")
         public Stream<DynamicTest> convertTinybarsToTinycents() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("convertTinybarsToTinycents", testCase.amount())
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -575,7 +633,7 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using updateTokenInfoV3 for both fungible and nonFungible token")
         public Stream<DynamicTest> failToUpdateTokenInfoV3FungibleAndNft() {
-            return Stream.of(fungibleToken, nft)
+            return Stream.of(fungibleToken, nftToken)
                     .flatMap(testCaseToken -> hapiTest(numericContractComplex
                             .call("updateTokenInfoV3", testCaseToken, -1L, -1L, 5000L)
                             .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
@@ -584,9 +642,9 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with invalid serial number")
         public Stream<DynamicTest> failToUpdateNFTsMetadata() {
-            return Stream.of(new long[] {Long.MAX_VALUE}, new long[] {0}, new long[] {-1, 1}, new long[] {-1})
+            return Stream.of(new long[]{Long.MAX_VALUE}, new long[]{0}, new long[]{-1, 1}, new long[]{-1})
                     .flatMap(invalidSerialNumbers -> hapiTest(numericContract
-                            .call("updateNFTsMetadata", nft, invalidSerialNumbers, "tiger".getBytes())
+                            .call("updateNFTsMetadata", nftToken, invalidSerialNumbers, "tiger".getBytes())
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
         }
@@ -595,7 +653,7 @@ public class NumericValidationTest {
         @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with empty serial numbers")
         public Stream<DynamicTest> failToUpdateNFTsMetadataWithEmptySerialNumbers() {
             return hapiTest(numericContract
-                    .call("updateNFTsMetadata", nft, new long[] {}, "zebra".getBytes())
+                    .call("updateNFTsMetadata", nftToken, new long[]{}, "zebra".getBytes())
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -609,7 +667,8 @@ public class NumericValidationTest {
         public static void beforeAll(final @NonNull TestLifecycle lifecycle) {
             lifecycle.doAdhoc(
                     fungibleToken.treasury().approveTokenAllowance(fungibleToken, numericContractComplex, 100L),
-                    nft.treasury().approveNFTAllowance(nft, numericContractComplex, true, List.of(1L, 2L, 3L)),
+                    nftToken.treasury()
+                            .approveNFTAllowance(nftToken, numericContractComplex, true, List.of(1L, 2L, 3L)),
                     alice.approveCryptoAllowance(numericContractComplex, ONE_HBAR));
         }
 
@@ -617,7 +676,7 @@ public class NumericValidationTest {
         @DisplayName("when using cryptoTransferFungibleV1")
         public Stream<DynamicTest> failToUseCryptoTransferFungibleV1() {
             return hapiTest(numericContractComplex
-                    .call("cryptoTransferFungibleV1", fungibleToken, new long[] {-5, -5}, fungibleToken.treasury(), bob)
+                    .call("cryptoTransferFungibleV1", fungibleToken, new long[]{-5, -5}, fungibleToken.treasury(), bob)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -626,7 +685,7 @@ public class NumericValidationTest {
         @DisplayName("when using cryptoTransferV2 for hBar transfer")
         public Stream<DynamicTest> failToUseCryptoTransferV2() {
             return hapiTest(numericContractComplex
-                    .call("cryptoTransferV2", new long[] {-5, -5}, alice, bob)
+                    .call("cryptoTransferV2", new long[]{-5, -5}, alice, bob)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -635,7 +694,7 @@ public class NumericValidationTest {
         @DisplayName("when using cryptoTransferNonFungible for nft transfer")
         public Stream<DynamicTest> failToUseCryptoTransferNonFungible() {
             return hapiTest(numericContractComplex
-                    .call("cryptoTransferNonFungible", nft, nft.treasury(), bob, -1L)
+                    .call("cryptoTransferNonFungible", nftToken, nftToken.treasury(), bob, -1L)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -644,7 +703,7 @@ public class NumericValidationTest {
         @DisplayName("when using transferNFTs with invalid serial numbers")
         public Stream<DynamicTest> failToUseTransferNFTs() {
             return hapiTest(numericContractComplex
-                    .call("transferNFTs", nft, nft.treasury(), alice, new long[] {-1L})
+                    .call("transferNFTs", nftToken, nftToken.treasury(), alice, new long[]{-1L})
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -661,7 +720,7 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using transferTokenERC")
         public Stream<DynamicTest> failToUseTransferTokenERC() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call("transferTokenERC", fungibleToken, fungibleToken.treasury(), alice, testCase.amount)
                             .gas(1_000_000L)
@@ -672,7 +731,7 @@ public class NumericValidationTest {
         @DisplayName("when using transferNFT")
         public Stream<DynamicTest> failToUseTransferNFT() {
             return hapiTest(numericContractComplex
-                    .call("transferNFTTest", nft, nft.treasury(), alice, -1L)
+                    .call("transferNFTTest", nftToken, nftToken.treasury(), alice, -1L)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -700,9 +759,9 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using transferFromNFT")
         public Stream<DynamicTest> failToUseTransferNFTFrom() {
-            return zeroNegativeAndGreaterThanLong.stream()
+            return allFail.stream()
                     .flatMap(testCase -> hapiTest(numericContractComplex
-                            .call("transferFromNFT", nft, nft.treasury(), alice, testCase.amount)
+                            .call("transferFromNFT", nftToken, nftToken.treasury(), alice, testCase.amount)
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
         }
