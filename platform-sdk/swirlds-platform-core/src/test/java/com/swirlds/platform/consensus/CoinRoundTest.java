@@ -41,11 +41,9 @@ public class CoinRoundTest extends PlatformTest {
         final TestIntake intake =
                 new TestIntake(context, RosterRetriever.buildRoster(legacyConfigProperties.getAddressBook()));
 
-        long maxGen = 0;
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
         while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
-            maxGen = Math.max(maxGen, event.getGeneration());
             intake.addEvent(event);
         }
 
