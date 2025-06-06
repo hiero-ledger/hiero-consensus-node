@@ -68,12 +68,7 @@ public final class VirtualHasher<K extends VirtualKey, V extends VirtualValue> {
     private VirtualHashListener<K, V> listener;
 
     /**
-     * An instance of {@link Cryptography} used to hash leaves. This should be a static final
-     * field, but it doesn't work very well as platform configs aren't loaded at the time when
-     * this class is initialized. It would result in a cryptography instance with default (and
-     * possibly wrong) configs be used by the hasher. Instead, this field is initialized in
-     * the {@link #hash(LongFunction, Iterator, long, long, VirtualHashListener, VirtualMapConfig)}
-     * method and used by all hashing tasks.
+     * An instance of {@link Cryptography} used to hash leaves.
      */
     private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 

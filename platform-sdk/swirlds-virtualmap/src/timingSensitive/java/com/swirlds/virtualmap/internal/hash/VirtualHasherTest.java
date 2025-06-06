@@ -293,7 +293,9 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Test the same situation over and over and over")
     void repeatedTest() {
-        final TestDataSource ds = new TestDataSource(52L, 104L);
+        final long firstLeafPath = 52L;
+        final long lastLeafPath = firstLeafPath * 2;
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath);
         final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
         final Hash expected = hashTree(ds);
         final List<Long> dirtyLeafPaths = List.of(
@@ -303,7 +305,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         // this will *likely* find it.
         for (int i = 0; i < 1000; i++) {
             final List<VirtualLeafRecord<TestKey, TestValue>> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
-            final Hash rootHash = hasher.hash(ds::loadHash, leaves.iterator(), 52L, 104L, null, VIRTUAL_MAP_CONFIG);
+            final Hash rootHash =
+                    hasher.hash(ds::loadHash, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
             assertEquals(expected, rootHash, "Expected equals");
         }
     }
@@ -317,7 +320,9 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Verify methods on the listener are called at the right frequency")
     void listenerCallCounts() {
-        final TestDataSource ds = new TestDataSource(52L, 104L);
+        final long firstLeafPath = 52L;
+        final long lastLeafPath = firstLeafPath * 2;
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath);
         final HashingListener listener = new HashingListener();
         final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
         hashTree(ds);
@@ -325,7 +330,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
 
         final List<VirtualLeafRecord<TestKey, TestValue>> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
-        hasher.hash(ds::loadHash, leaves.iterator(), 52L, 104L, listener, VIRTUAL_MAP_CONFIG);
+        hasher.hash(ds::loadHash, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
 
         // Check the different callbacks were called the correct number of times
         assertEquals(1, listener.onHashingStartedCallCount, "Unexpected count");
