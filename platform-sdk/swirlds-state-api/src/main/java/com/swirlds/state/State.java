@@ -92,6 +92,15 @@ public interface State extends FastCopyable, Hashable {
     }
 
     /**
+     * Answers the question if the state is already hashed.
+     *
+     * @return true if the state is already hashed, false otherwise.
+     */
+    default boolean isHashed() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Hashes the state on demand if it is not already hashed. If the state is already hashed, this method is a no-op.
      */
     default void computeHash() {
@@ -112,5 +121,13 @@ public interface State extends FastCopyable, Hashable {
      */
     default State loadSnapshot(final @NonNull Path targetPath) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Used to track the status of the Platform.
+     * @return {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}.
+     */
+    default boolean isStartUpMode() {
+        return true;
     }
 }
