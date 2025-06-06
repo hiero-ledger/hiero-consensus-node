@@ -616,21 +616,7 @@ public class ConversionUtils {
      * @param outcome the outcome
      * @param hederaOperations the Hedera operations
      */
-    public static void throwIfUnsuccessfulCall(
-            @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
-        requireNonNull(outcome);
-        requireNonNull(hederaOperations);
-        if (outcome.status() != SUCCESS) {
-            throw new HandleException(outcome.status(), hederaOperations::replayGasChargingIn);
-        }
-    }
-
-    /**
-     * Throws a {@link HandleException} if the given outcome did not succeed for a call.
-     * @param outcome the outcome
-     * @param hederaOperations the Hedera operations
-     */
-    public static void throwIfUnsuccessfulCreate(
+    public static void throwIfUnsuccessful(
             @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
         requireNonNull(outcome);
         requireNonNull(hederaOperations);
