@@ -21,11 +21,11 @@ import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.collections.HashList;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
 import com.swirlds.merkledb.collections.LongListOffHeap;
-import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCompactor;
@@ -1111,8 +1111,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (hasDiskStoreForHashes) {
             final DataFileReader newHashesFile = hashStoreDisk.endWriting();
             statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
-            compactionCoordinator.compactIfNotRunningYet(
-                    DataFileCompactor.HASH_STORE_DISK, newHashStoreDiskCompactor());
+            runHashStoreCompaction();
         }
     }
 
@@ -1206,8 +1205,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             keyToPath.resizeIfNeeded(firstLeafPath, lastLeafPath);
         }
 
-        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.PATH_TO_KEY_VALUE, newPathToKeyValueCompactor());
-        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.OBJECT_KEY_TO_PATH, newKeyToPathCompactor());
+        runPathToKeyStoreCompaction();
+        runKeyToPathStoreCompaction();
     }
 
     /**
@@ -1288,15 +1287,31 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
     }
 
-    FileStatisticAware getHashStoreDisk() {
+    public void runHashStoreCompaction() {
+        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.HASH_STORE_DISK, newHashStoreDiskCompactor());
+    }
+
+    public void runPathToKeyStoreCompaction() {
+        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.PATH_TO_KEY_VALUE, newPathToKeyValueCompactor());
+    }
+
+    public void runKeyToPathStoreCompaction() {
+        compactionCoordinator.compactIfNotRunningYet(DataFileCompactor.OBJECT_KEY_TO_PATH, newKeyToPathCompactor());
+    }
+
+    public void awaitForCurrentCompactionsToComplete(final long timeoutMillis) {
+        compactionCoordinator.awaitForCurrentCompactionsToComplete(timeoutMillis);
+    }
+
+    public MemoryIndexDiskKeyValueStore getHashStoreDisk() {
         return hashStoreDisk;
     }
 
-    FileStatisticAware getKeyToPath() {
+    public HalfDiskHashMap getKeyToPath() {
         return keyToPath;
     }
 
-    FileStatisticAware getPathToKeyValue() {
+    public MemoryIndexDiskKeyValueStore getPathToKeyValue() {
         return pathToKeyValue;
     }
 
@@ -1304,15 +1319,15 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return compactionCoordinator;
     }
 
-    OffHeapUser getHashStoreRam() {
+    public HashList getHashStoreRam() {
         return hashStoreRam;
     }
 
-    LongList getPathToDiskLocationInternalNodes() {
+    public LongList getPathToDiskLocationInternalNodes() {
         return pathToDiskLocationInternalNodes;
     }
 
-    LongList getPathToDiskLocationLeafNodes() {
+    public LongList getPathToDiskLocationLeafNodes() {
         return pathToDiskLocationLeafNodes;
     }
 
