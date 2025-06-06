@@ -92,8 +92,8 @@ jobs:
       # Set up the npm dependencies and cache on the tck-client
       - name: Set up the tck-client
         run: |
-          npm install
           npm cache clean --force
+          npm install
         working-directory: platform-sdk/regression
 
       # Set up the npm dependencies and cache on the sdk-server
@@ -138,19 +138,23 @@ jobs:
           solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
 
-          nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-monitor -n ${{ env.SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:8084 > /dev/null 2>&1 &
+          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
+          kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
 
       # Start the TCK client
       - name: Start tck-client
         env:
-          OPERATOR_ACCOUNT_ID: "0.0.1002"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b657004220420a608e2130a0a3cb34f86e757303c862bee353d9ab77ba4387ec084f881d420d4"
-          NODE_TIMEOUT: 15000
+          OPERATOR_ACCOUNT_ID: "0.0.2"
+          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
+          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
+          NODE_IP: "127.0.0.1:50211"
+          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
+          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
         run: |
           solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          cp .env.custom_node .env
           npm run test
         working-directory: platform-sdk/regression # required
 
