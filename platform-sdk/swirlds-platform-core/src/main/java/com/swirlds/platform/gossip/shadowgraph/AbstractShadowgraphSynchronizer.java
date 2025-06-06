@@ -159,6 +159,8 @@ public class AbstractShadowgraphSynchronizer {
         final SyncFallenBehindStatus status = SyncFallenBehindStatus.getStatus(self, other);
         if (status == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
             fallenBehindManager.reportFallenBehind(nodeId);
+        } else {
+            fallenBehindManager.clearFallenBehind(nodeId);
         }
 
         if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
