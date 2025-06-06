@@ -53,6 +53,12 @@ public class BlockBufferService {
      * once they are acknowledged they will be pruned the next time {@link #openBlock(long)} is invoked.
      */
     private final ConcurrentMap<Long, BlockState> blockBuffer = new ConcurrentHashMap<>();
+
+    /**
+     * This tracks the earliest block number in the buffer.
+     */
+    private final AtomicLong earliestBlockNumber = new AtomicLong(Long.MIN_VALUE);
+
     /**
      * Flag to indicate if the buffer contains blocks that have expired but are still unacknowledged.
      */
@@ -243,6 +249,9 @@ public class BlockBufferService {
         // Create a new block state
         final BlockState blockState = new BlockState(blockNumber);
         blockBuffer.put(blockNumber, blockState);
+        // update the earliest block number if this is first block or lower than current earliest
+        earliestBlockNumber.updateAndGet(
+                current -> current == Long.MIN_VALUE ? blockNumber : Math.min(current, blockNumber));
         this.lastProducedBlockNumber = blockNumber;
         blockStreamMetrics.setProducingBlockNumber(blockNumber);
         blockNodeConnectionManager.openBlock(blockNumber);
@@ -398,10 +407,12 @@ public class BlockBufferService {
         int numChecked = 0;
         int numPendingAck = 0;
         final AtomicReference<Instant> oldestUnackedTimestamp = new AtomicReference<>(Instant.MAX);
+        long newEarliestBlock = Long.MIN_VALUE;
 
         while (it.hasNext()) {
             final Map.Entry<Long, BlockState> blockEntry = it.next();
             final BlockState block = blockEntry.getValue();
+            final long blockNum = blockEntry.getKey();
             ++numChecked;
 
             if (block.completionTimestamp() != null) {
@@ -410,14 +421,24 @@ public class BlockBufferService {
                     if (block.completionTimestamp().isBefore(cutoffInstant)) {
                         it.remove();
                         ++numPruned;
+                    } else {
+                        // keep track of earliest remaining block
+                        newEarliestBlock =
+                                (newEarliestBlock == Long.MIN_VALUE) ? blockNum : Math.min(newEarliestBlock, blockNum);
                     }
                 } else {
                     ++numPendingAck;
+                    // keep track of earliest remaining block
+                    newEarliestBlock =
+                            (newEarliestBlock == Long.MIN_VALUE) ? blockNum : Math.min(newEarliestBlock, blockNum);
                     oldestUnackedTimestamp.updateAndGet(current ->
                             current.compareTo(block.completionTimestamp()) < 0 ? current : block.completionTimestamp());
                 }
             }
         }
+
+        // update the earliest block number after pruning
+        earliestBlockNumber.set(newEarliestBlock);
 
         final long oldestUnackedMillis = Instant.MAX.equals(oldestUnackedTimestamp.get())
                 ? -1 // sentinel value indicating no blocks are unacked
@@ -615,6 +636,6 @@ public class BlockBufferService {
      * @return the earliest available block number or -1 if the buffer is empty
      */
     public long getEarliestAvailableBlockNumber() {
-        return blockBuffer.isEmpty() ? -1 : blockBuffer.peek().blockNumber();
+        return earliestBlockNumber.get();
     }
 }
