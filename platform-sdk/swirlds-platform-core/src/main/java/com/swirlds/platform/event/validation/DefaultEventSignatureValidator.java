@@ -4,8 +4,6 @@ package com.swirlds.platform.event.validation;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
@@ -25,6 +23,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterUtils.WrappedRoster;
 
 /**
  * Default implementation for verifying event signatures
@@ -103,7 +102,8 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * @return true if the event has a valid signature, otherwise false
      */
     private boolean isSignatureValid(@NonNull final PlatformEvent event) {
-        final Roster applicableRoster = rosterHistory.getRosterForRound(event.getBirthRound());
+        final WrappedRoster applicableRoster =
+                RosterUtils.optionalWrap(rosterHistory.getRosterForRound(event.getBirthRound()));
         if (applicableRoster == null) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),
@@ -114,23 +114,8 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
 
         final NodeId eventCreatorId = event.getCreatorId();
 
-        RosterEntry creatorsEntry = null;
-        for (RosterEntry entry : applicableRoster.rosterEntries()) {
-            if (entry.nodeId() == eventCreatorId.id()) {
-                creatorsEntry = entry;
-                break;
-            }
-        }
-        if (creatorsEntry == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Node {} doesn't exist in applicable roster. Event: {}",
-                    eventCreatorId,
-                    event);
-            return false;
-        }
+        final X509Certificate cert = applicableRoster.gossipCaCertificate(eventCreatorId);
 
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(creatorsEntry);
         final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
         if (publicKey == null) {
             rateLimitedLogger.error(
