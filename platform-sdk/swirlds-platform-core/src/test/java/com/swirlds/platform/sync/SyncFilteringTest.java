@@ -183,8 +183,7 @@ class SyncFilteringTest {
     private static void assertTopologicalOrder(
             final PlatformContext platformContext, final List<PlatformEvent> events) {
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
-        orphanBuffer.setEventWindow(
-                new EventWindow(1, 1, events.getFirst().getBirthRound(), 1));
+        orphanBuffer.setEventWindow(new EventWindow(1, 1, events.getFirst().getBirthRound(), 1));
         // Verify topological ordering.
         for (final PlatformEvent event : events) {
             final List<PlatformEvent> nonOrphans = orphanBuffer.handleEvent(event);
