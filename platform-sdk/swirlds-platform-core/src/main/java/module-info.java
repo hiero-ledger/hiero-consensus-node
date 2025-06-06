@@ -137,7 +137,6 @@ module com.swirlds.platform.core {
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
-    requires java.annotation;
     requires java.desktop;
     requires java.management;
     requires java.scripting;
