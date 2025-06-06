@@ -120,6 +120,6 @@ public class ConsensusOutput implements Clearable {
         nonAncientEvents.clear();
         nonAncientConsensusEvents.clear();
         latestRound = 0;
-        eventWindow = EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD);
+        eventWindow = EventWindow.getGenesisEventWindow();
     }
 }

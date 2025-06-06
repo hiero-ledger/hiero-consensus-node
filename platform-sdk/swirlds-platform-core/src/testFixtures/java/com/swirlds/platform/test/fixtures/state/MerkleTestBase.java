@@ -6,7 +6,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
@@ -17,7 +16,6 @@ import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
-import org.junit.jupiter.api.AfterEach;
 
 /**
  * This base class provides helpful methods and defaults for simplifying the other merkle related
@@ -160,10 +158,5 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
                 md.stateDefinition().valueCodec(),
                 key,
                 value);
-    }
-
-    @AfterEach
-    void cleanUp() {
-        MerkleDb.resetDefaultInstancePath();
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
@@ -23,7 +24,6 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.token.Account;
@@ -44,6 +44,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -59,6 +60,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -94,10 +96,35 @@ public final class IngestChecker {
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
-    private final SemanticVersion softwareVersionFactory;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
+
+    /**
+     * The result of running all checks.
+     */
+    public static class Result {
+        @Nullable
+        private TransactionInfo txnInfo;
+
+        private List<ThrottleUsage> throttleUsages = List.of();
+
+        public @NonNull TransactionInfo txnInfoOrThrow() {
+            return requireNonNull(txnInfo);
+        }
+
+        public void setTxnInfo(@Nullable TransactionInfo txnInfo) {
+            this.txnInfo = txnInfo;
+        }
+
+        public @NonNull List<ThrottleUsage> throttleUsages() {
+            return throttleUsages;
+        }
+
+        public void setThrottleUsages(@Nullable List<ThrottleUsage> throttleUsages) {
+            this.throttleUsages = throttleUsages;
+        }
+    }
 
     /**
      * Constructor of the {@code IngestChecker}
@@ -131,7 +158,6 @@ public final class IngestChecker {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            @NonNull final SemanticVersion softwareVersionFactory,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
@@ -148,7 +174,6 @@ public final class IngestChecker {
                 requireNonNull(synchronizedThrottleAccumulator, "synchronizedThrottleAccumulator must not be null");
         this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
         this.workflowMetrics = requireNonNull(workflowMetrics, "workflowMetrics must not be null");
-        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
@@ -184,20 +209,24 @@ public final class IngestChecker {
      * @param state the {@link State} to use
      * @param serializedTransaction the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
-     * @return the {@link TransactionInfo} with the extracted information
+     * @param result the {@link Result} to populate with the results of the checks
      * @throws PreCheckException if a check fails
      */
-    public TransactionInfo runAllChecks(
+    public void runAllChecks(
             @NonNull final State state,
             @NonNull final Bytes serializedTransaction,
-            @NonNull final Configuration configuration)
+            @NonNull final Configuration configuration,
+            @NonNull final Result result)
             throws PreCheckException {
+        requireNonNull(result);
+
         // During ingest we approximate consensus time with wall clock time
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
         final var maxBytes = maxIngestParseSize(configuration);
         final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
+        result.setTxnInfo(txInfo);
         // check jumbo size after parsing
         transactionChecker.checkJumboTransactionBody(txInfo);
         final var txBody = txInfo.txBody();
@@ -222,11 +251,18 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        assertThrottlingPreconditions(txInfo, configuration);
+        final List<ThrottleUsage> throttleUsages = new ArrayList<>();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        if (hederaConfig.ingestThrottleEnabled() && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state)) {
-            workflowMetrics.incrementThrottled(functionality);
-            throw new PreCheckException(BUSY);
+
+        try {
+            checkThrottles(txInfo, state, hederaConfig, throttleUsages);
+            if (functionality == ATOMIC_BATCH) {
+                checkThrottlesForInnerTxns(
+                        state, configuration, txBody.atomicBatch().transactions(), throttleUsages);
+            }
+        } finally {
+            // Always keep throttle usages up to date for refund logic
+            result.setThrottleUsages(throttleUsages);
         }
 
         // 4a. Run pure checks
@@ -264,8 +300,48 @@ public final class IngestChecker {
                 dispatcher);
         final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
+    }
 
-        return txInfo;
+    private void checkThrottles(
+            @NonNull final TransactionInfo txInfo,
+            @NonNull final State state,
+            @NonNull final HederaConfig hederaConfig,
+            @NonNull final List<ThrottleUsage> throttleUsages)
+            throws PreCheckException {
+        assertThrottlingPreconditions(txInfo, hederaConfig);
+        if (hederaConfig.ingestThrottleEnabled()
+                && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
+            workflowMetrics.incrementThrottled(txInfo.functionality());
+            throw new PreCheckException(BUSY);
+        }
+    }
+
+    /**
+     * Validates throttling constraints for inner transactions part of Atomic Batch.
+     *
+     * @param state Current network state for throttle evaluation
+     * @param configuration System configuration
+     * @param innerTxnsBytes Serialized inner transactions to validate
+     * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
+     */
+    private void checkThrottlesForInnerTxns(
+            @NonNull final State state,
+            @NonNull final Configuration configuration,
+            @NonNull final List<Bytes> innerTxnsBytes,
+            @NonNull final List<ThrottleUsage> throttleUsages)
+            throws PreCheckException {
+
+        if (innerTxnsBytes.isEmpty()) {
+            return;
+        }
+
+        final var maxParseSize = maxIngestParseSize(configuration);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+
+        for (final var bytes : innerTxnsBytes) {
+            final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
+            checkThrottles(innerTxn, state, hederaConfig, throttleUsages);
+        }
     }
 
     private static int maxIngestParseSize(Configuration configuration) {
@@ -279,15 +355,13 @@ public final class IngestChecker {
     }
 
     private void assertThrottlingPreconditions(
-            @NonNull final TransactionInfo txInfo, @NonNull final Configuration configuration)
-            throws PreCheckException {
+            @NonNull final TransactionInfo txInfo, @NonNull final HederaConfig hederaConfig) throws PreCheckException {
         if (UNSUPPORTED_TRANSACTIONS.contains(txInfo.functionality())) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
         if (PRIVILEGED_TRANSACTIONS.contains(txInfo.functionality())) {
             final var payerNum =
                     txInfo.payerID() == null ? Long.MAX_VALUE : txInfo.payerID().accountNumOrElse(Long.MAX_VALUE);
-            final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             // This adds a mild restriction that privileged transactions can only
             // be issued by system accounts; (FUTURE) consider giving non-trivial
             // minimum fees to privileged transactions that fail with NOT_SUPPORTED

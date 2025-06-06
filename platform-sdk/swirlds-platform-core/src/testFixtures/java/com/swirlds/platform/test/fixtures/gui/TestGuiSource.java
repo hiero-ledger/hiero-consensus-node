@@ -131,7 +131,7 @@ public class TestGuiSource {
         final JButton reset = new JButton("Reset");
         reset.addActionListener(e -> {
             eventProvider.reset();
-            eventStorage.handleSnapshotOverride(SyntheticSnapshot.getGenesisSnapshot(ancientMode));
+            eventStorage.handleSnapshotOverride(SyntheticSnapshot.getGenesisSnapshot());
             updateFameDecidedBelow.run();
         });
         // snapshots

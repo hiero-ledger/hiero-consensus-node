@@ -77,7 +77,7 @@ public class SingleNodePcesResultAssert extends AbstractAssert<SingleNodePcesRes
         isNotNull();
 
         final long maxBirthRound = calculateMaxBirthRound();
-        if (maxBirthRound >= expected) {
+        if (maxBirthRound != expected) {
             fail(
                     "Expected the maximum birth round in PCES files of node %s to be equal to <%d> but was <%d>",
                     actual.nodeId(), expected, maxBirthRound);

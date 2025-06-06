@@ -41,6 +41,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
 import java.time.Instant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -151,6 +152,11 @@ class SolvencyPreCheckTest extends AppTestBase {
             assertThatThrownBy(() -> subject.getPayerAccount(storeFactory, ALICE.accountID()))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND));
+        }
+
+        @AfterEach
+        void tearDown() {
+            state.release();
         }
     }
 
