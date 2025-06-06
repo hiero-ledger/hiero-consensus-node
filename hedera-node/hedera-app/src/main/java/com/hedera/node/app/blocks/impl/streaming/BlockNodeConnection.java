@@ -287,7 +287,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                         blockNumber);
                 blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
-            case Code.TIMEOUT, Code.OUT_OF_ORDER, Code.BAD_STATE_PROOF -> {
+            case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF -> {
                 // We should restart the stream at the block immediately
                 // following the block where the node fell behind.
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
