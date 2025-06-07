@@ -8,7 +8,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -32,9 +31,6 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     /**
      * The roster state singleton. This is the state that holds the candidate roster hash and the list of pairs of
      * active roster hashes and the round number in which those rosters became active.
-     *
-     * @implNote the use of {@link ReadablePlatformStateStore} and {@link WritablePlatformStateStore} to provide access
-     * to the roster states (beyond just the {@link PlatformState}) is deliberate, for convenience.
      */
     private final WritableSingletonState<RosterState> rosterState;
 
@@ -106,10 +102,14 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
         if (!roundRosterPairs.isEmpty()) {
             final RoundRosterPair activeRosterPair = roundRosterPairs.getFirst();
 
-            // Even if the roster we are setting is the same as the active roster, set it anyway.
-            // This can happen on upgrade boundaries if there were no changes that affect the roster.
-            // In this case, we still want to rotate the rosters because it is important for the current roster
-            // to become the previous roster on every upgrade.
+            if (activeRosterPair.activeRosterHash().equals(rosterHash)) {
+                // We're trying to set the exact same active roster, maybe even with the same roundNumber.
+                // This may happen if, for whatever reason, roster updates come from different code paths.
+                // This shouldn't be considered an error because the system wants to use the exact same
+                // roster that is currently active anyway. So we silently ignore such a putActiveRoster request
+                // because it's a no-op:
+                return;
+            }
 
             if (round < 0 || round <= activeRosterPair.roundNumber()) {
                 throw new IllegalArgumentException("incoming round number = " + round

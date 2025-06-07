@@ -47,10 +47,7 @@ import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.roster.ReadableRosterStore;
-import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
@@ -427,9 +424,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
-        final ReadableRosterStore rosterStore =
-                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.NAME));
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(rosterStore);
+        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         final String eventStreamLoc = selfId.toString();
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(

@@ -345,9 +345,7 @@ public class PlatformComponentBuilder {
             eventSignatureValidator = new DefaultEventSignatureValidator(
                     blocks.platformContext(),
                     CryptoStatic::verifySignature,
-                    blocks.appVersion(),
-                    blocks.rosterHistory().getPreviousRoster(),
-                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.rosterHistory(),
                     blocks.intakeEventCounter());
         }
         return eventSignatureValidator;

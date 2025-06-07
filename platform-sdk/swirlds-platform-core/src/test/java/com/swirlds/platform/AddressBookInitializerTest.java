@@ -390,10 +390,8 @@ class AddressBookInitializerTest {
      *
      * @param weightValue         The weight value that the State should set all addresses to in its updateWeight
      *                            method.
-     * @param currentRoster       The roster that should be returned by {@link SignedState#getRoster()} and used to
-     *                            derive the address book for {@link PlatformStateAccessor#getAddressBook()}
-     * @param previousAddressBook The address book that should be returned by
-     *                            {@link PlatformStateAccessor#getPreviousAddressBook()}
+     * @param currentRoster       The roster that should be returned by {@link SignedState#getRoster()} and used as current roster
+     * @param previousAddressBook The address book that should be used to derive the previous roster
      * @param fromGenesis         Whether the state should be from genesis or not.
      * @return The mock SignedState and State configured to set all addresses with given weightValue.
      */

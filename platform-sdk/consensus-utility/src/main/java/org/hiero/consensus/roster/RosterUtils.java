@@ -16,12 +16,12 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -287,44 +287,15 @@ public final class RosterUtils {
     }
 
     /**
-     * Build an instance of RosterHistory from the current/previous rosters as reported by the RosterRetriever.
-     * <p>
-     * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap.
-     *
-     * @param state a State object to fetch data from
-     * @param round of the provided state
-     * @return a RosterHistory
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete and Browser/Turtle stop using it
-     */
-    @Deprecated(forRemoval = true)
-    @NonNull
-    public static RosterHistory buildRosterHistory(final State state, final long round) {
-        final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
-        final Map<Bytes, Roster> rosterMap = new HashMap<>();
-
-        final Roster currentRoster = RosterRetriever.retrieveActive(state, round);
-        final Bytes currentHash = RosterUtils.hash(currentRoster).getBytes();
-        roundRosterPairList.add(new RoundRosterPair(round, currentHash));
-        rosterMap.put(currentHash, currentRoster);
-
-        final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
-        if (previousRoster != null) {
-            final Bytes previousHash = RosterUtils.hash(previousRoster).getBytes();
-            roundRosterPairList.add(new RoundRosterPair(0, previousHash));
-            rosterMap.put(previousHash, previousRoster);
-        }
-
-        return new RosterHistory(roundRosterPairList, rosterMap);
-    }
-
-    /**
      * Creates the Roster History to be used by Platform.
      *
-     * @param rosterStore the roster store containing the active rosters.
+     * @param state the state containing the active roster history.
      * @return the roster history if roster store contains active rosters, otherwise NullPointerException is thrown.
      */
     @NonNull
-    public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
+    public static RosterHistory createRosterHistory(@NonNull final State state) {
+        final ReadableRosterStore rosterStore =
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.NAME));
         final List<RoundRosterPair> roundRosterPairs = rosterStore.getRosterHistory();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
         for (final RoundRosterPair pair : roundRosterPairs) {
@@ -441,5 +412,118 @@ public final class RosterUtils {
         return new Roster(network.nodeMetadata().stream()
                 .map(NodeMetadata::rosterEntryOrThrow)
                 .toList());
+    }
+
+    /**
+     * @return a cache/factory that can be used to retrieve {@link RosterView} objects from a {@link Roster}
+     */
+    public static RosterViewCache rosterViewCache() {
+        return new RosterViewCache();
+    }
+
+    /**
+     *  This class acts as a factory and cache for RosterView instances.
+     *  Its goal is to prevent redundant transformations of Roster into RosterView objects.
+     */
+    public static class RosterViewCache {
+        private final Map<Roster, RosterView> cache = new ConcurrentHashMap<>();
+
+        private RosterViewCache() {}
+
+        /**
+         * Retrieves or creates a {@link RosterView} instance from a given {@link Roster} object.
+         *
+         * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
+         * @return A {@link RosterView} instance corresponding to the provided {@link Roster}.
+         */
+        @NonNull
+        private RosterView get(final @NonNull Roster roster) {
+            return cache.computeIfAbsent(roster, r -> new RosterView(requireNonNull(toMap(r))));
+        }
+
+        /**
+         * Returns a RosterView from a Roster instance.
+         * Uses a local thread safe cache to retrieve the wrapper if it was already requested in the past.
+         * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
+         * @return a WrappedRoster
+         */
+        public @Nullable RosterView getOrNull(@Nullable final Roster roster) {
+            if (roster == null) {
+                return null;
+            }
+            return this.get(roster);
+        }
+    }
+    /**
+     * RosterView provides methods to access specific roster information (entries, certificates, weights, endpoints)
+     * indexed by nodeId
+     */
+    public static class RosterView {
+
+        private final Map<Long, RosterEntry> entryMap;
+        private final Map<Long, X509Certificate> certificateMap = new ConcurrentHashMap<>();
+
+        private RosterView(final @NonNull Map<Long, RosterEntry> entryMap) {
+            this.entryMap = Objects.requireNonNull(entryMap);
+        }
+
+        @Nullable
+        private RosterEntry rosterEntry(final @NonNull NodeId nodeId) {
+            return this.entryMap.get(nodeId.id());
+        }
+
+        /**
+         * Retrieves the gossip CA {@link X509Certificate} for a given {@link NodeId}.
+         *
+         *
+         * @param nodeId The {@link NodeId} for which to retrieve the certificate.
+         * @return The {@link X509Certificate} for the given Node ID, or {@code null}
+         * if the {@link NodeId} is not present in the roster represented by this wrapper.
+         */
+        public X509Certificate gossipCaCertificate(final @NonNull NodeId nodeId) {
+            if (!entryMap.containsKey(nodeId.id())) {
+                return null;
+            }
+            return certificateMap.computeIfAbsent(
+                    nodeId.id(), id -> RosterUtils.fetchGossipCaCertificate(requireNonNull(rosterEntry(nodeId))));
+        }
+
+        /**
+         * Retrieves the list of gossip endpoints for a given {@link NodeId}.
+         *
+         * @param nodeId The {@link NodeId} for which to retrieve the gossip endpoints.
+         * @return the list of gossip endpoints, or {@code null}
+         * if the {@link NodeId} is not present in the roster represented by this wrapper.
+         */
+        public List<ServiceEndpoint> gossipEndpoints(final @NonNull NodeId nodeId) {
+            final RosterEntry entry = rosterEntry(nodeId);
+            if (entry == null) {
+                return null;
+            }
+            return entry.gossipEndpoint();
+        }
+
+        /**
+         * Retrieves the weight of a given {@link NodeId}
+         *
+         * @param nodeId The {@link NodeId} for which to retrieve the weight.
+         * @return the weight of the node, or {@code null} if the {@link NodeId} is not present in the roster represented by this wrapper.
+         */
+        public Long weight(final @NonNull NodeId nodeId) {
+            final RosterEntry entry = rosterEntry(nodeId);
+            if (entry == null) {
+                return null;
+            }
+            return entry.weight();
+        }
+
+        /**
+         * Retrieves the total weight of the roster represented by this wrapper.
+         *
+         * @return the total weight of the roster represented by this wrapper.
+         */
+        public Long totalWeight() {
+            return entryMap.values().stream().mapToLong(RosterEntry::weight).sum();
+        }
     }
 }
