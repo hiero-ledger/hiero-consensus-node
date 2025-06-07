@@ -78,6 +78,10 @@ public class TurtleTimeManager implements TimeManager {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
         log.debug("Waiting up to {} for condition to become true...", waitTime);
 
