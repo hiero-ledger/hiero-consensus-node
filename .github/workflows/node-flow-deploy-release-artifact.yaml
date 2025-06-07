@@ -215,8 +215,8 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-              "ref": "${{ inputs.ref }}",
-              "ref-name": "${{ inputs.ref-name }}"
+            "ref": "${{ inputs.ref }}",
+            "ref-name": "${{ inputs.ref-name }}"
             }'
 
   deploy-integration-ci-trigger:
@@ -257,8 +257,8 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-              "ref": "${{ inputs.ref }}",
-              "ref-name": "${{ inputs.ref-name }}"
+            "ref": "${{ inputs.ref }}",
+            "ref-name": "${{ inputs.ref-name }}"
             }'
 
   report-failures:
