@@ -130,8 +130,6 @@ class CustomLogOperationTest {
     void addsExpectedLogWithAlreadyLongZeroAddress() {
         givenHappyPathFrame(2);
         given(frame.getRecipientAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var captor = ArgumentCaptor.forClass(Log.class);
 
         final ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(2);

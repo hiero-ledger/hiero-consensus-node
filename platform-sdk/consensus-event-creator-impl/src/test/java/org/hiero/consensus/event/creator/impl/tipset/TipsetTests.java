@@ -4,11 +4,11 @@ package org.hiero.consensus.event.creator.impl.tipset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 
+import com.google.common.collect.Collections2;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,24 +64,71 @@ class TipsetTests {
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(nodeCount).build();
 
-        for (int count = 0; count < 10; count++) {
-            final List<Tipset> tipsets = new ArrayList<>();
-            final Map<NodeId, Long> expected = new HashMap<>();
+        // Given:
+        final Tipset emptyTipset = new Tipset(roster);
+        final Tipset maxTipset = new Tipset(roster);
+        final Tipset randomTipset = new Tipset(roster);
+        final Tipset biggerTipset = new Tipset(roster);
+        final Tipset smallerTipset = new Tipset(roster);
 
-            for (int tipsetIndex = 0; tipsetIndex < 10; tipsetIndex++) {
-                final Tipset tipset = new Tipset(roster);
-                for (int creator = 0; creator < nodeCount; creator++) {
-                    final NodeId creatorId =
-                            NodeId.of(roster.rosterEntries().get(creator).nodeId());
-                    final long generation = random.nextLong(1, 100);
-                    tipset.advance(creatorId, generation);
-                    expected.put(creatorId, Math.max(generation, expected.getOrDefault(creatorId, 0L)));
-                }
-                tipsets.add(tipset);
+        for (var entry : roster.rosterEntries()) {
+            maxTipset.advance(NodeId.of(entry.nodeId()), Long.MAX_VALUE);
+            final long generation = random.nextLong(1, Long.MAX_VALUE - 1);
+            biggerTipset.advance(NodeId.of(entry.nodeId()), generation + 1);
+            randomTipset.advance(NodeId.of(entry.nodeId()), generation);
+            smallerTipset.advance(NodeId.of(entry.nodeId()), generation - 1);
+        }
+
+        // verify that an empty tipset merged against any other the result is the other
+        assertThat(emptyTipset.merge(List.of(emptyTipset))).isEqualTo(emptyTipset);
+        assertThat(emptyTipset.merge(List.of(maxTipset))).isEqualTo(maxTipset);
+        assertThat(emptyTipset.merge(List.of(randomTipset))).isEqualTo(randomTipset);
+
+        // verify that a maxed-out tipset merged against any other is equals to itself
+        assertThat(maxTipset.merge(List.of(maxTipset))).isEqualTo(maxTipset);
+        assertThat(maxTipset.merge(List.of(emptyTipset))).isEqualTo(maxTipset);
+        assertThat(maxTipset.merge(List.of(randomTipset))).isEqualTo(maxTipset);
+
+        // verify that a random tipset merged against a) itself b) an empty tipset c) a smaller tipset, is equals to
+        // itself
+        assertThat(randomTipset.merge(List.of(randomTipset))).isEqualTo(randomTipset);
+        assertThat(randomTipset.merge(List.of(emptyTipset))).isEqualTo(randomTipset);
+        assertThat(randomTipset.merge(List.of(smallerTipset))).isEqualTo(randomTipset);
+
+        // verify that a random tipset merged against a) a maxed-out b) a bigger tipset, is equals to the other
+        assertThat(randomTipset.merge(List.of(maxTipset))).isEqualTo(maxTipset);
+        assertThat(randomTipset.merge(List.of(biggerTipset))).isEqualTo(biggerTipset);
+
+        // verify that a random tipset merged against a) a maxed-out b) a bigger tipset, is equals to the other
+        assertThat(smallerTipset.merge(List.of(randomTipset))).isEqualTo(randomTipset);
+        assertThat(biggerTipset.merge(List.of(randomTipset))).isEqualTo(biggerTipset);
+
+        // verify that an empty tipset merged a list of tipsets, is equals to the biggest in the list
+        assertThat(emptyTipset.merge(List.of(randomTipset, biggerTipset, smallerTipset)))
+                .isEqualTo(biggerTipset);
+
+        // verify that tipsets being merged to a list of tiptsets returns the biggest in the list regardless of
+        // the position the tipset being merged to occupies in the list
+        for (var listOfTipsets : Collections2.permutations(List.of(randomTipset, biggerTipset, smallerTipset))) {
+            assertThat(emptyTipset.merge(listOfTipsets)).isEqualTo(biggerTipset);
+        }
+
+        for (var listOfTipsets :
+                Collections2.permutations(List.of(randomTipset, maxTipset, biggerTipset, smallerTipset))) {
+            assertThat(emptyTipset.merge(listOfTipsets)).isEqualTo(maxTipset);
+        }
+
+        for (var listOfTipsets : Collections2.permutations(List.of(emptyTipset, biggerTipset, randomTipset))) {
+            assertThat(smallerTipset.merge(listOfTipsets)).isEqualTo(biggerTipset);
+        }
+
+        // verify that tipsets being merged to a list of tiptsets containing itself still produces the expected result
+        // regardless of the position the tipset being merged to occupies in the list
+        final List<Tipset> exaustiveList = List.of(emptyTipset, biggerTipset, randomTipset, smallerTipset);
+        for (var selected : exaustiveList) {
+            for (var listOfTipsets : Collections2.permutations(exaustiveList)) {
+                assertThat(selected.merge(listOfTipsets)).isEqualTo(biggerTipset);
             }
-
-            final Tipset merged = Tipset.merge(tipsets);
-            validateTipset(merged, expected);
         }
     }
 
@@ -109,7 +156,7 @@ class TipsetTests {
         }
 
         // Merging the tipset with itself will result in a copy
-        final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset));
+        final Tipset comparisonTipset = new Tipset(roster).merge(List.of(initialTipset));
         assertThat(comparisonTipset.size()).isEqualTo(initialTipset.size());
         for (int creator = 0; creator < 100; creator++) {
             final NodeId creatorId =
@@ -169,7 +216,7 @@ class TipsetTests {
         }
 
         // Merging the tipset with itself will result in a copy
-        final Tipset comparisonTipset = Tipset.merge(List.of(initialTipset));
+        final Tipset comparisonTipset = new Tipset(roster).merge(List.of(initialTipset));
         assertThat(comparisonTipset.size()).isEqualTo(initialTipset.size());
         for (int creator = 0; creator < 100; creator++) {
             final NodeId creatorId =

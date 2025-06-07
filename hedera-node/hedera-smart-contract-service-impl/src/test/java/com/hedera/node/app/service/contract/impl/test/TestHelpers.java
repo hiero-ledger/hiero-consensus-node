@@ -225,12 +225,12 @@ public class TestHelpers {
     public static final TokenID FUNGIBLE_TOKEN_ID =
             TokenID.newBuilder().tokenNum(9876L).build();
     public static final com.esaulpaugh.headlong.abi.Address FUNGIBLE_TOKEN_HEADLONG_ADDRESS =
-            asHeadlongAddress(asEvmAddress(shard, realm, FUNGIBLE_TOKEN_ID.tokenNum()));
+            asHeadlongAddress(asEvmAddress(FUNGIBLE_TOKEN_ID.tokenNum()));
     public static final TokenID NON_FUNGIBLE_TOKEN_ID =
             TokenID.newBuilder().tokenNum(9898L).build();
 
     public static final com.esaulpaugh.headlong.abi.Address NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS =
-            asHeadlongAddress(asEvmAddress(shard, realm, NON_FUNGIBLE_TOKEN_ID.tokenNum()));
+            asHeadlongAddress(asEvmAddress(NON_FUNGIBLE_TOKEN_ID.tokenNum()));
 
     public static final Account A_DELETED_CONTRACT = Account.newBuilder()
             .deleted(true)
@@ -475,7 +475,7 @@ public class TestHelpers {
             org.apache.tuweni.bytes.Bytes.wrap("I prefer not to".getBytes());
     public static final Address EIP_1014_ADDRESS = Address.fromHexString("0x89abcdef89abcdef89abcdef89abcdef89abcdef");
     public static final Address PERMITTED_ADDRESS_CALLER =
-            Address.wrap((org.apache.tuweni.bytes.Bytes.wrap(asEvmAddress(shard, realm, 1062787L))));
+            Address.wrap((org.apache.tuweni.bytes.Bytes.wrap(asEvmAddress(1062787L))));
     public static final Account OPERATOR =
             Account.newBuilder().accountId(B_NEW_ACCOUNT_ID).build();
 
@@ -586,6 +586,7 @@ public class TestHelpers {
             pbjToTuweniBytes(CALL_DATA),
             List.of(BESU_LOG),
             null,
+            null,
             null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE =
@@ -597,6 +598,7 @@ public class TestHelpers {
                             CALLED_CONTRACT_EVM_ADDRESS,
                             pbjToTuweniBytes(CALL_DATA),
                             List.of(BESU_LOG),
+                            null,
                             null,
                             null)
                     .withSignerNonce(SIGNER_NONCE);
@@ -611,6 +613,7 @@ public class TestHelpers {
             INVALID_SIGNATURE,
             null,
             Collections.emptyList(),
+            null,
             null,
             null,
             null,
@@ -684,8 +687,8 @@ public class TestHelpers {
             AccountID.newBuilder().accountNum(OWNER_ACCOUNT_NUM).build();
     public static final Account OWNER_ACCOUNT =
             Account.newBuilder().accountId(OWNER_ID).build();
-    public static final com.esaulpaugh.headlong.abi.Address OWNER_ACCOUNT_AS_ADDRESS = asHeadlongAddress(
-            asEvmAddress(shard, realm, OWNER_ACCOUNT.accountIdOrThrow().accountNumOrThrow()));
+    public static final com.esaulpaugh.headlong.abi.Address OWNER_ACCOUNT_AS_ADDRESS =
+            asHeadlongAddress(asEvmAddress(OWNER_ACCOUNT.accountIdOrThrow().accountNumOrThrow()));
     public static final Bytes OWNER_ADDRESS = Bytes.fromHex("a213624b8b83a724438159ba7c0d333a2b6b3990");
     public static final com.esaulpaugh.headlong.abi.Address OWNER_HEADLONG_ADDRESS =
             asHeadlongAddress(OWNER_ADDRESS.toByteArray());

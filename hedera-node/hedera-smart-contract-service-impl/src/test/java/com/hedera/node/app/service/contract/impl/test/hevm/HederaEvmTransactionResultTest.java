@@ -37,7 +37,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -244,7 +243,6 @@ class HederaEvmTransactionResultTest {
     @Test
     void QueryResultOnSuccess() {
         givenFrameWithDefaultConfigNoAccessTracker();
-        given(tracer.contractActions()).willReturn(new ContractActions(List.of()));
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getLogs()).willReturn(BESU_LOGS);
         given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));

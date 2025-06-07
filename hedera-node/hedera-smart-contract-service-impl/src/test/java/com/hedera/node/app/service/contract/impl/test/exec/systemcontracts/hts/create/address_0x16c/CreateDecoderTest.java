@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_WITH_META_AND_FEES_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_WITH_META_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_NON_FUNGIBLE_WITH_META_AND_FEES_TUPLE;
@@ -62,6 +63,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateTokenWithMetaAndCustomFees() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                 .encodeCall(CREATE_FUNGIBLE_WITH_META_AND_FEES_TUPLE)
                 .array();
@@ -89,6 +91,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateNonFungibleWithMetadataAndCustomFees() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_META_AND_FEES_TUPLE)
                 .array();

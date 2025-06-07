@@ -20,7 +20,6 @@ import java.util.function.Consumer;
  */
 public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
 
-    private final UncaughtExceptionHandler uncaughtExceptionHandler;
     private final ObjectCounter onRamp;
     private final ObjectCounter offRamp;
     private final FractionalTimer busyTimer;
@@ -50,11 +49,11 @@ public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
                 model,
                 name,
                 threadsafe ? TaskSchedulerType.DIRECT_THREADSAFE : TaskSchedulerType.DIRECT,
+                uncaughtExceptionHandler,
                 false,
                 squelchingEnabled,
                 true);
 
-        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
         this.busyTimer = Objects.requireNonNull(busyTimer);
@@ -127,7 +126,7 @@ public class DirectTaskScheduler<OUT> extends TaskScheduler<OUT> {
         try {
             handler.accept(data);
         } catch (final Throwable t) {
-            uncaughtExceptionHandler.uncaughtException(Thread.currentThread(), t);
+            getUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), t);
         }
         busyTimer.deactivate();
         offRamp.offRamp();

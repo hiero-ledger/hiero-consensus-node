@@ -11,6 +11,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
+import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -23,8 +24,6 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  */
 public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConfiguration> {
 
-    public static final String SOFTWARE_VERSION = "turtle.software.version";
-
     private final Map<String, String> overriddenProperties = new HashMap<>();
     private final String outputDirectory;
 
@@ -35,6 +34,15 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
      */
     public TurtleNodeConfiguration(@NonNull final Path outputDirectory) {
         this.outputDirectory = outputDirectory.toString();
+    }
+
+    /**
+     * Gets the output directory for the Turtle node.
+     *
+     * @return the output directory as a string
+     */
+    public String getOutputDirectory() {
+        return outputDirectory;
     }
 
     /**
@@ -78,6 +86,6 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
                 .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory)
                 .withValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
-                .withValue(SOFTWARE_VERSION, "1.0.0");
+                .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
     }
 }

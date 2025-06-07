@@ -47,6 +47,8 @@ import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -142,11 +144,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
      *
-     * @param number        the block number
-     * @param contentsPath  the path to the block contents file, if not null
-     * @param blockHash     the block hash
-     * @param proofBuilder  the block proof builder
-     * @param writer        the block item writer
+     * @param number the block number
+     * @param contentsPath the path to the block contents file, if not null
+     * @param blockHash the block hash
+     * @param proofBuilder the block proof builder
+     * @param writer the block item writer
      * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
      */
     private record PendingBlock(
@@ -159,6 +161,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         /**
          * Flushes this pending block to disk, optionally including the sibling hashes needed
          * for an indirect proof of its preceding block(s).
+         *
          * @param withSiblingHashes whether to include sibling hashes for an indirect proof
          */
         public void flushPending(final boolean withSiblingHashes) {
@@ -193,6 +196,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
      */
     private boolean hasCheckedForPendingBlocks = false;
+    /**
+     * The counter for the number of blocks closed with indirect proofs.
+     */
+    private final Counter indirectProofCounter;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -205,7 +212,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Lifecycle lifecycle) {
+            @NonNull final Lifecycle lifecycle,
+            @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.networkInfo = requireNonNull(networkInfo);
         this.version = requireNonNull(version);
@@ -231,6 +239,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
+        indirectProofCounter = requireNonNull(metrics)
+                .getOrCreate(new Counter.Config("block", "numIndirectProofs")
+                        .withDescription("Number of blocks closed with indirect proofs"));
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
                 lastRoundOfPrevBlock,
@@ -433,16 +444,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var stateChangesHash = stateChangesHasher.rootHash().join();
 
-            // compute level 1 hashes
-            final var level1A = combine(lastBlockHash, blockStartStateHash); // [0,1]
-            final var level1B = combine(consensusHeaderHash, inputHash); // [2,3]
-            final var level1C = combine(outputHash, stateChangesHash); // [4,5]
-            final var level1D = combine(traceDataHash, NULL_HASH); // [6,7]
-            // compute level 2 hashes
-            final var leftParent = combine(level1A, level1B); // [0..3]
-            final var rightParent = combine(level1C, level1D); // [4..7]
-            // compute the block hash
-            final var blockHash = combine(leftParent, rightParent);
+            // Compute depth two hashes
+            final var depth2Node0 = combine(lastBlockHash, blockStartStateHash);
+            final var depth2Node1 = combine(consensusHeaderHash, inputHash);
+            final var depth2Node2 = combine(outputHash, stateChangesHash);
+            final var depth2Node3 = combine(traceDataHash, NULL_HASH);
+
+            // Compute depth one hashes
+            final var depth1Node0 = combine(depth2Node0, depth2Node1);
+            final var depth1Node1 = combine(depth2Node2, depth2Node3);
+
+            // Compute the block hash
+            final var blockHash = combine(depth1Node0, depth1Node1);
 
             final var pendingProof = BlockProof.newBuilder()
                     .block(blockNumber)
@@ -455,8 +468,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     pendingProof,
                     writer,
                     new MerkleSiblingHash(false, blockStartStateHash),
-                    new MerkleSiblingHash(false, level1B),
-                    new MerkleSiblingHash(false, rightParent)));
+                    new MerkleSiblingHash(false, depth2Node1),
+                    new MerkleSiblingHash(false, depth1Node1)));
 
             if (streamToBlockNodes) {
                 // Write any pre-block proof block items
@@ -574,6 +587,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Write proofs for all pending blocks up to and including the signed block number
         while (!pendingBlocks.isEmpty() && pendingBlocks.peek().number() <= blockNumber) {
             final var block = pendingBlocks.poll();
+            // Update the metrics, if the block is closed with a sibling hash (indirect proof).
+            if (!siblingHashes.isEmpty()) {
+                indirectProofCounter.increment();
+            }
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
@@ -595,7 +612,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * software version.
      *
      * @param blockStreamInfo the block stream info
-     * @param version         the version
+     * @param version the version
      * @return the type of pending work given the block stream info and version
      */
     @VisibleForTesting
