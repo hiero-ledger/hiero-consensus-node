@@ -11,7 +11,6 @@ dependencies {
     implementation(project(":app"))
     // examples that also contain tests we would like to run
     implementation(project(":swirlds-platform-base-example"))
-    implementation(project(":AddressBookTestingTool"))
     implementation(project(":ConsistencyTestingTool"))
     implementation(project(":ISSTestingTool"))
     implementation(project(":MigrationTestingTool"))
