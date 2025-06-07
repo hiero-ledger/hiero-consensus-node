@@ -3,12 +3,14 @@ package com.swirlds.common.metrics.noop.internal;
 
 import com.swirlds.common.metrics.PlatformMetric;
 import com.swirlds.common.metrics.statistics.StatsBuffered;
+import com.swirlds.metrics.api.Label;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Boilerplate for a no-op metric.
@@ -96,5 +98,17 @@ public abstract class AbstractNoOpMetric implements Metric, PlatformMetric {
     @Override
     public List<SnapshotEntry> takeSnapshot() {
         return List.of();
+    }
+
+    @NonNull
+    @Override
+    public Set<Label> getLabels() {
+        return config.getPredefinedLabels();
+    }
+
+    @NonNull
+    @Override
+    public Set<String> getSupportedLabelKeys() {
+        return config.getLabelKeys();
     }
 }
