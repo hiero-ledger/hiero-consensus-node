@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -538,6 +539,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                                     .markAsJumboTxn()
                                     .gasLimit(1_000_000L)
                                     .noLogging())));
+        }
+
+        @HapiTest
+        @DisplayName("Can't put jumbo transaction inside of batch")
+        public Stream<DynamicTest> canNotPutJumboInsideOfBatch() {
+            final var payloadSize = 127 * 1024;
+            final var payload = new byte[payloadSize];
+            return hapiTest(atomicBatch(jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload))
+                    .hasPrecheck(TRANSACTION_OVERSIZE)
+                    // If we use subprocess network, the transaction should fail at gRPC level
+                    .orUnavailableStatus());
         }
     }
 }
