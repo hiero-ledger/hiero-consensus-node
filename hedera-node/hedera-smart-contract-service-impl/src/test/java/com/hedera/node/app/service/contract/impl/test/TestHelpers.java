@@ -85,6 +85,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -137,6 +138,8 @@ public class TestHelpers {
     public static final ContractsConfig DEFAULT_CONTRACTS_CONFIG = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
     public static final EntitiesConfig DEFAULT_ENTITIES_CONFIG = DEFAULT_CONFIG.getConfigData(EntitiesConfig.class);
     public static final AccountsConfig DEFAULT_ACCOUNTS_CONFIG = DEFAULT_CONFIG.getConfigData(AccountsConfig.class);
+    public static final OpsDurationConfig DEFAULT_OPS_DURATION_CONFIG =
+            DEFAULT_CONFIG.getConfigData(OpsDurationConfig.class);
 
     public static final Configuration PERMITTED_CALLERS_CONFIG = HederaTestConfigBuilder.create()
             .withValue("contracts.permittedContractCallers", Set.of(1062787L))
@@ -576,7 +579,6 @@ public class TestHelpers {
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = HederaEvmTransactionResult.successFrom(
             GAS_LIMIT / 2,
-            GAS_LIMIT / 2,
             Wei.of(NETWORK_GAS_PRICE),
             SENDER_ID,
             CALLED_CONTRACT_ID,
@@ -590,7 +592,6 @@ public class TestHelpers {
     public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE =
             HederaEvmTransactionResult.successFrom(
                             GAS_LIMIT / 2,
-                            GAS_LIMIT / 2,
                             Wei.of(NETWORK_GAS_PRICE),
                             SENDER_ID,
                             CALLED_CONTRACT_ID,
@@ -603,7 +604,6 @@ public class TestHelpers {
                     .withSignerNonce(SIGNER_NONCE);
 
     public static final HederaEvmTransactionResult HALT_RESULT = new HederaEvmTransactionResult(
-            GAS_LIMIT / 2,
             GAS_LIMIT / 2,
             NETWORK_GAS_PRICE,
             SENDER_ID,

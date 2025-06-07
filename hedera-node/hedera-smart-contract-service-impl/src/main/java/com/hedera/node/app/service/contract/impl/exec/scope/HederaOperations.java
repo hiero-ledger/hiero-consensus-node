@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
@@ -288,4 +289,10 @@ public interface HederaOperations {
                 ? contractId
                 : MISSING_CONTRACT_ID;
     }
+
+    /**
+     * Returns the ThrottleAdvisor or null if it is not available in this scope.
+     */
+    @Nullable
+    ThrottleAdviser getThrottleAdviser();
 }

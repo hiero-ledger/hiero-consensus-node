@@ -16,4 +16,11 @@ public interface ThrottleAdviser {
      * at the instant for which throttling should be calculated
      */
     boolean shouldThrottleNOfUnscaled(int n, HederaFunctionality function);
+
+    /**
+     * Verifies if the current ops duration value breaches the ops duration throttle.
+     *
+     * @param currentOpsDuration the ops duration consumed by the transaction so far
+     */
+    boolean shouldThrottleByOpsDuration(final long currentOpsDuration);
 }

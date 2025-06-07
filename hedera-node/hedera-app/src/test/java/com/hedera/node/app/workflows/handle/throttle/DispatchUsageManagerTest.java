@@ -178,7 +178,7 @@ class DispatchUsageManagerTest {
     }
 
     @Test
-    void throwsNativeThrottleExceptionIfGasThrottled() {
+    void throwsNativeThrottleExceptionIfThrottled() {
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
         given(dispatch.stack()).willReturn(stack);
