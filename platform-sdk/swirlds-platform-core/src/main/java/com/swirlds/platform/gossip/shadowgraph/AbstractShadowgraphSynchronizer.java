@@ -65,6 +65,9 @@ public class AbstractShadowgraphSynchronizer {
      */
     protected final IntakeEventCounter intakeEventCounter;
 
+    /**
+     * Platform time
+     */
     protected final Time time;
 
     /**
@@ -261,10 +264,16 @@ public class AbstractShadowgraphSynchronizer {
      */
     public void stop() {}
 
-    public ReservedEventWindow getReserveEventWindow() {
+    /**
+     * {@link Shadowgraph#reserve()}
+     */
+    public ReservedEventWindow reserveEventWindow() {
         return shadowGraph.reserve();
     }
 
+    /**
+     * {@link Shadowgraph#shadows(List)} ()}
+     */
     public List<ShadowEvent> shadows(final List<Hash> tips) {
         return shadowGraph.shadows(tips);
     }

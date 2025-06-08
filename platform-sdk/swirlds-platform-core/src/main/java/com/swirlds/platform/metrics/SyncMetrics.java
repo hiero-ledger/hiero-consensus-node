@@ -156,23 +156,17 @@ public class SyncMetrics {
             .withUnit("hz")
             .withDescription("Number of times per second event was received by broadcast from the remote nodes");
 
-    private final IntegerAccumulator.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerAccumulator.Config(
+    private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
-            .withDescription("number of rpc thread running in read mode")
-            .withAccumulator(Integer::sum)
-            .withResetOnSnapshot(false);
+            .withDescription("number of rpc thread running in read mode");
 
-    private final IntegerAccumulator.Config RPC_WRITE_THREAD_RUNNING_CONFIG = new IntegerAccumulator.Config(
+    private final IntegerGauge.Config RPC_WRITE_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcWriteThreadRunning")
-            .withDescription("number of rpc thread running in write mode")
-            .withAccumulator(Integer::sum)
-            .withResetOnSnapshot(false);
+            .withDescription("number of rpc thread running in write mode");
 
-    private final IntegerAccumulator.Config RPC_DISPATCH_THREAD_RUNNING_CONFIG = new IntegerAccumulator.Config(
+    private final IntegerGauge.Config RPC_DISPATCH_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcDispatchThreadRunning")
-            .withDescription("number of rpc thread running in dispatch mode")
-            .withAccumulator(Integer::sum)
-            .withResetOnSnapshot(false);
+            .withDescription("number of rpc thread running in dispatch mode");
 
     private final CountPerSecond broadcastEventsReceivedCounter;
 
@@ -197,9 +191,9 @@ public class SyncMetrics {
     private final Metrics metrics;
     private final AverageAndMax outputQueuePollTime;
     private final Time time;
-    private final @NonNull IntegerAccumulator rpcReadThreadRunning;
-    private final @NonNull IntegerAccumulator rpcWriteThreadRunning;
-    private final @NonNull IntegerAccumulator rpcDispatchThreadRunning;
+    private final @NonNull IntegerGauge rpcReadThreadRunning;
+    private final @NonNull IntegerGauge rpcWriteThreadRunning;
+    private final @NonNull IntegerGauge rpcDispatchThreadRunning;
 
     /**
      * Constructor of {@code SyncMetrics}

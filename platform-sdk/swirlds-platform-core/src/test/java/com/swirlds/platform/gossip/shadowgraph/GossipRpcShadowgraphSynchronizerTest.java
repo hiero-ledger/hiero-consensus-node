@@ -104,7 +104,7 @@ class GossipRpcShadowgraphSynchronizerTest {
     void createPeerHandlerStartSync() {
         var otherNodeId = NodeId.of(5);
         var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         Mockito.verify(gossipSender).sendSyncData(any());
     }
 
@@ -112,7 +112,7 @@ class GossipRpcShadowgraphSynchronizerTest {
     void fullEmptySync() {
         var otherNodeId = NodeId.of(5);
         var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
         Mockito.verify(gossipSender).sendTips(List.of());
@@ -126,7 +126,7 @@ class GossipRpcShadowgraphSynchronizerTest {
     void testFallenBehind() {
         var otherNodeId = NodeId.of(5);
         var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 1000, 800), List.of()));
         Mockito.verify(gossipSender).breakConversation();
@@ -139,21 +139,21 @@ class GossipRpcShadowgraphSynchronizerTest {
         var otherNodeId = NodeId.of(5);
         var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
         shadowgraph.updateEventWindow(new EventWindow(100, 101, 1000, 800));
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
         Mockito.verifyNoMoreInteractions(gossipSender);
         Mockito.clearInvocations(gossipSender);
         conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 1000, 800), List.of()));
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
-        conversation.possiblyStartSync();
+        conversation.checkForPeriodicActions();
         Mockito.verify(gossipSender).sendSyncData(any());
     }
 
@@ -176,8 +176,8 @@ class GossipRpcShadowgraphSynchronizerTest {
         Mockito.verifyNoInteractions(gossipSender);
         Mockito.verifyNoInteractions(gossipSender7);
 
-        conversation5.possiblyStartSync();
-        conversation7.possiblyStartSync();
+        conversation5.checkForPeriodicActions();
+        conversation7.checkForPeriodicActions();
         conversation5.receiveSyncData(EMPTY_SYNC_MESSAGE);
         conversation7.receiveSyncData(EMPTY_SYNC_MESSAGE);
         conversation5.receiveTips(List.of(true));

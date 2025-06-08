@@ -145,7 +145,7 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
         // reporting and performance analysis
         final SyncTiming timing = new SyncTiming();
         final List<PlatformEvent> sendList;
-        try (final ReservedEventWindow reservation = getReserveEventWindow()) {
+        try (final ReservedEventWindow reservation = reserveEventWindow()) {
             connection.initForSync();
 
             timing.start();

@@ -36,12 +36,15 @@ import java.time.Duration;
  *                                           a healthy state. If non-zero, this means that this number of permits is
  *                                           immediately returned as soon as the system becomes healthy.
  * @param syncPeriod                         period between successful syncs; currently ignored and assumed 0 for old
- *                                           style network sync, used only for rpc sync
+ *                                           style network sync, used only for rpc sync; current implementation is
+ *                                           limited by {@link #idleDispatchPollTimeout} regarding worst-case frequency
+ *                                           of synchronizations
  * @param broadcast                          enable simplistic broadcast, where all self-events are broadcast to all
  *                                           neighbours
- * @param idleWritePollTimeout               how long should gossip rpc mechanism wait between misc actions if no events
- *                                           are ready to be sent; this is resolution of things like checking for sync
- *                                           start, pings etc
+ * @param idleWritePollTimeout               how long should gossip rpc mechanism wait between write actions if no
+ *                                           events are ready to be sent; pings etc
+ * @param idleDispatchPollTimeout            how long should gossip rpc mechanism wait between dispatch actions if no
+ *                                           events are ready to be processed (for example synchronization start)
  */
 @ConfigData("sync")
 public record SyncConfig(

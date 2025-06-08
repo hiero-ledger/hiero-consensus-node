@@ -75,3 +75,28 @@ void receiveBroadcastEvent(GossipEvent gossipEvent);
 ```
 
 There is also corresponding send message interface. Writing messages is asynchronous, they are mostly prepared from the socket read thread and put into a queue, which is later processed by socket write thread.
+
+# Relationships between classes
+
+Left side of the diagram is responsible for interaction with legacy network interface, right side of the diagram is managing the business logic of the communication. In theory, left side can be replaced with any other RPC implementation and right side would be not aware of that.
+
+Top classes are singletons in the application, middle layer is 1-per-peer, bottom classes are internal helper classes of middle tier, there just to reduce the code complexity of the big class.
+
+<img src="rpc-gossip-RuntimeRelationship.png"/>
+
+# Creation dependencies
+
+When new connection appears, RpcProtocol is asked to create a PeerProtocol instance. To do that, it first creates instance of RpcPeerProtocol and then passes it masked as 'RpcSender' to shadowgraph synchronizer, so it can produce RpcPeerHandler. That handler is then injected into RpcPeerProtocol as a class which will be interpreting the incoming messages and everything is returned back to the system.
+
+<img src="rpc-gossip-Creation.drawio.png"/>
+
+# Interactions during sync process
+
+When RpcPeerProtocol gets hold of the specific connection, it enters a loop processing rpc messages (and won't release the hold of the connection, unless reconnection happens).
+
+Three threads are created - 'reader', 'writer' and 'dispatch'.
+* Reader thread does blocking reads from the socket and puts deserialized messages on the inputQueue.
+* Dispatch thread polls messages from inputQueue and executes business logic for them; important simplification is that all logic on the right side of the diagram is done from that single thread. GossipRpcShadowgraphSynchronizer is shared resource between connections and it is thread-safe. All outgoing messages are pushed to the outputQueue. It also handles periodic wakeups to see if synchronization should be initiated.
+* Writer thread polls messages from outputQueue and writes them to the socket in blocking way. It flushes messages if there is nothing else on outputQueue (otherwise, they will get autoflushed by the system or when output buffer gets full). It also handles sending periodic ping messages.
+
+<img src="rpc-gossip-SyncCommunication.drawio.png"/>

@@ -16,4 +16,4 @@ One of the possible solutions is rate limits agreed between the nodes, which can
 
 ## Diagram of new classes for RPC communication and broadcast interaction
 
-<img src="simple-broadcast.png"/>
+<img src="rpc-gossip-Broadcast.drawio.png"/>
