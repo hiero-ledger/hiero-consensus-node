@@ -69,6 +69,34 @@ class DefaultDoubleGaugeTest {
     }
 
     @Test
+    void testGetAndUpdate() {
+        // given
+        final DoubleGauge.Config config = new DoubleGauge.Config(CATEGORY, NAME).withInitialValue(Math.PI);
+        final DoubleGauge gauge = new DefaultDoubleGauge(config);
+
+        // when
+        gauge.set(5);
+
+        // then
+        assertEquals(5, gauge.get(), "Value should be 5");
+        assertEquals(5, gauge.get(VALUE), "Value should be 5");
+
+        // when
+        gauge.update(3.5);
+
+        // then
+        assertEquals(8.5, gauge.get(), "Value should be 8.5");
+        assertEquals(8.5, gauge.get(VALUE), "Value should be 8.5");
+
+        // when
+        gauge.update(-12);
+
+        // then
+        assertEquals(-3.5, gauge.get(), "Value should be -3.5");
+        assertEquals(-3.5, gauge.get(VALUE), "Value should be -3.5");
+    }
+
+    @Test
     void testSpecialValues() {
         // given
         final DoubleGauge.Config config = new DoubleGauge.Config(CATEGORY, NAME);

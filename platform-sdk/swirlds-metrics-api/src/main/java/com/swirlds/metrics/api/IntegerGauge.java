@@ -71,6 +71,14 @@ public interface IntegerGauge extends Metric {
     void set(final int newValue);
 
     /**
+     * Update the current value
+     *
+     * @param change
+     * 		value change
+     */
+    void update(final int change);
+
+    /**
      * Configuration of a {@link IntegerGauge}
      */
     final class Config extends MetricConfig<IntegerGauge, IntegerGauge.Config> {

@@ -71,6 +71,14 @@ public interface LongGauge extends Metric {
     void set(final long newValue);
 
     /**
+     * Update the current value
+     *
+     * @param change
+     * 		value change
+     */
+    void update(final long change);
+
+    /**
      * Configuration of a {@link LongGauge}
      */
     final class Config extends MetricConfig<LongGauge, LongGauge.Config> {
