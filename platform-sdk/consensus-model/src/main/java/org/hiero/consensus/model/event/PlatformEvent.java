@@ -182,6 +182,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return the generation of the event
      */
+    @Deprecated(forRemoval = true)
     public long getGeneration() {
         return metadata.getGeneration();
     }
@@ -350,19 +351,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     public void signalPrehandleCompletion() {
         prehandleCompleted.countDown();
-    }
-
-    /**
-     * Override the birth round for this event. This will only be called for events created in the software version
-     * right before the birth round migration. Parents of this event may also have their birth round overridden if their
-     * generation is greater or equal to the specified {@code ancientGenerationThreshold} value.
-     *
-     * @param birthRound                 the birth round that has been assigned to this event
-     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their birth
-     *                                   round overridden
-     */
-    public void overrideBirthRound(final long birthRound, final long ancientGenerationThreshold) {
-        metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
     }
 
     /**

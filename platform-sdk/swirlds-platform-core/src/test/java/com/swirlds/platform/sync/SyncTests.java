@@ -4,8 +4,6 @@ package com.swirlds.platform.sync;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -30,7 +28,6 @@ import com.swirlds.platform.test.fixtures.sync.SyncNode;
 import com.swirlds.platform.test.fixtures.sync.SyncTestExecutor;
 import com.swirlds.platform.test.fixtures.sync.SyncTestParams;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
 import java.net.SocketException;
 import java.util.List;
@@ -41,14 +38,13 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -58,38 +54,25 @@ public class SyncTests {
 
     private static final boolean platformLoggingEnabled = true;
 
-    private static Stream<Arguments> bothAncientModes() {
-        return Stream.of(Arguments.of(GENERATION_THRESHOLD), Arguments.of(BIRTH_ROUND_THRESHOLD));
-    }
-
     private static Stream<Arguments> fourNodeGraphParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(4, 100, 20, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 0, 20, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 20, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 0, 20, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 20, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(4, 100, 20, 0)),
+                Arguments.of(new SyncTestParams(4, 100, 0, 20)),
+                Arguments.of(new SyncTestParams(4, 100, 20, 20)));
     }
 
     private static Stream<Arguments> tenNodeGraphParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(10, 100, 50, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 0, 50, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 50, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 0, 50, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 50, 50, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(10, 1000, 50, 0)),
+                Arguments.of(new SyncTestParams(10, 1000, 0, 50)),
+                Arguments.of(new SyncTestParams(10, 1000, 50, 50)));
     }
 
     private static Stream<Arguments> tenNodeBigGraphParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(10, 1000, 2000, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 0, 2000, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 2000, 2000, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 2000, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 0, 2000, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 2000, 2000, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(10, 1000, 2000, 0)),
+                Arguments.of(new SyncTestParams(10, 1000, 0, 2000)),
+                Arguments.of(new SyncTestParams(10, 1000, 2000, 2000)));
     }
 
     /**
@@ -97,16 +80,11 @@ public class SyncTests {
      */
     private static Stream<Arguments> simpleFourNodeGraphParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(4, 10, 0, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 1, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 0, 1, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 1, 1, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 8, 1, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 0, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 1, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 0, 1, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 1, 1, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 8, 1, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(4, 10, 0, 0)),
+                Arguments.of(new SyncTestParams(4, 10, 1, 0)),
+                Arguments.of(new SyncTestParams(4, 10, 0, 1)),
+                Arguments.of(new SyncTestParams(4, 10, 1, 1)),
+                Arguments.of(new SyncTestParams(4, 10, 8, 1)));
     }
 
     /**
@@ -114,14 +92,10 @@ public class SyncTests {
      */
     private static Stream<Arguments> edgeCaseGraphParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(10, 0, 20, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 20, 0, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 20, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 20, 0, 0, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(10, 0, 20, 0)),
+                Arguments.of(new SyncTestParams(10, 0, 0, 20)),
+                Arguments.of(new SyncTestParams(10, 0, 0, 0)),
+                Arguments.of(new SyncTestParams(10, 20, 0, 0)));
     }
 
     /**
@@ -130,25 +104,15 @@ public class SyncTests {
     private static Stream<Arguments> partitionedGraphParams() {
         return Stream.of(
                 // Partitioned graphs with common events
-                Arguments.of(new SyncTestParams(10, 30, 5, 5, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 30, 5, 5, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 200, 100, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 200, 0, 100, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 200, 100, 100, GENERATION_THRESHOLD)),
+                Arguments.of(new SyncTestParams(10, 30, 5, 5)),
+                Arguments.of(new SyncTestParams(10, 30, 5, 5)),
+                Arguments.of(new SyncTestParams(20, 200, 100, 0)),
+                Arguments.of(new SyncTestParams(20, 200, 0, 100)),
+                Arguments.of(new SyncTestParams(20, 200, 100, 100)),
                 // Partitioned graphs with no common events
-                Arguments.of(new SyncTestParams(20, 0, 100, 0, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 0, 0, 100, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 0, 100, 100, GENERATION_THRESHOLD)),
-                // Partitioned graphs with common events
-                Arguments.of(new SyncTestParams(10, 30, 5, 5, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 30, 5, 5, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 200, 100, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 200, 0, 100, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 200, 100, 100, BIRTH_ROUND_THRESHOLD)),
-                // Partitioned graphs with no common events
-                Arguments.of(new SyncTestParams(20, 0, 100, 0, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 0, 0, 100, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(20, 0, 100, 100, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(20, 0, 100, 0)),
+                Arguments.of(new SyncTestParams(20, 0, 0, 100)),
+                Arguments.of(new SyncTestParams(20, 0, 100, 100)));
     }
 
     /**
@@ -157,40 +121,25 @@ public class SyncTests {
      */
     private static Stream<Arguments> exceptionParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD), 1, 1),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD), 1, 2),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD), 2, 1),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD), 2, 2),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD), 3, 1),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD), 3, 2),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, BIRTH_ROUND_THRESHOLD), 1, 1),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, BIRTH_ROUND_THRESHOLD), 1, 2),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, BIRTH_ROUND_THRESHOLD), 2, 1),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, BIRTH_ROUND_THRESHOLD), 2, 2),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, BIRTH_ROUND_THRESHOLD), 3, 1),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, BIRTH_ROUND_THRESHOLD), 3, 2));
+                Arguments.of(new SyncTestParams(10, 100, 50, 50), 1, 1),
+                Arguments.of(new SyncTestParams(10, 100, 50, 50), 1, 2),
+                Arguments.of(new SyncTestParams(10, 100, 50, 50), 2, 1),
+                Arguments.of(new SyncTestParams(10, 100, 50, 50), 2, 2),
+                Arguments.of(new SyncTestParams(10, 100, 50, 50), 3, 1),
+                Arguments.of(new SyncTestParams(10, 100, 50, 50), 3, 2));
     }
 
     private static Stream<Arguments> splitForkParams() {
         return Stream.of(
                 // This seed makes the caller send the whole graph, should not be the case once we change the tip
                 // definition
-                Arguments.of(new SyncTestParams(4, 100, 20, 1, 4956163591276672768L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 1, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 1, 20, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 20, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 100, 50, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 50, 100, GENERATION_THRESHOLD)),
-                // This seed makes the caller send the whole graph, should not be the case once we change the tip
-                // definition
-                Arguments.of(new SyncTestParams(4, 100, 20, 1, 4956163591276672768L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 1, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 1, 20, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 20, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 100, 50, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 50, 100, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(4, 100, 20, 1, 4956163591276672768L)),
+                Arguments.of(new SyncTestParams(4, 100, 20, 1)),
+                Arguments.of(new SyncTestParams(4, 100, 1, 20)),
+                Arguments.of(new SyncTestParams(4, 100, 20, 20)),
+                Arguments.of(new SyncTestParams(10, 100, 50, 50)),
+                Arguments.of(new SyncTestParams(10, 100, 100, 50)),
+                Arguments.of(new SyncTestParams(10, 100, 50, 100)));
     }
 
     private static Stream<Arguments> splitForkParamsBreakingSeed() {
@@ -198,82 +147,56 @@ public class SyncTests {
                 // This seed used to make the caller send the whole graph back when the definition of a tip was an
                 // event with no children (self or other). Now that the definition of a tip is an event with no
                 // self-child, this seed passes.
-                Arguments.of(new SyncTestParams(4, 100, 20, 1, 4956163591276672768L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 1, 4956163591276672768L, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(4, 100, 20, 1, 4956163591276672768L)));
     }
 
     private static Stream<Arguments> largeGraphParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(10, 1000, 500, 200, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 200, 500, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 500, 500, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 500, 200, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 200, 500, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 500, 500, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(10, 1000, 500, 200)),
+                Arguments.of(new SyncTestParams(10, 1000, 200, 500)),
+                Arguments.of(new SyncTestParams(10, 1000, 500, 500)));
     }
 
     private static Stream<Arguments> noCommonEventsParams() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(4, 0, 50, 20, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 0, 20, 50, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 0, 50, 50, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 500, 200, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 200, 500, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 500, 500, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 0, 50, 20, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 0, 20, 50, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 0, 50, 50, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 500, 200, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 200, 500, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 500, 500, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(4, 0, 50, 20)),
+                Arguments.of(new SyncTestParams(4, 0, 20, 50)),
+                Arguments.of(new SyncTestParams(4, 0, 50, 50)),
+                Arguments.of(new SyncTestParams(10, 0, 500, 200)),
+                Arguments.of(new SyncTestParams(10, 0, 200, 500)),
+                Arguments.of(new SyncTestParams(10, 0, 500, 500)));
     }
 
     private static Stream<Arguments> tipsChangeBreakingSeed() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(10, 0, 20, 0, 6238590233436833292L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 8, 1, 8824331216639179768L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, -909134053413382981L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, 5236225801504915258L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 1, 1, -3204404663467002969L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, -4776092416980912346L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 20, 0, 6238590233436833292L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 8, 1, 8824331216639179768L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, -909134053413382981L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, 5236225801504915258L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 10, 1, 1, -3204404663467002969L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 0, 0, 20, -4776092416980912346L, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(10, 0, 20, 0, 6238590233436833292L)),
+                Arguments.of(new SyncTestParams(4, 10, 8, 1, 8824331216639179768L)),
+                Arguments.of(new SyncTestParams(10, 0, 0, 20, -909134053413382981L)),
+                Arguments.of(new SyncTestParams(10, 0, 0, 20, 5236225801504915258L)),
+                Arguments.of(new SyncTestParams(4, 10, 1, 1, -3204404663467002969L)),
+                Arguments.of(new SyncTestParams(10, 0, 0, 20, -4776092416980912346L)));
     }
 
     private static Stream<Arguments> simpleGraphBreakingSeed() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(4, 100, 20, 20, -5979073137457357235L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, 1861589538493329478L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(4, 100, 20, 20, -5979073137457357235L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 50, 50, 1861589538493329478L, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(4, 100, 20, 20, -5979073137457357235L)),
+                Arguments.of(new SyncTestParams(10, 100, 50, 50, 1861589538493329478L)));
     }
 
     private static Stream<Arguments> tipExpiresBreakingSeed() {
         return Stream.of(
-                Arguments.of(new SyncTestParams(10, 100, 0, 50, 1152284535185134815L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 100, 0, 50, -8664085824668001150L, GENERATION_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 0, 50, 1152284535185134815L, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(new SyncTestParams(10, 1000, 0, 50, -8664085824668001150L, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(new SyncTestParams(10, 1000, 0, 50, 1152284535185134815L)),
+                Arguments.of(new SyncTestParams(10, 1000, 0, 50, -8664085824668001150L)));
     }
 
     private static Stream<Arguments> requiredEventsExpire() {
         return Stream.of(
-                Arguments.of(1, new SyncTestParams(10, 100, 0, 1000, GENERATION_THRESHOLD)),
-                Arguments.of(1, new SyncTestParams(10, 200, 100, 1000, GENERATION_THRESHOLD)),
-                Arguments.of(1, new SyncTestParams(10, 200, 200, 1000, GENERATION_THRESHOLD)),
-                Arguments.of(2, new SyncTestParams(10, 100, 0, 1000, GENERATION_THRESHOLD)),
-                Arguments.of(2, new SyncTestParams(10, 200, 100, 1000, GENERATION_THRESHOLD)),
-                Arguments.of(2, new SyncTestParams(10, 200, 200, 1000, GENERATION_THRESHOLD)),
-                Arguments.of(1, new SyncTestParams(10, 100, 0, 1000, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(1, new SyncTestParams(10, 200, 100, 1000, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(1, new SyncTestParams(10, 200, 200, 1000, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(2, new SyncTestParams(10, 100, 0, 1000, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(2, new SyncTestParams(10, 200, 100, 1000, BIRTH_ROUND_THRESHOLD)),
-                Arguments.of(2, new SyncTestParams(10, 200, 200, 1000, BIRTH_ROUND_THRESHOLD)));
+                Arguments.of(1, new SyncTestParams(10, 100, 0, 1000)),
+                Arguments.of(1, new SyncTestParams(10, 200, 100, 1000)),
+                Arguments.of(1, new SyncTestParams(10, 200, 200, 1000)),
+                Arguments.of(2, new SyncTestParams(10, 100, 0, 1000)),
+                Arguments.of(2, new SyncTestParams(10, 200, 100, 1000)),
+                Arguments.of(2, new SyncTestParams(10, 200, 200, 1000)));
     }
 
     @BeforeAll
@@ -308,8 +231,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -328,8 +250,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -341,20 +262,16 @@ public class SyncTests {
     void forkingGraph(final SyncTestParams params) throws Exception {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newForkingShuffledGenerator(), params.getAncientMode()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newForkingShuffledGenerator()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newForkingShuffledGenerator(),
-                params.getAncientMode()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newForkingShuffledGenerator()));
 
         executor.execute();
 
         // Some extra events could be transferred in the case of a split fork graph. This is explicitly tested in
         // splitForkGraph()
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -370,13 +287,10 @@ public class SyncTests {
         final int callerOtherParent = 1;
         final int listenerOtherParent = 2;
 
-        executor.setCallerSupplier((factory) ->
-                new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter(), params.getAncientMode()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardEmitter(),
-                params.getAncientMode()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardEmitter()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             caller.generateAndAdd(params.getNumCommonEvents());
@@ -406,8 +320,7 @@ public class SyncTests {
         // In split fork graphs, some extra events will be sent because each node has a different tip for the same
         // creator, causing each to think the other does not have any ancestors of that creator's event when they in
         // fact do.
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -427,13 +340,10 @@ public class SyncTests {
                 .boxed()
                 .collect(Collectors.toList());
 
-        executor.setCallerSupplier((factory) ->
-                new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter(), params.getAncientMode()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardEmitter(),
-                params.getAncientMode()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardEmitter()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             caller.generateAndAdd(params.getNumCommonEvents());
@@ -452,8 +362,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -471,14 +380,13 @@ public class SyncTests {
         listenerExecutor.start();
 
         // Setup parallel executors
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor, params.getAncientMode()));
+        executor.setCallerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor));
         executor.setListenerSupplier((factory) -> new SyncNode(
                 params.getNumNetworkNodes(),
                 params.getNumNetworkNodes() - 1,
                 factory.newShuffledEmitter(),
-                listenerExecutor,
-                params.getAncientMode()));
+                listenerExecutor));
 
         assertThrows(ParallelExecutionException.class, executor::execute, "Unexpected exception during sync.");
 
@@ -503,8 +411,8 @@ public class SyncTests {
                     throw new SocketException();
                 });
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor, params.getAncientMode()));
+        executor.setCallerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), callerExecutor));
 
         runExceptionDuringSyncPhase(phaseToThrowIn, taskNum, executor);
     }
@@ -526,12 +434,8 @@ public class SyncTests {
                     throw new SocketException();
                 });
 
-        executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                0,
-                factory.newShuffledEmitter(),
-                listenerExecutor,
-                params.getAncientMode()));
+        executor.setListenerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledEmitter(), listenerExecutor));
 
         runExceptionDuringSyncPhase(phaseToThrowIn, taskNum, executor);
     }
@@ -597,17 +501,15 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
     }
 
     /**
      * Tests fallen behind detection works
      */
-    @ParameterizedTest
-    @MethodSource("bothAncientModes")
-    void fallenBehind(@NonNull final AncientMode ancientMode) throws Exception {
-        final SyncTestParams params = new SyncTestParams(4, 100, 20, 20, ancientMode);
+    @Test
+    void fallenBehind() throws Exception {
+        final SyncTestParams params = new SyncTestParams(4, 100, 20, 20);
 
         final long callerExpiredThreshold = 100;
         final long callerMaximumIndicator = 200;
@@ -625,13 +527,12 @@ public class SyncTests {
     /**
      * Tests fallen behind detection works with one node at genesis
      */
-    @ParameterizedTest
-    @MethodSource("bothAncientModes")
-    void fallenBehindAtGenesis(@NonNull final AncientMode ancientMode) throws Exception {
-        final SyncTestParams params = new SyncTestParams(4, 0, 1, 100, ancientMode);
+    @Test
+    void fallenBehindAtGenesis() throws Exception {
+        final SyncTestParams params = new SyncTestParams(4, 0, 1, 100);
 
-        final long callerExpiredThreshold = ancientMode.getGenesisIndicator();
-        final long callerMaximumIndicator = ancientMode.getGenesisIndicator();
+        final long callerExpiredThreshold = ConsensusConstants.ROUND_FIRST;
+        final long callerMaximumIndicator = ConsensusConstants.ROUND_FIRST;
         final long listenerAncientThreshold = 200;
         final long listenerMaximumIndicator = 300;
 
@@ -664,13 +565,10 @@ public class SyncTests {
 
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
-        executor.setCallerSupplier((factory) ->
-                new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter(), params.getAncientMode()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardEmitter()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardEmitter(),
-                params.getAncientMode()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardEmitter()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             caller.setSaveGeneratedEvents(true);
@@ -678,12 +576,12 @@ public class SyncTests {
         });
         executor.setCustomPreSyncConfiguration((c, l) -> {
             c.getShadowGraph()
-                    .updateEventWindow(EventWindowBuilder.generationMode()
+                    .updateEventWindow(EventWindowBuilder.builder()
                             .setAncientThreshold(callerMaximumIndicator)
                             .setExpiredThreshold(callerExpiredThreshold)
                             .build());
             l.getShadowGraph()
-                    .updateEventWindow(EventWindowBuilder.generationMode()
+                    .updateEventWindow(EventWindowBuilder.builder()
                             .setAncientThreshold(listenerMaximumIndicator)
                             .setExpiredThreshold(listenerExpiredThreshold)
                             .build());
@@ -699,27 +597,24 @@ public class SyncTests {
         SyncValidator.assertNoEventsReceived("caller", executor.getCaller());
     }
 
-    @ParameterizedTest
-    @MethodSource("bothAncientModes")
-    void testBarelyNotFallenBehind(@NonNull final AncientMode ancientMode) throws Exception {
-        final SyncTestParams params = new SyncTestParams(4, 2000, 2000, 0, ancientMode);
+    @Test
+    void testBarelyNotFallenBehind() throws Exception {
+        final SyncTestParams params = new SyncTestParams(4, 2000, 2000, 0);
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
         executor.setEventWindowDefinitions((caller, listener) -> {
             long listenerMaxIndicator =
-                    SyncTestUtils.getMaxIndicator(listener.getShadowGraph().getTips(), ancientMode);
+                    SyncTestUtils.getMaxIndicator(listener.getShadowGraph().getTips());
             // make the min non-ancient indicator slightly below the max indicator
             long listenerNonAncientThreshold = listenerMaxIndicator - (listenerMaxIndicator / 10);
-            long listenerMinIndicator = SyncTestUtils.getMinIndicator(
-                    listener.getShadowGraph()
-                            .findAncestors(listener.getShadowGraph().getTips(), (e) -> true),
-                    ancientMode);
+            long listenerMinIndicator = SyncTestUtils.getMinIndicator(listener.getShadowGraph()
+                    .findAncestors(listener.getShadowGraph().getTips(), (e) -> true));
 
             // Expire everything below the listener's min non-ancient indicator on the caller
             caller.expireBelow(listenerNonAncientThreshold);
 
             long callerMaxIndicator =
-                    SyncTestUtils.getMaxIndicator(caller.getShadowGraph().getTips(), ancientMode);
+                    SyncTestUtils.getMaxIndicator(caller.getShadowGraph().getTips());
             // make the min non-ancient indicator slightly below the max indicator
             long callerNonAncientThreshold = callerMaxIndicator - (callerMaxIndicator / 10);
             // Setting the caller min indicator to listener ancient threshold - 1 ensures that the caller is not behind
@@ -727,14 +622,12 @@ public class SyncTests {
 
             listener.getShadowGraph()
                     .updateEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(ancientMode)
                             .setAncientThresholdOrGenesis(listenerNonAncientThreshold)
                             .setExpiredThresholdOrGenesis(listenerMinIndicator)
                             .build());
 
             caller.getShadowGraph()
                     .updateEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(ancientMode)
                             .setAncientThresholdOrGenesis(callerNonAncientThreshold)
                             .setExpiredThresholdOrGenesis(callerMinIndicator)
                             .build());
@@ -742,19 +635,18 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener(), ancientMode);
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
     /**
      * Verifies that even if events are expired right before sending, they are still sent.
      */
-    @ParameterizedTest
-    @MethodSource("bothAncientModes")
-    void testSendExpiredEvents(@NonNull final AncientMode ancientMode) throws Exception {
-        final SyncTestParams params = new SyncTestParams(4, 20, 10, 0, ancientMode);
+    @Test
+    void testSendExpiredEvents() throws Exception {
+        final SyncTestParams params = new SyncTestParams(4, 20, 10, 0);
         final SyncTestExecutor executor = new SyncTestExecutor(params);
-        final AtomicLong indicatorToExpire = new AtomicLong(ancientMode.getGenesisIndicator() - 1);
+        final AtomicLong indicatorToExpire = new AtomicLong(ConsensusConstants.ROUND_FIRST - 1);
 
         // before phase 3, expire all events so that expired events are sent
         executor.setCallerExecutorSupplier(() -> new SyncPhaseParallelExecutor(
@@ -767,7 +659,6 @@ public class SyncTests {
 
                     // Expire the events from the shadow graph
                     final EventWindow eventWindow = EventWindowBuilder.builder()
-                            .setAncientMode(ancientMode)
                             .setExpiredThreshold(indicatorToExpire.get() + 1)
                             .build();
                     executor.getCaller().getShadowGraph().updateEventWindow(eventWindow);
@@ -776,11 +667,11 @@ public class SyncTests {
 
         // we save the max indicator of node 0, so we know what we need to expire to remove a tip
         executor.setCustomPreSyncConfiguration((caller, listener) -> indicatorToExpire.set(
-                SyncTestUtils.getMaxIndicator(caller.getShadowGraph().getTips(), ancientMode)));
+                SyncTestUtils.getMaxIndicator(caller.getShadowGraph().getTips())));
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener(), ancientMode);
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -791,10 +682,7 @@ public class SyncTests {
     @MethodSource({"tenNodeGraphParams", "tenNodeBigGraphParams", "tipExpiresBreakingSeed"})
     void tipExpiresAfterPhase1(final SyncTestParams params) throws Exception {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
-        final AtomicLong maximumIndicator = new AtomicLong(
-                params.getAncientMode() == BIRTH_ROUND_THRESHOLD
-                        ? ConsensusConstants.ROUND_NEGATIVE_INFINITY
-                        : EventConstants.GENERATION_UNDEFINED);
+        final AtomicLong maximumIndicator = new AtomicLong(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
 
         final int creatorIndexToExpire = 0;
         final NodeId creatorIdToExpire = NodeId.of(
@@ -819,25 +707,19 @@ public class SyncTests {
             caller.setSaveGeneratedEvents(true);
             listener.setSaveGeneratedEvents(true);
 
-            maximumIndicator.set(
-                    params.getAncientMode() == BIRTH_ROUND_THRESHOLD
-                            ? ConsensusConstants.ROUND_FIRST
-                                    + caller.getEmitter().getGraphGenerator().getMaxBirthRound(creatorIdToExpire)
-                            : EventConstants.FIRST_GENERATION
-                                    + caller.getEmitter().getGraphGenerator().getMaxGeneration(creatorIdToExpire));
+            maximumIndicator.set(ConsensusConstants.ROUND_FIRST
+                    + caller.getEmitter().getGraphGenerator().getMaxBirthRound(creatorIdToExpire));
         });
 
         // before the sync, expire the tip on the listener
         executor.setCustomPreSyncConfiguration((c, l) -> {
             l.getShadowGraph()
                     .updateEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(params.getAncientMode())
                             .setAncientThreshold(maximumIndicator.get() + 2)
                             .setExpiredThreshold(maximumIndicator.get() + 1)
                             .build());
 
             c.updateEventWindow(EventWindowBuilder.builder()
-                    .setAncientMode(params.getAncientMode())
                     .setAncientThreshold(maximumIndicator.get() + 2)
                     .setExpiredThresholdOrGenesis(maximumIndicator.get() - 1)
                     .build());
@@ -848,7 +730,6 @@ public class SyncTests {
                 getStaticThreadManager(),
                 () -> executor.getCaller()
                         .updateEventWindow(EventWindowBuilder.builder()
-                                .setAncientMode(params.getAncientMode())
                                 .setAncientThreshold(maximumIndicator.get() + 2)
                                 .setExpiredThreshold(maximumIndicator.get() + 1)
                                 .build()),
@@ -858,8 +739,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -896,8 +776,7 @@ public class SyncTests {
 
         // since we get a new set of tips before phase 3, it is possible to transfer some duplicate events that were
         // added after the initial tips were exchanged
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -934,8 +813,7 @@ public class SyncTests {
 
         // since we get a new set of tips before phase 3, it is possible to transfer some duplicate events that were
         // added after the initial tips were exchanged
-        SyncValidator.assertRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -960,10 +838,9 @@ public class SyncTests {
         // to be sent to the caller, will be expired. Since we are hacking birth rounds to be the same as generations,
         // we can use the same indicator for both.
         executor.setCustomPreSyncConfiguration((c, l) ->
-                indicatorToExpire.set(l.getEmitter().getGraphGenerator().getMaxGeneration(creatorId) / 2));
+                indicatorToExpire.set(l.getEmitter().getGraphGenerator().getMaxBirthRound(creatorId) / 2));
 
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(params.getAncientMode())
                 .setExpiredThresholdOrGenesis(indicatorToExpire.get())
                 .build();
 
@@ -979,8 +856,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
@@ -1026,13 +902,10 @@ public class SyncTests {
 
         executor.setFactoryConfig(factoryConfig);
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), 0, factory.newStandardFromSourceFactory(), params.getAncientMode()));
+        executor.setCallerSupplier(
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newStandardFromSourceFactory()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                params.getNumNetworkNodes() - 1,
-                factory.newStandardFromSourceFactory(),
-                params.getAncientMode()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newStandardFromSourceFactory()));
 
         executor.setInitialGraphCreation((caller, listener) -> {
             for (final SyncNode node : List.of(caller, listener)) {
@@ -1043,8 +916,7 @@ public class SyncTests {
 
         executor.execute();
 
-        SyncValidator.assertOnlyRequiredEventsTransferred(
-                executor.getCaller(), executor.getListener(), params.getAncientMode());
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
     }
 
     @ParameterizedTest
@@ -1059,12 +931,8 @@ public class SyncTests {
                 () -> executor.getCaller().getConnection().disconnect(),
                 false);
 
-        executor.setCallerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                0,
-                factory.newShuffledFromSourceFactory(),
-                parallelExecutor,
-                params.getAncientMode()));
+        executor.setCallerSupplier((factory) ->
+                new SyncNode(params.getNumNetworkNodes(), 0, factory.newShuffledFromSourceFactory(), parallelExecutor));
 
         try {
             executor.execute();
@@ -1086,10 +954,9 @@ public class SyncTests {
      * Tests that a sync works if one node has no events at all in the graph and also has a non-ancient indicator that
      * is not 0
      */
-    @ParameterizedTest
-    @MethodSource("bothAncientModes")
-    void noEventsStartIndicator(@NonNull final AncientMode ancientMode) throws Exception {
-        final SyncTestParams params = new SyncTestParams(4, 0, 100, 0, ancientMode);
+    @Test
+    void noEventsStartIndicator() throws Exception {
+        final SyncTestParams params = new SyncTestParams(4, 0, 100, 0);
         final SyncTestExecutor executor = new SyncTestExecutor(params);
         executor.setGraphCustomization((caller, listener) -> {
             caller.setSaveGeneratedEvents(true);
@@ -1097,28 +964,24 @@ public class SyncTests {
         });
         executor.setEventWindowDefinitions((caller, listener) -> {
             final long callerMaximumIndicator =
-                    SyncTestUtils.getMaxIndicator(caller.getShadowGraph().getTips(), ancientMode);
-            final long callerAncientIndicator = SyncTestUtils.getMinIndicator(
-                    caller.getShadowGraph()
-                            .findAncestors(caller.getShadowGraph().getTips(), (e) -> true),
-                    ancientMode);
+                    SyncTestUtils.getMaxIndicator(caller.getShadowGraph().getTips());
+            final long callerAncientIndicator = SyncTestUtils.getMinIndicator(caller.getShadowGraph()
+                    .findAncestors(caller.getShadowGraph().getTips(), (e) -> true));
 
             listener.getShadowGraph()
                     .updateEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(params.getAncientMode())
                             .setAncientThreshold(callerMaximumIndicator / 2)
                             .setExpiredThreshold(callerAncientIndicator)
                             .build());
 
             listener.getShadowGraph()
                     .updateEventWindow(EventWindowBuilder.builder()
-                            .setAncientMode(params.getAncientMode())
                             .setAncientThreshold(callerMaximumIndicator / 2)
                             .setExpiredThreshold(callerAncientIndicator)
                             .build());
         });
         executor.execute();
-        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener(), ancientMode);
+        SyncValidator.assertOnlyRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 }

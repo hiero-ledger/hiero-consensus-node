@@ -10,7 +10,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.common.threading.pool.ParallelExecutor;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.network.Connection;
@@ -29,8 +28,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 
 /**
@@ -57,7 +54,6 @@ public class SyncTestExecutor {
     private BiConsumer<SyncNode, SyncNode> eventWindowDefinitions;
     private Predicate<EventImpl> callerAddToGraphTest;
     private Predicate<EventImpl> listenerAddToGraphTest;
-    private final AncientMode ancientMode;
 
     /**
      * A randomly generated roster from the number of nodes in the parameters of the test.
@@ -66,7 +62,6 @@ public class SyncTestExecutor {
 
     public SyncTestExecutor(final SyncTestParams params) {
         this.params = params;
-        this.ancientMode = params.getAncientMode();
         this.roster = RandomRosterBuilder.create(Randotron.create())
                 .withSize(params.getNumNetworkNodes())
                 .build();
@@ -85,17 +80,12 @@ public class SyncTestExecutor {
             return executor;
         };
         callerSupplier = (factory) -> new SyncNode(
-                params.getNumNetworkNodes(),
-                0,
-                factory.newShuffledFromSourceFactory(),
-                callerExecutorSupplier.get(),
-                ancientMode);
+                params.getNumNetworkNodes(), 0, factory.newShuffledFromSourceFactory(), callerExecutorSupplier.get());
         listenerSupplier = (factory) -> new SyncNode(
                 params.getNumNetworkNodes(),
                 params.getNumNetworkNodes() - 1,
                 factory.newShuffledFromSourceFactory(),
-                listenerExecutorSupplier.get(),
-                ancientMode);
+                listenerExecutorSupplier.get());
 
         initialGraphCreation = (caller, listener) -> {
             for (final SyncNode node : List.of(caller, listener)) {
@@ -149,13 +139,8 @@ public class SyncTestExecutor {
             random = new Random(params.getCustomSeed());
         }
 
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue(
-                                EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD,
-                                ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD)
-                        .getOrCreateConfig())
-                .build();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
 
         final EventEmitterFactory factory = new EventEmitterFactory(platformContext, random, roster);
 
@@ -199,12 +184,12 @@ public class SyncTestExecutor {
             final List<ShadowEvent> callerTips = caller.getShadowGraph().getTips();
             final List<ShadowEvent> listenerTips = listener.getShadowGraph().getTips();
 
-            final long listenerExpiredThreshold = SyncTestUtils.getMinIndicator(
-                    listener.getShadowGraph().findAncestors(listenerTips, (e) -> true), ancientMode);
-            final long listenerMaxIndicator = SyncTestUtils.getMaxIndicator(listenerTips, ancientMode);
-            final long callerExpiredThreshold = SyncTestUtils.getMinIndicator(
-                    caller.getShadowGraph().findAncestors(callerTips, (e) -> true), ancientMode);
-            final long callerMaxIndicator = SyncTestUtils.getMaxIndicator(callerTips, ancientMode);
+            final long listenerExpiredThreshold =
+                    SyncTestUtils.getMinIndicator(listener.getShadowGraph().findAncestors(listenerTips, (e) -> true));
+            final long listenerMaxIndicator = SyncTestUtils.getMaxIndicator(listenerTips);
+            final long callerExpiredThreshold =
+                    SyncTestUtils.getMinIndicator(caller.getShadowGraph().findAncestors(callerTips, (e) -> true));
+            final long callerMaxIndicator = SyncTestUtils.getMaxIndicator(callerTips);
 
             long listenerAncientThreshold = listenerExpiredThreshold;
             final double listenerDif = listenerMaxIndicator - listenerExpiredThreshold;
@@ -223,13 +208,11 @@ public class SyncTestExecutor {
             }
 
             caller.updateEventWindow(EventWindowBuilder.builder()
-                    .setAncientMode(ancientMode)
                     .setAncientThresholdOrGenesis(callerAncientThreshold)
                     .setExpiredThresholdOrGenesis(callerExpiredThreshold)
                     .build());
 
             listener.updateEventWindow(EventWindowBuilder.builder()
-                    .setAncientMode(ancientMode)
                     .setAncientThresholdOrGenesis(listenerAncientThreshold)
                     .setExpiredThresholdOrGenesis(listenerExpiredThreshold)
                     .build());

@@ -140,6 +140,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(stack.getLast()).willReturn(frame);
         given(result.getOutput()).willReturn(OUTPUT_DATA);
         given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
@@ -234,6 +235,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(stack.getLast()).willReturn(frame);
 
         subject.start(frame, operationTracer);
@@ -255,6 +257,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(stack.getLast()).willReturn(frame);
         given(frame.getContractAddress()).willReturn(Address.ALTBN128_ADD);
 

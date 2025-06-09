@@ -425,6 +425,7 @@ public class HintsControllerImpl implements HintsController {
         requireNonNull(vote);
         requireNonNull(hintsStore);
         if (!construction.hasHintsScheme() && !votes.containsKey(nodeId)) {
+            hintsStore.addPreprocessingVote(nodeId, constructionId(), vote);
             if (vote.hasPreprocessedKeys()) {
                 votes.put(nodeId, vote);
             } else if (vote.hasCongruentNodeId()) {
@@ -442,7 +443,8 @@ public class HintsControllerImpl implements HintsController {
                     .map(Map.Entry::getKey)
                     .findFirst();
             maybeWinningOutputs.ifPresent(keys -> {
-                construction = hintsStore.setHintsScheme(construction.constructionId(), keys, nodePartyIds);
+                construction = hintsStore.setHintsScheme(
+                        construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
                 log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
                 onHintsFinished.accept(hintsStore, construction, context);
             });

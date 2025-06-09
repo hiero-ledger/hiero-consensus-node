@@ -1924,8 +1924,7 @@ public class UtilVerbs {
                     .sorted(Comparator.comparing(ContractID::getContractNum))
                     .toList();
             final var createdId = createdIds.get(creationNum);
-            final var accDetails = getContractInfo(CommonUtils.hex(
-                            asEvmAddress(createdId.getShardNum(), createdId.getRealmNum(), createdId.getContractNum())))
+            final var accDetails = getContractInfo(CommonUtils.hex(asEvmAddress(createdId.getContractNum())))
                     .logged();
             allRunFor(spec, accDetails);
         });
@@ -2001,6 +2000,10 @@ public class UtilVerbs {
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
+    }
+
+    public static CustomSpecAssert validateInnerTxnChargedUsd(String txn, String parent, double expectedUsd) {
+        return validateInnerTxnChargedUsd(txn, parent, expectedUsd, 1.00);
     }
 
     public static CustomSpecAssert validateInnerTxnChargedUsd(
@@ -2567,7 +2570,7 @@ public class UtilVerbs {
     }
 
     private static Object swapLongZeroToEVMAddresses(HapiSpec spec, Object arg, Address address) {
-        if (isLongZeroAddress(spec.shard(), spec.realm(), explicitFromHeadlong(address))) {
+        if (isLongZeroAddress(explicitFromHeadlong(address))) {
             var contractNum = numberOfLongZero(explicitFromHeadlong(address));
             if (spec.registry().hasEVMAddress(String.valueOf(contractNum))) {
                 return HapiParserUtil.asHeadlongAddress(spec.registry().getEVMAddress(String.valueOf(contractNum)));

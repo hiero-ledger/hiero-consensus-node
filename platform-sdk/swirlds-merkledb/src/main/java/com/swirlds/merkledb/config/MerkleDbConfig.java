@@ -16,18 +16,14 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * Instance-wide config for {@code MerkleDbDataSource}.
  *
  * @param maxNumOfKeys
- * 		Get the maximum number of unique keys we expect to be stored in this database. This is used for
- * 		calculating in memory index sizes. IMPORTANT: This can only be set before a new database is created, changing
- * 		on an existing database will break it.
- * @param size
- *      Reserved for future use.
+ * 	    The maximum number of unique keys to be stored in a database.
  * @param hashesRamToDiskThreshold
- * 		Get threshold where we switch from storing node hashes in ram to
- * 		storing them on disk. If it is 0 then everything is on disk, if it is Long.MAX_VALUE then everything is in ram.
- * 		Any value in the middle is the path value at
- * 		which we swap from ram to disk. This allows a tree where the lower levels of the tree nodes hashes are in ram
- * 		and the upper larger less changing layers are on disk. IMPORTANT: This can only be set before a new database is
- * 		created, changing on an existing database will break it.
+ * 	    Get threshold where we switch from storing node hashes in ram to
+ * 	    storing them on disk. If it is 0 then everything is on disk, if it is Long.MAX_VALUE then everything is in ram.
+ * 	    Any value in the middle is the path value at
+ * 	    which we swap from ram to disk. This allows a tree where the lower levels of the tree nodes hashes are in ram
+ * 	    and the upper larger less changing layers are on disk. IMPORTANT: This can only be set before a new database is
+ * 	    created, changing on an existing database will break it.
  * @param hashStoreRamBufferSize
  *      Number of hashes to store in a single buffer in HashListByteBuffer.
  * @param hashStoreRamOffHeapBuffers
@@ -37,19 +33,23 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
  * @param minNumberOfFilesInCompaction
- * 		The minimum number of files before we do a compaction. If there are less than this number then it is
- * 		acceptable to not do a compaction.
+ * 	    The minimum number of files before we do a compaction. If there are less than this number then it is
+ * 	    acceptable to not do a compaction.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
  * @param reconnectKeyLeakMitigationEnabled
- * 		There currently exists a bug when a virtual map is reconnected that can
- * 		cause some deleted keys to leak into the datasource. If this method returns true then a mitigation strategy is
- * 		used when a leaked key is encountered, which hides the problem from the perspective of the application. This
- * 		setting exists so that we can test behavior with and without this mitigation enabled. This mitigation should
- * 		always be enabled in production environments.
+ * 	    There currently exists a bug when a virtual map is reconnected that can
+ * 	    cause some deleted keys to leak into the datasource. If this method returns true then a mitigation strategy is
+ * 	    used when a leaked key is encountered, which hides the problem from the perspective of the application. This
+ * 	    setting exists so that we can test behavior with and without this mitigation enabled. This mitigation should
+ * 	    always be enabled in production environments.
  * @param indexRebuildingEnforced
- * 		Configuration used to avoid reading stored indexes from a saved state and enforce rebuilding those indexes from
- * 		data files.
+ * 	    Configuration used to avoid reading stored indexes from a saved state and enforce rebuilding those indexes from
+ * 	    data files.
+ * @param goodAverageBucketEntryCount
+ *      Target average number of entries in HalfDiskHashMap buckets. This number is used to calculate the number
+ *      of buckets to allocate based on projected virtual map size, and also to check if it's time to double the
+ *      number of HalfDiskHashMap buckets.
  * @param tablesToRepairHdhm
  *      Comma-delimited list of data source names, may be empty. When a MerkleDb data source with a name from the
  *      list is loaded from a snapshot, its key to path map will be rebuilt from path to KV data files. Note that
@@ -70,8 +70,7 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  */
 @ConfigData("merkleDb")
 public record MerkleDbConfig(
-        @Positive @ConfigProperty(defaultValue = "500000000") long maxNumOfKeys,
-        @Positive @ConfigProperty(defaultValue = "" + 4_000_000_000L) long size,
+        @Positive @ConfigProperty(defaultValue = "4000000000") long maxNumOfKeys,
         @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
         @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
         @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
@@ -85,6 +84,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
         @ConfigProperty(defaultValue = "false") boolean reconnectKeyLeakMitigationEnabled,
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
+        @ConfigProperty(defaultValue = "32") int goodAverageBucketEntryCount,
         @ConfigProperty(defaultValue = "") String tablesToRepairHdhm,
         @ConfigProperty(defaultValue = "75.0") double percentHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,

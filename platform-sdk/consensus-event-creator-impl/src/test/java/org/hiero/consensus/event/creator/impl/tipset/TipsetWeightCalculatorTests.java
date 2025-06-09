@@ -2,7 +2,6 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
-import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -28,8 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -115,7 +112,6 @@ class TipsetWeightCalculatorTests {
     /**
      *
      * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
-     * @param ancientMode  {@link AncientMode#values()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -123,15 +119,10 @@ class TipsetWeightCalculatorTests {
         @ParamSource(
                 param = "random",
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed"),
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values")
+                method = "getRandomPrintSeed")
     })
     @DisplayName("Basic Behavior Test")
-    public void basicBehaviorTest(
-            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
+    public void basicBehaviorTest(@ParamName("random") final Random random) {
         final int nodeCount = 5;
 
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
@@ -152,7 +143,7 @@ class TipsetWeightCalculatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster, ancientMode);
+        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessEventTracker);
@@ -226,12 +217,7 @@ class TipsetWeightCalculatorTests {
                 parentTipsets.add(tipsetTracker.getTipset(parent));
             }
 
-            final Tipset newTipset;
-            if (parentTipsets.isEmpty()) {
-                newTipset = new Tipset(roster);
-            } else {
-                newTipset = merge(parentTipsets);
-            }
+            final Tipset newTipset = new Tipset(roster).merge(parentTipsets);
 
             final TipsetAdvancementWeight expectedAdvancementScoreChange =
                     previousSnapshot.getTipAdvancementWeight(selfId, newTipset).minus(runningAdvancementScore);
@@ -274,7 +260,6 @@ class TipsetWeightCalculatorTests {
     /**
      *
      * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
-     * @param ancientMode  {@link AncientMode#values()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -282,15 +267,10 @@ class TipsetWeightCalculatorTests {
         @ParamSource(
                 param = "random",
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed"),
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values")
+                method = "getRandomPrintSeed")
     })
     @DisplayName("Selfish Node Test")
-    public void selfishNodeTest(
-            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
+    public void selfishNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
         final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(nodeCount)
@@ -306,7 +286,7 @@ class TipsetWeightCalculatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster, ancientMode);
+        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
@@ -493,7 +473,6 @@ class TipsetWeightCalculatorTests {
     /**
      *
      * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
-     * @param ancientMode  {@link AncientMode#values()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -501,15 +480,10 @@ class TipsetWeightCalculatorTests {
         @ParamSource(
                 param = "random",
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed"),
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values")
+                method = "getRandomPrintSeed")
     })
     @DisplayName("Zero Stake Node Test")
-    public void zeroWeightNodeTest(
-            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
+    public void zeroWeightNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
         Roster roster = RandomRosterBuilder.create(random)
@@ -538,7 +512,7 @@ class TipsetWeightCalculatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster, ancientMode);
+        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
@@ -596,7 +570,6 @@ class TipsetWeightCalculatorTests {
     /**
      *
      * @param random {@link org.hiero.base.utility.test.fixtures.RandomUtils#getRandomPrintSeed()}
-     * @param ancientMode  {@link AncientMode#values()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -604,15 +577,10 @@ class TipsetWeightCalculatorTests {
         @ParamSource(
                 param = "random",
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed"),
-        @ParamSource(
-                param = "ancientMode",
-                fullyQualifiedClass = "org.hiero.consensus.model.event.AncientMode",
-                method = "values")
+                method = "getRandomPrintSeed")
     })
     @DisplayName("Ancient Parent Test")
-    public void ancientParentTest(
-            @ParamName("random") final Random random, @ParamName("ancientMode") final AncientMode ancientMode) {
+    public void ancientParentTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
         final Roster roster = RandomRosterBuilder.create(random)
@@ -628,7 +596,7 @@ class TipsetWeightCalculatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster, ancientMode);
+        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator tipsetWeightCalculator =
                 new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
@@ -644,9 +612,8 @@ class TipsetWeightCalculatorTests {
         tipsetTracker.addPeerEvent(c0);
         tipsetTracker.addPeerEvent(d0);
 
-        final long newEventBirthRound =
-                ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD ? 2L : EventConstants.BIRTH_ROUND_UNDEFINED;
-        // Create some events (generation 1 / birth round 2). Node A does not create an event yet.
+        final long newEventBirthRound = 2L;
+        // Create some events (birth round 2). Node A does not create an event yet.
         final PlatformEvent b1 = newEvent(
                 random, NonDeterministicGeneration.FIRST_GENERATION, b0, List.of(a0, c0, d0), newEventBirthRound);
         final PlatformEvent c1 = newEvent(
@@ -657,11 +624,9 @@ class TipsetWeightCalculatorTests {
         tipsetTracker.addPeerEvent(c1);
         tipsetTracker.addPeerEvent(d1);
 
-        // Mark generation 0 / birth round 1 as ancient:
-        final long ancientThreshold = ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD ? newEventBirthRound : 1;
+        // Mark birth round 1 as ancient:
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setAncientMode(ancientMode)
-                .setAncientThreshold(ancientThreshold)
+                .setAncientThreshold(newEventBirthRound)
                 .build();
         tipsetTracker.setEventWindow(eventWindow);
         childlessEventTracker.pruneOldEvents(eventWindow);

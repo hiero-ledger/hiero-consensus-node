@@ -40,10 +40,10 @@ public class SysFileDownloadCommand implements Callable<Integer> {
         var config = ConfigUtils.configFrom(sysFilesCommand.getYahcli());
         destDir = SysFilesCommand.resolvedDir(destDir, config);
 
-        var delegate = new SysFileDownloadSuite(destDir, config.asSpecConfig(), sysFiles);
+        var delegate = new SysFileDownloadSuite(destDir, config, sysFiles);
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - downloaded all requested system files");
         } else {
             COMMON_MESSAGES.warn("FAILED downloading requested system files");

@@ -87,94 +87,6 @@ jobs:
       jf-user-name: ${{ vars.JF_USER_NAME }}
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
-  release-branch:
-    name: Release [Branch]
-    uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    with:
-      version-policy: branch-commit
-      trigger-env-deploy: integration
-      release-profile: DevelopCommit
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
-      cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
-      svcs-ossrh-username: ${{ secrets.SVCS_OSSRH_USERNAME }}
-      svcs-ossrh-password: ${{ secrets.SVCS_OSSRH_PASSWORD }}
-      svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
-      svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
-      sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}
-      sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
-      sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
-      sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
-      slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
-      jf-url: ${{ vars.JF_URL }}
-      jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
-      jf-user-name: ${{ vars.JF_USER_NAME }}
-      jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
-
-  deploy-ci-trigger:
-    name: Trigger CI Flows
-    runs-on: hiero-network-node-linux-medium
-    needs:
-      - release-branch
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-
-      - name: Check Prep XTS Job State
-        id: check-xts-job
-        if: ${{ needs.release-branch.result == 'success' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          JOB_ENABLED="true"
-          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="ZXF: Prepare Extended Test Suite")|.state')
-          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
-          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
-
-      - name: Trigger ZXF Prepare Extended Test Suite
-        if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
-        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
-        with:
-          workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
-          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main # ensure we are always using the workflow definition from the main branch
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{ "ref": "${{ inputs.ref }}" }'
-
-      - name: Check Integration Job State
-        id: check-integration-job
-        if: ${{ needs.release-branch.result == 'success' && !cancelled() }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          JOB_ENABLED="true"
-          JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
-          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
-          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
-
-      - name: Trigger ZXF Deploy Integration
-        if: ${{ needs.release-branch.result == 'success' && steps.check-integration-job.outputs.enabled == 'true' && !cancelled() }}
-        uses: step-security/workflow-dispatch@05938d638f4ddc45d2c59dfd122d3ba247fb7015 # v1.2.6
-        with:
-          workflow: .github/workflows/node-zxf-deploy-integration.yaml
-          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main # ensure we are always using the workflow definition from the main branch
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{
-            "ref": "${{ inputs.ref }}"
-            }'
-
   update-hedera-protobufs:
     name: Update Hedera Protobufs
     runs-on: hiero-network-node-linux-medium
@@ -186,7 +98,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Hedera Services Code
+      - name: Checkout Hiero Consensus Node Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -231,3 +143,278 @@ jobs:
           message: "ci: Copied recent protobuf changes from hedera-services"
           new_branch: "update-recent-protobuf-changes-${{ github.run_number }}"
           tag: 'v${{ needs.prepare-tag-release.outputs.version }} -s -m "Hedera Protobufs v${{ needs.prepare-tag-release.outputs.version }}" -u "${{ steps.gpg_import.outputs.keyid }}"'
+
+  release-branch:
+    name: Release [Branch]
+    uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    with:
+      version-policy: branch-commit
+      trigger-env-deploy: integration
+      release-profile: DevelopCommit
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
+      cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
+      svcs-ossrh-username: ${{ secrets.SVCS_OSSRH_USERNAME }}
+      svcs-ossrh-password: ${{ secrets.SVCS_OSSRH_PASSWORD }}
+      svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+      svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+      sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}
+      sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
+      sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+      sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+      slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
+      jf-url: ${{ vars.JF_URL }}
+      jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
+      jf-user-name: ${{ vars.JF_USER_NAME }}
+      jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
+
+  deploy-xts-ci-trigger:
+    name: Trigger XTS CI Flows
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - release-branch
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Check Prep XTS Job State
+        id: check-xts-job
+        if: ${{ needs.release-branch.result == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JOB_ENABLED="true"
+          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="ZXF: Prepare Extended Test Suite")|.state')
+          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
+          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+
+      - name: Trigger ZXF Prepare Extended Test Suite
+        if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{ "ref": "${{ inputs.ref }}" }'
+
+  deploy-integration-ci-trigger:
+    name: Trigger XTS CI Flows
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - release-branch
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Check Integration Job State
+        id: check-integration-job
+        if: ${{ needs.release-branch.result == 'success' && !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JOB_ENABLED="true"
+          JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
+          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
+          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+
+      - name: Trigger ZXF Deploy Integration
+        if: ${{ needs.release-branch.result == 'success' && steps.check-integration-job.outputs.enabled == 'true' && !cancelled() }}
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/node-zxf-deploy-integration.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ inputs.ref }}"
+            }'
+
+  report-failures:
+    name: Report Production Release Failures
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - release-branch
+      - deploy-xts-ci-trigger
+    if: ${{ (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Collect run logs in a log file
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        continue-on-error: true
+        run: |
+          echo "commit-hash=$(git rev-parse ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        continue-on-error: true
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        run: |
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Report failure (slack)
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#FF0000",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":exclamation: Hiero Consensus Node - Deploy Production Release Failure Report",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Deploy Production Release job resulted in failure on `main`. See status below.*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Release [Branch]*: ${{ needs.release-branch.result }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Deploy XTS CI Trigger*: ${{ needs.deploy-xts-ci-trigger.result }}"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Workflow and Commit Information*"
+                      },
+                      "fields": [
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Source Commit*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Commit author*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Slack user*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run ID*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": " ${{ github.run_id }}"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "*Workflow run URL*:"
+                        },
+                        {
+                          "type": "mrkdwn",
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }

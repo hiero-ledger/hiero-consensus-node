@@ -108,6 +108,14 @@ public class DeterministicThrottle implements CongestibleThrottle {
     }
 
     /**
+     * Leaks a given number of requests from the bucket.
+     * @param numReqs the number of requests to leak
+     */
+    public void leakInstantaneous(final int numReqs) {
+        delegate.leakInstantaneous(numReqs);
+    }
+
+    /**
      * Determines whether a given number of requests can be allowed through the throttle, given the current time.
      *
      * @param numReqs the number of requests to allow

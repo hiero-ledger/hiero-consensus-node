@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.system;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -40,14 +41,15 @@ public class FreezeUpgradeCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var config = ConfigUtils.configFrom(yahcli);
 
-        final var upgradeFile = "0.0." + upgradeFileNum;
+        final var upgradeFile =
+                asEntityString(config.shard().getShardNum(), config.realm().getRealmNum(), upgradeFileNum);
         final var unhexedHash = CommonUtils.unhex(upgradeFileHash);
         final var startInstant = Utils.parseFormattedInstant(startTime);
-        final var delegate = new UpgradeHelperSuite(config.asSpecConfig(), unhexedHash, upgradeFile, startInstant);
+        final var delegate = new UpgradeHelperSuite(config, unhexedHash, upgradeFile, startInstant);
 
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - NMT software upgrade in motion from " + upgradeFile + " artifacts ZIP");
         } else {
             COMMON_MESSAGES.warn("FAILED - NMT software upgrade is not in motion ");

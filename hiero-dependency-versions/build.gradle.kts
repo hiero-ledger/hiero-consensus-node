@@ -17,7 +17,7 @@ dependencies {
 
 val autoService = "1.1.1"
 val besu = "24.3.3"
-val bouncycastle = "1.80"
+val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "11.1.0"
 val grpc = "1.72.0"
@@ -26,9 +26,9 @@ val helidon = "4.2.2"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.24.3"
-val mockito = "5.17.0"
+val mockito = "5.18.0"
 val pbj = "0.11.6" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
-val protobuf = "4.30.2"
+val protobuf = "4.31.1"
 val testContainers = "1.21.0"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -50,7 +50,7 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.5.0") { because("com.github.dockerjava.api") }
+    api("com.github.docker-java:docker-java-api:3.5.1") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
     }
@@ -111,7 +111,7 @@ dependencies.constraints {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
-    api("org.json:json:20250107") { because("org.json") }
+    api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
     api("org.junit-pioneer:junit-pioneer:2.3.0") { because("org.junitpioneer") }

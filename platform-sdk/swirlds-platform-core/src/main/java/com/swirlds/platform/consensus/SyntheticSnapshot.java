@@ -9,8 +9,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.LongStream;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
@@ -38,7 +36,6 @@ public final class SyntheticSnapshot {
      * @param lastConsensusOrder the last consensus order of all events that have reached consensus
      * @param roundTimestamp     the timestamp of the round
      * @param config             the consensus configuration
-     * @param ancientMode        the ancient mode
      * @param judge              the judge event
      * @return the synthetic snapshot
      */
@@ -47,11 +44,10 @@ public final class SyntheticSnapshot {
             final long lastConsensusOrder,
             @NonNull final Instant roundTimestamp,
             @NonNull final ConsensusConfig config,
-            @NonNull final AncientMode ancientMode,
             @NonNull final PlatformEvent judge) {
         final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(
                         RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
-                .mapToObj(r -> new MinimumJudgeInfo(r, ancientMode.selectIndicator(judge)))
+                .mapToObj(r -> new MinimumJudgeInfo(r, judge.getBirthRound()))
                 .toList();
         return ConsensusSnapshot.newBuilder()
                 .round(round)
@@ -70,18 +66,14 @@ public final class SyntheticSnapshot {
      * Create a genesis snapshot. This snapshot is not the result of consensus but is instead generated to be used as a
      * starting point for consensus.
      *
-     * @param ancientMode the ancient mode
      * @return the genesis snapshot, when loaded by consensus, it will start from genesis
      */
-    public static @NonNull ConsensusSnapshot getGenesisSnapshot(@NonNull final AncientMode ancientMode) {
+    public static @NonNull ConsensusSnapshot getGenesisSnapshot() {
         return ConsensusSnapshot.newBuilder()
                 .round(ConsensusConstants.ROUND_FIRST)
                 .judgeIds(List.of())
-                .minimumJudgeInfoList(List.of(new MinimumJudgeInfo(
-                        ConsensusConstants.ROUND_FIRST,
-                        ancientMode == AncientMode.GENERATION_THRESHOLD
-                                ? EventConstants.FIRST_GENERATION
-                                : ConsensusConstants.ROUND_FIRST)))
+                .minimumJudgeInfoList(
+                        List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, ConsensusConstants.ROUND_FIRST)))
                 .nextConsensusNumber(ConsensusConstants.FIRST_CONSENSUS_NUMBER)
                 .consensusTimestamp(CommonUtils.toPbjTimestamp(Instant.EPOCH))
                 .build();

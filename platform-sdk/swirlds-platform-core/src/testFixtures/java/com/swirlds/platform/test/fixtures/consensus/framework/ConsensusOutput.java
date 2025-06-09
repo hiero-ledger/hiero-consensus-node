@@ -7,7 +7,6 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import org.hiero.base.Clearable;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -32,17 +31,15 @@ public class ConsensusOutput implements Clearable {
 
     /**
      * Creates a new instance.
-     *
-     * @param ancientMode the ancient mode
      */
-    public ConsensusOutput(@NonNull final AncientMode ancientMode) {
+    public ConsensusOutput() {
         addedEvents = new LinkedList<>();
         consensusRounds = new LinkedList<>();
         staleEvents = new LinkedList<>();
 
-        nonAncientEvents = new StandardSequenceSet<>(0, 1024, true, ancientMode::selectIndicator);
-        nonAncientConsensusEvents = new StandardSequenceSet<>(0, 1024, true, ancientMode::selectIndicator);
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        nonAncientEvents = new StandardSequenceSet<>(0, 1024, true, PlatformEvent::getBirthRound);
+        nonAncientConsensusEvents = new StandardSequenceSet<>(0, 1024, true, EventDescriptorWrapper::birthRound);
+        eventWindow = EventWindow.getGenesisEventWindow();
     }
 
     public void eventAdded(@NonNull final PlatformEvent event) {
@@ -88,7 +85,7 @@ public class ConsensusOutput implements Clearable {
 
     public @NonNull List<PlatformEvent> sortedAddedEvents() {
         final List<PlatformEvent> sortedEvents = new ArrayList<>(addedEvents);
-        sortedEvents.sort(Comparator.comparingLong(PlatformEvent::getGeneration)
+        sortedEvents.sort(Comparator.comparingLong(PlatformEvent::getBirthRound)
                 .thenComparingLong(e -> e.getCreatorId().id())
                 .thenComparing(PlatformEvent::getHash));
         return sortedEvents;
@@ -120,6 +117,6 @@ public class ConsensusOutput implements Clearable {
         nonAncientEvents.clear();
         nonAncientConsensusEvents.clear();
         latestRound = 0;
-        eventWindow = EventWindow.getGenesisEventWindow(AncientMode.GENERATION_THRESHOLD);
+        eventWindow = EventWindow.getGenesisEventWindow();
     }
 }

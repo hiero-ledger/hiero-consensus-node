@@ -24,7 +24,6 @@ description = "Consensus Otter Test Framework"
 testModuleInfo {
     requires("com.swirlds.logging")
     requires("org.apache.logging.log4j")
-    requires("org.hiero.consensus.utility")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
 }

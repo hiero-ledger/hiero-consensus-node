@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sync;
 
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,7 +37,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -80,9 +78,7 @@ class ShadowgraphByBirthRoundTests {
     }
 
     private void initShadowGraph(final Random random, final int numEvents, final int numNodes) {
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
@@ -93,7 +89,7 @@ class ShadowgraphByBirthRoundTests {
                 .build();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
 
         for (int i = 0; i < numEvents; i++) {
             final EventImpl event = emitter.emitEvent();
@@ -106,14 +102,14 @@ class ShadowgraphByBirthRoundTests {
                     shadowGraph.isHashInGraph(hash),
                     "Event that was just added to the shadow graph should still be in the shadow graph.");
             generatedEvents.add(event);
-            if (!birthRoundToShadows.containsKey(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()))) {
-                birthRoundToShadows.put(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()), new HashSet<>());
+            if (!birthRoundToShadows.containsKey(event.getBirthRound())) {
+                birthRoundToShadows.put(event.getBirthRound(), new HashSet<>());
             }
             birthRoundToShadows
-                    .get(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()))
+                    .get(event.getBirthRound())
                     .add(shadowGraph.shadow(event.getBaseEvent().getDescriptor()));
-            if (BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()) > maxBirthRound) {
-                maxBirthRound = BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent());
+            if (event.getBirthRound() > maxBirthRound) {
+                maxBirthRound = event.getBirthRound();
             }
         }
     }
@@ -156,7 +152,7 @@ class ShadowgraphByBirthRoundTests {
 
         final long expireBelowBirthRound = random.nextInt(10) + 1;
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setExpiredThreshold(expireBelowBirthRound)
                 .build();
 
@@ -165,7 +161,7 @@ class ShadowgraphByBirthRoundTests {
         final Set<ShadowEvent> allEvents = shadowGraph.findAncestors(shadowGraph.getTips(), (e) -> true);
         for (final ShadowEvent event : allEvents) {
             assertTrue(
-                    BIRTH_ROUND_THRESHOLD.selectIndicator(event.getEvent()) >= expireBelowBirthRound,
+                    event.getEvent().getBirthRound() >= expireBelowBirthRound,
                     "Ancestors should not include expired events.");
         }
     }
@@ -277,7 +273,7 @@ class ShadowgraphByBirthRoundTests {
         final long expireBelowBirthRound = ROUND_FIRST + 1;
 
         final ReservedEventWindow r1 = shadowGraph.reserve();
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setExpiredThreshold(expireBelowBirthRound)
                 .build();
         shadowGraph.updateEventWindow(eventWindow);
@@ -340,7 +336,7 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(random, numEvents, numNodes);
 
         final long expireBelowBirthRound = random.nextInt((int) maxBirthRound) + 2;
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setExpiredThreshold(expireBelowBirthRound)
                 .build();
         shadowGraph.updateEventWindow(eventWindow);
@@ -382,11 +378,11 @@ class ShadowgraphByBirthRoundTests {
         SyncTestUtils.printEvents("generated events", generatedEvents);
 
         final ReservedEventWindow r0 = shadowGraph.reserve();
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        shadowGraph.updateEventWindow(EventWindowBuilder.builder()
                 .setExpiredThreshold(ROUND_FIRST + 1)
                 .build());
         final ReservedEventWindow r1 = shadowGraph.reserve();
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        shadowGraph.updateEventWindow(EventWindowBuilder.builder()
                 .setExpiredThreshold(ROUND_FIRST + 2)
                 .build());
         final ReservedEventWindow r2 = shadowGraph.reserve();
@@ -400,7 +396,7 @@ class ShadowgraphByBirthRoundTests {
         r2.close();
 
         // Attempt to expire everything up to
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        shadowGraph.updateEventWindow(EventWindowBuilder.builder()
                 .setExpiredThreshold(ROUND_FIRST + 2)
                 .build());
 
@@ -408,7 +404,7 @@ class ShadowgraphByBirthRoundTests {
         assertEventsBelowBirthRoundAreExpired(0);
 
         r0.close();
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        shadowGraph.updateEventWindow(EventWindowBuilder.builder()
                 .setExpiredThreshold(ROUND_FIRST + 2)
                 .build());
 
@@ -521,7 +517,7 @@ class ShadowgraphByBirthRoundTests {
     void testAddEventWithExpiredBirthRound() {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
-        shadowGraph.updateEventWindow(EventWindowBuilder.birthRoundMode()
+        shadowGraph.updateEventWindow(EventWindowBuilder.builder()
                 .setExpiredThreshold(ROUND_FIRST + 1)
                 .build());
         birthRoundToShadows.get(ROUND_FIRST).forEach(shadow -> {
@@ -559,8 +555,8 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
         final EventImpl newEvent = emitter.emitEvent();
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
-                .setExpiredThreshold(BIRTH_ROUND_THRESHOLD.selectIndicator(newEvent.getBaseEvent()))
+        final EventWindow eventWindow = EventWindowBuilder.builder()
+                .setExpiredThreshold(newEvent.getBirthRound())
                 .build();
         shadowGraph.updateEventWindow(eventWindow);
 
@@ -628,7 +624,7 @@ class ShadowgraphByBirthRoundTests {
         r1.close();
 
         shadowGraph.clear();
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
 
         assertEquals(0, shadowGraph.getTips().size(), "Shadow graph should not have any tips after being cleared.");
         for (final EventImpl generatedEvent : generatedEvents) {
@@ -678,11 +674,11 @@ class ShadowgraphByBirthRoundTests {
         long oldestTipBirthRound = Long.MAX_VALUE;
         final List<ShadowEvent> tipsToExpire = new ArrayList<>();
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            oldestTipBirthRound = Math.min(oldestTipBirthRound, BIRTH_ROUND_THRESHOLD.selectIndicator(tip.getEvent()));
+            oldestTipBirthRound = Math.min(oldestTipBirthRound, tip.getEvent().getBirthRound());
         }
 
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            if (BIRTH_ROUND_THRESHOLD.selectIndicator(tip.getEvent()) == oldestTipBirthRound) {
+            if (tip.getEvent().getBirthRound() == oldestTipBirthRound) {
                 tipsToExpire.add(tip);
             }
         }
@@ -690,7 +686,7 @@ class ShadowgraphByBirthRoundTests {
         final int numTipsBeforeExpiry = shadowGraph.getTips().size();
         assertTrue(numTipsBeforeExpiry > 0, "Shadow graph should have tips after events are added.");
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setExpiredThreshold(oldestTipBirthRound + 1)
                 .build();
         shadowGraph.updateEventWindow(eventWindow);
