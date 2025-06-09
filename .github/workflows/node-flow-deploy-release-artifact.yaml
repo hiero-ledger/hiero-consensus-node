@@ -11,7 +11,7 @@ on:
         description: "The github branch, tag, or commit sha that triggered the workflow"
       ref-name:
         required: true
-        description: "The name of the branch or tag that triggered the workflow"
+        description: "The name of the github branch, tag, or commit sha that triggered the workflow"
 
 defaults:
   run:
@@ -309,9 +309,9 @@ jobs:
         id: fetch-commit-info
         continue-on-error: true
         run: |
-          echo "commit-hash=$(git rev-parse ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-hash=${{ inputs.ref }}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git show -s --format='%an <%ae>' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git show -s --format='%ae' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack

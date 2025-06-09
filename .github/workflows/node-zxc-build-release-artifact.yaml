@@ -9,7 +9,7 @@ on:
         required: true
         default: ""
       ref-name:
-        description: "Git Reference Name (branch or tag)"
+        description: "Git Reference Name (branch name or tag name)"
         type: string
         required: true
         default: ""
@@ -142,12 +142,15 @@ jobs:
           semver --version
           echo "::endgroup::"
 
-      # step to pull head ref and ref name based on the input ref.
-
       - name: Verify Workflow Parameters
         id: parameters
         run: |
-          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          if [[ "${{ inputs.ref }}" == refs/*  ]]; then
+            COMMIT_SHA=$( git log -1 --format="%H" "${{ inputs.ref }}" )
+          else
+            COMMIT_SHA="${{ inputs.ref }}"
+          fi
+          BRANCH_NAME="${{ inputs.ref-name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
           BRANCH_NAME_SAFE="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
@@ -159,8 +162,8 @@ jobs:
           echo "branch-name-lower=${BRANCH_NAME_LOWER}" >>"${GITHUB_OUTPUT}"
           echo "branch-name-safe=${BRANCH_NAME_SAFE}" >>"${GITHUB_OUTPUT}"
           echo "commit-prefix=${COMMIT_PREFIX}" >>"${GITHUB_OUTPUT}"
-          echo "commit-id=${{ github.sha }}" >>"${GITHUB_OUTPUT}"
-          echo "commit-id-short=$(echo "${{ github.sha }}" | cut -c1-8)" >>"${GITHUB_OUTPUT}"
+          echo "commit-id=${COMMIT_SHA}" >>"${GITHUB_OUTPUT}" 
+          echo "commit-id-short=$(echo "${COMMIT_SHA}" | cut -c1-8)" >>"${GITHUB_OUTPUT}"
 
       - name: Verify Version Update (As Specified)
         if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -174,6 +177,9 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ steps.parameters.outputs.commit-id }}
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -269,6 +275,9 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
@@ -301,7 +310,7 @@ jobs:
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: ~/artifact-build
-          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ github.sha }}
+          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
 
       - name: Gradle Assemble
         id: gradle-build
@@ -443,7 +452,7 @@ jobs:
         with:
           fail-on-cache-miss: true
           path: ~/artifact-build
-          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ github.sha }}
+          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
 
       - name: Stage SDK Artifacts
         run: |
@@ -563,6 +572,9 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
@@ -676,6 +688,9 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Install GnuPG Tools
         if: ${{ inputs.dry-run-enabled != true }}
@@ -760,7 +775,6 @@ jobs:
             rm -rvf "${SDK_RELEASE_DIR}/testing"
             rm -rvf "${SDK_RELEASE_DIR}/kernels"
             rm -rvf "${SDK_RELEASE_DIR}/data/configs"
-
 
             cat "sdk/config.txt" | \
               perl -0777 -pe 's/# \*\* BEGIN REMOVE FROM SDK RELEASES \*\*.*# \*\* END REMOVE FROM SDK RELEASES \*\*//igs' \
@@ -906,7 +920,7 @@ jobs:
                           },
                           {
                             "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}|${{ github.ref_name }}>"
+                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ inputs.ref-name }}|${{ inputs.ref-name }}>"
                           },
                           {
                             "type": "mrkdwn",

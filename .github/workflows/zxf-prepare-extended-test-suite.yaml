@@ -139,7 +139,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
                       }
                     }
                   ]
