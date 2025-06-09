@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.contract.precompile.token.address_0x167;
+package com.hedera.services.bdd.suites.contract.precompile.token.address_167;
 
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType.HAPI_IS_TOKEN;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;

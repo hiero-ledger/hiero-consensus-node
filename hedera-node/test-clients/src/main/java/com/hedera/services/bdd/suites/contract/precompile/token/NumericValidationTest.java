@@ -75,9 +75,9 @@ public class NumericValidationTest {
             keys = {SUPPLY_KEY, PAUSE_KEY, ADMIN_KEY, METADATA_KEY, WIPE_KEY})
     static SpecNonFungibleToken nftToken;
 
-    static final AtomicLong NFT_SERIAL_TRACKER = new AtomicLong(1);
-    static BigInteger NFT_SERIAL_FOR_APPROVE;
-    static BigInteger NFT_SERIAL_FOR_WIPE;
+    private static final AtomicLong NFT_SERIAL_TRACKER = new AtomicLong(1);
+    private static BigInteger NFT_SERIAL_FOR_APPROVE;
+    private static BigInteger NFT_SERIAL_FOR_WIPE;
 
     public static final BigInteger NEGATIVE_ONE_BIG_INT =
             new BigInteger(1, Bytes.fromHex("FFFFFFFFFFFFFFFF").toByteArray());
@@ -130,7 +130,6 @@ public class NumericValidationTest {
     @DisplayName("calls fail to approve functions with invalid amounts")
     class ApproveTests {
 
-        // TODO Glib: how to check if in smart contract we are getting exactly this failures? there are silent halts now
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("FT approve(address,uint256)")
         public Stream<DynamicTest> failToApproveViaProxyFungibleToken() {
@@ -196,7 +195,7 @@ public class NumericValidationTest {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("FT burnToken(address,uint64,int64[])")
-        public Stream<DynamicTest> failToBurnFTV1() {
+        public Stream<DynamicTest> failToBurnFtV1() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
                             new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
@@ -224,7 +223,7 @@ public class NumericValidationTest {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("FT burnToken(address,int64,int64[])")
-        public Stream<DynamicTest> failToBurnFTV2() {
+        public Stream<DynamicTest> failToBurnFtV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
             return Stream.of(
@@ -259,7 +258,7 @@ public class NumericValidationTest {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("FT mintToken(address,uint64,bytes[])")
-        public Stream<DynamicTest> failToMintFTV1() {
+        public Stream<DynamicTest> failToMintFtV1() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
             return Stream.of(
@@ -324,7 +323,7 @@ public class NumericValidationTest {
 
         @HapiTest
         @DisplayName("wipeTokenAccount(address,address,uint32)")
-        public Stream<DynamicTest> failToWipeFTV1() {
+        public Stream<DynamicTest> failToWipeFtV1() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
             return hapiTest(numericContract
@@ -335,7 +334,7 @@ public class NumericValidationTest {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("wipeTokenAccount(address,address,int64)")
-        public Stream<DynamicTest> failToWipeFTV2() {
+        public Stream<DynamicTest> failToWipeFtV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
             return Stream.of(
@@ -385,7 +384,7 @@ public class NumericValidationTest {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("NFT getTokenKey(address,uint256)")
-        public Stream<DynamicTest> failToGetTokenKeyNFT() {
+        public Stream<DynamicTest> failToGetTokenKeyNft() {
             return Stream.of(
                             // KEY_NOT_PROVIDED
                             new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
@@ -399,7 +398,7 @@ public class NumericValidationTest {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("FT getTokenKey(address,uint256)")
-        public Stream<DynamicTest> failToGetTokenKeyFT() {
+        public Stream<DynamicTest> failToGetTokenKeyFt() {
             return Stream.of(
                             // KEY_NOT_PROVIDED
                             new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
@@ -497,6 +496,7 @@ public class NumericValidationTest {
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("hbarApproveProxy", owner, spender, testCase.amount())
                             .gas(1_000_000L)
+                            .payingWith(owner)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
@@ -517,7 +517,6 @@ public class NumericValidationTest {
     }
 
     @Nested
-    // TODO Glib: all zeroNegativeAndGreaterThanLong are success
     @DisplayName("fail to call Exchange Rate System contract functions")
     class ExchangeRateSystemContractTests {
 

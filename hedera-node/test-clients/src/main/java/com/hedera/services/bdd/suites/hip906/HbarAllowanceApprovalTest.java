@@ -95,6 +95,7 @@ public class HbarAllowanceApprovalTest {
                                                 isLiteralResult(new Object[] {22L, BigInteger.valueOf(1_000_000L)})))));
     }
 
+    //TODO Glib: look at it
     @HapiTest
     final Stream<DynamicTest> hrc632ApproveFromEOA() {
         final AtomicReference<AccountID> accountNum = new AtomicReference<>();
