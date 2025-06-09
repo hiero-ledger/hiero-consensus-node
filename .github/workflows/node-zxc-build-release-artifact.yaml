@@ -162,7 +162,7 @@ jobs:
           echo "branch-name-lower=${BRANCH_NAME_LOWER}" >>"${GITHUB_OUTPUT}"
           echo "branch-name-safe=${BRANCH_NAME_SAFE}" >>"${GITHUB_OUTPUT}"
           echo "commit-prefix=${COMMIT_PREFIX}" >>"${GITHUB_OUTPUT}"
-          echo "commit-id=${COMMIT_SHA}" >>"${GITHUB_OUTPUT}" 
+          echo "commit-id=${COMMIT_SHA}" >>"${GITHUB_OUTPUT}"
           echo "commit-id-short=$(echo "${COMMIT_SHA}" | cut -c1-8)" >>"${GITHUB_OUTPUT}"
 
       - name: Verify Version Update (As Specified)
