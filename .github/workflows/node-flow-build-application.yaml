@@ -12,27 +12,27 @@ on:
         description: "HAPI Testing Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-spotless-check:
         description: "Spotless Check Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-gradle-determinism:
         description: "Gradle Build Determinism Check Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-docker-determinism:
         description: "Docker Build Determinism Check Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-ci-trigger:
         description: "Trigger CI Flows Enabled"
         type: boolean
@@ -52,7 +52,7 @@ on:
         description: "Dry Run Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
   push:
     branches:
       - main
