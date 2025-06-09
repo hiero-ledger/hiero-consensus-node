@@ -12,6 +12,10 @@ on:
       ref-name:
         required: true
         description: "The name of the github branch, tag, or commit sha that triggered the workflow"
+      dry-run-enabled:
+        required: false
+        default: false
+        description: "Specify that this is a test run which will skip certain steps."
 
 defaults:
   run:
@@ -159,6 +163,7 @@ jobs:
       release-profile: DevelopCommit
       ref: ${{ inputs.ref }}
       ref-name: ${{ inputs.ref-name }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -217,11 +222,13 @@ jobs:
           inputs: '{
             "ref": "${{ inputs.ref }}",
             "ref-name": "${{ inputs.ref-name }}"
+            "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
             }'
 
   deploy-integration-ci-trigger:
     name: Trigger XTS CI Flows
     runs-on: hiero-network-node-linux-medium
+    if: ${{ inputs.dry-run-enabled == false }}
     needs:
       - release-branch
     steps:
@@ -267,7 +274,7 @@ jobs:
     needs:
       - release-branch
       - deploy-xts-ci-trigger
-    if: ${{ (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
+    if: ${{ inputs.dry-run-enabled == false && (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0

@@ -48,6 +48,11 @@ on:
         type: string
         required: false
         default: "temurin"
+      dry-run-enabled:
+        description: "Dry Run Enabled"
+        type: boolean
+        required: false
+        default: false
   push:
     branches:
       - main
@@ -192,6 +197,7 @@ jobs:
           inputs: '{
             "ref": "${{ github.sha }}",
             "ref-name": "${{ github.ref_name }}"
+            "dry-run-enabled": ${{ inputs.dry-run-enabled || false}}
             }'
 
   report-failure:
@@ -212,6 +218,7 @@ jobs:
       needs.mats-gradle-determinism.result != 'success' ||
       needs.mats-docker-determinism.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
+      !inputs.dry-run-enabled &&
       !cancelled() && always() }}
 
     steps:
