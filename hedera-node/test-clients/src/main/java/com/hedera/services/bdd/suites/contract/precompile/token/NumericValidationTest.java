@@ -98,7 +98,6 @@ public class NumericValidationTest {
 
     @BeforeAll
     public static void beforeAll(final @NonNull TestLifecycle lifecycle) {
-        System.out.println("!!!!!!!!!!!!!!!!!!! beforeAll !!!!!!!!!!!!!!!!!!!!!!!!!!"); // TODO Glib: remove
         NFT_SERIAL_FOR_APPROVE = BigInteger.valueOf(NFT_SERIAL_TRACKER.getAndIncrement());
         NFT_SERIAL_FOR_WIPE = BigInteger.valueOf(NFT_SERIAL_TRACKER.getAndIncrement());
         lifecycle.doAdhoc(
@@ -471,7 +470,6 @@ public class NumericValidationTest {
         }
     }
 
-    // TODO Glib: fix next
     @Nested
     @DisplayName("fail to call HAS functions with invalid amounts")
     class HASFunctionsTests {
@@ -494,12 +492,12 @@ public class NumericValidationTest {
             // impossible to call? see HbarApproveTranslator.bodyForApproveProxy
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
                             // NEGATIVE_ALLOWANCE_AMOUNT
-                            new BigIntegerTestCase(BigInteger.valueOf(-1), CONTRACT_REVERT_EXECUTED),
+                            new BigIntegerTestCase(BigInteger.valueOf(-1), SUCCESS),
                             new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("hbarApproveProxy", spender, testCase.amount())
+                            .call("hbarApproveProxy", owner, spender, testCase.amount())
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }

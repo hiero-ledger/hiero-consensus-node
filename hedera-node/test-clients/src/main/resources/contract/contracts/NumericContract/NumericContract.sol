@@ -158,8 +158,8 @@ contract NumericContract {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                    HАS functions                    */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function hbarApproveProxy(address spender, int256 amount) external {
-        (bool success, bytes memory result) = address(0x16a).call(abi.encodeWithSignature("hbarApprove(address,int256)", spender, amount));
+    function hbarApproveProxy(address owner, address spender, int256 amount) external {
+        (bool success, bytes memory result) = address(owner).call(abi.encodeWithSignature("hbarApprove(address,int256)", spender, amount));
 
         if (success == false) {
             revert();
