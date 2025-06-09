@@ -77,7 +77,8 @@ public class GrantApprovalTranslator extends AbstractCallTranslator<HtsCallAttem
     @Override
     public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
         requireNonNull(attempt);
-        // TODO Glib: ERC_GRANT_APPROVAL_NFT is not added to isMethod, because the signature is the same as ERC_GRANT_APPROVAL
+        // TODO Glib: ERC_GRANT_APPROVAL_NFT is not added to isMethod, because the signature is the same as
+        // ERC_GRANT_APPROVAL
         return attempt.isMethod(GRANT_APPROVAL, GRANT_APPROVAL_NFT, ERC_GRANT_APPROVAL);
     }
 

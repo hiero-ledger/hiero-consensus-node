@@ -84,11 +84,9 @@ public class NumericValidationTest {
     public static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
             new BigInteger(1, Bytes.fromHex("010000000000000000").toByteArray());
 
-    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {
-    }
+    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {}
 
-    public record Int64TestCase(Long amount, ResponseCodeEnum status) {
-    }
+    public record Int64TestCase(Long amount, ResponseCodeEnum status) {}
 
     // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
     public static final List<BigIntegerTestCase> allFail = List.of(
@@ -217,8 +215,8 @@ public class NumericValidationTest {
                             new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             new BigIntegerTestCase(BigInteger.valueOf(NFT_SERIAL_TRACKER.getAndIncrement()), SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("burnTokenV1", nftToken, testCase.amount(), new long[]{
-                                    testCase.amount().longValue()
+                            .call("burnTokenV1", nftToken, testCase.amount(), new long[] {
+                                testCase.amount().longValue()
                             })
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -249,7 +247,7 @@ public class NumericValidationTest {
                             // using '2' here because '1' was already burned by 'failToBurnNftV1'
                             new Int64TestCase(NFT_SERIAL_TRACKER.getAndIncrement(), SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("burnTokenV2", nftToken, testCase.amount(), new long[]{testCase.amount()})
+                            .call("burnTokenV2", nftToken, testCase.amount(), new long[] {testCase.amount()})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -286,7 +284,7 @@ public class NumericValidationTest {
                                     BigInteger.ONE, CONTRACT_REVERT_EXECUTED), // INVALID_TRANSACTION_BODY
                             new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("mintTokenV1", nftToken, testCase.amount(), new byte[][]{{(byte) 0x1}})
+                            .call("mintTokenV1", nftToken, testCase.amount(), new byte[][] {{(byte) 0x1}})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -314,7 +312,7 @@ public class NumericValidationTest {
                             new Int64TestCase(-1L, CONTRACT_REVERT_EXECUTED), // INVALID_TOKEN_MINT_AMOUNT
                             new Int64TestCase(0L, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("mintTokenV2", nftToken, testCase.amount(), new byte[][]{{(byte) 0x1}})
+                            .call("mintTokenV2", nftToken, testCase.amount(), new byte[][] {{(byte) 0x1}})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -361,7 +359,7 @@ public class NumericValidationTest {
                             new Int64TestCase(0L, CONTRACT_REVERT_EXECUTED),
                             new Int64TestCase(NFT_SERIAL_FOR_WIPE.longValue(), SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("wipeNFT", nftToken, numericContract, new long[]{testCase.amount()})
+                            .call("wipeNFT", nftToken, numericContract, new long[] {testCase.amount()})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -753,7 +751,7 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with invalid serial number")
         public Stream<DynamicTest> failToUpdateNFTsMetadata() {
-            return Stream.of(new long[]{Long.MAX_VALUE}, new long[]{0}, new long[]{-1, 1}, new long[]{-1})
+            return Stream.of(new long[] {Long.MAX_VALUE}, new long[] {0}, new long[] {-1, 1}, new long[] {-1})
                     .flatMap(invalidSerialNumbers -> hapiTest(numericContract
                             .call("updateNFTsMetadata", nftToken, invalidSerialNumbers, "tiger".getBytes())
                             .gas(1_000_000L)
@@ -764,7 +762,7 @@ public class NumericValidationTest {
         @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with empty serial numbers")
         public Stream<DynamicTest> failToUpdateNFTsMetadataWithEmptySerialNumbers() {
             return hapiTest(numericContract
-                    .call("updateNFTsMetadata", nftToken, new long[]{}, "zebra".getBytes())
+                    .call("updateNFTsMetadata", nftToken, new long[] {}, "zebra".getBytes())
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -779,8 +777,13 @@ public class NumericValidationTest {
             lifecycle.doAdhoc(
                     fungibleToken.treasury().approveTokenAllowance(fungibleToken, numericContractComplex, 100L),
                     nftToken.treasury()
-                            .approveNFTAllowance(nftToken, numericContractComplex, true,
-                                    List.of(NFT_SERIAL_TRACKER.getAndIncrement(), NFT_SERIAL_TRACKER.getAndIncrement(),
+                            .approveNFTAllowance(
+                                    nftToken,
+                                    numericContractComplex,
+                                    true,
+                                    List.of(
+                                            NFT_SERIAL_TRACKER.getAndIncrement(),
+                                            NFT_SERIAL_TRACKER.getAndIncrement(),
                                             NFT_SERIAL_TRACKER.getAndIncrement())),
                     alice.approveCryptoAllowance(numericContractComplex, ONE_HBAR));
         }
@@ -789,7 +792,7 @@ public class NumericValidationTest {
         @DisplayName("when using cryptoTransferFungibleV1")
         public Stream<DynamicTest> failToUseCryptoTransferFungibleV1() {
             return hapiTest(numericContractComplex
-                    .call("cryptoTransferFungibleV1", fungibleToken, new long[]{-5, -5}, fungibleToken.treasury(), bob)
+                    .call("cryptoTransferFungibleV1", fungibleToken, new long[] {-5, -5}, fungibleToken.treasury(), bob)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -798,7 +801,7 @@ public class NumericValidationTest {
         @DisplayName("when using cryptoTransferV2 for hBar transfer")
         public Stream<DynamicTest> failToUseCryptoTransferV2() {
             return hapiTest(numericContractComplex
-                    .call("cryptoTransferV2", new long[]{-5, -5}, alice, bob)
+                    .call("cryptoTransferV2", new long[] {-5, -5}, alice, bob)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -816,7 +819,7 @@ public class NumericValidationTest {
         @DisplayName("when using transferNFTs with invalid serial numbers")
         public Stream<DynamicTest> failToUseTransferNFTs() {
             return hapiTest(numericContractComplex
-                    .call("transferNFTs", nftToken, nftToken.treasury(), alice, new long[]{-1L})
+                    .call("transferNFTs", nftToken, nftToken.treasury(), alice, new long[] {-1L})
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
