@@ -201,7 +201,7 @@ jobs:
             }'
 
   report-failure:
-    name: Report XTS execution failure
+    name: Report MATS execution failure
     runs-on: hiero-network-node-linux-medium
     needs:
       - code
