@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
@@ -80,16 +81,18 @@ public class SimulatedBlockNodeServer {
     private final List<StreamObserver<PublishStreamResponse>> activeStreams = new CopyOnWriteArrayList<>();
 
     private final Random random = new Random();
+    private final Supplier<Long> externalLastVerifiedBlockNumberSupplier;
 
     /**
      * Creates a new simulated block node server on the specified port.
      *
      * @param port the port to listen on
      */
-    public SimulatedBlockNodeServer(final int port) {
+    public SimulatedBlockNodeServer(final int port, final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
         this.serviceImpl = new MockBlockStreamServiceImpl();
         this.server = ServerBuilder.forPort(port).addService(serviceImpl).build();
+        this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
     }
 
     /**
@@ -273,6 +276,14 @@ public class SimulatedBlockNodeServer {
                             if (item.hasBlockHeader()) {
                                 final var header = item.getBlockHeader();
                                 final long blockNumber = header.getNumber();
+
+                                // We might want to catch up using a supplier from
+                                // another BN simulator
+                                if (externalLastVerifiedBlockNumberSupplier != null
+                                        && externalLastVerifiedBlockNumberSupplier.get() - lastVerifiedBlockNumber.get()
+                                                > 1) {
+                                    lastVerifiedBlockNumber.set(externalLastVerifiedBlockNumberSupplier.get());
+                                }
 
                                 final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
                                 if (blockNumber - lastVerifiedBlockNum > 1) {
@@ -729,10 +740,8 @@ public class SimulatedBlockNodeServer {
             final long blockNumber,
             final StreamObserver<PublishStreamResponse> responseObserver,
             final boolean blockAlreadyExists) {
-        // Store lastVerifiedBlockNumber in a local variable to avoid race condition
-        final long lastVerified = lastVerifiedBlockNumber.get();
         final PublishStreamResponse.BlockAcknowledgement ack = PublishStreamResponse.BlockAcknowledgement.newBuilder()
-                .setBlockNumber(lastVerified) // Use lastVerified as the canonical block number
+                .setBlockNumber(blockNumber)
                 .setBlockAlreadyExists(blockAlreadyExists) // Set based on the parameter
                 .build();
         final PublishStreamResponse response =
@@ -745,7 +754,7 @@ public class SimulatedBlockNodeServer {
                     blockAlreadyExists,
                     responseObserver.hashCode(),
                     port,
-                    lastVerified);
+                    lastVerifiedBlockNumber.get());
         } catch (Exception e) {
             log.error(
                     "Failed to send BlockAcknowledgement for block {} to stream {} on port {}. Removing stream.",

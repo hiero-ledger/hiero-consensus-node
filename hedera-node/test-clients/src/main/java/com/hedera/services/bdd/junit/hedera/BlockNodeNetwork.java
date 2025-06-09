@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -120,15 +121,15 @@ public class BlockNodeNetwork {
             if (entry.getValue() == BlockNodeMode.REAL) {
                 // TODO
             } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
-                addSimulatorNode(entry.getKey());
+                addSimulatorNode(entry.getKey(), null);
             }
         }
     }
 
-    public void addSimulatorNode(Long id) {
+    public void addSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
         // Find an available port
         int port = findAvailablePort();
-        SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
+        SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumberSupplier);
         try {
             server.start();
         } catch (Exception e) {

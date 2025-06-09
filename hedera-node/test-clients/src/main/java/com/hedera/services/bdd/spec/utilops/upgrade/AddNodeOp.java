@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
@@ -30,7 +31,13 @@ public class AddNodeOp extends UtilOp {
             blockNodeNetwork.getBlockNodeModeById().put(nodeId, BlockNodeMode.SIMULATOR);
             blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(nodeId, new long[] {nodeId});
             blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(nodeId, new long[] {0});
-            blockNodeNetwork.addSimulatorNode(nodeId);
+
+            // Get latest verified block number from block node 0
+            final SimulatedBlockNodeServer blockNode0 = blockNodeNetwork.getSimulatedBlockNodeById().entrySet().stream()
+                    .findFirst()
+                    .get()
+                    .getValue();
+            blockNodeNetwork.addSimulatorNode(nodeId, blockNode0::getLastVerifiedBlockNumber);
             SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
         }
 
