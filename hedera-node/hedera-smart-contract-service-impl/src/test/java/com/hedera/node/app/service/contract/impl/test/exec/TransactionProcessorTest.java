@@ -69,6 +69,8 @@ import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -134,6 +136,8 @@ class TransactionProcessorTest {
 
     @Mock
     private ContractMetrics metrics;
+
+    private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     private TransactionProcessor subject;
 
@@ -225,6 +229,7 @@ class TransactionProcessorTest {
                         messageCallProcessor,
                         contractCreationProcessor))
                 .willReturn(SUCCESS_RESULT);
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
         final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
 
@@ -277,6 +282,7 @@ class TransactionProcessorTest {
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
         given(senderAccount.getNonce()).willReturn(NONCE);
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
         final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
 
@@ -329,6 +335,7 @@ class TransactionProcessorTest {
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
         given(senderAccount.getNonce()).willReturn(NONCE);
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
         final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
 
@@ -436,6 +443,7 @@ class TransactionProcessorTest {
                 Account.newBuilder().accountId(senderAccount.hederaId()).build();
         given(senderAccount.toNativeAccount()).willReturn(parsedAccount);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
         final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
 
@@ -507,6 +515,7 @@ class TransactionProcessorTest {
                         contractCreationProcessor))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
         final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
 
@@ -575,6 +584,7 @@ class TransactionProcessorTest {
                         eq(contractCreationProcessor)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
         final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
 
@@ -647,6 +657,7 @@ class TransactionProcessorTest {
                         eq(contractCreationProcessor)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(any(), any()))
                 .willReturn(true);
         given(senderAccount.getNonce()).willReturn(NONCE);
@@ -719,6 +730,7 @@ class TransactionProcessorTest {
                         eq(contractCreationProcessor)))
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
+        given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
         willThrow(new ResourceExhaustedException(INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES))
                 .given(worldUpdater)
