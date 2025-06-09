@@ -219,6 +219,7 @@ class EthereumTransactionHandlerTest {
                 CALLED_CONTRACT_ID,
                 null,
                 null,
+                null,
                 opsDuration / 2);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
@@ -258,6 +259,7 @@ class EthereumTransactionHandlerTest {
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
                 CALLED_CONTRACT_ID,
+                null,
                 null,
                 null,
                 opsDuration / 2);

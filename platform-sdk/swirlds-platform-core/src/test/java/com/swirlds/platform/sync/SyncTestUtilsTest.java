@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sync;
 
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,14 +21,14 @@ class SyncTestUtilsTest {
     @Test
     void testUnknownNonAncient() {
         // the following graph is used for this test
-        // GEN
-        //   3  e7
+        //  BR
+        //   4  e7
         //      | \
-        //   2  e5 e6
+        //   3  e5 e6
         //		|  |
-        //   1  e3 e4
+        //   2  e3 e4
         //     	 \ | \
-        //   0     e1 e2
+        //   1     e1 e2
 
         final Random random = RandomUtils.getRandomPrintSeed();
 
@@ -47,10 +46,10 @@ class SyncTestUtilsTest {
         knownSet.add(e1);
 
         final EventWindow eventWindow =
-                EventWindowBuilder.generationMode().setAncientThreshold(1).build();
+                EventWindowBuilder.builder().setAncientThreshold(2).build();
 
         final Predicate<ShadowEvent> unknownNonAncient =
-                SyncUtils.unknownNonAncient(knownSet, eventWindow, eventWindow, GENERATION_THRESHOLD);
+                SyncUtils.unknownNonAncient(knownSet, eventWindow, eventWindow);
 
         assertFalse(unknownNonAncient.test(e1), "e1 is both ancient and known, should be false");
         assertFalse(unknownNonAncient.test(e2), "e2 is ancient, should be false");

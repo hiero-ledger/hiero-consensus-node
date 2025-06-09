@@ -8,8 +8,6 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -26,10 +24,10 @@ class HintsContextTest {
     private static final Bytes VERIFICATION_KEY = Bytes.wrap("VK");
     private static final Bytes AGGREGATION_KEY = Bytes.wrap("AK");
     private static final PreprocessedKeys PREPROCESSED_KEYS = new PreprocessedKeys(AGGREGATION_KEY, VERIFICATION_KEY);
-    private static final NodePartyId A_NODE_PARTY_ID = new NodePartyId(1L, 2);
-    private static final NodePartyId B_NODE_PARTY_ID = new NodePartyId(3L, 6);
-    private static final NodePartyId C_NODE_PARTY_ID = new NodePartyId(7L, 14);
-    private static final NodePartyId D_NODE_PARTY_ID = new NodePartyId(9L, 18);
+    private static final NodePartyId A_NODE_PARTY_ID = new NodePartyId(1L, 2, 1L);
+    private static final NodePartyId B_NODE_PARTY_ID = new NodePartyId(3L, 6, 1L);
+    private static final NodePartyId C_NODE_PARTY_ID = new NodePartyId(7L, 14, 1L);
+    private static final NodePartyId D_NODE_PARTY_ID = new NodePartyId(9L, 18, 9L);
     private static final HintsConstruction CONSTRUCTION = HintsConstruction.newBuilder()
             .constructionId(1L)
             .hintsScheme(new HintsScheme(
@@ -42,12 +40,6 @@ class HintsContextTest {
 
     @Mock
     private Bytes signature;
-
-    @Mock
-    private Bytes badKey;
-
-    @Mock
-    private Bytes goodKey;
 
     private HintsContext subject;
 
@@ -72,26 +64,6 @@ class HintsContextTest {
 
     @Test
     void incorporatingValidWorksAsExpected() {
-        final long cWeight = 1L;
-        final long dWeight = 2L;
-        final var currentRoster = Roster.newBuilder()
-                .rosterEntries(RosterEntry.newBuilder()
-                        .nodeId(A_NODE_PARTY_ID.nodeId())
-                        .weight(1)
-                        .build())
-                .rosterEntries(RosterEntry.newBuilder()
-                        .nodeId(B_NODE_PARTY_ID.nodeId())
-                        .weight(1)
-                        .build())
-                .rosterEntries(RosterEntry.newBuilder()
-                        .nodeId(C_NODE_PARTY_ID.nodeId())
-                        .weight(cWeight)
-                        .build())
-                .rosterEntries(RosterEntry.newBuilder()
-                        .nodeId(D_NODE_PARTY_ID.nodeId())
-                        .weight(dWeight)
-                        .build())
-                .build();
         final Map<Integer, Bytes> expectedSignatures = Map.of(
                 A_NODE_PARTY_ID.partyId(), signature,
                 B_NODE_PARTY_ID.partyId(), signature,
@@ -103,7 +75,7 @@ class HintsContextTest {
 
         subject.setConstruction(CONSTRUCTION);
 
-        final var signing = subject.newSigning(BLOCK_HASH, currentRoster, () -> {});
+        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
         signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);

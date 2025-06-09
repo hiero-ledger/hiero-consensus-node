@@ -187,9 +187,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         }
         final var signing = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
-                .newSigning(b, requireNonNull(currentRoster.get()), () -> component
-                        .signings()
-                        .remove(blockHash)));
+                .newSigning(b, () -> component.signings().remove(blockHash)));
         component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
             logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
             return null;

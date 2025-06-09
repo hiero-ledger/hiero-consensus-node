@@ -92,10 +92,14 @@ public class V0490FileSchema extends Schema {
     private static final String DEFAULT_THROTTLES_RESOURCE = "genesis/throttles.json";
 
     /**
-     * A hint to the database system of the maximum number of files we will store. This MUST NOT BE CHANGED. If it is
-     * changed, then the database has to be rebuilt.
+     * A hint to the database system of the expected maximum number of files we will store. This hint
+     * is used by the database to optimize its indices. If more than this number of files are actually
+     * stored, the database can handle that just fine.
+     *
+     * <p>If this number is changed, it will not have any effect on existing networks. Only new
+     * deployments will use the updated hint.
      */
-    private static final int MAX_FILES_HINT = 50_000_000;
+    private static final int MAX_FILES_HINT = 50_000;
     /**
      * The version of the schema.
      */

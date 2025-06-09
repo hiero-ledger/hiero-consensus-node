@@ -25,7 +25,7 @@ public class V0490ConsensusSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 
-    private static final long MAX_TOPICS = 1_000_000_000L;
+    private static final long MAX_TOPICS = 1_000_000L;
 
     /**
      * Constructor for this schema.

@@ -86,7 +86,7 @@ public class CostOfEveryThingSuite extends HapiSuite {
                 .collect(Collectors.toList());
     }
 
-    final HapiSpec canonicalContractOps() {
+    private HapiSpec canonicalContractOps() {
         return new HapiSpec(
                 "canonicalContractOps", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
                     UtilVerbs.newKeyNamed("key").shape(KeyShape.SIMPLE),
@@ -139,7 +139,7 @@ public class CostOfEveryThingSuite extends HapiSuite {
                 });
     }
 
-    final HapiSpec canonicalFileOps() {
+    private HapiSpec canonicalFileOps() {
         int fileSize = 1000;
         final byte[] first = TxnUtils.randomUtf8Bytes(fileSize);
         final byte[] next = TxnUtils.randomUtf8Bytes(fileSize);
@@ -181,7 +181,7 @@ public class CostOfEveryThingSuite extends HapiSuite {
                 });
     }
 
-    final HapiSpec canonicalTopicOps() {
+    private HapiSpec canonicalTopicOps() {
         return new HapiSpec(
                 "canonicalTopicOps", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
                     UtilVerbs.newKeyNamed("key").shape(KeyShape.SIMPLE),
@@ -215,7 +215,7 @@ public class CostOfEveryThingSuite extends HapiSuite {
                 });
     }
 
-    final HapiSpec canonicalTokenOps() {
+    private HapiSpec canonicalTokenOps() {
         return new HapiSpec(
                 "canonicalTokenOps", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
                     UtilVerbs.newKeyNamed("key").shape(KeyShape.SIMPLE),
@@ -323,7 +323,7 @@ public class CostOfEveryThingSuite extends HapiSuite {
                 });
     }
 
-    final HapiSpec canonicalCryptoOps() {
+    private HapiSpec canonicalCryptoOps() {
         return new HapiSpec(
                 "canonicalCryptoOps", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
                     UtilVerbs.newKeyNamed("key").shape(KeyShape.SIMPLE),
@@ -367,7 +367,7 @@ public class CostOfEveryThingSuite extends HapiSuite {
                 });
     }
 
-    final HapiSpec canonicalScheduleOps() {
+    private HapiSpec canonicalScheduleOps() {
         return new HapiSpec(
                 "canonicalScheduleOps", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
                     TxnVerbs.cryptoCreate(PAYING_SENDER).balance(HapiSuite.ONE_HUNDRED_HBARS),
