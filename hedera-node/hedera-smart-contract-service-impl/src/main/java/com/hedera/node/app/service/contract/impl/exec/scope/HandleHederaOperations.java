@@ -381,7 +381,7 @@ public class HandleHederaOperations implements HederaOperations {
     public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
         final var recordBuilder = context.savepointStack()
                 .addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE)
-                .contractID(contractId)
+                .createdContractID(contractId)
                 .status(SUCCESS)
                 .transaction(transactionWith(TransactionBody.newBuilder()
                         .contractCreateInstance(synthContractCreationForExternalization(contractId))
@@ -441,7 +441,7 @@ public class HandleHederaOperations implements HederaOperations {
         final var newContractId = contractID.copyBuilder().build();
         pendingCreationMetadataRef.set(newContractId, pendingCreationMetadata);
         streamBuilder
-                .contractID(newContractId)
+                .createdContractID(newContractId)
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(newContractId)
                         .evmAddress(evmAddress)
