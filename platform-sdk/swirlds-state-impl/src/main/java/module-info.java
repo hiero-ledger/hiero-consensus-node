@@ -26,5 +26,6 @@ module com.swirlds.state.impl {
     requires com.swirlds.merkledb;
     requires org.hiero.base.concurrent;
     requires org.apache.logging.log4j;
+    requires org.json;
     requires static transitive com.github.spotbugs.annotations;
 }

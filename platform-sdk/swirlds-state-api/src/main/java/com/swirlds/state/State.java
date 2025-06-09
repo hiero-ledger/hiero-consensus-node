@@ -137,4 +137,8 @@ public interface State extends FastCopyable, Hashable {
     default boolean isStartUpMode() {
         return true;
     }
+
+    default String getInfoJson() {
+        return "";
+    }
 }

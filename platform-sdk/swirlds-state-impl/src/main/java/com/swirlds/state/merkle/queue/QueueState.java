@@ -3,6 +3,8 @@ package com.swirlds.state.merkle.queue;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Represents the state of a queue, tracking its head and tail indices.
@@ -44,6 +46,15 @@ public class QueueState {
      * Creates a new queue state with default head and tail indices.
      */
     public QueueState() {}
+
+    /**
+     * Create a new {@link QueueState} from the given bytes.
+     *
+     * @param bytes The bytes to read. Cannot be null.
+     */
+    public QueueState(@NonNull final Bytes bytes) {
+        this(bytes.toReadableSequentialData());
+    }
 
     /**
      * Creates a queue state by reading its metadata from the given input stream.

@@ -5,9 +5,11 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
+import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
@@ -21,6 +23,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskReadableQueueState;
@@ -28,6 +31,7 @@ import com.swirlds.state.merkle.disk.OnDiskReadableSingletonState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.merkle.queue.QueueState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -44,6 +48,9 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.merkle.RecordAccessorImpl;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -63,6 +70,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.json.JSONObject;
 
 /**
  * An implementation of {@code MerkleNodeState} backed by a single Virtual Map.
@@ -823,5 +831,60 @@ public abstract class NewStateRoot<T extends NewStateRoot<T>> implements State {
     @Override
     public boolean isHashed() {
         return virtualMap.isHashed();
+    }
+
+    @Override
+    public String getInfoJson() {
+        final JSONObject rootJson = new JSONObject();
+
+        final RecordAccessorImpl recordAccessor = (RecordAccessorImpl) virtualMap.getRecords();
+        final VirtualLeafBytes<?> virtualLeafBytes = recordAccessor.findLeafRecord(VM_STATE_KEY);
+        final VirtualMapState virtualMapState = new VirtualMapState(virtualLeafBytes.valueBytes());
+
+        final JSONObject virtualMapStateJson = new JSONObject();
+        virtualMapStateJson.put("firstLeafPath", virtualMapState.getFirstLeafPath());
+        virtualMapStateJson.put("lastLeafPath", virtualMapState.getLastLeafPath());
+        virtualMapStateJson.put("path", virtualLeafBytes.path());
+
+        rootJson.put("VirtualMapState", virtualMapStateJson);
+
+        final JSONObject singletons = new JSONObject();
+        final JSONObject queues = new JSONObject();
+
+        services.forEach((key, value) -> {
+            value.forEach((s, stateMetadata) -> {
+                final String serviceName = stateMetadata.serviceName();
+                final StateDefinition<?, ?> stateDefinition = stateMetadata.stateDefinition();
+                final String stateKey = stateDefinition.stateKey();
+
+                if (stateDefinition.singleton()) {
+                    final Bytes keyBytes = StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(keyBytes);
+                    if (leafBytes != null) {
+                        final var hash = recordAccessor.findHash(leafBytes.path());
+                        final JSONObject singletonJson = new JSONObject();
+                        singletonJson.put("hash", hash);
+                        singletonJson.put("path", leafBytes.path());
+                        singletons.put(StateUtils.computeLabel(serviceName, stateKey), singletonJson);
+                    }
+                } else if (stateDefinition.queue()) {
+                    final Bytes keyBytes = StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(keyBytes);
+                    if (leafBytes != null) {
+                        final QueueState queueState = new QueueState(leafBytes.valueBytes());
+                        final JSONObject queueJson = new JSONObject();
+                        queueJson.put("head", queueState.getHead());
+                        queueJson.put("tail", queueState.getTail());
+                        queueJson.put("path", leafBytes.path());
+                        queues.put(StateUtils.computeLabel(serviceName, stateKey), queueJson);
+                    }
+                }
+            });
+        });
+
+        rootJson.put("Singletons", singletons);
+        rootJson.put("Queues (Queue States)", queues);
+
+        return rootJson.toString();
     }
 }

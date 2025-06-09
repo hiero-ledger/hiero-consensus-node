@@ -1475,7 +1475,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                     reconnectRecords.getDataSource().loadLeafRecord(VM_STATE_KEY);
             // if we can't find the state, then the teacher map was empty
             if (reconnectedStateBytes == null) {
-                state = originalMapState;
+                state = new VirtualMapState(originalMapState.getLabel());
             } else {
                 state = new VirtualMapState(reconnectedStateBytes.valueBytes());
             }

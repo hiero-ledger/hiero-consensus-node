@@ -93,7 +93,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     /**
      * Resets queue state changes.
      */
-    public void resetQueueStateChangess() {
+    public void resetQueueStateChanges() {
         queueStateChanges.clear();
     }
 

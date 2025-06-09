@@ -17,6 +17,7 @@ import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.metrics.IssMetrics;
+import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
 import com.swirlds.platform.state.iss.internal.HashValidityStatus;
 import com.swirlds.platform.state.iss.internal.RoundHashValidator;
@@ -107,10 +108,13 @@ public class DefaultIssDetector implements IssDetector {
      */
     private final MarkerFileWriter markerFileWriter;
 
+    private final SwirldStateManager swirldStateManager;
+
     /**
      * Create an object that tracks reported hashes and detects ISS events.
      *
      * @param platformContext              the platform context
+     * @param swirldStateManager           the state manager
      * @param roster                       the roster for the network
      * @param currentSoftwareVersion       the current software version
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
@@ -120,11 +124,15 @@ public class DefaultIssDetector implements IssDetector {
      */
     public DefaultIssDetector(
             @NonNull final PlatformContext platformContext,
+            @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final Roster roster,
             @NonNull final SemanticVersion currentSoftwareVersion,
             final boolean ignorePreconsensusSignatures,
             final long ignoredRound) {
         Objects.requireNonNull(platformContext);
+        Objects.requireNonNull(swirldStateManager);
+
+        this.swirldStateManager = swirldStateManager;
         markerFileWriter = new MarkerFileWriter(platformContext);
 
         final ConsensusConfig consensusConfig =
@@ -538,6 +546,7 @@ public class DefaultIssDetector implements IssDetector {
             roundHashValidator.getHashFinder().writePartitionData(sb);
             writeSkippedLogCount(sb, skipCount);
 
+            final String stateJson = swirldStateManager.getConsensusState().getInfoJson();
             logger.fatal(
                     EXCEPTION.getMarker(),
                     new IssPayload(
@@ -545,7 +554,8 @@ public class DefaultIssDetector implements IssDetector {
                             round,
                             Mnemonics.generateMnemonic(selfHash),
                             Mnemonics.generateMnemonic(consensusHash),
-                            false));
+                            false,
+                            stateJson));
         }
     }
 
@@ -572,7 +582,8 @@ public class DefaultIssDetector implements IssDetector {
             writeSkippedLogCount(sb, skipCount);
 
             final String mnemonic = selfHash == null ? "null" : Mnemonics.generateMnemonic(selfHash);
-            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true));
+            final String stateJson = swirldStateManager.getConsensusState().getInfoJson();
+            logger.fatal(EXCEPTION.getMarker(), new IssPayload(sb.toString(), round, mnemonic, "", true, stateJson));
         }
     }
 
