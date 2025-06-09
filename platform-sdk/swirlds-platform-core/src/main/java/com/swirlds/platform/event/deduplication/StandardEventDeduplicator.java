@@ -18,8 +18,6 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -90,13 +88,8 @@ public class StandardEventDeduplicator implements EventDeduplicator {
                         .withDescription("number of events received per second that are already known")
                         .withUnit("hz"));
         this.avgDuplicatePercent = metrics.getOrCreate(AVG_DUPLICATE_PERCENT_CONFIG);
-
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        this.observedEvents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
+        this.eventWindow = EventWindow.getGenesisEventWindow();
+        this.observedEvents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
     }
 
     /**

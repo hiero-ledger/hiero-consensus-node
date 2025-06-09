@@ -3,12 +3,10 @@ package com.swirlds.platform.event.preconsensus;
 
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
-import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 
 /**
  * Metrics for preconsensus events.
@@ -16,7 +14,6 @@ import java.util.Objects;
 public class PcesMetrics {
 
     private static final String CATEGORY = "platform";
-    private final Metrics metrics;
 
     private static final LongGauge.Config PRECONSENSUS_EVENT_FILE_COUNT_CONFIG = new LongGauge.Config(
                     CATEGORY, "preconsensusEventFileCount")
@@ -72,29 +69,12 @@ public class PcesMetrics {
             .withDescription("The age of the oldest preconsensus event file, in seconds.");
     private final LongGauge preconsensusEventFileOldestSeconds;
 
-    private static final RunningAverageMetric.Config AVG_EVENT_SIZE = new RunningAverageMetric.Config(
-                    CATEGORY, "pcesAvgEventSize")
-            .withDescription("The average size of an event");
-    private static final RunningAverageMetric.Config PCES_AVG_SYNC_DURATION = new RunningAverageMetric.Config(
-                    CATEGORY, "pcesAvgSyncDuration")
-            .withDescription("The average duration of the sync method");
-    private static final RunningAverageMetric.Config PCES_AVG_WRITE_DURATION = new RunningAverageMetric.Config(
-                    CATEGORY, "pcesAvgWriteDuration")
-            .withDescription("The average duration of the write fs call");
-    private static final RunningAverageMetric.Config PCES_AVG_TOTAL_WRITE_DURATION = new RunningAverageMetric.Config(
-                    CATEGORY, "pcesAvgTotalWriteDuration")
-            .withDescription("The average of the total duration of the write method");
-    private static final Counter.Config PCES_BUFFER_EXPANSIONS_COUNTER = new Counter.Config(
-                    CATEGORY, "pcesBufferExpansionCounter")
-            .withDescription("How many times the write buffer needed to be expanded");
-
     /**
      * Construct preconsensus event metrics.
      *
      * @param metrics the metrics manager for the platform
      */
     public PcesMetrics(final @NonNull Metrics metrics) {
-        this.metrics = Objects.requireNonNull(metrics);
         preconsensusEventFileCount = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_COUNT_CONFIG);
         preconsensusEventFileAverageSizeMB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_AVERAGE_SIZE_MB_CONFIG);
         preconsensusEventFileTotalSizeGB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_TOTAL_SIZE_GB_CONFIG);
@@ -106,13 +86,6 @@ public class PcesMetrics {
         preconsensusEventFileYoungestIdentifier =
                 metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_YOUNGEST_IDENTIFIER_CONFIG);
         preconsensusEventFileOldestSeconds = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_OLDEST_SECONDS_CONFIG);
-
-        // crating the metrics
-        metrics.getOrCreate(PcesMetrics.AVG_EVENT_SIZE);
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_SYNC_DURATION);
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_WRITE_DURATION);
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_TOTAL_WRITE_DURATION);
-        metrics.getOrCreate(PcesMetrics.PCES_BUFFER_EXPANSIONS_COUNTER);
     }
 
     /**
@@ -176,17 +149,5 @@ public class PcesMetrics {
      */
     public LongGauge getPreconsensusEventFileOldestSeconds() {
         return preconsensusEventFileOldestSeconds;
-    }
-
-    /**
-     * Updates the metrics with the stats reported by the writer
-     */
-    public void updateMetricsWithPcesFileWritingStats(@NonNull final PcesFileWriterStats stats) {
-        metrics.getOrCreate(PcesMetrics.AVG_EVENT_SIZE).update(stats.averageEventSize());
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_SYNC_DURATION).update(stats.averageSyncDuration());
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_WRITE_DURATION).update(stats.averageWriteDuration());
-        metrics.getOrCreate(PcesMetrics.PCES_AVG_TOTAL_WRITE_DURATION).update(stats.averageTotalWriteDuration());
-        if (stats.totalExpansions() > 0)
-            metrics.getOrCreate(PcesMetrics.PCES_BUFFER_EXPANSIONS_COUNTER).add(stats.totalExpansions());
     }
 }

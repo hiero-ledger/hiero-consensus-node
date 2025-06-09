@@ -14,7 +14,6 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,49 +52,46 @@ public class ClassicTransfersDecoder {
     @FunctionalInterface
     interface FungibleAdjustmentConverter {
         TokenTransferList convert(
-                @NonNull Address token, @NonNull Tuple[] adjustments, @NonNull AddressIdConverter addressIdConverter);
+                @NonNull Address token, @NonNull Tuple[] adjustments, @NonNull HtsCallAttempt attempt);
     }
 
     @FunctionalInterface
     interface OwnershipChangeConverter {
         TokenTransferList convert(
-                @NonNull Address token,
-                @NonNull Tuple[] ownershipChanges,
-                @NonNull AddressIdConverter addressIdConverter);
+                @NonNull Address token, @NonNull Tuple[] ownershipChanges, @NonNull HtsCallAttempt attempt);
     }
 
     /**
      * Decodes a call to {@link ClassicTransfersTranslator#CRYPTO_TRANSFER} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeCryptoTransfer(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+    public TransactionBody decodeCryptoTransfer(@NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.CRYPTO_TRANSFER.decodeCall(encoded);
         return bodyOf(tokenTransfers(convertTokenTransfers(
-                call.get(0), this::convertingAdjustments, this::convertingOwnershipChanges, addressIdConverter)));
+                call.get(0), this::convertingAdjustments, this::convertingOwnershipChanges, attempt)));
     }
 
     /**
      * Decodes a call to {@link ClassicTransfersTranslator#CRYPTO_TRANSFER_V2} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
     public TransactionBody decodeCryptoTransferV2(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.CRYPTO_TRANSFER_V2.decodeCall(encoded);
-        final var transferList = consolidatedTransferList(
-                convertingMaybeApprovedAdjustments(((Tuple) call.get(0)).get(0), addressIdConverter));
+        final var transferList =
+                consolidatedTransferList(convertingMaybeApprovedAdjustments(((Tuple) call.get(0)).get(0), attempt));
 
         final var cryptoTransfersBody = tokenTransfers(convertTokenTransfers(
                 call.get(1),
                 this::convertingMaybeApprovedAdjustments,
                 this::convertingMaybeApprovedOwnershipChanges,
-                addressIdConverter));
+                attempt));
 
         if (!transferList.accountAmounts().isEmpty()) {
             return bodyOf(cryptoTransfersBody.transfers(transferList));
@@ -107,33 +103,32 @@ public class ClassicTransfersDecoder {
      * Decodes a call to {@link ClassicTransfersTranslator#TRANSFER_TOKENS} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeTransferTokens(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+    public TransactionBody decodeTransferTokens(@NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.TRANSFER_TOKENS.decodeCall(encoded);
-        return bodyOf(tokenTransfers(convertingAdjustments(call.get(0), call.get(1), call.get(2), addressIdConverter)));
+        return bodyOf(tokenTransfers(convertingAdjustments(call.get(0), call.get(1), call.get(2), attempt)));
     }
 
     /**
      * Decodes a call to {@link ClassicTransfersTranslator#TRANSFER_TOKEN} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
     public @Nullable TransactionBody decodeTransferToken(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.TRANSFER_TOKEN.decodeCall(encoded);
         final long amount = call.get(3);
         if (amount < 0) {
             return null;
         }
         return bodyOf(tokenTransfers(sendingUnitsFromTo(
-                ConversionUtils.asTokenId(call.get(0)),
-                addressIdConverter.convert(call.get(1)),
-                addressIdConverter.convertCredit(call.get(2)),
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0)),
+                attempt.addressIdConverter().convert(call.get(1)),
+                attempt.addressIdConverter().convertCredit(call.get(2)),
                 amount,
                 IsApproval.FALSE,
                 TransferPrecedence.DEBIT)));
@@ -143,11 +138,10 @@ public class ClassicTransfersDecoder {
      * Decodes a call to {@link ClassicTransfersTranslator#TRANSFER_NFTS} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeTransferNfts(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+    public TransactionBody decodeTransferNfts(@NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.TRANSFER_NFTS.decodeCall(encoded);
         final Address[] from = call.get(1);
         final Address[] to = call.get(2);
@@ -159,28 +153,29 @@ public class ClassicTransfersDecoder {
         final var ownershipChanges = new NftTransfer[from.length];
         for (int i = 0; i < from.length; i++) {
             ownershipChanges[i] = nftTransfer(
-                    addressIdConverter.convert(from[i]),
-                    addressIdConverter.convertCredit(to[i]),
+                    attempt.addressIdConverter().convert(from[i]),
+                    attempt.addressIdConverter().convertCredit(to[i]),
                     serialNo[i],
                     IsApproval.FALSE);
         }
-        return bodyOf(tokenTransfers(changingOwners(ConversionUtils.asTokenId(call.get(0)), ownershipChanges)));
+        return bodyOf(tokenTransfers(changingOwners(
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0)),
+                ownershipChanges)));
     }
 
     /**
      * Decodes a call to {@link ClassicTransfersTranslator#TRANSFER_NFT} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeTransferNft(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+    public TransactionBody decodeTransferNft(@NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.TRANSFER_NFT.decodeCall(encoded);
         return bodyOf(tokenTransfers(changingOwner(
-                ConversionUtils.asTokenId(call.get(0)),
-                addressIdConverter.convert(call.get(1)),
-                addressIdConverter.convertCredit(call.get(2)),
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0)),
+                attempt.addressIdConverter().convert(call.get(1)),
+                attempt.addressIdConverter().convertCredit(call.get(2)),
                 call.get(3),
                 IsApproval.FALSE)));
     }
@@ -189,16 +184,15 @@ public class ClassicTransfersDecoder {
      * Decodes a call to {@link ClassicTransfersTranslator#TRANSFER_FROM} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeHrcTransferFrom(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+    public TransactionBody decodeHrcTransferFrom(@NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.TRANSFER_FROM.decodeCall(encoded);
         return bodyOf(tokenTransfers(sendingUnitsFromTo(
-                ConversionUtils.asTokenId(call.get(0)),
-                addressIdConverter.convert(call.get(1)),
-                addressIdConverter.convertCredit(call.get(2)),
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0)),
+                attempt.addressIdConverter().convert(call.get(1)),
+                attempt.addressIdConverter().convertCredit(call.get(2)),
                 exactLongValueOrThrow(call.get(3)),
                 IsApproval.TRUE,
                 TransferPrecedence.CREDIT)));
@@ -208,16 +202,16 @@ public class ClassicTransfersDecoder {
      * Decodes a call to {@link ClassicTransfersTranslator#TRANSFER_NFT_FROM} into a synthetic {@link TransactionBody}.
      *
      * @param encoded the encoded call
-     * @param addressIdConverter the address ID converter for this call
+     * @param attempt the call attempt
      * @return the synthetic transaction body
      */
     public TransactionBody decodeHrcTransferNftFrom(
-            @NonNull final byte[] encoded, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final byte[] encoded, @NonNull final HtsCallAttempt attempt) {
         final var call = ClassicTransfersTranslator.TRANSFER_NFT_FROM.decodeCall(encoded);
         return bodyOf(tokenTransfers(changingOwner(
-                ConversionUtils.asTokenId(call.get(0)),
-                addressIdConverter.convert(call.get(1)),
-                addressIdConverter.convertCredit(call.get(2)),
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0)),
+                attempt.addressIdConverter().convert(call.get(1)),
+                attempt.addressIdConverter().convertCredit(call.get(2)),
                 exactLongValueOrThrow(call.get(3)),
                 IsApproval.TRUE)));
     }
@@ -240,17 +234,16 @@ public class ClassicTransfersDecoder {
             @NonNull final Tuple[] transfersByToken,
             @NonNull final FungibleAdjustmentConverter fungibleAdjustmentConverter,
             @NonNull final OwnershipChangeConverter ownershipChangeConverter,
-            @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final HtsCallAttempt attempt) {
         final TokenTransferList[] allImpliedTransfers = new TokenTransferList[transfersByToken.length];
         for (int i = 0; i < transfersByToken.length; i++) {
             final var transfers = transfersByToken[i];
             final Tuple[] unitAdjustments = transfers.get(1);
             if (unitAdjustments.length > 0) {
                 allImpliedTransfers[i] =
-                        fungibleAdjustmentConverter.convert(transfers.get(0), unitAdjustments, addressIdConverter);
+                        fungibleAdjustmentConverter.convert(transfers.get(0), unitAdjustments, attempt);
             } else {
-                allImpliedTransfers[i] =
-                        ownershipChangeConverter.convert(transfers.get(0), transfers.get(2), addressIdConverter);
+                allImpliedTransfers[i] = ownershipChangeConverter.convert(transfers.get(0), transfers.get(2), attempt);
             }
         }
         return allImpliedTransfers;
@@ -438,40 +431,37 @@ public class ClassicTransfersDecoder {
     }
 
     private TokenTransferList convertingAdjustments(
-            @NonNull final Address token,
-            @NonNull final Tuple[] adjustments,
-            @NonNull final AddressIdConverter addressIdConverter) {
-        return convertingAdjustmentsAsGiven(token, adjustments, adjustment -> {
+            @NonNull final Address token, @NonNull final Tuple[] adjustments, @NonNull final HtsCallAttempt attempt) {
+        return convertingAdjustmentsAsGiven(attempt, token, adjustments, adjustment -> {
             final Address party = adjustment.get(0);
             final long amount = adjustment.get(1);
             return amount > 0
-                    ? credit(addressIdConverter.convertCredit(party), amount)
-                    : debit(addressIdConverter.convert(party), -amount, IsApproval.FALSE);
+                    ? credit(attempt.addressIdConverter().convertCredit(party), amount)
+                    : debit(attempt.addressIdConverter().convert(party), -amount, IsApproval.FALSE);
         });
     }
 
     private TransferList convertingMaybeApprovedAdjustments(
-            @NonNull final Tuple[] adjustments, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] adjustments, @NonNull final HtsCallAttempt attempt) {
         final var hbarAdjustments = new AccountAmount[adjustments.length];
         for (int i = 0; i < hbarAdjustments.length; i++) {
-            hbarAdjustments[i] = asMaybeApprovedAdjustment(adjustments[i], addressIdConverter);
+            hbarAdjustments[i] = asMaybeApprovedAdjustment(adjustments[i], attempt);
         }
         return TransferList.newBuilder().accountAmounts(hbarAdjustments).build();
     }
 
     private TokenTransferList convertingMaybeApprovedAdjustments(
-            @NonNull final Address token,
-            @NonNull final Tuple[] adjustments,
-            @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Address token, @NonNull final Tuple[] adjustments, @NonNull final HtsCallAttempt attempt) {
         return convertingAdjustmentsAsGiven(
-                token, adjustments, adjustment -> asMaybeApprovedAdjustment(adjustment, addressIdConverter));
+                attempt, token, adjustments, adjustment -> asMaybeApprovedAdjustment(adjustment, attempt));
     }
 
     private TokenTransferList convertingAdjustmentsAsGiven(
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address token,
             @NonNull final Tuple[] adjustments,
             @NonNull final Function<Tuple, AccountAmount> adjustmentFn) {
-        final var tokenId = ConversionUtils.asTokenId(token);
+        final var tokenId = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), token);
         final var unitAdjustments = new AccountAmount[adjustments.length];
         for (int i = 0; i < unitAdjustments.length; i++) {
             unitAdjustments[i] = adjustmentFn.apply(adjustments[i]);
@@ -482,13 +472,13 @@ public class ClassicTransfersDecoder {
     private TokenTransferList convertingOwnershipChanges(
             @NonNull final Address token,
             @NonNull final Tuple[] ownershipChanges,
-            @NonNull final AddressIdConverter addressIdConverter) {
-        final var tokenId = ConversionUtils.asTokenId(token);
+            @NonNull final HtsCallAttempt attempt) {
+        final var tokenId = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), token);
         final var nftTransfers = new NftTransfer[ownershipChanges.length];
         for (int i = 0; i < ownershipChanges.length; i++) {
             nftTransfers[i] = nftTransfer(
-                    addressIdConverter.convert(ownershipChanges[i].get(0)),
-                    addressIdConverter.convertCredit(ownershipChanges[i].get(1)),
+                    attempt.addressIdConverter().convert(ownershipChanges[i].get(0)),
+                    attempt.addressIdConverter().convertCredit(ownershipChanges[i].get(1)),
                     ownershipChanges[i].get(2),
                     IsApproval.FALSE);
         }
@@ -498,22 +488,24 @@ public class ClassicTransfersDecoder {
     private TokenTransferList convertingMaybeApprovedOwnershipChanges(
             @NonNull final Address token,
             @NonNull final Tuple[] ownershipChanges,
-            @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final HtsCallAttempt attempt) {
         return convertingOwnershipChangesAsGiven(
+                attempt,
                 token,
                 ownershipChanges,
                 ownershipChange -> nftTransfer(
-                        addressIdConverter.convert(ownershipChange.get(0)),
-                        addressIdConverter.convertCredit(ownershipChange.get(1)),
+                        attempt.addressIdConverter().convert(ownershipChange.get(0)),
+                        attempt.addressIdConverter().convertCredit(ownershipChange.get(1)),
                         ownershipChange.get(2),
                         ownershipChange.get(3) ? IsApproval.TRUE : IsApproval.FALSE));
     }
 
     private TokenTransferList convertingOwnershipChangesAsGiven(
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address token,
             @NonNull final Tuple[] ownershipChanges,
             @NonNull final Function<Tuple, NftTransfer> ownershipChangeFn) {
-        final var tokenId = ConversionUtils.asTokenId(token);
+        final var tokenId = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), token);
         final var nftTransfers = new NftTransfer[ownershipChanges.length];
         for (int i = 0; i < ownershipChanges.length; i++) {
             nftTransfers[i] = ownershipChangeFn.apply(ownershipChanges[i]);
@@ -525,8 +517,8 @@ public class ClassicTransfersDecoder {
             @NonNull final Address token,
             @NonNull final Address[] party,
             @NonNull final long[] amount,
-            @NonNull final AddressIdConverter addressIdConverter) {
-        final var tokenId = ConversionUtils.asTokenId(token);
+            @NonNull final HtsCallAttempt attempt) {
+        final var tokenId = ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), token);
         if (party.length != amount.length) {
             throw new IllegalArgumentException(
                     "Mismatched argument arrays (# party=" + party.length + ", # amount=" + amount.length + ")");
@@ -534,18 +526,20 @@ public class ClassicTransfersDecoder {
         final var unitAdjustments = new AccountAmount[party.length];
         for (int i = 0; i < party.length; i++) {
             unitAdjustments[i] = amount[i] > 0
-                    ? credit(addressIdConverter.convertCredit(party[i]), amount[i])
-                    : debit(addressIdConverter.convert(party[i]), -amount[i], IsApproval.FALSE);
+                    ? credit(attempt.addressIdConverter().convertCredit(party[i]), amount[i])
+                    : debit(attempt.addressIdConverter().convert(party[i]), -amount[i], IsApproval.FALSE);
         }
         return adjustingUnits(tokenId, unitAdjustments);
     }
 
     private AccountAmount asMaybeApprovedAdjustment(
-            @NonNull final Tuple adjustment, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple adjustment, @NonNull final HtsCallAttempt attempt) {
         final Address party = adjustment.get(0);
         final long amount = adjustment.get(1);
         return adjust(
-                amount > 0 ? addressIdConverter.convertCredit(party) : addressIdConverter.convert(party),
+                amount > 0
+                        ? attempt.addressIdConverter().convertCredit(party)
+                        : attempt.addressIdConverter().convert(party),
                 amount,
                 adjustment.get(2) ? IsApproval.TRUE : IsApproval.FALSE);
     }

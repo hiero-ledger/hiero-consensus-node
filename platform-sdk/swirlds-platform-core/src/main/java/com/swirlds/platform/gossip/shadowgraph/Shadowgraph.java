@@ -4,6 +4,7 @@ package com.swirlds.platform.gossip.shadowgraph;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -28,8 +29,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -83,11 +82,6 @@ public class Shadowgraph implements Clearable {
     private final int numberOfNodes;
 
     /**
-     * Describes the current ancient mode.
-     */
-    private final AncientMode ancientMode;
-
-    /**
      * The most recent event window we know about.
      */
     private EventWindow eventWindow;
@@ -108,12 +102,6 @@ public class Shadowgraph implements Clearable {
             @NonNull final PlatformContext platformContext,
             @NonNull final int numberOfNodes,
             @NonNull final IntakeEventCounter intakeEventCounter) {
-
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-
         this.metrics = new ShadowgraphMetrics(platformContext);
         this.numberOfNodes = numberOfNodes;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
@@ -142,7 +130,7 @@ public class Shadowgraph implements Clearable {
      */
     public synchronized void clear() {
         eventWindow = null;
-        oldestUnexpiredIndicator = ancientMode.getGenesisIndicator();
+        oldestUnexpiredIndicator = ROUND_FIRST;
         disconnectShadowEvents();
         tips.clear();
         hashToShadowEvent.clear();
@@ -608,7 +596,7 @@ public class Shadowgraph implements Clearable {
 
         hashToShadowEvent.put(se.getEventBaseHash(), se);
 
-        final long ancientIndicator = ancientMode.selectIndicator(event);
+        final long ancientIndicator = event.getBirthRound();
         if (!indicatorToShadowEvent.containsKey(ancientIndicator)) {
             indicatorToShadowEvent.put(ancientIndicator, new HashSet<>());
         }
@@ -624,7 +612,7 @@ public class Shadowgraph implements Clearable {
      * @return true iff the given event is expired
      */
     private boolean expired(final EventDescriptorWrapper event) {
-        return event.getAncientIndicator(ancientMode) < oldestUnexpiredIndicator;
+        return event.birthRound() < oldestUnexpiredIndicator;
     }
 
     /*
