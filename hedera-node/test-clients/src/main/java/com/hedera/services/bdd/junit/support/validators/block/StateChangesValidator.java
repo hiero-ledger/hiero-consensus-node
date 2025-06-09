@@ -154,6 +154,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         NO
     }
 
+    private final PlatformStateFacade platformStateFacade;
+
     public static void main(String[] args) {
         final var node0Dir = Paths.get("hedera-node/test-clients")
                 .resolve(workingDirFor(0, "hapi"))
@@ -272,7 +274,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
-        final var hedera = ServicesMain.newHedera(metrics, new PlatformStateFacade(), platformConfig);
+        this.platformStateFacade = new PlatformStateFacade();
+        final var hedera = ServicesMain.newHedera(metrics, platformStateFacade, platformConfig);
         this.state = hedera.newStateRoot();
         hedera.initializeStatesApi(state, GENESIS, platformConfig);
         final var stateToBeCopied = state;
@@ -343,6 +346,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                     final var changes = item.stateChangesOrThrow();
                     final var at = asInstant(changes.consensusTimestampOrThrow());
                     if (lastStateChanges != null && at.isBefore(requireNonNull(lastStateChangesTime))) {
+
+                        // DEBUG OUTPUT
+                        state.getRoot().getHash();
+                        System.out.println("SOUT Block: " + block + "\n Full info: "
+                                + platformStateFacade.getInfoString(state, 5));
+
                         Assertions.fail("State changes are not in chronological order - last changes were \n "
                                 + lastStateChanges + "\ncurrent changes are \n  " + changes);
                     }
@@ -390,6 +399,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                     blockNumbers.put(
                             expectedBlockHash,
                             block.items().getFirst().blockHeaderOrThrow().number());
+                    if (!blockProof.startOfBlockStateRootHash().equals(startOfStateHash)) {
+                        System.out.println(
+                                "blockProof.startOfBlockStateRootHash(): " + blockProof.startOfBlockStateRootHash());
+                        System.out.println("startOfStateHash: " + startOfStateHash);
+                        state.getRoot().getHash();
+                        System.out.println("SOUT Block: " + block + "\n Full info: "
+                                + platformStateFacade.getInfoString(state, 5));
+                    }
                     validateBlockProof(i, firstBlockRound, blockProof, expectedBlockHash, startOfStateHash);
                     previousBlockHash = expectedBlockHash;
                 } else {
