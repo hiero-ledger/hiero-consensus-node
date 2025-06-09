@@ -347,7 +347,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         requireNonNull(blockStreamManager);
         requireNonNull(streamMode);
         if (streamMode != RECORDS) {
-            immediateStateChangeListener.resetQueueStateChangess();
+            immediateStateChangeListener.resetQueueStateChanges();
         }
         final var states = state.getWritableStates(NAME);
         final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
