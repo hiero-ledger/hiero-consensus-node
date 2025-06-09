@@ -204,7 +204,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
         final boolean blockAlreadyExists = acknowledgement.blockAlreadyExists();
         final long currentBlockStreaming = blockNodeConnectionManager.currentStreamingBlockNumber();
-        final long currentBlockProducing = blockBufferService.getBlockNumber();
+        final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
         // Update the last verified block by the current connection
         blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
@@ -320,9 +320,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 } else {
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
-                    logger.warn(
-                            "[{}] Block node is behind and block state is not available. Closing connection and retrying.",
-                            this);
+                    logger.warn("[{}] Block node is behind and block state is not available.", this);
 
                     final var earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
                     final var highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
@@ -340,11 +338,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 }
             }
             case Code.UNKNOWN -> {
-                // This should never happen, but if it does, we should close the connection
-                logger.error(
-                        "[{}] Block node reported an unknown error at block {}. Closing connection.",
-                        this,
-                        blockNumber);
+                // This should never happen, but if it does, schedule this connection for a retry attempt and in the
+                // meantime select a new node to stream to
+                logger.error("[{}] Block node reported an unknown error at block {}.", this, blockNumber);
                 blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
             }
         }

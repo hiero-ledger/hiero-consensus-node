@@ -42,7 +42,6 @@ import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.Fees;
@@ -83,9 +82,6 @@ class TransactionModuleTest {
 
     @Mock
     private SystemContractOperations systemContractOperations;
-
-    @Mock
-    private EvmFrameStateFactory factory;
 
     @Mock
     private EthereumCallDataHydration hydration;
@@ -144,11 +140,12 @@ class TransactionModuleTest {
     }
 
     @Test
-    void providesExpectedEvmContext() {
+    void providesExpectedEvmContextWithExplicitTracingOff() {
         final var recordBuilder = mock(ContractOperationStreamBuilder.class);
         final var gasCalculator = mock(SystemContractGasCalculator.class);
         final var blocks = mock(HederaEvmBlocks.class);
         final var stack = mock(HandleContext.SavepointStack.class);
+        final var metadata = mock(HandleContext.DispatchMetadata.class);
         given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
@@ -157,7 +154,7 @@ class TransactionModuleTest {
                 context, tinybarValues, gasCalculator, hederaOperations, blocks, pendingCreationBuilder);
         assertSame(blocks, result.blocks());
         assertSame(123L, result.gasPrice());
-        assertSame(recordBuilder, result.recordBuilder());
+        assertSame(recordBuilder, result.streamBuilder());
         assertSame(pendingCreationBuilder, result.pendingCreationRecordBuilderReference());
     }
 

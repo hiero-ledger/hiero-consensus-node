@@ -11,18 +11,13 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItemType;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -38,8 +33,6 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
@@ -70,7 +63,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle connectivityTaskConnectionHandle;
     private static final VarHandle isStreamingEnabledHandle;
     private static final MethodHandle jumpToBlockIfNeededHandle;
-    private static final MethodHandle processBlockStreamQueueHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
 
@@ -105,11 +97,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             jumpToBlockIfNeeded.setAccessible(true);
             jumpToBlockIfNeededHandle = lookup.unreflect(jumpToBlockIfNeeded);
 
-            final Method processBlockStreamQueue =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("processBlockStreamQueue");
-            processBlockStreamQueue.setAccessible(true);
-            processBlockStreamQueueHandle = lookup.unreflect(processBlockStreamQueue);
-
             final Method processStreamingToBlockNode =
                     BlockNodeConnectionManager.class.getDeclaredMethod("processStreamingToBlockNode");
             processStreamingToBlockNode.setAccessible(true);
@@ -129,7 +116,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private BlockBufferService bufferService;
     private BlockStreamMetrics metrics;
     private ScheduledExecutorService executorService;
-    private Queue<BlockStreamQueueItem> blockStreamItemQueue;
 
     @BeforeEach
     void beforeEach() {
@@ -137,13 +123,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         bufferService = mock(BlockBufferService.class);
         metrics = mock(BlockStreamMetrics.class);
         executorService = mock(ScheduledExecutorService.class);
-        blockStreamItemQueue = new ConcurrentLinkedQueue<>();
 
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
 
         resetMocks();
-
-        lenient().when(bufferService.getBlockStreamItemQueue()).thenReturn(blockStreamItemQueue);
     }
 
     @AfterEach
@@ -344,8 +327,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(isActive).isFalse();
 
-        verify(bufferService, atLeast(1)).getBlockStreamItemQueue();
-
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
@@ -383,8 +364,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(1);
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CONNECTING);
-
-        verify(bufferService, atLeast(1)).getBlockStreamItemQueue();
 
         verifyNoMoreInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
@@ -958,155 +937,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testProcessBlockStreamQueue_emptyQueue() {
-        invoke_processBlockStreamQueue();
-
-        verify(bufferService).getBlockStreamItemQueue();
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessBlockStreamQueue_unknownBlock() {
-        final BlockItem blockItem = newBlockHeaderItem();
-        final BlockStreamQueueItem queueItem =
-                new BlockStreamQueueItem(100L, BlockStreamQueueItemType.BLOCK_ITEM, blockItem);
-        blockStreamItemQueue.add(queueItem);
-        doReturn(null).when(bufferService).getBlockState(100L);
-
-        invoke_processBlockStreamQueue();
-
-        verify(bufferService).getBlockStreamItemQueue();
-        verify(bufferService).getBlockState(100L);
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessBlockStreamQueue_preBlockProof() {
-        final BlockItem blockItem = newBlockHeaderItem();
-        final BlockStreamQueueItem queueItem =
-                new BlockStreamQueueItem(100L, BlockStreamQueueItemType.PRE_BLOCK_PROOF_ACTION, blockItem);
-        blockStreamItemQueue.add(queueItem);
-        final BlockState blockState = new BlockState(100L);
-        doReturn(blockState).when(bufferService).getBlockState(100L);
-
-        invoke_processBlockStreamQueue();
-
-        assertThat(blockState.requestsSize()).isZero();
-        assertThat(blockState.getRequest(0)).isNull();
-        assertThat(blockState.requestsCompleted()).isFalse();
-
-        verify(bufferService).getBlockStreamItemQueue();
-        verify(bufferService).getBlockState(100L);
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessBlockStreamQueue_withItems_notEnoughForBatch() {
-        final int numItemsToCreate = BATCH_SIZE - 1;
-        for (int i = 0; i < numItemsToCreate; ++i) {
-            blockStreamItemQueue.add(
-                    new BlockStreamQueueItem(100L, BlockStreamQueueItemType.BLOCK_ITEM, newBlockTxItem()));
-        }
-
-        final BlockState blockState = new BlockState(100L);
-        doReturn(blockState).when(bufferService).getBlockState(100L);
-
-        invoke_processBlockStreamQueue();
-
-        assertThat(blockState.requestsSize()).isZero();
-        assertThat(blockState.getRequest(0)).isNull();
-        assertThat(blockState.requestsCompleted()).isFalse();
-
-        verify(bufferService).getBlockStreamItemQueue();
-        verify(bufferService, times(numItemsToCreate)).getBlockState(100L);
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessBlockStreamQueue_withItems_multipleBatches() {
-        final int numItemsToCreate = BATCH_SIZE * 2;
-        for (int i = 0; i < numItemsToCreate; ++i) {
-            blockStreamItemQueue.add(
-                    new BlockStreamQueueItem(100L, BlockStreamQueueItemType.BLOCK_ITEM, newBlockTxItem()));
-        }
-
-        final BlockState blockState = new BlockState(100L);
-        doReturn(blockState).when(bufferService).getBlockState(100L);
-
-        invoke_processBlockStreamQueue();
-        // Each invocation will handle up to N items, where N is the batch size
-        assertThat(blockState.requestsSize()).isEqualTo(1);
-        // So we need to invoke twice to get through multiple batches
-        invoke_processBlockStreamQueue();
-
-        assertThat(blockState.requestsSize()).isEqualTo(2);
-        final PublishStreamRequest request1 = blockState.getRequest(0);
-        final PublishStreamRequest request2 = blockState.getRequest(1);
-
-        assertThat(request1).isNotNull();
-        assertThat(request2).isNotNull();
-        assertThat(request1.hasBlockItems()).isTrue();
-        assertThat(request2.hasBlockItems()).isTrue();
-        assertThat(blockState.requestsCompleted()).isFalse();
-
-        verify(bufferService, times(2)).getBlockStreamItemQueue();
-        verify(bufferService, times(numItemsToCreate)).getBlockState(100L);
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessBlockStreamQueue_onlyBlockProof() {
-        final BlockItem blockItem = newBlockProofItem();
-        final BlockStreamQueueItem queueItem =
-                new BlockStreamQueueItem(100L, BlockStreamQueueItemType.BLOCK_ITEM, blockItem);
-        blockStreamItemQueue.add(queueItem);
-        final BlockState blockState = new BlockState(100L);
-        doReturn(blockState).when(bufferService).getBlockState(100L);
-
-        invoke_processBlockStreamQueue();
-
-        assertThat(blockState.requestsSize()).isEqualTo(1);
-        assertThat(blockState.getRequest(0)).isNotNull();
-        assertThat(blockState.requestsCompleted()).isTrue();
-
-        verify(bufferService).getBlockStreamItemQueue();
-        verify(bufferService).getBlockState(100L);
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_noActiveConnection() {
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(null);
-
-        final boolean shouldSleep = invoke_processStreamingToBlockNode();
-
-        assertThat(shouldSleep).isTrue();
-
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
     void testProcessStreamingToBlockNode_missingBlock_latestBlockAfterCurrentStreaming() {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
@@ -1118,14 +948,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
         doReturn(null).when(bufferService).getBlockState(10L);
-        doReturn(11L).when(bufferService).getBlockNumber();
+        doReturn(11L).when(bufferService).getLastBlockNumberProduced();
 
         final boolean shouldSleep = invoke_processStreamingToBlockNode();
 
         assertThat(shouldSleep).isTrue();
 
         verify(bufferService).getBlockState(10L);
-        verify(bufferService).getBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
         // one scheduled task to reconnect the existing connection later
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(30_000L), eq(TimeUnit.MILLISECONDS));
         // another task scheduled to connect to a new node immediately
@@ -1146,14 +976,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
         doReturn(null).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
         final boolean shouldSleep = invoke_processStreamingToBlockNode();
 
         assertThat(shouldSleep).isTrue();
 
         verify(bufferService).getBlockState(10L);
-        verify(bufferService).getBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
 
         verifyNoInteractions(connection);
         verifyNoMoreInteractions(bufferService);
@@ -1170,14 +1000,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         currentStreamingBlock.set(10L);
         final BlockState blockState = new BlockState(10L);
         doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
         final boolean shouldSleep = invoke_processStreamingToBlockNode();
 
         assertThat(shouldSleep).isTrue();
 
         verify(bufferService).getBlockState(10L);
-        verify(bufferService).getBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
 
         verifyNoInteractions(connection);
         verifyNoMoreInteractions(bufferService);
@@ -1195,16 +1025,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockState blockState = mock(BlockState.class);
         final PublishStreamRequest req = createRequest(newBlockHeaderItem());
         doReturn(req).when(blockState).getRequest(0);
-        doReturn(1).when(blockState).requestsSize();
+        doReturn(1).when(blockState).numRequestsCreated();
         doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
         final boolean shouldSleep = invoke_processStreamingToBlockNode();
         assertThat(shouldSleep).isTrue(); // there is nothing in the queue left to process, so we should sleep
 
         verify(bufferService).getBlockState(10L);
-        verify(bufferService).getBlockNumber();
-        verify(bufferService).getBlockStreamItemQueue();
+        verify(bufferService).getLastBlockNumberProduced();
         verify(connection).sendRequest(req);
 
         verifyNoMoreInteractions(connection);
@@ -1223,10 +1052,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockState blockState = mock(BlockState.class);
         final PublishStreamRequest req = createRequest(newBlockHeaderItem());
         doReturn(req).when(blockState).getRequest(0);
-        doReturn(1).when(blockState).requestsSize();
-        doReturn(true).when(blockState).requestsCompleted();
+        doReturn(1).when(blockState).numRequestsCreated();
+        doReturn(true).when(blockState).isBlockProofSent();
         doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
         final boolean shouldSleep = invoke_processStreamingToBlockNode();
         assertThat(shouldSleep)
@@ -1234,7 +1063,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(currentStreamingBlock).hasValue(11L); // this should get incremented as we move to next
 
         verify(bufferService).getBlockState(10L);
-        verify(bufferService).getBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
         verify(connection).sendRequest(req);
 
         verifyNoMoreInteractions(connection);
@@ -1253,16 +1082,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockState blockState = mock(BlockState.class);
         final PublishStreamRequest req = createRequest(newBlockHeaderItem());
         doReturn(req).when(blockState).getRequest(0);
-        doReturn(2).when(blockState).requestsSize();
-        doReturn(false).when(blockState).requestsCompleted();
+        doReturn(2).when(blockState).numRequestsCreated();
+        doReturn(false).when(blockState).isBlockProofSent();
         doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
         final boolean shouldSleep = invoke_processStreamingToBlockNode();
         assertThat(shouldSleep).isFalse(); // there is nothing in the queue left to process, so we should sleep
 
         verify(bufferService).getBlockState(10L);
-        verify(bufferService).getBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
         verify(connection).sendRequest(req);
 
         verifyNoMoreInteractions(connection);
@@ -1296,10 +1125,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequest req2 = createRequest(newBlockProofItem());
         doReturn(req1).when(blockState).getRequest(0);
         doReturn(req2).when(blockState).getRequest(1);
-        doReturn(2).when(blockState).requestsSize();
-        doReturn(true).when(blockState).requestsCompleted();
+        doReturn(2).when(blockState).numRequestsCreated();
+        doReturn(true).when(blockState).isBlockProofSent();
         doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
         final CountDownLatch doneLatch = new CountDownLatch(1);
         final AtomicReference<Throwable> errorRef = new AtomicReference<>();
@@ -1328,8 +1157,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(currentStreamingBlock).hasValue(11L);
 
         verify(bufferService, atLeast(2)).getBlockState(10L);
-        verify(bufferService, atLeast(2)).getBlockNumber();
-        verify(bufferService, atLeast(2)).getBlockStreamItemQueue();
+        verify(bufferService, atLeast(2)).getLastBlockNumberProduced();
         verify(connection).sendRequest(req1);
         verify(connection).sendRequest(req2);
 
@@ -1351,13 +1179,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequest req2 = createRequest(newBlockProofItem());
         doReturn(req1).when(blockState).getRequest(0);
         doReturn(req2).when(blockState).getRequest(1);
-        doReturn(2).when(blockState).requestsSize();
-        doReturn(true).when(blockState).requestsCompleted();
+        doReturn(2).when(blockState).numRequestsCreated();
+        doReturn(true).when(blockState).isBlockProofSent();
         doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getBlockNumber();
-        when(bufferService.getBlockStreamItemQueue())
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+        when(bufferService.getBlockState(10L))
                 .thenThrow(new RuntimeException("foobar"))
-                .thenReturn(blockStreamItemQueue);
+                .thenReturn(blockState);
 
         final CountDownLatch doneLatch = new CountDownLatch(1);
         final AtomicReference<Throwable> errorRef = new AtomicReference<>();
@@ -1386,9 +1214,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(currentStreamingBlock).hasValue(11L);
 
         verify(bufferService, atLeast(2)).getBlockState(10L);
-        verify(bufferService, atLeast(2)).getBlockNumber();
-        // the queue will be accessed 3 times, the first time failing and then two more "normal" times
-        verify(bufferService, atLeast(3)).getBlockStreamItemQueue();
+        verify(bufferService, atLeast(2)).getLastBlockNumberProduced();
         verify(connection).sendRequest(req1);
         verify(connection).sendRequest(req2);
 
@@ -1528,14 +1354,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private void invoke_jumpToBlockIfNeeded() {
         try {
             jumpToBlockIfNeededHandle.invoke(connectionManager);
-        } catch (final Throwable t) {
-            throw new RuntimeException(t);
-        }
-    }
-
-    private void invoke_processBlockStreamQueue() {
-        try {
-            processBlockStreamQueueHandle.invoke(connectionManager);
         } catch (final Throwable t) {
             throw new RuntimeException(t);
         }

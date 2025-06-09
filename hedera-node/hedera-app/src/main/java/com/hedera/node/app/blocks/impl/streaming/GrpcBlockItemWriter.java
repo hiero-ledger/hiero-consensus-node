@@ -80,7 +80,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      */
     @Override
     public void writePreBlockProofItems() {
-        blockBufferService.streamPreBlockProofItems(blockNumber);
+        // no-op
     }
 
     /**
