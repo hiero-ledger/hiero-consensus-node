@@ -30,6 +30,7 @@ import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -39,6 +40,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
+@OrderedInIsolation
 @HapiTestLifecycle
 public class RecordCreationSuite {
     private static final long SLEEP_MS = 1_000L;
