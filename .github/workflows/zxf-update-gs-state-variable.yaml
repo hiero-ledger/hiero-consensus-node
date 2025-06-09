@@ -25,9 +25,9 @@ jobs:
           egress-policy: audit
 
       - name: Update GS_STATE to input value
-        run: |
-          curl -X PATCH \
-            -H "Authorization: Bearer ${{ secrets.GH_ACCESS_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/variables/GS_STATE \
-            -d '{"name":"GS_STATE","value":"${{ inputs.value }}"}'
+        uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
+        with:
+          name: 'TEST_VARIABLE'
+          value: ${{ inputs.value }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
