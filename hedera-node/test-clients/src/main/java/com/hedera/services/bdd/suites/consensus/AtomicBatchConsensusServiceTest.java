@@ -51,8 +51,10 @@ public class AtomicBatchConsensusServiceTest {
     public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidSignatureSuccessInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
+        // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
 
+        // Create a valid signature with both simple keys signing
         SigControl validSig = submitKeyShape.signedWith(sigs(ON, OFF, sigs(ON, ON)));
 
         final var submitMessage_innerTxn = submitMessageTo("testTopic")
@@ -77,8 +79,10 @@ public class AtomicBatchConsensusServiceTest {
     public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidSignatureInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
+        // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
 
+        // Create invalid signature with one simple key only signing
         SigControl invalidSig = submitKeyShape.signedWith(sigs(ON, OFF, sigs(ON, OFF)));
 
         final var submitMessage_innerTxn = submitMessageTo("testTopic")
@@ -103,8 +107,10 @@ public class AtomicBatchConsensusServiceTest {
     public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidAndValidSignatureInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
+        // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
 
+        // Create valid signature and invalid one with one simple key only signing
         SigControl validSig = submitKeyShape.signedWith(sigs(ON, OFF, sigs(ON, ON)));
         SigControl invalidSig = submitKeyShape.signedWith(sigs(ON, OFF, sigs(ON, OFF)));
 
@@ -136,8 +142,10 @@ public class AtomicBatchConsensusServiceTest {
     public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidAndInvalidSignatureInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
+        // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
 
+        // Create valid signature and invalid one with one simple key only signing
         SigControl validSig = submitKeyShape.signedWith(sigs(ON, OFF, sigs(ON, ON)));
         SigControl invalidSig = submitKeyShape.signedWith(sigs(ON, OFF, sigs(ON, OFF)));
 
@@ -169,8 +177,10 @@ public class AtomicBatchConsensusServiceTest {
     public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyAllInvalidSignaturesInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
+        // Define a threshold submit key that requires two simple keys signatures
         KeyShape submitKeyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
 
+        // Create invalid signature with one simple key only signing
         SigControl invalidSig = submitKeyShape.signedWith(sigs(ON, OFF, sigs(ON, OFF)));
 
         final var submitMessage_innerTxn1 = submitMessageTo("testTopic")
