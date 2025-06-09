@@ -222,8 +222,7 @@ public class ClassicCreatesCall extends AbstractCall {
     private LegacyActivation legacyActivationIn(@NonNull final MessageFrame frame) {
         final var literal = configOf(frame).getConfigData(ContractsConfig.class).keysLegacyActivations();
         final var contractNum = Long.parseLong(literal.substring(literal.indexOf("[") + 1, literal.indexOf("]")));
-        final var pbjAddress =
-                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(entityIdFactory(frame), contractNum));
+        final var pbjAddress = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(contractNum));
         return new LegacyActivation(contractNum, pbjAddress, pbjToBesuAddress(pbjAddress));
     }
 }
