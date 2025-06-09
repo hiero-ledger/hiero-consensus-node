@@ -609,7 +609,7 @@ public class PlatformWiring {
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
         notifierWiring.getInputWire(AppNotifier::sendReconnectCompleteNotification);
         notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
-        eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosters);
+        eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
         eventWindowManagerWiring.getInputWire(EventWindowManager::updateEventWindow);
         orphanBufferWiring.getInputWire(OrphanBuffer::clear);
         pcesInlineWriterWiring.getInputWire(InlinePcesWriter::registerDiscontinuity);
@@ -706,7 +706,7 @@ public class PlatformWiring {
      */
     @NonNull
     public InputWire<RosterHistory> getRosterHistoryInput() {
-        return eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosters);
+        return eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
     }
 
     /**

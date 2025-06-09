@@ -34,8 +34,8 @@ public interface EventSignatureValidator {
     /**
      * Set the rosterHistory
      *
-     * @param updatedRosterHistory the new rosters
+     * @param rosterHistory the roster history read from state
      */
-    @InputWireLabel("RosterUpdate")
-    void updateRosters(@NonNull final RosterHistory updatedRosterHistory);
+    @InputWireLabel("roster history")
+    void updateRosterHistory(@NonNull final RosterHistory rosterHistory);
 }

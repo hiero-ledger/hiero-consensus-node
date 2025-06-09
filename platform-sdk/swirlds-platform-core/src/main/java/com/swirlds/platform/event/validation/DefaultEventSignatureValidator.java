@@ -174,7 +174,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * {@inheritDoc}
      */
     @Override
-    public void updateRosters(@NonNull final RosterHistory rosterHistoryUpdate) {
-        this.rosterHistory = Objects.requireNonNull(rosterHistoryUpdate);
+    public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
+        this.rosterHistory = Objects.requireNonNull(rosterHistory);
     }
 }
