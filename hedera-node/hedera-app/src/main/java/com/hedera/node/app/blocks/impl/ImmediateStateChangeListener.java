@@ -88,14 +88,12 @@ public class ImmediateStateChangeListener implements StateChangeListener {
      */
     public void resetKvStateChanges() {
         kvStateChanges.clear();
-        queueStateChanges.clear();
     }
 
     /**
      * Resets queue state changes.
      */
     public void resetQueueStateChangess() {
-        kvStateChanges.clear();
         queueStateChanges.clear();
     }
 

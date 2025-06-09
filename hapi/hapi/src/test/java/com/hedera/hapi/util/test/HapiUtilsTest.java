@@ -10,7 +10,9 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.platform.state.VirtualMapKey;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -23,6 +25,12 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 final class HapiUtilsTest {
+
+    @Test
+    void parseB() throws ParseException {
+        VirtualMapKey key = VirtualMapKey.PROTOBUF.parse(Bytes.fromHex("88f10401"));
+        System.out.println(key);
+    }
 
     @ParameterizedTest
     @CsvSource(
