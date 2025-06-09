@@ -139,25 +139,3 @@ jobs:
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
       - addressBook-add-remove
-
-  birth-round-migration:
-    name: Birth Round Migration
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    if: ${{ !cancelled() && always() }}
-    with:
-      ref: ${{ github.event.inputs.ref }}
-      branch-name: ${{ github.event.inputs.branch-name }}
-      panel-config: "configs/suites/daily/6N/GCP-Daily-Birth-Round-6N.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    needs:
-      - migration
