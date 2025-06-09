@@ -196,7 +196,7 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ github.sha }}",
-            "ref-name": "${{ github.ref_name }}"
+            "ref-name": "${{ github.ref_name }}",
             "dry-run-enabled": ${{ inputs.dry-run-enabled || false}}
             }'
 
