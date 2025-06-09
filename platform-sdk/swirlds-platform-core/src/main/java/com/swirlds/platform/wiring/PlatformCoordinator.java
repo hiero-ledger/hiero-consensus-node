@@ -156,6 +156,7 @@ public class PlatformCoordinator {
         consensusEngineWiring.flush();
         applicationTransactionPrehandlerWiring.flush();
         eventCreationManagerWiring.flush();
+        branchDetectorWiring.flush();
     }
 
     /**
