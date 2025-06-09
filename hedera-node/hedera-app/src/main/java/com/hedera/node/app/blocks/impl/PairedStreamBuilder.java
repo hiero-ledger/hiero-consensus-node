@@ -355,6 +355,21 @@ public class PairedStreamBuilder
         return this;
     }
 
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractId the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @NonNull
+    @Override
+    public PairedStreamBuilder createdContractID(@Nullable ContractID contractId) {
+        recordStreamBuilder.createdContractID(contractId);
+        blockStreamBuilder.createdContractID(contractId);
+        return this;
+    }
+
     @NonNull
     @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {

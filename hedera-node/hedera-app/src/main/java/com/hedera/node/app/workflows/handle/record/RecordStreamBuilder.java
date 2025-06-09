@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
@@ -200,6 +201,8 @@ public class RecordStreamBuilder
     private TokenType tokenType;
     private HederaFunctionality function;
 
+    private boolean isContractCreate = false;
+
     /**
      * ops duration used by the contract transaction
      */
@@ -319,7 +322,11 @@ public class RecordStreamBuilder
         contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-        transactionReceiptBuilder.contractID((ContractID) null);
+
+        if (isContractCreate || SUCCESS.equals(status)) {
+            transactionReceiptBuilder.contractID((ContractID) null);
+        }
+
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
@@ -848,6 +855,21 @@ public class RecordStreamBuilder
         // Ensure we don't externalize as an account creation too
         transactionReceiptBuilder.accountID((AccountID) null);
         transactionReceiptBuilder.contractID(contractID);
+        return this;
+    }
+
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractID the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @Override
+    @NonNull
+    public RecordStreamBuilder createdContractID(@Nullable final ContractID contractID) {
+        isContractCreate = true;
+        contractID(contractID);
         return this;
     }
 

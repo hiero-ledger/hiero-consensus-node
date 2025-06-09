@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static java.util.Collections.emptyList;
@@ -391,6 +392,8 @@ public class BlockStreamBuilder
      * the total duration of contract operations as calculated using the Hedera ops duration schedule
      */
     private long opsDuration;
+
+    private boolean isContractCreate = false;
 
     /**
      * Constructs a builder for a user transaction with the given characteristics.
@@ -887,6 +890,21 @@ public class BlockStreamBuilder
         return this;
     }
 
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractId the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @NonNull
+    @Override
+    public BlockStreamBuilder createdContractID(@Nullable ContractID contractId) {
+        this.isContractCreate = true;
+        contractID(contractId);
+        return this;
+    }
+
     @NonNull
     @Override
     public BlockStreamBuilder exchangeRate(@Nullable final ExchangeRateSet exchangeRate) {
@@ -1105,7 +1123,9 @@ public class BlockStreamBuilder
         transactionFee = 0L;
 
         accountId = null;
-        contractId = null;
+        if (isContractCreate || SUCCESS.equals(status)) {
+            contractId = null;
+        }
         fileId = null;
         tokenId = null;
         topicId = null;
