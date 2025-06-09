@@ -94,9 +94,10 @@ public class IsAuthorizedRawCall extends AbstractCall {
                 switch (signatureType) {
                     case EC -> customGasCalculator.getEcrecPrecompiledContractGasCost();
                     case ED -> customGasCalculator.getEdSignatureVerificationSystemContractGasCost();
-                    case INVALID -> Math.min(
-                            customGasCalculator.getEcrecPrecompiledContractGasCost(),
-                            customGasCalculator.getEdSignatureVerificationSystemContractGasCost());
+                    case INVALID ->
+                        Math.min(
+                                customGasCalculator.getEcrecPrecompiledContractGasCost(),
+                                customGasCalculator.getEdSignatureVerificationSystemContractGasCost());
                 };
 
         // Prepare the short-circuit error status returns
@@ -271,7 +272,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // If the signature is for an ecdsa key, the HIP states that the account must have an evm address rather than a
         // long zero address
         if (signatureType == SignatureType.EC) {
-            return !isLongZero(enhancement.nativeOperations().entityIdFactory(), address);
+            return !isLongZero(address);
         }
 
         return true;

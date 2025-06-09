@@ -5,4 +5,4 @@ import com.hedera.node.app.service.contract.impl.records.ContractOperationStream
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public record PendingCreationMetadata(
-        @NonNull ContractOperationStreamBuilder recordBuilder, boolean externalizeInitcodeOnSuccess) {}
+        @NonNull ContractOperationStreamBuilder streamBuilder, boolean needsInitcodeExternalized) {}

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.sync;
 
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -90,7 +89,7 @@ class ShadowgraphByBirthRoundTests {
                 .build();
 
         shadowGraph = new Shadowgraph(platformContext, numNodes, new NoOpIntakeEventCounter());
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
 
         for (int i = 0; i < numEvents; i++) {
             final EventImpl event = emitter.emitEvent();
@@ -103,14 +102,14 @@ class ShadowgraphByBirthRoundTests {
                     shadowGraph.isHashInGraph(hash),
                     "Event that was just added to the shadow graph should still be in the shadow graph.");
             generatedEvents.add(event);
-            if (!birthRoundToShadows.containsKey(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()))) {
-                birthRoundToShadows.put(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()), new HashSet<>());
+            if (!birthRoundToShadows.containsKey(event.getBirthRound())) {
+                birthRoundToShadows.put(event.getBirthRound(), new HashSet<>());
             }
             birthRoundToShadows
-                    .get(BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()))
+                    .get(event.getBirthRound())
                     .add(shadowGraph.shadow(event.getBaseEvent().getDescriptor()));
-            if (BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent()) > maxBirthRound) {
-                maxBirthRound = BIRTH_ROUND_THRESHOLD.selectIndicator(event.getBaseEvent());
+            if (event.getBirthRound() > maxBirthRound) {
+                maxBirthRound = event.getBirthRound();
             }
         }
     }
@@ -162,7 +161,7 @@ class ShadowgraphByBirthRoundTests {
         final Set<ShadowEvent> allEvents = shadowGraph.findAncestors(shadowGraph.getTips(), (e) -> true);
         for (final ShadowEvent event : allEvents) {
             assertTrue(
-                    BIRTH_ROUND_THRESHOLD.selectIndicator(event.getEvent()) >= expireBelowBirthRound,
+                    event.getEvent().getBirthRound() >= expireBelowBirthRound,
                     "Ancestors should not include expired events.");
         }
     }
@@ -557,7 +556,7 @@ class ShadowgraphByBirthRoundTests {
 
         final EventImpl newEvent = emitter.emitEvent();
         final EventWindow eventWindow = EventWindowBuilder.builder()
-                .setExpiredThreshold(BIRTH_ROUND_THRESHOLD.selectIndicator(newEvent.getBaseEvent()))
+                .setExpiredThreshold(newEvent.getBirthRound())
                 .build();
         shadowGraph.updateEventWindow(eventWindow);
 
@@ -625,7 +624,7 @@ class ShadowgraphByBirthRoundTests {
         r1.close();
 
         shadowGraph.clear();
-        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow(BIRTH_ROUND_THRESHOLD));
+        shadowGraph.updateEventWindow(EventWindow.getGenesisEventWindow());
 
         assertEquals(0, shadowGraph.getTips().size(), "Shadow graph should not have any tips after being cleared.");
         for (final EventImpl generatedEvent : generatedEvents) {
@@ -675,11 +674,11 @@ class ShadowgraphByBirthRoundTests {
         long oldestTipBirthRound = Long.MAX_VALUE;
         final List<ShadowEvent> tipsToExpire = new ArrayList<>();
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            oldestTipBirthRound = Math.min(oldestTipBirthRound, BIRTH_ROUND_THRESHOLD.selectIndicator(tip.getEvent()));
+            oldestTipBirthRound = Math.min(oldestTipBirthRound, tip.getEvent().getBirthRound());
         }
 
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            if (BIRTH_ROUND_THRESHOLD.selectIndicator(tip.getEvent()) == oldestTipBirthRound) {
+            if (tip.getEvent().getBirthRound() == oldestTipBirthRound) {
                 tipsToExpire.add(tip);
             }
         }

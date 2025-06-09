@@ -57,7 +57,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -422,11 +421,7 @@ public final class PlatformBuilder {
                     platformContext,
                     databaseDirectory,
                     initialState.get().getRound(),
-                    preconsensusEventStreamConfig.permitGaps(),
-                    platformContext
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode());
+                    preconsensusEventStreamConfig.permitGaps());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

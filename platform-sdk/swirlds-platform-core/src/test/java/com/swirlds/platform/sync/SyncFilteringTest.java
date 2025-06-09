@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
+import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.internal.EventImpl;
@@ -17,7 +19,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ import org.hiero.base.CompareTo;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
@@ -39,9 +41,9 @@ class SyncFilteringTest {
      * Generate a random list of events.
      *
      * @param eventEmitter the event emitter
-     * @param time            provides the current time
-     * @param timeStep        the time between events
-     * @param count           the number of events to generate
+     * @param time         provides the current time
+     * @param timeStep     the time between events
+     * @param count        the number of events to generate
      * @return the list of events
      */
     private static List<EventImpl> generateEvents(
@@ -124,7 +126,6 @@ class SyncFilteringTest {
         final int eventCount = 1000;
         final List<PlatformEvent> events = generateEvents(eventEmitter, time, timeStep, eventCount).stream()
                 .map(EventImpl::getBaseEvent)
-                .sorted(Comparator.comparingLong(PlatformEvent::getGeneration))
                 .toList();
 
         final Map<Hash, PlatformEvent> eventMap =
@@ -173,15 +174,21 @@ class SyncFilteringTest {
                 assertTrue(filteredHashes.contains(expectedEvent.getHash()));
             }
 
-            // Verify topological ordering.
-            long maxGeneration = -1;
-            for (final PlatformEvent event : filteredEvents) {
-                final long generation = event.getGeneration();
-                assertTrue(generation >= maxGeneration);
-                maxGeneration = generation;
-            }
+            assertTopologicalOrder(platformContext, filteredEvents);
 
             time.tick(Duration.ofMillis(100));
+        }
+    }
+
+    private static void assertTopologicalOrder(
+            final PlatformContext platformContext, final List<PlatformEvent> events) {
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
+        orphanBuffer.setEventWindow(new EventWindow(1, 1, events.getFirst().getBirthRound(), 1));
+        // Verify topological ordering.
+        for (final PlatformEvent event : events) {
+            final List<PlatformEvent> nonOrphans = orphanBuffer.handleEvent(event);
+            assertEquals(1, nonOrphans.size());
+            assertEquals(nonOrphans.getFirst(), event);
         }
     }
 }

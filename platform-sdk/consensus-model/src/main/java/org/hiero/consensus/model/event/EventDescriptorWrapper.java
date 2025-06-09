@@ -19,16 +19,12 @@ public record EventDescriptorWrapper(
     }
 
     /**
-     * Get the value used to determine if this event is ancient or not. Will be the event's generation prior to
-     * migration, and the event's birth round after migration.
+     * Get this event's birth round. This can be used to determine if this event is ancient or not.
      *
-     * @return the value used to determine if this event is ancient or not
+     * @return the event's birth round
      */
-    public long getAncientIndicator(@NonNull final AncientMode ancientMode) {
-        return switch (ancientMode) {
-            case GENERATION_THRESHOLD -> eventDescriptor.generation();
-            case BIRTH_ROUND_THRESHOLD -> eventDescriptor.birthRound();
-        };
+    public long birthRound() {
+        return eventDescriptor.birthRound();
     }
 
     /**

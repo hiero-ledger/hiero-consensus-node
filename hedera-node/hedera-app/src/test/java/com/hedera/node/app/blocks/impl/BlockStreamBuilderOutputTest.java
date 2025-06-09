@@ -54,7 +54,7 @@ class BlockStreamBuilderOutputTest {
             .build();
     private static final BlockItem SECOND_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
-                    .contractCall(new CallContractOutput(List.of(), FUNCTION_RESULT))
+                    .contractCall(new CallContractOutput(FUNCTION_RESULT))
                     .build())
             .build();
     private static final BlockItem STATE_CHANGES = BlockItem.newBuilder()

@@ -512,7 +512,7 @@ public final class VirtualNodeCache<K extends VirtualKey, V extends VirtualValue
                         "Merged version {}, {} dirty leaves, {} dirty internals",
                         fastCopyVersion,
                         dirtyLeaves.size(),
-                        dirtyHashes.seal());
+                        dirtyHashes.size());
             }
         }
     }

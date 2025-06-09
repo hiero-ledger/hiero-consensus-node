@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
@@ -115,6 +116,8 @@ class UpdateTokenCustomFeesTranslatorTest extends CallAttemptTestBase {
         given(attempt.selector()).willReturn(UPDATE_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION.selector());
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(any())).willReturn(SENDER_ID);
         given(addressIdConverter.convert(any())).willReturn(OWNER_ID);
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);
@@ -149,6 +152,8 @@ class UpdateTokenCustomFeesTranslatorTest extends CallAttemptTestBase {
                 .willReturn(UpdateTokenCustomFeesTranslator.UPDATE_NON_FUNGIBLE_TOKEN_CUSTOM_FEES_FUNCTION.selector());
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convertSender(any())).willReturn(SENDER_ID);
         given(addressIdConverter.convert(any())).willReturn(OWNER_ID);
         given(attempt.defaultVerificationStrategy()).willReturn(verificationStrategy);

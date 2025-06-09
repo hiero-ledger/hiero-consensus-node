@@ -7,7 +7,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.token.TokenGrantKycTransactionBody;
 import com.hedera.hapi.node.token.TokenRevokeKycTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -37,17 +36,17 @@ public class GrantRevokeKycDecoder {
     public TransactionBody decodeGrantKyc(@NonNull final HtsCallAttempt attempt) {
         final var call = GrantRevokeKycTranslator.GRANT_KYC.decodeCall(attempt.inputBytes());
         return TransactionBody.newBuilder()
-                .tokenGrantKyc(grantKyc(call.get(0), call.get(1), attempt.addressIdConverter()))
+                .tokenGrantKyc(grantKyc(call.get(0), call.get(1), attempt))
                 .build();
     }
 
     private TokenGrantKycTransactionBody grantKyc(
             @NonNull final Address tokenAddress,
             @NonNull final Address accountAddress,
-            @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final HtsCallAttempt attempt) {
         return TokenGrantKycTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
-                .account(addressIdConverter.convert(accountAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
+                .account(attempt.addressIdConverter().convert(accountAddress))
                 .build();
     }
 
@@ -60,17 +59,17 @@ public class GrantRevokeKycDecoder {
     public TransactionBody decodeRevokeKyc(@NonNull final HtsCallAttempt attempt) {
         final var call = GrantRevokeKycTranslator.REVOKE_KYC.decodeCall(attempt.inputBytes());
         return TransactionBody.newBuilder()
-                .tokenRevokeKyc(revokeKyc(call.get(0), call.get(1), attempt.addressIdConverter()))
+                .tokenRevokeKyc(revokeKyc(call.get(0), call.get(1), attempt))
                 .build();
     }
 
     private TokenRevokeKycTransactionBody revokeKyc(
             @NonNull final Address tokenAddress,
             @NonNull final Address accountAddress,
-            @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final HtsCallAttempt attempt) {
         return TokenRevokeKycTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
-                .account(addressIdConverter.convert(accountAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
+                .account(attempt.addressIdConverter().convert(accountAddress))
                 .build();
     }
 }

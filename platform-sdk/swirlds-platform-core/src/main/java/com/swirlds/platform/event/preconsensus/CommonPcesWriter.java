@@ -14,7 +14,6 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -37,7 +36,7 @@ public class CommonPcesWriter {
 
     /**
      * The current minimum ancient indicator required to be considered non-ancient. Only read and written on the handle
-     * thread. Either a round or generation depending on the {@link AncientMode}.
+     * thread. Based on the birth round of an event.
      */
     private long nonAncientBoundary = 0;
 
@@ -55,8 +54,7 @@ public class CommonPcesWriter {
     private final int minimumSpan;
 
     /**
-     * The minimum ancient indicator that we are required to keep around. Will be either a birth round or a generation,
-     * depending on the {@link AncientMode}.
+     * The minimum ancient indicator that we are required to keep around. Based on the birth round of an event.
      */
     private long minimumAncientIdentifierToStore;
 
@@ -103,13 +101,6 @@ public class CommonPcesWriter {
     private boolean streamingNewEvents = false;
 
     /**
-     * The type of the PCES file. There are currently two types: one bound by generations and one bound by birth rounds.
-     * The original type of files are bound by generations. The new type of files are bound by birth rounds. Once
-     * migration has been completed to birth round bound files, support for the generation bound files will be removed.
-     */
-    private final AncientMode fileType;
-
-    /**
      * The type of writer to use
      */
     private final PcesFileWriterType pcesFileWriterType;
@@ -136,10 +127,6 @@ public class CommonPcesWriter {
         pcesFileWriterType = pcesConfig.pcesFileWriterType();
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
-
-        fileType = eventConfig.useBirthRoundAncientThreshold()
-                ? AncientMode.BIRTH_ROUND_THRESHOLD
-                : AncientMode.GENERATION_THRESHOLD;
     }
 
     /**
@@ -252,7 +239,7 @@ public class CommonPcesWriter {
     public boolean prepareOutputStream(@NonNull final PlatformEvent eventToWrite) throws IOException {
         boolean fileClosed = false;
         if (currentMutableFile != null) {
-            final boolean fileCanContainEvent = currentMutableFile.canContain(fileType.selectIndicator(eventToWrite));
+            final boolean fileCanContainEvent = currentMutableFile.canContain(eventToWrite.getBirthRound());
             final boolean fileIsFull =
                     UNIT_BYTES.convertTo(currentMutableFile.fileSize(), UNIT_MEGABYTES) >= preferredFileSizeMegabytes;
 
@@ -269,7 +256,7 @@ public class CommonPcesWriter {
         // if the block above closed the file, then we need to create a new one
         if (currentMutableFile == null) {
             final long upperBound =
-                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, fileType.selectIndicator(eventToWrite));
+                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, eventToWrite.getBirthRound());
 
             currentMutableFile = fileManager
                     .getNextFileDescriptor(nonAncientBoundary, upperBound)
@@ -307,15 +294,6 @@ public class CommonPcesWriter {
      */
     public boolean isStreamingNewEvents() {
         return streamingNewEvents;
-    }
-
-    /**
-     * Get the type of the PCES file read from configuration.
-     *
-     * @return the type of the PCES file
-     */
-    public AncientMode getFileType() {
-        return fileType;
     }
 
     /**

@@ -117,8 +117,8 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     }
 
     @Override
-    protected void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
-        super.registerTxnSubmitted(spec);
+    protected void maybeRegisterTxnSubmitted(final HapiSpec spec) throws Throwable {
+        super.maybeRegisterTxnSubmitted(spec);
 
         for (final var entry : innerTnxsByTxnId.entrySet()) {
             final var op = innerOpsByTxnId.get(entry.getKey());

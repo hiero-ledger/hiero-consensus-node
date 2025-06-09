@@ -134,12 +134,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(10L, false);
         when(connectionManager.currentStreamingBlockNumber())
                 .thenReturn(-1L); // we aren't streaming anything to the block node
-        when(stateManager.getBlockNumber()).thenReturn(10L);
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
 
         connection.onNext(response);
 
         verify(connectionManager).currentStreamingBlockNumber();
-        verify(stateManager).getBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
         verify(metrics).incrementAcknowledgedBlockCount();
         verifyNoMoreInteractions(connectionManager);
@@ -152,12 +152,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(8L, false);
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
-        when(stateManager.getBlockNumber()).thenReturn(10L);
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
 
         connection.onNext(response);
 
         verify(connectionManager).currentStreamingBlockNumber();
-        verify(stateManager).getBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
 
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 8L);
         verify(metrics).incrementAcknowledgedBlockCount();
@@ -173,12 +173,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(11L);
-        when(stateManager.getBlockNumber()).thenReturn(10L);
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
 
         connection.onNext(response);
 
         verify(connectionManager).currentStreamingBlockNumber();
-        verify(stateManager).getBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 11L);
         verify(connectionManager).jumpToBlock(12L);
         verify(metrics).incrementAcknowledgedBlockCount();
@@ -192,12 +192,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
-        when(stateManager.getBlockNumber()).thenReturn(12L);
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(12L);
 
         connection.onNext(response);
 
         verify(connectionManager).currentStreamingBlockNumber();
-        verify(stateManager).getBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 11L);
         verify(connectionManager).jumpToBlock(12L);
         verify(metrics).incrementAcknowledgedBlockCount();

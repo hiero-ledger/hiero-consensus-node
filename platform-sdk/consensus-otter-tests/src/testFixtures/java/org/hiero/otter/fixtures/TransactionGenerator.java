@@ -13,13 +13,16 @@ public interface TransactionGenerator {
     int TPS = 100;
 
     /**
-     * Start the generation of transactions with the default transaction factory that uses
-     * random {@code int} values.
+     * Start the generation of transactions.
+     *
+     * <p>This method is idempotent, meaning that it is safe to call multiple times.
      */
     void start();
 
     /**
      * Stop the transaction generation.
+     *
+     * <p>This method is idempotent, meaning that it is safe to call multiple times.
      */
     void stop();
 }

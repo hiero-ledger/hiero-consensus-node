@@ -5,7 +5,6 @@ import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREAT
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
@@ -98,20 +97,6 @@ public class TestingEventBuilder {
      * The other parents of the event.
      */
     private List<PlatformEvent> otherParents;
-
-    /**
-     * Overrides the generation of the configured self parent.
-     * <p>
-     * Only relevant if the self parent is set.
-     */
-    private Long selfParentGenerationOverride;
-
-    /**
-     * Overrides the generation of the configured other parent.
-     * <p>
-     * Only relevant if the other parent is set.
-     */
-    private Long otherParentGenerationOverride;
 
     /**
      * Overrides the birth round of the configured self parent.
@@ -360,32 +345,6 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Override the generation of the configured self parent.
-     * <p>
-     * Only relevant if the self parent is set.
-     *
-     * @param generation the generation to override with
-     * @return this instance
-     */
-    public @NonNull TestingEventBuilder overrideSelfParentGeneration(final long generation) {
-        this.selfParentGenerationOverride = generation;
-        return this;
-    }
-
-    /**
-     * Override the generation of the configured other parent.
-     * <p>
-     * Only relevant if the other parent is set.
-     *
-     * @param generation the generation to override with
-     * @return this instance
-     */
-    public @NonNull TestingEventBuilder overrideOtherParentGeneration(final long generation) {
-        this.otherParentGenerationOverride = generation;
-        return this;
-    }
-
-    /**
      * Override the birth round of the configured self parent.
      * <p>
      * Only relevant if the self parent is set.
@@ -499,33 +458,27 @@ public class TestingEventBuilder {
      * Create an event descriptor from a parent event.
      *
      * @param parent             the parent event
-     * @param generationOverride the generation to override with, or null if no override is necessary
      * @param birthRoundOverride the birth round to override with, or null if no override is necessary
      * @return the parent event descriptor
      */
     @Nullable
     private EventDescriptorWrapper createDescriptorFromParent(
-            @Nullable final PlatformEvent parent,
-            @Nullable final Long generationOverride,
-            @Nullable final Long birthRoundOverride) {
-
+            @Nullable final PlatformEvent parent, @Nullable final Long birthRoundOverride) {
         if (parent == null) {
-            if (generationOverride != null) {
-                throw new IllegalArgumentException("Cannot override generation on a parent that doesn't exist");
-            }
-
             if (birthRoundOverride != null) {
                 throw new IllegalArgumentException("Cannot override birth round on a parent that doesn't exist");
             }
-
             return null;
         }
+        if (birthRoundOverride == null) {
+            return parent.getDescriptor();
+        }
 
-        final long generation = generationOverride == null ? parent.getGeneration() : generationOverride;
-        final long birthRound = birthRoundOverride == null ? parent.getBirthRound() : birthRoundOverride;
-
-        return new EventDescriptorWrapper(new EventDescriptor(
-                parent.getHash().getBytes(), parent.getCreatorId().id(), birthRound, generation));
+        return new EventDescriptorWrapper(parent.getDescriptor()
+                .eventDescriptor()
+                .copyBuilder()
+                .birthRound(birthRoundOverride)
+                .build());
     }
 
     /**
@@ -547,11 +500,10 @@ public class TestingEventBuilder {
         }
 
         final EventDescriptorWrapper selfParentDescriptor =
-                createDescriptorFromParent(selfParent, selfParentGenerationOverride, selfParentBirthRoundOverride);
+                createDescriptorFromParent(selfParent, selfParentBirthRoundOverride);
         final List<EventDescriptorWrapper> otherParentDescriptors = Stream.ofNullable(otherParents)
                 .flatMap(List::stream)
-                .map(parent -> createDescriptorFromParent(
-                        parent, otherParentGenerationOverride, otherParentBirthRoundOverride))
+                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride))
                 .toList();
 
         if (this.birthRound == null) {

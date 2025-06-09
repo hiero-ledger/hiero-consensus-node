@@ -16,11 +16,8 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class RandomTokenAssociation implements OpProvider {
-    static final Logger log = LogManager.getLogger(RandomTokenAssociation.class);
 
     public static final int MAX_TOKENS_PER_OP = 2;
     public static final int DEFAULT_CEILING_NUM = 10_000;

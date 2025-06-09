@@ -4,11 +4,13 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.BDDMockito.given;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
@@ -30,6 +32,9 @@ class UpdateDecoderTest {
 
     @Mock
     private AddressIdConverter addressIdConverter;
+
+    @Mock
+    protected HederaNativeOperations nativeOperations;
 
     private final UpdateDecoder subject = new UpdateDecoder();
     private final String newName = "NEW NAME";
@@ -62,6 +67,8 @@ class UpdateDecoderTest {
             final var encoded = Bytes.wrapByteBuffer(UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1.encodeCallWithArgs(
                     FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaToken));
             given(attempt.input()).willReturn(encoded);
+            given(attempt.nativeOperations()).willReturn(nativeOperations);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
             final var body = subject.decodeTokenUpdateV1(attempt);
             final var tokenUpdate = body.tokenUpdateOrThrow();
@@ -73,6 +80,8 @@ class UpdateDecoderTest {
             final var encoded = Bytes.wrapByteBuffer(UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2.encodeCallWithArgs(
                     FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaToken));
             given(attempt.input()).willReturn(encoded);
+            given(attempt.nativeOperations()).willReturn(nativeOperations);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
             final var body = subject.decodeTokenUpdateV2(attempt);
             final var tokenUpdate = body.tokenUpdateOrThrow();
@@ -84,6 +93,8 @@ class UpdateDecoderTest {
             final var encoded = Bytes.wrapByteBuffer(UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3.encodeCallWithArgs(
                     FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaToken));
             given(attempt.input()).willReturn(encoded);
+            given(attempt.nativeOperations()).willReturn(nativeOperations);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
             final var body = subject.decodeTokenUpdateV3(attempt);
             final var tokenUpdate = body.tokenUpdateOrThrow();
@@ -96,6 +107,8 @@ class UpdateDecoderTest {
                     Bytes.wrapByteBuffer(UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V1.encodeCallWithArgs(
                             FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry));
             given(attempt.input()).willReturn(encoded);
+            given(attempt.nativeOperations()).willReturn(nativeOperations);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
             final var body = subject.decodeTokenUpdateExpiryV1(attempt);
             final var tokenUpdate = body.tokenUpdateOrThrow();
@@ -114,6 +127,8 @@ class UpdateDecoderTest {
                     Bytes.wrapByteBuffer(UpdateExpiryTranslator.UPDATE_TOKEN_EXPIRY_INFO_V2.encodeCallWithArgs(
                             FUNGIBLE_TOKEN_HEADLONG_ADDRESS, expiry));
             given(attempt.input()).willReturn(encoded);
+            given(attempt.nativeOperations()).willReturn(nativeOperations);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
             final var body = subject.decodeTokenUpdateExpiryV2(attempt);
             final var tokenUpdate = body.tokenUpdateOrThrow();

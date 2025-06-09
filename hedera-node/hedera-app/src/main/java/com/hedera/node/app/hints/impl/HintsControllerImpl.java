@@ -425,6 +425,7 @@ public class HintsControllerImpl implements HintsController {
         requireNonNull(vote);
         requireNonNull(hintsStore);
         if (!construction.hasHintsScheme() && !votes.containsKey(nodeId)) {
+            hintsStore.addPreprocessingVote(nodeId, constructionId(), vote);
             if (vote.hasPreprocessedKeys()) {
                 votes.put(nodeId, vote);
             } else if (vote.hasCongruentNodeId()) {

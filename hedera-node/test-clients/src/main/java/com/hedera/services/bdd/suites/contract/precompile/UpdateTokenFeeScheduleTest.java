@@ -404,7 +404,7 @@ public class UpdateTokenFeeScheduleTest {
     @HapiTest
     @DisplayName("update token fees with invalid fee collector")
     public Stream<DynamicTest> updateFeesWithInvalidFeeCollector() {
-        final var invalidFeeCollector = asHeadlongAddress(asEvmAddress(0, 0, 0L));
+        final var invalidFeeCollector = asHeadlongAddress(asEvmAddress(0L));
         return hapiTest(
                 updateTokenFeeSchedules
                         .call("updateFungibleFixedHbarFee", fungibleToken, 10L, invalidFeeCollector)
@@ -418,7 +418,7 @@ public class UpdateTokenFeeScheduleTest {
     @HapiTest
     @DisplayName("update token fees with invalid token denominator")
     public Stream<DynamicTest> updateFeesWithInvalidToken() {
-        final var invalidTokenAddress = asHeadlongAddress(asEvmAddress(0, 0, 1912312313L));
+        final var invalidTokenAddress = asHeadlongAddress(asEvmAddress(1912312313L));
         return hapiTest(
                 updateTokenFeeSchedules
                         .call("updateFungibleFixedHtsFee", fungibleToken, invalidTokenAddress, 10L, feeCollector)

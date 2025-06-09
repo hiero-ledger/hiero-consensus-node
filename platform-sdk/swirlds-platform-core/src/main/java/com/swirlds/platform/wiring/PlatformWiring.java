@@ -60,7 +60,6 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.events.BirthRoundMigrationShim;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -74,13 +73,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -130,7 +127,6 @@ public class PlatformWiring {
     private final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring;
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
     private final PlatformCoordinator platformCoordinator;
-    private final ComponentWiring<BirthRoundMigrationShim, PlatformEvent> birthRoundMigrationShimWiring;
     private final ComponentWiring<AppNotifier, Void> notifierWiring;
     private final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring;
     private final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring;
@@ -165,17 +161,6 @@ public class PlatformWiring {
         this.model = Objects.requireNonNull(model);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD && !isGenesis) {
-            birthRoundMigrationShimWiring =
-                    new ComponentWiring<>(model, BirthRoundMigrationShim.class, DIRECT_THREADSAFE_CONFIGURATION);
-        } else {
-            birthRoundMigrationShimWiring = null;
-        }
 
         eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, config.eventHasher());
 
@@ -343,29 +328,13 @@ public class PlatformWiring {
      * Wire the components together.
      */
     private void wire() {
-        /*
-         * When the birth round migration shim is active, the path should be:
-         *   -> EventHasher -> BirthRoundMigrationShim -> InternalEventValidator ->
-         * When the shim is not active, the path should be:
-         *   -> EventHasher -> InternalEventValidator ->
-         */
-
         final InputWire<PlatformEvent> hasherInputWire =
                 eventHasherWiring.getInputWire(EventHasher::hashEvent, "unhashed event");
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
 
-        if (birthRoundMigrationShimWiring != null) {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent));
-            birthRoundMigrationShimWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        } else {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        }
+        eventHasherWiring
+                .getOutputWire()
+                .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
 
         internalEventValidatorWiring
                 .getOutputWire()
@@ -662,8 +631,6 @@ public class PlatformWiring {
      * @param pcesReplayer              the PCES replayer to bind
      * @param stateSignatureCollector   the signed state manager to bind
      * @param eventWindowManager        the event window manager to bind
-     * @param birthRoundMigrationShim   the birth round migration shim to bind, ignored if birth round migration has not
-     *                                  yet happened, must not be null if birth round migration has happened
      * @param latestImmutableStateNexus the latest immutable state nexus to bind
      * @param latestCompleteStateNexus  the latest complete state nexus to bind
      * @param savedStateController      the saved state controller to bind
@@ -675,7 +642,6 @@ public class PlatformWiring {
             @NonNull final PcesReplayer pcesReplayer,
             @NonNull final StateSignatureCollector stateSignatureCollector,
             @NonNull final EventWindowManager eventWindowManager,
-            @Nullable final BirthRoundMigrationShim birthRoundMigrationShim,
             @Nullable final InlinePcesWriter inlinePcesWriter,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
@@ -706,9 +672,6 @@ public class PlatformWiring {
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        if (birthRoundMigrationShimWiring != null) {
-            birthRoundMigrationShimWiring.bind(Objects.requireNonNull(birthRoundMigrationShim));
-        }
         latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);

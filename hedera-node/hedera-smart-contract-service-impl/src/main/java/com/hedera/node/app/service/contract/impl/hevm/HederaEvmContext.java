@@ -17,18 +17,18 @@ public record HederaEvmContext(
         @NonNull HederaEvmBlocks blocks,
         @NonNull TinybarValues tinybarValues,
         @NonNull SystemContractGasCalculator systemContractGasCalculator,
-        @Nullable ContractOperationStreamBuilder recordBuilder,
+        @Nullable ContractOperationStreamBuilder streamBuilder,
         @Nullable PendingCreationMetadataRef pendingCreationRecordBuilderReference) {
 
     public HederaEvmContext {
         requireNonNull(blocks);
         requireNonNull(tinybarValues);
         requireNonNull(systemContractGasCalculator);
-        if (recordBuilder != null) {
+        if (streamBuilder != null) {
             requireNonNull(pendingCreationRecordBuilderReference);
         }
         if (pendingCreationRecordBuilderReference != null) {
-            requireNonNull(recordBuilder);
+            requireNonNull(streamBuilder);
         }
     }
 
@@ -41,6 +41,6 @@ public record HederaEvmContext(
     }
 
     public boolean isTransaction() {
-        return recordBuilder != null && pendingCreationRecordBuilderReference != null;
+        return streamBuilder != null && pendingCreationRecordBuilderReference != null;
     }
 }

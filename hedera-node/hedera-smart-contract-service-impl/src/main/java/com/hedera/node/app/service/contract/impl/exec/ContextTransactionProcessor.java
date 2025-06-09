@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -127,10 +128,16 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             // For mono-service fidelity, externalize an initcode-only sidecar when a top-level creation fails
             if (!result.isSuccess() && hevmTransaction.needsInitcodeExternalizedOnFailure()) {
+                // (FUTURE) Remove after switching to block stream
                 final var contractBytecode = ContractBytecode.newBuilder()
                         .initcode(hevmTransaction.payload())
                         .build();
-                requireNonNull(hederaEvmContext.recordBuilder()).addContractBytecode(contractBytecode, false);
+                requireNonNull(hederaEvmContext.streamBuilder()).addContractBytecode(contractBytecode, false);
+                // No-op for the RecordStreamBuilder
+                final var initcode = ContractInitcode.newBuilder()
+                        .failedInitcode(hevmTransaction.payload())
+                        .build();
+                requireNonNull(hederaEvmContext.streamBuilder()).addInitcode(initcode);
             }
             return CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);

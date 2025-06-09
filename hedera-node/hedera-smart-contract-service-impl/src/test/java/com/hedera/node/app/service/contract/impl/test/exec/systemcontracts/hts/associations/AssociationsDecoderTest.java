@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
@@ -14,6 +15,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsDecoder;
@@ -31,6 +33,9 @@ class AssociationsDecoderTest {
 
     @Mock
     private HtsCallAttempt attempt;
+
+    @Mock
+    private HederaNativeOperations hederaNativeOperations;
 
     private final AssociationsDecoder subject = new AssociationsDecoder();
 
@@ -57,6 +62,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeAssociateOne(attempt);
         assertAssociationPresent(body, OWNER_ID, NON_FUNGIBLE_TOKEN_ID);
@@ -71,6 +78,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeAssociateMany(attempt);
         assertAssociationPresent(body, OWNER_ID, FUNGIBLE_TOKEN_ID);
@@ -84,6 +93,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeDissociateOne(attempt);
         assertDissociationPresent(body, OWNER_ID, NON_FUNGIBLE_TOKEN_ID);
@@ -98,6 +109,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeDissociateMany(attempt);
         assertDissociationPresent(body, OWNER_ID, FUNGIBLE_TOKEN_ID);

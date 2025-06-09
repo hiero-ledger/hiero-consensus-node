@@ -15,26 +15,32 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -56,9 +62,10 @@ public record HederaEvmTransactionResult(
         @Nullable ExceptionalHaltReason haltReason,
         @Nullable Bytes revertReason,
         @NonNull List<Log> logs,
-        @Nullable ContractStateChanges stateChanges,
+        @Nullable @Deprecated ContractStateChanges stateChanges,
+        @Nullable List<ContractSlotUsage> slotUsages,
         @Nullable ResponseCodeEnum finalStatus,
-        @Nullable ContractActions actions,
+        @Nullable List<ContractAction> actions,
         @Nullable Long signerNonce) {
     public HederaEvmTransactionResult {
         requireNonNull(senderId);
@@ -180,6 +187,10 @@ public record HederaEvmTransactionResult(
             @NonNull final ActionSidecarContentTracer tracer) {
         requireNonNull(frame);
         requireNonNull(tracer);
+        final var storageAccesses = maybeAllStateChangesFrom(frame);
+        final var streamMode = FrameUtils.configOf(frame)
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
         return successFrom(
                 gasUsed,
                 opsDuration,
@@ -189,7 +200,8 @@ public record HederaEvmTransactionResult(
                 recipientEvmAddress,
                 frame.getOutputData(),
                 frame.getLogs(),
-                maybeAllStateChangesFrom(frame),
+                streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
+                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses) : null,
                 maybeActionsFrom(frame, tracer));
     }
 
@@ -202,8 +214,9 @@ public record HederaEvmTransactionResult(
             @NonNull final ContractID recipientEvmAddress,
             @NonNull final org.apache.tuweni.bytes.Bytes output,
             @NonNull final List<Log> logs,
-            @Nullable final ContractStateChanges stateChanges,
-            @Nullable ContractActions actions) {
+            @Nullable @Deprecated final ContractStateChanges stateChanges,
+            @Nullable final List<ContractSlotUsage> slotUsages,
+            @Nullable final List<ContractAction> actions) {
         return new HederaEvmTransactionResult(
                 gasUsed,
                 opsDuration,
@@ -216,6 +229,7 @@ public record HederaEvmTransactionResult(
                 null,
                 requireNonNull(logs),
                 stateChanges,
+                slotUsages,
                 null,
                 actions,
                 null);
@@ -241,6 +255,10 @@ public record HederaEvmTransactionResult(
             @NonNull final ActionSidecarContentTracer tracer) {
         requireNonNull(frame);
         requireNonNull(tracer);
+        final var storageAccesses = maybeReadOnlyStateChangesFrom(frame);
+        final var streamMode = FrameUtils.configOf(frame)
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
         return new HederaEvmTransactionResult(
                 gasUsed,
                 opsDuration,
@@ -252,7 +270,8 @@ public record HederaEvmTransactionResult(
                 frame.getExceptionalHaltReason().orElse(null),
                 frame.getRevertReason().map(ConversionUtils::tuweniToPbjBytes).orElse(null),
                 Collections.emptyList(),
-                maybeReadOnlyStateChangesFrom(frame),
+                streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
+                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses) : null,
                 null,
                 maybeActionsFrom(frame, tracer),
                 null);
@@ -286,6 +305,7 @@ public record HederaEvmTransactionResult(
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -315,6 +335,7 @@ public record HederaEvmTransactionResult(
                 Bytes.wrap(reason.name().getBytes()),
                 List.of(),
                 null,
+                null,
                 reason,
                 null,
                 null);
@@ -340,10 +361,9 @@ public record HederaEvmTransactionResult(
         // checking first action.callType is CREATE to indicate 'create contract' call
         // we are not setting recipientId as contractID for create contract call  because failed block/receipt should
         // not contain contractID
-        if (actions() == null
-                || actions().contractActions().isEmpty()
-                || !ContractActionType.CREATE.equals(
-                        actions().contractActions().getFirst().callType())) {
+        if (actions == null
+                || actions.isEmpty()
+                || !ContractActionType.CREATE.equals(actions.getFirst().callType())) {
             builder.contractID(recipientId);
         }
         return builder;
@@ -386,17 +406,17 @@ public record HederaEvmTransactionResult(
         return revertReason == null && haltReason == null;
     }
 
-    private static @Nullable ContractStateChanges maybeAllStateChangesFrom(@NonNull final MessageFrame frame) {
-        return stateChangesFrom(frame, true);
+    private static @Nullable List<StorageAccesses> maybeAllStateChangesFrom(@NonNull final MessageFrame frame) {
+        return storageAccessesFrom(frame, true);
     }
 
-    private static @Nullable ContractActions maybeActionsFrom(
+    private static @Nullable List<ContractAction> maybeActionsFrom(
             @NonNull final MessageFrame frame, @NonNull final ActionSidecarContentTracer tracer) {
         return hasActionSidecarsEnabled(frame) ? tracer.contractActions() : null;
     }
 
-    private static @Nullable ContractStateChanges maybeReadOnlyStateChangesFrom(@NonNull final MessageFrame frame) {
-        return stateChangesFrom(frame, false);
+    private static @Nullable List<StorageAccesses> maybeReadOnlyStateChangesFrom(@NonNull final MessageFrame frame) {
+        return storageAccessesFrom(frame, false);
     }
 
     private static String errorMessageForRevert(@NonNull final Bytes reason) {
@@ -404,7 +424,7 @@ public record HederaEvmTransactionResult(
         return "0x" + reason.toHex();
     }
 
-    private static @Nullable ContractStateChanges stateChangesFrom(
+    private static @Nullable List<StorageAccesses> storageAccessesFrom(
             @NonNull final MessageFrame frame, final boolean includeWrites) {
         requireNonNull(frame);
         final var accessTracker = accessTrackerFor(frame);
@@ -418,7 +438,7 @@ public record HederaEvmTransactionResult(
             } else {
                 accesses = accessTracker.getJustReads();
             }
-            return asPbjStateChanges(accesses);
+            return accesses;
         }
     }
 
@@ -435,6 +455,7 @@ public record HederaEvmTransactionResult(
                 revertReason,
                 logs,
                 stateChanges,
+                slotUsages,
                 finalStatus,
                 actions,
                 signerNonce);

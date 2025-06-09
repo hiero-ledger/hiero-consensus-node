@@ -205,7 +205,7 @@ public class HashgraphPicture extends JPanel {
             e2 = null;
         }
 
-        if (e1 != null && e1.getGeneration() >= pictureMetadata.getMinGen()) {
+        if (e1 != null && e1.getNGen() >= pictureMetadata.getMinGen()) {
             g.drawLine(
                     pictureMetadata.xpos(e2, event),
                     pictureMetadata.ypos(event),
@@ -219,7 +219,7 @@ public class HashgraphPicture extends JPanel {
                 g.setColor(currentColor);
             }
         }
-        if (e2 != null && e2.getGeneration() >= pictureMetadata.getMinGen()) {
+        if (e2 != null && e2.getNGen() >= pictureMetadata.getMinGen()) {
             g.drawLine(
                     pictureMetadata.xpos(e2, event),
                     pictureMetadata.ypos(event),
@@ -300,8 +300,8 @@ public class HashgraphPicture extends JPanel {
                 s += " " + HashgraphGuiConstants.FORMATTER.format(t);
             }
         }
-        if (options.writeGeneration()) {
-            s += " " + event.getGeneration();
+        if (options.writeNGen()) {
+            s += " " + event.getNGen();
         }
 
         if (options.writeBirthRound()) {

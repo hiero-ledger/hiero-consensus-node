@@ -20,7 +20,6 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
 
     private final ObjectCounter onRamp;
     private final ObjectCounter offRamp;
-    private final UncaughtExceptionHandler uncaughtExceptionHandler;
     private final ForkJoinPool pool;
     private final long capacity;
 
@@ -51,10 +50,16 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
 
-        super(model, name, TaskSchedulerType.CONCURRENT, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                TaskSchedulerType.CONCURRENT,
+                uncaughtExceptionHandler,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
         this.pool = Objects.requireNonNull(pool);
-        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
         this.capacity = capacity;
@@ -66,7 +71,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     protected void put(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         onRamp.onRamp();
-        new ConcurrentTask(pool, offRamp, uncaughtExceptionHandler, handler, data).send();
+        new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data).send();
     }
 
     /**
@@ -76,7 +81,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     protected boolean offer(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         final boolean accepted = onRamp.attemptOnRamp();
         if (accepted) {
-            new ConcurrentTask(pool, offRamp, uncaughtExceptionHandler, handler, data).send();
+            new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data).send();
         }
         return accepted;
     }
@@ -87,7 +92,7 @@ public class ConcurrentTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     protected void inject(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         onRamp.forceOnRamp();
-        new ConcurrentTask(pool, offRamp, uncaughtExceptionHandler, handler, data).send();
+        new ConcurrentTask(pool, offRamp, getUncaughtExceptionHandler(), handler, data).send();
     }
 
     /**

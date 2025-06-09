@@ -2,14 +2,13 @@
 package com.swirlds.platform.consensus;
 
 import static com.swirlds.platform.consensus.ConsensusTestArgs.DEFAULT_PLATFORM_CONTEXT;
-import static com.swirlds.platform.test.fixtures.event.EventUtils.areGenerationNumbersValid;
+import static com.swirlds.platform.test.fixtures.event.EventUtils.areBirthRoundNumbersValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.gatherOtherParentAges;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.isEventOrderValid;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -32,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -414,7 +415,7 @@ public class GraphGeneratorTests {
     public void validateEventOrder(final GraphGenerator generator) {
         System.out.println("Validate Event Order");
         final List<EventImpl> events = generator.generateEvents(1000);
-        assertTrue(areGenerationNumbersValid(events, generator.getNumberOfSources()));
+        assertTrue(areBirthRoundNumbersValid(events, generator.getNumberOfSources()));
         assertTrue(isEventOrderValid(events));
 
         generator.reset();
@@ -431,7 +432,6 @@ public class GraphGeneratorTests {
         validateParentDistribution(generator);
         validateOtherParentDistribution(generator);
         validateEventOrder(generator);
-        validateMaxGeneration(generator);
         validateBirthRoundAdvancing(generator);
     }
 
@@ -449,20 +449,6 @@ public class GraphGeneratorTests {
             assertTrue(eventBirthRound >= currentBirthRound);
             currentBirthRound = eventBirthRound;
         }
-        generator.reset();
-    }
-
-    /**
-     * Assert that the max generation is updated correctly
-     */
-    public void validateMaxGeneration(final GraphGenerator generator) {
-        final List<EventImpl> events = generator.generateEvents(100);
-        final EventImpl lastEvent = events.get(events.size() - 1);
-        // validate only the last event to keep the validation simple
-        assertEquals(
-                lastEvent.getGeneration(),
-                generator.getMaxGeneration(lastEvent.getCreatorId()),
-                "last event should have the max generation");
         generator.reset();
     }
 
@@ -497,7 +483,15 @@ public class GraphGeneratorTests {
 
         final List<EventImpl> events = generator.generateEvents(numberOfEvents);
 
-        assertFalse(areGenerationNumbersValid(events, 4));
+        final boolean multipleSelfParents = events.stream()
+                .map(EventImpl::getSelfParent)
+                .filter(Objects::nonNull)
+                .map(EventImpl::getBaseHash)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .values()
+                .stream()
+                .anyMatch(c -> c > 1);
+        assertTrue(multipleSelfParents, "Expected multiple self parents in the event list");
     }
 
     @Test

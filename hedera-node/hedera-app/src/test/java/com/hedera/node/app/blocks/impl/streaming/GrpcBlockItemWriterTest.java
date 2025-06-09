@@ -77,17 +77,6 @@ class GrpcBlockItemWriterTest {
     }
 
     @Test
-    void testWritePreBlockProofItems() {
-        GrpcBlockItemWriter grpcBlockItemWriter =
-                new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
-
-        grpcBlockItemWriter.openBlock(0);
-        grpcBlockItemWriter.writePreBlockProofItems();
-
-        verify(blockBufferService).streamPreBlockProofItems(0);
-    }
-
-    @Test
     void testCompleteBlock() {
         GrpcBlockItemWriter grpcBlockItemWriter =
                 new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);

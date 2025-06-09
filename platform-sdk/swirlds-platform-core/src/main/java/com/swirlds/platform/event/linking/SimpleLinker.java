@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
@@ -43,17 +42,15 @@ public class SimpleLinker {
      */
     private final Map<Hash, EventImpl> parentHashMap = new HashMap<>(INITIAL_CAPACITY);
 
-    private final AncientMode ancientMode;
     private long nonAncientThreshold = 0;
 
     /**
      * Constructor
      *
-     * @param ancientMode the ancient mode
      */
-    public SimpleLinker(@NonNull final AncientMode ancientMode) {
-        this.ancientMode = ancientMode;
-        this.parentDescriptorMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
+    public SimpleLinker() {
+        this.parentDescriptorMap =
+                new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
     }
 
     /**
@@ -80,18 +77,13 @@ public class SimpleLinker {
             return null;
         }
 
-        if (parentDescriptor.getAncientIndicator(AncientMode.GENERATION_THRESHOLD) < nonAncientThreshold) {
+        if (parentDescriptor.eventDescriptor().birthRound() < nonAncientThreshold) {
             // ancient parents don't need to be linked
             return null;
         }
 
         final EventImpl candidateParent = parentHashMap.get(parentDescriptor.hash());
         if (candidateParent == null) {
-            return null;
-        }
-
-        if (candidateParent.getGeneration()
-                != parentDescriptor.eventDescriptor().generation()) {
             return null;
         }
 
@@ -121,7 +113,7 @@ public class SimpleLinker {
      */
     @Nullable
     public EventImpl linkEvent(@NonNull final PlatformEvent event) {
-        if (ancientMode.selectIndicator(event) < nonAncientThreshold) {
+        if (event.getBirthRound() < nonAncientThreshold) {
             // This event is ancient, so we don't need to link it.
             return null;
         }

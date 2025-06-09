@@ -44,7 +44,6 @@ class CommonPcesWriterTest {
                         new TestingEventBuilder(random).setBirthRound(150).build())
                 .setOtherParent(
                         new TestingEventBuilder(random).setBirthRound(150).build())
-                .overrideOtherParentGeneration(150)
                 .setBirthRound(150)
                 .build();
         fileManager = mock(PcesFileManager.class);

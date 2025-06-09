@@ -20,6 +20,12 @@ import org.hiero.consensus.model.transaction.TransactionWrapper;
  * Metadata for an event that can be derived from the event itself
  */
 public class EventMetadata extends AbstractHashable {
+
+    /**
+     * This is a temporary constant that acts as a feature flag. If set to true, all generations will be set to zero
+     * including in parent descriptors. This constant can be removed once a events have generations populated anymore.
+     */
+    private static final boolean SET_GENERATIONS_TO_ZERO = true;
     /**
      * ID of this event's creator (translate before sending)
      */
@@ -55,13 +61,7 @@ public class EventMetadata extends AbstractHashable {
     private EventDescriptorWrapper descriptor;
 
     /**
-     * If this event took part in birth round migration, then the birth round will be overridden by this value.
-     */
-    private Long birthRoundOverride = null;
-
-    /**
-     * The birth round that was initialized to the event. This may be overridden at a later time via
-     * {@link #setBirthRoundOverride(long, long)}.
+     * The birth round that was initialized to the event.
      */
     private final long birthRound;
 
@@ -90,7 +90,11 @@ public class EventMetadata extends AbstractHashable {
         this.allParents = selfParent == null
                 ? this.otherParents
                 : Stream.concat(Stream.of(selfParent), otherParents.stream()).toList();
-        this.generation = calculateGeneration(allParents);
+        if (SET_GENERATIONS_TO_ZERO) {
+            this.generation = 0;
+        } else {
+            this.generation = calculateGeneration(allParents);
+        }
         this.timeCreated = Objects.requireNonNull(timeCreated, "The timeCreated must not be null");
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
                 .map(TransactionWrapper::new)
@@ -117,7 +121,12 @@ public class EventMetadata extends AbstractHashable {
             this.selfParent = null;
             this.otherParents = allParents;
         }
-        this.generation = calculateGeneration(allParents);
+        if (SET_GENERATIONS_TO_ZERO) {
+            this.generation = 0;
+            overrideParentGenerationsToZero();
+        } else {
+            this.generation = calculateGeneration(allParents);
+        }
         this.timeCreated = HapiUtils.asInstant(
                 Objects.requireNonNull(gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null"));
         this.transactions =
@@ -134,13 +143,12 @@ public class EventMetadata extends AbstractHashable {
     }
 
     /**
-     * The birth round of the event. If this event was migrated - as part of birth round migration - then the value
-     * returned is the overridden birth round and not the original.
+     * The birth round of the event
      *
      * @return the birth round for this event
      */
     public long getBirthRound() {
-        return birthRoundOverride != null ? birthRoundOverride : birthRound;
+        return birthRound;
     }
 
     /**
@@ -240,38 +248,26 @@ public class EventMetadata extends AbstractHashable {
     }
 
     /**
-     * Override the birth round for this event and potentially any parents associated with the event. Parents will have
-     * their birth round overridden if their  generation is greater or equal to the specified
-     * {@code ancientGenerationThreshold} value.
-     *
-     * @param birthRound                 the birth round to use for this event and potential parents
-     * @param ancientGenerationThreshold the threshold used to determine if parents will also have their birth round
-     *                                   overridden
+     * If any parent descriptor has a generation greater than zero, create new descriptors with generation zero and
+     * create descriptor wrappers from them. Doing this does not affect the hash of the event.
      */
-    public void setBirthRoundOverride(final long birthRound, final long ancientGenerationThreshold) {
-        if (birthRoundOverride != null) {
-            throw new IllegalStateException(
-                    "The birth round has already been overridden, you cannot override it again");
-        }
-
-        birthRoundOverride = birthRound;
-
-        if (selfParent != null && selfParent.eventDescriptor().generation() >= ancientGenerationThreshold) {
+    public void overrideParentGenerationsToZero() {
+        if (selfParent != null && selfParent.eventDescriptor().generation() > 0) {
             selfParent = new EventDescriptorWrapper(new EventDescriptor(
                     selfParent.eventDescriptor().hash(),
                     selfParent.eventDescriptor().creatorNodeId(),
-                    birthRoundOverride,
-                    selfParent.eventDescriptor().generation()));
+                    selfParent.eventDescriptor().birthRound(),
+                    0));
         }
 
         otherParents = otherParents.stream()
                 .map(parent -> {
-                    if (parent.eventDescriptor().generation() >= ancientGenerationThreshold) {
+                    if (parent.eventDescriptor().generation() > 0) {
                         return new EventDescriptorWrapper(new EventDescriptor(
                                 parent.eventDescriptor().hash(),
                                 parent.eventDescriptor().creatorNodeId(),
-                                birthRoundOverride,
-                                parent.eventDescriptor().generation()));
+                                parent.eventDescriptor().birthRound(),
+                                0));
                     }
 
                     return parent;

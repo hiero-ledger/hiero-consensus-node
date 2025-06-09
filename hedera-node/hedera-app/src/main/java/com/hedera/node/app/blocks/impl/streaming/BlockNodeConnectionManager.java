@@ -7,9 +7,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
 
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.BlockStreamQueueItemType;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -36,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -546,20 +542,10 @@ public class BlockNodeConnectionManager {
     private void blockStreamWorkerLoop() {
         while (isConnectionManagerActive.get()) {
             try {
-                boolean shouldSleep;
-
-                // Process the block stream queue, creating a PublishStreamRequest for a particular Block if conditions
-                // are met
-                processBlockStreamQueue();
-
                 // If signaled to jump to a specific block, do so
                 jumpToBlockIfNeeded();
 
-                shouldSleep = processStreamingToBlockNode();
-
-                if (shouldSleep && !blockBufferService.getBlockStreamItemQueue().isEmpty()) {
-                    shouldSleep = false; // Don't sleep if there are items in the queue
-                }
+                final boolean shouldSleep = processStreamingToBlockNode();
 
                 // Sleep for a short duration to avoid busy waiting
                 if (shouldSleep) {
@@ -589,7 +575,7 @@ public class BlockNodeConnectionManager {
 
         final long currentStreamingBlockNumber = streamingBlockNumber.get();
         final BlockState blockState = blockBufferService.getBlockState(currentStreamingBlockNumber);
-        final long latestBlockNumber = blockBufferService.getBlockNumber();
+        final long latestBlockNumber = blockBufferService.getLastBlockNumberProduced();
 
         if (blockState == null && latestBlockNumber > currentStreamingBlockNumber) {
             logger.debug(
@@ -601,27 +587,34 @@ public class BlockNodeConnectionManager {
             return true;
         }
 
-        if (blockState == null || blockState.requestsSize() == 0) {
+        if (blockState == null) {
+            return true;
+        }
+
+        blockState.processPendingItems(blockItemBatchSize());
+
+        if (blockState.numRequestsCreated() == 0) {
             // the block was not found or there are no requests available to send, so return true (safe to sleep)
             return true;
         }
 
-        if (requestIndex < blockState.requestsSize()) {
+        if (requestIndex < blockState.numRequestsCreated()) {
             logger.trace(
-                    "[{}] Processing block {} (isBlockComplete={}, totalBlockRequests={}, currentRequestIndex={})",
+                    "[{}] Processing block {} (isBlockProofSent={}, totalBlockRequests={}, currentRequestIndex={})",
                     connection,
                     streamingBlockNumber,
-                    blockState.requestsCompleted(),
-                    blockState.requestsSize(),
+                    blockState.isBlockProofSent(),
+                    blockState.numRequestsCreated(),
                     requestIndex);
             final PublishStreamRequest publishStreamRequest = blockState.getRequest(requestIndex);
             if (publishStreamRequest != null) {
                 connection.sendRequest(publishStreamRequest);
+                blockState.markRequestSent(requestIndex);
                 requestIndex++;
             }
         }
 
-        if (requestIndex == blockState.requestsSize() && blockState.requestsCompleted()) {
+        if (requestIndex == blockState.numRequestsCreated() && blockState.isBlockProofSent()) {
             final long nextBlockNumber = streamingBlockNumber.incrementAndGet();
             requestIndex = 0;
             logger.trace("[{}] Moving to next block number: {}", connection, nextBlockNumber);
@@ -629,49 +622,7 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        if (requestIndex < blockState.requestsSize()) {
-            return false; // Don't sleep if there are more requests to process
-        }
-
-        return blockBufferService.getBlockStreamItemQueue().isEmpty();
-    }
-
-    private void processBlockStreamQueue() {
-        final Queue<BlockStreamQueueItem> itemQueue = blockBufferService.getBlockStreamItemQueue();
-        final int batchSize = blockItemBatchSize();
-
-        for (int i = 0; i < batchSize && !itemQueue.isEmpty(); ++i) {
-            final BlockStreamQueueItem blockStreamQueueItem = itemQueue.poll();
-
-            if (blockStreamQueueItem == null) {
-                // This shouldn't be possible since the for-loop condition should prevent it
-                // but leaving this check to be defensive
-                continue;
-            }
-
-            final long blockNumber = blockStreamQueueItem.blockNumber();
-            final BlockItem blockItem = blockStreamQueueItem.blockItem();
-            final BlockState blockState = blockBufferService.getBlockState(blockNumber);
-
-            if (blockState == null) {
-                continue;
-            }
-
-            final boolean isPreBlockProof =
-                    BlockStreamQueueItemType.PRE_BLOCK_PROOF_ACTION == blockStreamQueueItem.blockStreamQueueItemType();
-
-            if (isPreBlockProof) {
-                blockState.createRequestFromCurrentItems(blockItemBatchSize(), true);
-            } else {
-                blockState.addItem(blockItem);
-                blockState.createRequestFromCurrentItems(blockItemBatchSize(), false);
-
-                if (blockItem.hasBlockProof()) {
-                    blockState.createRequestFromCurrentItems(blockItemBatchSize(), true);
-                    blockState.setRequestsCompleted();
-                }
-            }
-        }
+        return requestIndex >= blockState.numRequestsCreated(); // Don't sleep if there are more requests to process
     }
 
     /**

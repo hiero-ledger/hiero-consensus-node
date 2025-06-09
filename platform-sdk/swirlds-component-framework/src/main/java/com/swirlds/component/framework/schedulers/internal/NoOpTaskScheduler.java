@@ -4,6 +4,7 @@ package com.swirlds.component.framework.schedulers.internal;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
 
 import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -21,7 +22,6 @@ import java.util.function.Consumer;
  *              just to appease the compiler, as this scheduler never produces output.
  */
 public class NoOpTaskScheduler<OUT> extends TaskScheduler<OUT> {
-
     private final TraceableWiringModel model;
 
     /**
@@ -39,7 +39,7 @@ public class NoOpTaskScheduler<OUT> extends TaskScheduler<OUT> {
             @NonNull final TaskSchedulerType type,
             final boolean flushEnabled,
             final boolean squelchingEnabled) {
-        super(model, name, type, flushEnabled, squelchingEnabled, false);
+        super(model, name, type, ExceptionHandlers.NOOP_UNCAUGHT_EXCEPTION, flushEnabled, squelchingEnabled, false);
 
         this.model = Objects.requireNonNull(model);
     }

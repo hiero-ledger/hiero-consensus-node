@@ -54,22 +54,22 @@ public class Tipset {
      * <p>
      * The generation for each node ID will be equal to the maximum generation found for that node ID from all source
      * tipsets.
+     * In the case of empty list, a new Tipset instance with the current roster will be returned.
      *
-     * @param tipsets the tipsets to merge, must be non-empty, tipsets must be constructed from the same address book or
+     * @param tipsets the tipsets to merge, tipsets must be constructed from the same roster or
      *                else this method has undefined behavior
      * @return a new tipset
      */
-    public static @NonNull Tipset merge(@NonNull final List<Tipset> tipsets) {
-        Objects.requireNonNull(tipsets, "tipsets must not be null");
+    public @NonNull Tipset merge(@NonNull final List<Tipset> tipsets) {
         if (tipsets.isEmpty()) {
-            throw new IllegalArgumentException("Cannot merge an empty list of tipsets");
+            return new Tipset(roster);
         }
 
-        final int length = tipsets.get(0).tips.length;
-        final Tipset newTipset = buildEmptyTipset(tipsets.get(0));
+        final int length = this.tips.length;
+        final Tipset newTipset = buildEmptyTipset(this);
 
         for (int index = 0; index < length; index++) {
-            long max = NonDeterministicGeneration.GENERATION_UNDEFINED;
+            long max = this.tips[index];
             for (final Tipset tipSet : tipsets) {
                 max = Math.max(max, tipSet.tips[index]);
             }
@@ -176,5 +176,27 @@ public class Tipset {
         }
         sb.append(")");
         return sb.toString();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final boolean equals(final Object o) {
+        if (!(o instanceof final Tipset tipset)) {
+            return false;
+        }
+
+        return roster.equals(tipset.roster) && Arrays.equals(tips, tipset.tips);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        int result = roster.hashCode();
+        result = 31 * result + Arrays.hashCode(tips);
+        return result;
     }
 }

@@ -282,15 +282,12 @@ class ChildlessEventTrackerTests {
                     .setNGen(0)
                     .build();
 
-            final long parentGeneration = nodeId + ancientThresholdOffset - 1;
             final long birthRound = nodeId + ancientThresholdOffset;
             final PlatformEvent event = new TestingEventBuilder(random)
                     .setCreatorId(NodeId.of(nodeId))
                     .setBirthRound(birthRound)
                     .setSelfParent(nonExistentParent1)
                     .setOtherParent(nonExistentParent2)
-                    .overrideSelfParentGeneration(parentGeneration)
-                    .overrideOtherParentGeneration(parentGeneration)
                     .setNGen(1)
                     .build();
             tracker.addEvent(event);

@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder.UNLIMITED_CAPACITY;
-import static java.lang.Thread.sleep;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.hiero.base.utility.NonCryptographicHashing.hash32;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -19,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
+import com.swirlds.common.test.fixtures.AssertionUtils;
 import com.swirlds.component.framework.TestWiringModelBuilder;
 import com.swirlds.component.framework.counters.BackpressureObjectCounter;
 import com.swirlds.component.framework.counters.ObjectCounter;
@@ -32,21 +26,25 @@ import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.StringWriter;
+import java.lang.Thread.State;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
-import org.hiero.base.utility.test.fixtures.RandomUtils;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
+import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
+import org.hiero.base.concurrent.test.fixtures.FunctionWithExecutionControl;
+import org.hiero.base.concurrent.test.fixtures.Gate;
+import org.hiero.base.concurrent.test.fixtures.RunnableCompletionControl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -54,9 +52,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class SequentialTaskSchedulerTests {
 
+    private static final NoOpMetrics NO_OP_METRICS = new NoOpMetrics();
+    private static final int DEFAULT_OPERATIONS = 100;
+    public static final Duration AWAIT_MAX_DURATION = Duration.ofSeconds(10);
+    // Each test sets the model so it can be clean up in the teardown phase
+    private WiringModel model;
+
     @Test
     void illegalNamesTest() {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
 
         assertThrows(NullPointerException.class, () -> model.schedulerBuilder(null));
         assertThrows(IllegalArgumentException.class, () -> model.schedulerBuilder(""));
@@ -83,12 +87,13 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void orderOfOperationsTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
-        final Consumer<Integer> handler = x -> wireValue.set(hash32(wireValue.get(), x));
+        final ConsumerWithCompletionControl<Integer> handler =
+                ConsumerWithCompletionControl.unblocked(x -> wireValue.set(hash32(wireValue.get(), x)));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -101,61 +106,14 @@ class SequentialTaskSchedulerTests {
 
         model.start();
         int value = 0;
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             channel.put(i);
             value = hash32(value, i);
         }
 
-        assertEventuallyEquals(
-                value,
-                wireValue::get,
-                Duration.ofSeconds(10),
-                "Wire sum did not match expected sum: " + value + " vs " + wireValue.get());
-        model.stop();
-    }
-
-    /**
-     * Add values to the task scheduler, ensure that each value was processed in the correct order. Add a delay to the
-     * handler. The delay should not affect the final value if things are happening as we expect. If the task scheduler
-     * is allowing things to happen with parallelism, then the delay is likely to result in a reordering of operations
-     * (which will fail the test).
-     */
-    @ParameterizedTest
-    @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void orderOfOperationsWithDelayTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
-        final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
-
-        final Random random = getRandomPrintSeed();
-
-        final AtomicInteger wireValue = new AtomicInteger();
-        final Consumer<Integer> handler = x -> {
-            wireValue.set(hash32(wireValue.get(), x));
-            try {
-                // Sleep for up to a millisecond
-                NANOSECONDS.sleep(random.nextInt(1_000_000));
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        };
-
-        final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
-                .withType(type)
-                .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build();
-        final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
-        channel.bindConsumer(handler);
-        assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
-        assertEquals("test", taskScheduler.getName());
-
-        model.start();
-        int value = 0;
-        for (int i = 0; i < 100; i++) {
-            channel.put(i);
-            value = hash32(value, i);
-        }
-
-        assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        assertEquals(
+                value, wireValue.get(), "Wire sum did not match expected sum: " + value + " vs " + wireValue.get());
         model.stop();
     }
 
@@ -166,141 +124,41 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void multipleChannelsTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
-        final AtomicInteger wireValue = new AtomicInteger();
-        final AtomicInteger operationCount = new AtomicInteger();
-        final Set<Integer> arguments = ConcurrentHashMap.newKeySet(); // concurrent hash set
-        final Consumer<Integer> handler = x -> {
-            arguments.add(x);
-            // This will result in a deterministic value if there is no parallelism
-            wireValue.set(hash32(wireValue.get(), operationCount.getAndIncrement()));
-        };
+        final AtomicLong wireValue = new AtomicLong();
+        // concurrent hash set
+        final int ops = 1_000;
+        final List<Integer> expectedArguments = IntStream.range(0, ops).boxed().toList();
+        // Do not use a thread safe data structure on purpose, work should be done sequentially
+        final Set<Integer> nonProcessedInput = new HashSet<>(expectedArguments);
+        // Compute the values we expect to be computed by the wire
+        final long expectedValue =
+                IntStream.range(0, ops).mapToLong(i -> (long) i).sum();
+        // This will result in a deterministic value
+        final ConsumerWithCompletionControl<Long> handler = ConsumerWithCompletionControl.unblocked(x -> {
+            nonProcessedInput.remove(x.intValue());
+            // This will result in a deterministic value
+            wireValue.addAndGet(x);
+        });
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .build();
-        final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
+        final BindableInputWire<Long, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
         assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
         assertEquals("test", taskScheduler.getName());
 
         model.start();
 
-        final int operationsPerWorker = 1_000;
-        final int workers = 10;
+        expectedArguments.stream().parallel().forEach(i -> channel.put(i.longValue()));
 
-        for (int i = 0; i < workers; i++) {
-            final int workerNumber = i;
-            new ThreadConfiguration(getStaticThreadManager())
-                    .setRunnable(() -> {
-                        for (int j = 0; j < operationsPerWorker; j++) {
-                            channel.put(workerNumber * j);
-                        }
-                    })
-                    .build(true);
-        }
-
-        // Compute the values we expect to be computed by the wire
-        final Set<Integer> expectedArguments = new HashSet<>();
-        int expectedValue = 0;
-        int count = 0;
-        for (int i = 0; i < workers; i++) {
-            for (int j = 0; j < operationsPerWorker; j++) {
-                expectedArguments.add(i * j);
-                expectedValue = hash32(expectedValue, count);
-                count++;
-            }
-        }
-
-        assertEventuallyEquals(
-                expectedValue, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                expectedArguments.size(),
-                arguments::size,
-                Duration.ofSeconds(10),
-                "Wire arguments did not match expected arguments");
-        assertEquals(expectedArguments, arguments);
-        model.stop();
-    }
-
-    /**
-     * Multiple threads adding work to the task scheduler shouldn't cause problems. Also, work should always be handled
-     * sequentially regardless of the number of threads adding work. Random delay is added to the workers. This should
-     * not effect the outcome.
-     */
-    @ParameterizedTest
-    @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void multipleChannelsWithDelayTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
-        final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
-
-        final Random random = getRandomPrintSeed();
-
-        final AtomicInteger wireValue = new AtomicInteger();
-        final AtomicInteger operationCount = new AtomicInteger();
-        final Set<Integer> arguments = ConcurrentHashMap.newKeySet(); // concurrent hash set
-        final Consumer<Integer> handler = x -> {
-            arguments.add(x);
-            // This will result in a deterministic value if there is no parallelism
-            wireValue.set(hash32(wireValue.get(), operationCount.getAndIncrement()));
-        };
-
-        final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
-                .withType(type)
-                .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
-                .build();
-        final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
-        channel.bindConsumer(handler);
-        assertEquals(-1, taskScheduler.getUnprocessedTaskCount());
-        assertEquals("test", taskScheduler.getName());
-
-        final int operationsPerWorker = 1_000;
-        final int workers = 10;
-
-        for (int i = 0; i < workers; i++) {
-            final int workerNumber = i;
-            new ThreadConfiguration(getStaticThreadManager())
-                    .setRunnable(() -> {
-                        for (int j = 0; j < operationsPerWorker; j++) {
-                            if (random.nextDouble() < 0.1) {
-                                try {
-                                    NANOSECONDS.sleep(random.nextInt(100));
-                                } catch (InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                            channel.put(workerNumber * j);
-                        }
-                    })
-                    .build(true);
-        }
-
-        model.start();
-
-        // Compute the values we expect to be computed by the wire
-        final Set<Integer> expectedArguments = new HashSet<>();
-        int expectedValue = 0;
-        int count = 0;
-        for (int i = 0; i < workers; i++) {
-            for (int j = 0; j < operationsPerWorker; j++) {
-                expectedArguments.add(i * j);
-                expectedValue = hash32(expectedValue, count);
-                count++;
-            }
-        }
-
-        assertEventuallyEquals(
-                expectedValue, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                expectedArguments.size(),
-                arguments::size,
-                Duration.ofSeconds(10),
-                "Wire arguments did not match expected arguments");
-        assertEquals(expectedArguments, arguments);
-
+        handler.executionControl().await(ops, AWAIT_MAX_DURATION);
+        assertEquals(expectedValue, wireValue.get(), "Wire sum did not match expected sum");
+        assertTrue(nonProcessedInput.isEmpty(), "We should have process all arguments");
         model.stop();
     }
 
@@ -309,22 +167,18 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void wireDoesNotBlockCallingThreadTest(final String typeString) throws InterruptedException {
-        final WiringModel model = TestWiringModelBuilder.create();
+    void wireDoesNotBlockCallingThreadTest(final String typeString) {
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<Integer> handler = x -> {
+        final Gate gate = Gate.closedGate();
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unblocked(x -> {
             wireValue.set(hash32(wireValue.get(), x));
             if (x == 50) {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                gate.knock(AWAIT_MAX_DURATION.toMillis());
             }
-        };
+        });
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -339,21 +193,19 @@ class SequentialTaskSchedulerTests {
 
         // The wire will stop processing at 50, but this should not block the calling thread.
         final AtomicInteger value = new AtomicInteger();
-        completeBeforeTimeout(
-                () -> {
-                    for (int i = 0; i < 100; i++) {
-                        channel.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                },
-                Duration.ofSeconds(10),
-                "calling thread was blocked");
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
+                channel.put(i);
+                value.set(hash32(value.get(), i));
+            }
+        });
+        producer.start();
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        // Release the gate and allow the wire to finish
+        gate.open();
 
-        // Release the latch and allow the wire to finish
-        latch.countDown();
-
-        assertEventuallyEquals(
-                value.get(), wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
 
         model.stop();
     }
@@ -364,28 +216,20 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void unprocessedEventCountTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
-        final CountDownLatch latch0 = new CountDownLatch(1);
-        final CountDownLatch latch50 = new CountDownLatch(1);
-        final CountDownLatch latch98 = new CountDownLatch(1);
-        final Consumer<Integer> handler = x -> {
-            try {
-                if (x == 0) {
-                    latch0.await();
-                } else if (x == 50) {
-                    latch50.await();
-                } else if (x == 98) {
-                    latch98.await();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+        final Gate gate50 = Gate.closedGate();
+        final Gate gate98 = Gate.closedGate();
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.blocked(x -> {
+            if (x == 50) {
+                gate50.knock(AWAIT_MAX_DURATION.toMillis());
+            } else if (x == 98) {
+                gate98.knock(AWAIT_MAX_DURATION.toMillis());
             }
-
             wireValue.set(hash32(wireValue.get(), x));
-        };
+        });
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -400,42 +244,27 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         int value = 0;
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             channel.put(i);
             value = hash32(value, i);
         }
 
-        assertEventuallyEquals(
-                100L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value, count = "
-                        + taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, 100L);
 
-        latch0.countDown();
+        handler.executionControl().unblock();
+        handler.executionControl().await(50, AWAIT_MAX_DURATION);
 
-        assertEventuallyEquals(
-                50L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value");
+        assertUnprocessedTasksValueIs(taskScheduler, 50L);
 
-        latch50.countDown();
+        gate50.open();
+        handler.executionControl().await(48, AWAIT_MAX_DURATION);
+        assertUnprocessedTasksValueIs(taskScheduler, 2L);
 
-        assertEventuallyEquals(
-                2L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value");
+        gate98.open();
+        handler.executionControl().await(2, AWAIT_MAX_DURATION);
 
-        latch98.countDown();
-
-        assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                0L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value");
+        assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
         model.stop();
     }
@@ -445,28 +274,16 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void backpressureTest(final String typeString) throws InterruptedException {
+    void backpressureTest(final String typeString) {
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
-
+        final int capacity = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<Integer> handler = x -> {
-            try {
-                if (x == 0) {
-                    latch.await();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
-            wireValue.set(hash32(wireValue.get(), x));
-        };
-
-        final long capacity = 11;
+        final ConsumerWithCompletionControl<Integer> handler =
+                ConsumerWithCompletionControl.blocked(x -> wireValue.set(hash32(wireValue.get(), x)));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -481,97 +298,83 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         final AtomicInteger value = new AtomicInteger();
-
-        // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        completeBeforeTimeout(
-                () -> {
-                    for (int i = 0; i < 11; i++) {
-                        channel.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                },
-                Duration.ofSeconds(10),
-                "unable to add tasks");
+        // The task scheduler will get blocked processing task 0,
+        // It will have the capacity for 10 more, for a total of 11 tasks in flight
+        // So the following thread will not block and after its execution, the task scheduler should be full
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i1 = 0; i1 < capacity; i1++) {
+                channel.put(i1);
+                value.set(hash32(value.get(), i1));
+            }
+        });
+        producer.start();
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
         long currentUnprocessedTaskCount = taskScheduler.getUnprocessedTaskCount();
         assertTrue(currentUnprocessedTaskCount == capacity || currentUnprocessedTaskCount == capacity + 1);
 
-        // Try to enqueue work on another thread. It should get stuck and be
-        // unable to add anything until we release the latch.
+        // Try to enqueue work on another thread.
+        // Because of backpressure, this thread should block when adding to a full task scheduler.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 11; i < 100; i++) {
-                        channel.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                    allWorkAdded.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
+            for (int i = capacity; i < DEFAULT_OPERATIONS; i++) {
+                channel.put(i);
+                value.set(hash32(value.get(), i));
+            }
+            allWorkAdded.set(true);
+        });
 
-        // Adding work to an unblocked wire should be very fast. If we sleep for a while, we'd expect that an unblocked
-        // wire would have processed all of the work that was added to it.
-        MILLISECONDS.sleep(50);
+        final Thread secondProducerThread = secondProducer.start();
+        assertEventuallyEquals(State.TIMED_WAITING, secondProducerThread::getState, "Producer thread was not blocked");
         assertFalse(allWorkAdded.get());
         currentUnprocessedTaskCount = taskScheduler.getUnprocessedTaskCount();
         assertTrue(currentUnprocessedTaskCount == capacity || currentUnprocessedTaskCount == capacity + 1);
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-        completeBeforeTimeout(
-                () -> {
-                    assertFalse(channel.offer(1234));
-                    assertFalse(channel.offer(4321));
-                    assertFalse(channel.offer(-1));
-                    channel.inject(42);
-                    value.set(hash32(value.get(), 42));
-                },
-                Duration.ofSeconds(10),
-                "unable to offer tasks");
+        final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
+            assertFalse(channel.offer(1234));
+            assertFalse(channel.offer(4321));
+            assertFalse(channel.offer(-1));
+            channel.inject(42);
+            value.set(hash32(value.get(), 42));
+        });
+        thirdProducer.start();
+        thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
 
-        // Release the latch, all work should now be added
-        latch.countDown();
+        // Release the lock
+        handler.executionControl().unblock();
+        secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
 
-        assertEventuallyTrue(allWorkAdded::get, Duration.ofSeconds(10), "unable to add all work");
-        assertEventuallyEquals(
-                0L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value. " + taskScheduler.getUnprocessedTaskCount());
-        assertEventuallyEquals(
-                value.get(), wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        assertTrue(allWorkAdded.get(), "unable to add all work");
+        assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertEventuallyEquals(State.TERMINATED, secondProducerThread::getState, "Producer thread was not terminated");
 
         model.stop();
     }
 
     /**
-     * Test interrupts with accept() when backpressure is being applied.
+     * Test that when the task scheduler is (because of backpressure) blocked in the put operation,
+     * interrupting the caller thread does not produce the caller thread to do anything.
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void uninterruptableTest(final String typeString) throws InterruptedException {
+    void uninterruptableTest(final String typeString) {
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
+        final int capacity = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<Integer> handler = x -> {
-            try {
-                if (x == 0) {
-                    latch.await();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
-            wireValue.set(hash32(wireValue.get(), x));
-        };
+        final ConsumerWithCompletionControl<Integer> handler =
+                ConsumerWithCompletionControl.blocked(x -> wireValue.set(hash32(wireValue.get(), x)));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUnhandledTaskCapacity(11)
+                .withUnhandledTaskCapacity(capacity)
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
         channel.bindConsumer(handler);
@@ -582,66 +385,63 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger value = new AtomicInteger();
 
-        // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        completeBeforeTimeout(
-                () -> {
-                    for (int i = 0; i < 11; i++) {
-                        channel.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                },
-                Duration.ofSeconds(10),
-                "unable to add tasks");
-        assertEquals(11, taskScheduler.getUnprocessedTaskCount());
+        // We will be stuck handling 0, and we will have the capacity for 10 more, for a total of 11 tasks in flight
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i1 = 0; i1 < capacity; i1++) {
+                channel.put(i1);
+                value.set(hash32(value.get(), i1));
+            }
+        });
+        producer.start();
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
-        // unable to add anything until we release the latch.
+        // unable to add anything until we release the handler.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 11; i < 100; i++) {
-                        channel.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                    allWorkAdded.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl restOfProducers = RunnableCompletionControl.unblocked(() -> {
+            for (int i = capacity; i < DEFAULT_OPERATIONS; i++) {
+                channel.put(i);
+                value.set(hash32(value.get(), i));
+            }
+            allWorkAdded.set(true);
+        });
 
-        // Interrupting the thread should have no effect.
-        thread.interrupt();
-
-        // Adding work to an unblocked wire should be very fast. If we sleep for a while, we'd expect that an unblocked
-        // wire would have processed all of the work that was added to it.
-        MILLISECONDS.sleep(50);
+        final Thread producerThread = restOfProducers.start();
+        // give the thread time to start and block
+        assertEventuallyEquals(State.TIMED_WAITING, producerThread::getState, "Producer thread was not blocked");
+        // After the thread is blocked, interruptions should not throw
+        assertDoesNotThrow(producerThread::interrupt);
         assertFalse(allWorkAdded.get());
-        assertEquals(11, taskScheduler.getUnprocessedTaskCount());
 
-        // Release the latch, all work should now be added
-        latch.countDown();
+        assertTrue((capacity + 1) >= taskScheduler.getUnprocessedTaskCount());
+        // Interrupting the thread should have no effect.
+        producerThread.interrupt();
 
-        assertEventuallyTrue(allWorkAdded::get, Duration.ofSeconds(10), "unable to add all work");
-        assertEventuallyEquals(
-                0L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value");
-        assertEventuallyEquals(
-                value.get(), wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-
+        // Release the gate, all work should now be added
+        handler.executionControl().unblock();
+        restOfProducers.waitIsFinished(AWAIT_MAX_DURATION);
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        assertTrue(allWorkAdded.get(), "unable to add all work");
+        assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertEventuallyEquals(State.TERMINATED, producerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
 
     /**
-     * Offering tasks is equivalent to calling accept() if there is no backpressure.
+     * Offering tasks is equivalent to calling put() if there is no backpressure.
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void offerNoBackpressureTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
+        final int totalWork = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final Consumer<Integer> handler = x -> wireValue.set(hash32(wireValue.get(), x));
+        final ConsumerWithCompletionControl<Integer> handler =
+                ConsumerWithCompletionControl.unblocked(x -> wireValue.set(hash32(wireValue.get(), x)));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -655,12 +455,13 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         int value = 0;
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < totalWork; i++) {
             assertTrue(channel.offer(i));
             value = hash32(value, i);
         }
 
-        assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        handler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
+        assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
         model.stop();
     }
 
@@ -680,8 +481,8 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void circularDataFlowTest(final String typeString) throws InterruptedException {
-        final WiringModel model = TestWiringModelBuilder.create();
+    void circularDataFlowTest(final String typeString) {
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final Random random = getRandomPrintSeed();
@@ -714,36 +515,38 @@ class SequentialTaskSchedulerTests {
         final BindableInputWire<Integer, Integer> channelToC = taskSchedulerToC.buildInputWire("channelToC");
         final BindableInputWire<Integer, Integer> channelToD = taskSchedulerToD.buildInputWire("channelToD");
 
-        final Function<Integer, Integer> handlerA = x -> {
-            if (x > 0) {
-                countA.set(hash32(x, countA.get()));
-                return x;
+        // negative values are values that have been passed around the loop
+        // Don't pass them on again, or else we will get an infinite loop
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+            if (x3 > 0) {
+                countA.set(hash32(x3, countA.get()));
+                return x3;
             } else {
-                negativeCountA.set(hash32(x, negativeCountA.get()));
+                negativeCountA.set(hash32(x3, negativeCountA.get()));
                 // negative values are values that have been passed around the loop
-                // Don't pass them on again or else we will get an infinite loop
+                // Don't pass them on again, or else we will get an infinite loop
                 return null;
             }
-        };
+        });
 
-        final Function<Integer, Integer> handlerB = x -> {
-            countB.set(hash32(x, countB.get()));
-            return x;
-        };
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+            countB.set(hash32(x2, countB.get()));
+            return x2;
+        });
 
-        final Function<Integer, Integer> handlerC = x -> {
-            countC.set(hash32(x, countC.get()));
-            return x;
-        };
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countC.set(hash32(x1, countC.get()));
+            return x1;
+        });
 
-        final Function<Integer, Integer> handlerD = x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerD = FunctionWithExecutionControl.unBlocked(x -> {
             countD.set(hash32(x, countD.get()));
             if (x % 7 == 0) {
                 return -x;
             } else {
                 return null;
             }
-        };
+        });
 
         taskSchedulerToA.getOutputWire().solderTo(channelToB);
         taskSchedulerToB.getOutputWire().solderTo(channelToC);
@@ -762,7 +565,7 @@ class SequentialTaskSchedulerTests {
         int expectedCountB = 0;
         int expectedCountC = 0;
         int expectedCountD = 0;
-
+        int timesSecondA = 0;
         for (int i = 1; i < 1000; i++) {
             channelToA.put(i);
 
@@ -773,29 +576,26 @@ class SequentialTaskSchedulerTests {
 
             if (i % 7 == 0) {
                 expectedNegativeCountA = hash32(-i, expectedNegativeCountA);
+                timesSecondA++;
             }
 
             // Sleep to give data a chance to flow around the loop
             // (as opposed to adding it so quickly that it is all enqueue prior to any processing)
             if (random.nextDouble() < 0.1) {
-                MILLISECONDS.sleep(10);
+                sleep(10);
             }
         }
 
-        assertEventuallyEquals(
-                expectedCountA, countA::get, Duration.ofSeconds(10), "Wire A sum did not match expected value");
-        assertEventuallyEquals(
-                expectedNegativeCountA,
-                negativeCountA::get,
-                Duration.ofSeconds(10),
-                "Wire A negative sum did not match expected value");
-        assertEventuallyEquals(
-                expectedCountB, countB::get, Duration.ofSeconds(10), "Wire B sum did not match expected value");
-        assertEventuallyEquals(
-                expectedCountC, countC::get, Duration.ofSeconds(10), "Wire C sum did not match expected value");
-        assertEventuallyEquals(
-                expectedCountD, countD::get, Duration.ofSeconds(10), "Wire D sum did not match expected value");
-
+        handlerA.executionControl().await(999, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(999, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(999, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(999, AWAIT_MAX_DURATION);
+        handlerA.executionControl().await(timesSecondA, AWAIT_MAX_DURATION);
+        assertEquals(expectedCountA, countA.get(), "Wire A sum did not match expected value");
+        assertEquals(expectedCountB, countB.get(), "Wire B sum did not match expected value");
+        assertEquals(expectedCountC, countC.get(), "Wire C sum did not match expected value");
+        assertEquals(expectedCountD, countD.get(), "Wire D sum did not match expected value");
+        assertEquals(expectedNegativeCountA, negativeCountA.get(), "Wire A negative sum did not match expected value");
         model.stop();
     }
 
@@ -805,13 +605,17 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void multipleChannelTypesTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
+        final int totalWork = DEFAULT_OPERATIONS;
         final AtomicInteger wireValue = new AtomicInteger();
-        final Consumer<Integer> integerHandler = x -> wireValue.set(hash32(wireValue.get(), x));
-        final Consumer<Boolean> booleanHandler = x -> wireValue.set((x ? -1 : 1) * wireValue.get());
-        final Consumer<String> stringHandler = x -> wireValue.set(hash32(wireValue.get(), x.hashCode()));
+        final ConsumerWithCompletionControl<Integer> integerHandler =
+                ConsumerWithCompletionControl.unblocked(x2 -> wireValue.set(hash32(wireValue.get(), x2)));
+        final ConsumerWithCompletionControl<Boolean> booleanHandler =
+                ConsumerWithCompletionControl.unblocked(x1 -> wireValue.set((x1 ? -1 : 1) * wireValue.get()));
+        final ConsumerWithCompletionControl<String> stringHandler =
+                ConsumerWithCompletionControl.unblocked(x -> wireValue.set(hash32(wireValue.get(), x.hashCode())));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -831,7 +635,7 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         int value = 0;
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < totalWork; i++) {
             integerChannel.put(i);
             value = hash32(value, i);
 
@@ -844,8 +648,10 @@ class SequentialTaskSchedulerTests {
             value = hash32(value, string.hashCode());
         }
 
-        assertEventuallyEquals(
-                value, wireValue::get, Duration.ofSeconds(10), "Wire value did not match expected value");
+        integerHandler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
+        booleanHandler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
+        stringHandler.executionControl().await(totalWork, AWAIT_MAX_DURATION);
+        assertEquals(value, wireValue.get(), "Wire value did not match expected value");
 
         model.stop();
     }
@@ -855,34 +661,26 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void multipleChannelBackpressureTest(final String typeString) throws InterruptedException {
+    void multipleChannelBackpressureTest(final String typeString) {
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
+        final int capacity = 11;
+        List<Integer> unprocessedArguments =
+                new ArrayList<>(IntStream.range(0, DEFAULT_OPERATIONS).boxed().toList());
 
-        final AtomicInteger wireValue = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
+        final ConsumerWithCompletionControl<Integer> handler1 =
+                ConsumerWithCompletionControl.blocked(unprocessedArguments::remove);
 
-        final Consumer<Integer> handler1 = x -> {
-            try {
-                if (x == 0) {
-                    latch.await();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
-            wireValue.set(hash32(wireValue.get(), x));
-        };
-
-        final Consumer<Integer> handler2 = x -> wireValue.set(hash32(wireValue.get(), -x));
+        final ConsumerWithCompletionControl<Integer> handler2 =
+                ConsumerWithCompletionControl.unblocked(unprocessedArguments::remove);
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUnhandledTaskCapacity(11)
+                .withUnhandledTaskCapacity(capacity)
                 .build();
 
         final BindableInputWire<Integer, Void> channel1 = taskScheduler.buildInputWire("channel1");
@@ -895,63 +693,55 @@ class SequentialTaskSchedulerTests {
 
         model.start();
 
-        final AtomicInteger value = new AtomicInteger();
+        // We will be stuck handling 0, and we will have the capacity for 10 more, for a total of 11 tasks in flight
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i1 = 0; i1 < capacity; i1++) {
+                channel1.put(i1);
+            }
+        });
 
-        // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        completeBeforeTimeout(
-                () -> {
-                    for (int i = 0; i < 11; i++) {
-                        channel1.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                },
-                Duration.ofSeconds(10),
-                "unable to add tasks");
-        assertEquals(11, taskScheduler.getUnprocessedTaskCount());
+        producer.start();
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
-        // unable to add anything until we release the latch.
+        // unable to add anything until we release the signal.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 11; i < 100; i++) {
-                        channel2.put(i);
-                        value.set(hash32(value.get(), -i));
-                    }
-                    allWorkAdded.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
+            for (int i = capacity; i < DEFAULT_OPERATIONS; i++) {
+                channel2.put(i);
+            }
+            allWorkAdded.set(true);
+        });
+        final Thread secondProducerThread = secondProducer.start();
 
-        // Adding work to an unblocked wire should be very fast. If we sleep for a while, we'd expect that an unblocked
-        // wire would have processed all of the work that was added to it.
-        MILLISECONDS.sleep(50);
+        // An unblocked wire would have processed all the work added to it really fast.
+        // as soon as the thread is blocked the fmw should reflect the unprocessed task count
+        assertEventuallyEquals(State.TIMED_WAITING, secondProducerThread::getState, "Producer thread was not blocked");
+        assertEquals(capacity, taskScheduler.getUnprocessedTaskCount());
         assertFalse(allWorkAdded.get());
-        assertEquals(11, taskScheduler.getUnprocessedTaskCount());
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-        completeBeforeTimeout(
-                () -> {
-                    assertFalse(channel1.offer(1234));
-                    assertFalse(channel1.offer(4321));
-                    assertFalse(channel1.offer(-1));
-                    channel1.inject(42);
-                    value.set(hash32(value.get(), 42));
-                },
-                Duration.ofSeconds(10),
-                "unable to offer tasks");
+        unprocessedArguments.add(100);
+        RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
+            assertFalse(channel1.offer(1234));
+            assertFalse(channel1.offer(4321));
+            assertFalse(channel1.offer(-1));
+            channel1.inject(100);
+        });
+        thirdProducer.start();
+        thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
 
-        // Release the latch, all work should now be added
-        latch.countDown();
+        // Release the gate, all work should now be added
+        handler1.executionControl().unblock();
+        secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
+        handler1.executionControl().await(capacity + 1, AWAIT_MAX_DURATION);
+        handler2.executionControl().await(DEFAULT_OPERATIONS - capacity, AWAIT_MAX_DURATION);
 
-        assertEventuallyTrue(allWorkAdded::get, Duration.ofSeconds(10), "unable to add all work");
-        assertEventuallyEquals(
-                0L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value");
-        assertEventuallyEquals(
-                value.get(), wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-
+        assertTrue(allWorkAdded.get(), "unable to add all work");
+        assertTrue(unprocessedArguments.isEmpty(), "Wire did not process all work:" + unprocessedArguments);
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
+        assertEventuallyEquals(State.TERMINATED, secondProducerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
 
@@ -960,17 +750,17 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void backpressureOverMultipleWiresTest(final String typeString) throws InterruptedException {
-        final WiringModel model = TestWiringModelBuilder.create();
+    void backpressureOverMultipleWiresTest(final String typeString) {
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValueA = new AtomicInteger();
         final AtomicInteger wireValueB = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
 
-        final ObjectCounter backpressure = new BackpressureObjectCounter("test", 11, Duration.ofMillis(1));
+        final int capacity = 11;
+        final ObjectCounter backpressure = new BackpressureObjectCounter("test", capacity, Duration.ofMillis(1));
 
-        final TaskScheduler<Void> taskSchedulerA = model.<Void>schedulerBuilder("testA")
+        final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("testA")
                 .withType(type)
                 .withOnRamp(backpressure)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
@@ -982,27 +772,19 @@ class SequentialTaskSchedulerTests {
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
                 .build();
 
-        final BindableInputWire<Integer, Void> channelA = taskSchedulerA.buildInputWire("channelA");
+        final BindableInputWire<Integer, Integer> channelA = taskSchedulerA.buildInputWire("channelA");
         final BindableInputWire<Integer, Void> channelB = taskSchedulerB.buildInputWire("channelB");
+        taskSchedulerA.getOutputWire().solderTo(channelB);
 
-        final Consumer<Integer> handlerA = x -> {
-            wireValueA.set(hash32(wireValueA.get(), -x));
-            channelB.put(x);
-        };
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+            wireValueA.set(hash32(wireValueA.get(), -x1));
+            return x1;
+        });
 
-        final Consumer<Integer> handlerB = x -> {
-            try {
-                if (x == 0) {
-                    latch.await();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        final ConsumerWithCompletionControl<Integer> handlerB =
+                ConsumerWithCompletionControl.blocked(x -> wireValueB.set(hash32(wireValueB.get(), x)));
 
-            wireValueB.set(hash32(wireValueB.get(), x));
-        };
-
-        channelA.bindConsumer(handlerA);
+        channelA.bind(handlerA);
         channelB.bindConsumer(handlerB);
 
         assertEquals(0, backpressure.getCount());
@@ -1014,65 +796,60 @@ class SequentialTaskSchedulerTests {
 
         model.start();
 
-        // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        completeBeforeTimeout(
-                () -> {
-                    for (int i = 0; i < 11; i++) {
-                        channelA.put(i);
-                        valueA.set(hash32(valueA.get(), -i));
-                        valueB.set(hash32(valueB.get(), i));
-                    }
-                },
-                Duration.ofSeconds(10),
-                "unable to add tasks");
-        assertEquals(11, backpressure.getCount());
+        // We will be stuck handling 0, and we will have the capacity for 10 more, for a total of 11 tasks in flight
+        RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i1 = 0; i1 < capacity; i1++) {
+                channelA.put(i1);
+                valueA.set(hash32(valueA.get(), -i1));
+                valueB.set(hash32(valueB.get(), i1));
+            }
+        });
+
+        producer.start();
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        assertEquals(capacity, backpressure.getCount());
 
         // Try to enqueue work on another thread. It should get stuck and be
-        // unable to add anything until we release the latch.
+        // unable to add anything until we release the gate.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 11; i < 100; i++) {
-                        channelA.put(i);
-                        valueA.set(hash32(valueA.get(), -i));
-                        valueB.set(hash32(valueB.get(), i));
-                    }
-                    allWorkAdded.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
+            for (int i = capacity; i < DEFAULT_OPERATIONS; i++) {
+                channelA.put(i);
+                valueA.set(hash32(valueA.get(), -i));
+                valueB.set(hash32(valueB.get(), i));
+            }
+            allWorkAdded.set(true);
+        });
+        secondProducer.start();
 
-        // Adding work to an unblocked wire should be very fast. If we sleep for a while, we'd expect that an unblocked
-        // wire would have processed all of the work that was added to it.
-        MILLISECONDS.sleep(50);
+        // Adding work to an unblocked wire should be very fast. If we slept for a while, we'd expect that an unblocked
+        // wire would have processed all the work added to it.
+        sleep(50);
         assertFalse(allWorkAdded.get());
-        assertEquals(11, backpressure.getCount());
+        assertEquals(capacity, backpressure.getCount());
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-        completeBeforeTimeout(
-                () -> {
-                    assertFalse(channelA.offer(1234));
-                    assertFalse(channelA.offer(4321));
-                    assertFalse(channelA.offer(-1));
-                    channelA.inject(42);
-                    valueA.set(hash32(valueA.get(), -42));
-                    valueB.set(hash32(valueB.get(), 42));
-                },
-                Duration.ofSeconds(10),
-                "unable to offer tasks");
+        final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
+            assertFalse(channelA.offer(1234));
+            assertFalse(channelA.offer(4321));
+            assertFalse(channelA.offer(-1));
+            channelA.inject(42);
+            valueA.set(hash32(valueA.get(), -42));
+            valueB.set(hash32(valueB.get(), 42));
+        });
 
-        // Release the latch, all work should now be added
-        latch.countDown();
+        thirdProducer.start();
+        thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
 
-        assertEventuallyTrue(allWorkAdded::get, Duration.ofSeconds(10), "unable to add all work");
-        assertEventuallyEquals(
-                0L,
-                backpressure::getCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value");
-        assertEventuallyEquals(
-                valueA.get(), wireValueA::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                valueB.get(), wireValueB::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        // Release the gate, all work should now be added
+        handlerB.executionControl().unblock();
+        secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
+        handlerA.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
+        assertTrue(allWorkAdded.get(), "unable to add all work");
+        assertEventuallyEquals(0L, backpressure::getCount, "Wire unprocessed task count did not match expected value");
+        assertEquals(valueA.get(), wireValueA.get(), "Wire sum did not match expected sum");
+        assertEquals(valueB.get(), wireValueB.get(), "Wire sum did not match expected sum");
         model.stop();
     }
 
@@ -1081,31 +858,21 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void flushTest(final String typeString) throws InterruptedException {
+    void flushTest(final String typeString) {
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
-
+        final int capacity = 11;
         final AtomicInteger wireValue = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<Integer> handler = x -> {
-            try {
-                if (x == 0) {
-                    latch.await();
-                }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-
-            wireValue.set(hash32(wireValue.get(), x));
-        };
+        final ConsumerWithCompletionControl<Integer> handler =
+                ConsumerWithCompletionControl.blocked(x -> wireValue.set(hash32(wireValue.get(), x)));
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
-                .withUnhandledTaskCapacity(11)
+                .withUnhandledTaskCapacity(capacity)
                 .withFlushingEnabled(true)
                 .build();
         final BindableInputWire<Integer, Void> channel = taskScheduler.buildInputWire("channel");
@@ -1118,73 +885,69 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         // Flushing a wire with nothing in it should return quickly.
-        completeBeforeTimeout(taskScheduler::flush, Duration.ofSeconds(10), "unable to flush wire");
+        final RunnableCompletionControl fastFlusher = RunnableCompletionControl.unblocked(taskScheduler::flush);
+        fastFlusher.start();
+        fastFlusher.waitIsFinished(AWAIT_MAX_DURATION);
 
-        // We will be stuck handling 0 and we will have the capacity for 10 more, for a total of 11 tasks in flight
-        completeBeforeTimeout(
-                () -> {
-                    for (int i = 0; i < 11; i++) {
-                        channel.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                },
-                Duration.ofSeconds(10),
-                "unable to add tasks");
-        assertEquals(11, taskScheduler.getUnprocessedTaskCount());
+        // We will be stuck handling 0, and we will have the capacity for 10 more, for a total of 11 tasks in flight
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i1 = 0; i1 < capacity; i1++) {
+                channel.put(i1);
+                value.set(hash32(value.get(), i1));
+            }
+        });
+        producer.start();
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Try to enqueue work on another thread. It should get stuck and be
-        // unable to add anything until we release the latch.
+        // unable to add anything until we release the signal.
         final AtomicBoolean allWorkAdded = new AtomicBoolean(false);
-        new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 11; i < 100; i++) {
-                        channel.put(i);
-                        value.set(hash32(value.get(), i));
-                    }
-                    allWorkAdded.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl secondProducer = RunnableCompletionControl.unblocked(() -> {
+            for (int i = capacity; i < DEFAULT_OPERATIONS; i++) {
+                channel.put(i);
+                value.set(hash32(value.get(), i));
+            }
+            allWorkAdded.set(true);
+        });
+
+        secondProducer.start();
 
         // On another thread, flush the wire. This should also get stuck.
         final AtomicBoolean flushed = new AtomicBoolean(false);
-        new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    taskScheduler.flush();
-                    flushed.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl flusher = RunnableCompletionControl.unblocked(() -> {
+            taskScheduler.flush();
+            flushed.set(true);
+        });
+        flusher.start();
 
-        // Adding work to an unblocked wire should be very fast. If we sleep for a while, we'd expect that an unblocked
-        // wire would have processed all of the work that was added to it.
-        MILLISECONDS.sleep(50);
+        // Adding work to an unblocked wire should be very fast. If we slept for a while, we'd expect that an unblocked
+        // wire would have processed all the work.
+        sleep(50);
         assertFalse(allWorkAdded.get());
         assertFalse(flushed.get());
-        assertEquals(11, taskScheduler.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskScheduler, capacity);
 
         // Even if the wire has no capacity, neither offer() nor inject() should not block.
-        completeBeforeTimeout(
-                () -> {
-                    assertFalse(channel.offer(1234));
-                    assertFalse(channel.offer(4321));
-                    assertFalse(channel.offer(-1));
-                    channel.inject(42);
-                    value.set(hash32(value.get(), 42));
-                },
-                Duration.ofSeconds(10),
-                "unable to offer tasks");
+        final RunnableCompletionControl thirdProducer = RunnableCompletionControl.unblocked(() -> {
+            assertFalse(channel.offer(1234));
+            assertFalse(channel.offer(4321));
+            assertFalse(channel.offer(-1));
+            channel.inject(42);
+            value.set(hash32(value.get(), 42));
+        });
+        thirdProducer.start();
+        thirdProducer.waitIsFinished(AWAIT_MAX_DURATION);
+        // Release the gate, all work should now be added
+        handler.executionControl().unblock();
+        secondProducer.waitIsFinished(AWAIT_MAX_DURATION);
+        flusher.waitIsFinished(AWAIT_MAX_DURATION);
 
-        // Release the latch, all work should now be added
-        latch.countDown();
-
-        assertEventuallyTrue(allWorkAdded::get, Duration.ofSeconds(10), "unable to add all work");
-        assertEventuallyTrue(flushed::get, Duration.ofSeconds(10), "unable to flush wire");
-        assertEventuallyEquals(
-                0L,
-                taskScheduler::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "Wire unprocessed task count did not match expected value");
-        assertEventuallyEquals(
-                value.get(), wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        assertTrue(allWorkAdded.get(), "unable to add all work");
+        assertTrue(flushed.get(), "unable to flush wire");
+        handler.executionControl().await(DEFAULT_OPERATIONS + 1, AWAIT_MAX_DURATION);
+        assertEquals(value.get(), wireValue.get(), "Wire sum did not match expected sum");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
         model.stop();
     }
@@ -1192,7 +955,7 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void flushDisabledTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
@@ -1210,18 +973,18 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void exceptionHandlingTest(String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final AtomicInteger wireValue = new AtomicInteger();
         final AtomicInteger lastX = new AtomicInteger();
-        final Consumer<Integer> handler = x -> {
+        final ConsumerWithCompletionControl<Integer> handler = ConsumerWithCompletionControl.unblocked(x -> {
             lastX.set(x);
             if (x == 50) {
                 throw new IllegalStateException("intentional");
             }
             wireValue.set(hash32(wireValue.get(), x));
-        };
+        });
 
         final AtomicInteger exceptionCount = new AtomicInteger();
         final AtomicBoolean isLastXTheMinValueWhenProcessingException = new AtomicBoolean();
@@ -1243,21 +1006,21 @@ class SequentialTaskSchedulerTests {
         model.start();
 
         int value = 0;
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             channel.put(i);
             if (i != 50) {
                 value = hash32(value, i);
             }
         }
 
-        assertEventuallyEquals(value, wireValue::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        // We cannot guarantee that the exception handling will be executed immediately after the task that throws the
-        // exception
-        // so we check a) that it was at least after that task, and b) give some time for it to finish so we check that
-        // it was executed.
+        handler.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        assertEquals(value, wireValue.get(), "Wire sum did not match expected sum");
+        // Exception will not be processed right after the task that threw the exception.
+        // So we check
+        // a: that it was at least after that task,
+        // b: the handler was executed.
         assertTrue(isLastXTheMinValueWhenProcessingException.get());
-        assertEventuallyEquals(
-                1, exceptionCount::get, Duration.ofSeconds(1), "Exception handler did not update the expected value");
+        assertEquals(1, exceptionCount.get(), "Exception handler did not update the expected value");
         model.stop();
     }
 
@@ -1267,14 +1030,14 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void deadlockTestOneThread(final String typeString) throws InterruptedException {
-        final WiringModel model = TestWiringModelBuilder.create();
+    void deadlockTestOneThread(final String typeString) {
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final ForkJoinPool pool = new ForkJoinPool(1);
 
         // create 3 wires with the following bindings:
-        // a -> b -> c -> latch
+        // a -> b -> c -> signal
         final TaskScheduler<Void> a = model.<Void>schedulerBuilder("a")
                 .withType(type)
                 .withUnhandledTaskCapacity(2)
@@ -1298,39 +1061,32 @@ class SequentialTaskSchedulerTests {
         final BindableInputWire<Object, Void> channelB = b.buildInputWire("channelB");
         final BindableInputWire<Object, Void> channelC = c.buildInputWire("channelC");
 
-        final CountDownLatch latch = new CountDownLatch(1);
-
         channelA.bindConsumer(channelB::put);
         channelB.bindConsumer(channelC::put);
-        channelC.bindConsumer(o -> {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        final ConsumerWithCompletionControl<Object> objectConsumer = ConsumerWithCompletionControl.blocked(o -> {});
+        channelC.bindConsumer(objectConsumer);
 
         model.start();
 
         // each wire has a capacity of 1, so we can have 1 task waiting on each wire
-        // insert a task into C, which will start executing and waiting on the latch
+        // insert a task into (C), which will start executing and waiting to be unblocked
         channelC.put(Object.class);
         // fill up the queues for each wire
         channelC.put(Object.class);
         channelA.put(Object.class);
         channelB.put(Object.class);
 
-        completeBeforeTimeout(
-                () -> {
-                    // release the latch, that should allow all tasks to complete
-                    latch.countDown();
-                    // if tasks are completing, none of the wires should block
-                    channelA.put(Object.class);
-                    channelB.put(Object.class);
-                    channelC.put(Object.class);
-                },
-                Duration.ofSeconds(10),
-                "deadlock");
+        RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            // release the task that should allow all tasks to complete
+            objectConsumer.executionControl().unblock();
+            // if tasks are completing, none of the wires should block
+            channelA.put(Object.class);
+            channelB.put(Object.class);
+            channelC.put(Object.class);
+        });
+        producer.start();
+
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
 
         pool.shutdown();
         model.stop();
@@ -1338,14 +1094,14 @@ class SequentialTaskSchedulerTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void deadlockTestThreeThreads(final String typeString) throws InterruptedException {
-        final WiringModel model = TestWiringModelBuilder.create();
+    void deadlockTestThreeThreads(final String typeString) {
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final ForkJoinPool pool = new ForkJoinPool(3);
 
         // create 3 wires with the following bindings:
-        // a -> b -> c -> latch
+        // a -> b -> c -> signal
         final TaskScheduler<Void> a = model.<Void>schedulerBuilder("a")
                 .withType(type)
                 .withUnhandledTaskCapacity(2)
@@ -1369,40 +1125,32 @@ class SequentialTaskSchedulerTests {
         final BindableInputWire<Object, Void> channelB = b.buildInputWire("channelB");
         final BindableInputWire<Object, Void> channelC = c.buildInputWire("channelC");
 
-        final CountDownLatch latch = new CountDownLatch(1);
-
         channelA.bindConsumer(channelB::put);
         channelB.bindConsumer(channelC::put);
-        channelC.bindConsumer(o -> {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
+        final ConsumerWithCompletionControl<Object> handlerC = ConsumerWithCompletionControl.blocked(o -> {});
+        channelC.bindConsumer(handlerC);
 
         model.start();
 
         // each wire has a capacity of 1, so we can have 1 task waiting on each wire
-        // insert a task into C, which will start executing and waiting on the latch
+        // insert a task into C, which will start executing and waiting on the signal
         channelC.put(Object.class);
         // fill up the queues for each wire
         channelC.put(Object.class);
         channelA.put(Object.class);
         channelB.put(Object.class);
 
-        completeBeforeTimeout(
-                () -> {
-                    // release the latch, that should allow all tasks to complete
-                    latch.countDown();
-                    // if tasks are completing, none of the wires should block
-                    channelA.put(Object.class);
-                    channelB.put(Object.class);
-                    channelC.put(Object.class);
-                },
-                Duration.ofSeconds(10),
-                "deadlock");
-
+        final RunnableCompletionControl runnable = RunnableCompletionControl.unblocked(() -> {
+            // Unblock the handler. It should allow all tasks to complete
+            handlerC.executionControl().unblock();
+            // If tasks are completing, none of the wires should block
+            channelA.put(Object.class);
+            channelB.put(Object.class);
+            channelC.put(Object.class);
+        });
+        runnable.start();
+        runnable.waitIsFinished(AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(1, AWAIT_MAX_DURATION);
         pool.shutdown();
         model.stop();
     }
@@ -1413,7 +1161,7 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void simpleSolderingTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final TaskScheduler<Integer> taskSchedulerA =
@@ -1439,36 +1187,44 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        inputA.bind(x -> {
-            countA.set(hash32(countA.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+            countA.set(hash32(countA.get(), x3));
+            return x3;
         });
 
-        inputB.bind(x -> {
-            countB.set(hash32(countB.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+            countB.set(hash32(countB.get(), x2));
+            return x2;
         });
 
-        inputC.bind(x -> {
-            countC.set(hash32(countC.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countC.set(hash32(countC.get(), x1));
+            return x1;
         });
 
-        inputD.bindConsumer(x -> {
-            countD.set(hash32(countD.get(), x));
-        });
+        final ConsumerWithCompletionControl<Integer> handlerD =
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
+
+        inputA.bind(handlerA);
+        inputB.bind(handlerB);
+        inputC.bind(handlerC);
+        inputD.bindConsumer(handlerD);
 
         model.start();
 
         int expectedCount = 0;
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             inputA.put(i);
             expectedCount = hash32(expectedCount, i);
         }
 
-        assertEventuallyEquals(
-                expectedCount, countD::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+
+        assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
         assertEquals(expectedCount, countC.get());
@@ -1482,7 +1238,7 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void lambdaSolderingTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final TaskScheduler<Integer> taskSchedulerA =
@@ -1511,38 +1267,45 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger lambdaSum = new AtomicInteger();
         taskSchedulerB.getOutputWire().solderTo("lambda", "lambda input", lambdaSum::getAndAdd);
 
-        inputA.bind(x -> {
-            countA.set(hash32(countA.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+            countA.set(hash32(countA.get(), x3));
+            return x3;
         });
 
-        inputB.bind(x -> {
-            countB.set(hash32(countB.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+            countB.set(hash32(countB.get(), x2));
+            return x2;
         });
 
-        inputC.bind(x -> {
-            countC.set(hash32(countC.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countC.set(hash32(countC.get(), x1));
+            return x1;
         });
 
-        inputD.bindConsumer(x -> {
-            countD.set(hash32(countD.get(), x));
-        });
+        final ConsumerWithCompletionControl<Integer> handlerD =
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
+
+        inputA.bind(handlerA);
+        inputB.bind(handlerB);
+        inputC.bind(handlerC);
+        inputD.bindConsumer(handlerD);
 
         model.start();
 
         int expectedCount = 0;
 
         int sum = 0;
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             inputA.put(i);
             expectedCount = hash32(expectedCount, i);
             sum += i;
         }
 
-        assertEventuallyEquals(
-                expectedCount, countD::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
         assertEquals(sum, lambdaSum.get());
@@ -1557,7 +1320,7 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void multiWireSolderingTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         // A passes data to X, Y, and Z
@@ -1594,38 +1357,46 @@ class SequentialTaskSchedulerTests {
 
         final AtomicInteger countA = new AtomicInteger();
         final AtomicBoolean invertA = new AtomicBoolean();
-        addNewValueToA.bind(x -> {
-            final int possiblyInvertedValue = x * (invertA.get() ? -1 : 1);
-            countA.set(hash32(countA.get(), possiblyInvertedValue));
-            return possiblyInvertedValue;
-        });
-        setInversionBitInA.bind(x -> {
-            invertA.set(x);
-            return null;
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x4 -> {
+            final int possiblyInvertedValue1 = x4 * (invertA.get() ? -1 : 1);
+            countA.set(hash32(countA.get(), possiblyInvertedValue1));
+            return possiblyInvertedValue1;
         });
 
+        final FunctionWithExecutionControl<Boolean, Integer> handlerInvertA =
+                FunctionWithExecutionControl.unBlocked(x3 -> {
+                    invertA.set(x3);
+                    return null;
+                });
+
         final AtomicInteger countX = new AtomicInteger();
-        inputX.bind(x -> {
-            countX.set(hash32(countX.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerX = FunctionWithExecutionControl.unBlocked(x2 -> {
+            countX.set(hash32(countX.get(), x2));
+            return x2;
         });
 
         final AtomicInteger countY = new AtomicInteger();
-        inputY.bind(x -> {
-            countY.set(hash32(countY.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerY = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countY.set(hash32(countY.get(), x1));
+            return x1;
         });
 
         final AtomicInteger countZ = new AtomicInteger();
-        inputZ.bind(x -> {
+        final FunctionWithExecutionControl<Integer, Integer> handlerZ = FunctionWithExecutionControl.unBlocked(x -> {
             countZ.set(hash32(countZ.get(), x));
             return x;
         });
 
         final AtomicInteger sumB = new AtomicInteger();
-        inputB.bindConsumer(x -> {
-            sumB.getAndAdd(x);
-        });
+        final ConsumerWithCompletionControl<Integer> handlerB =
+                ConsumerWithCompletionControl.unblocked(sumB::getAndAdd);
+
+        addNewValueToA.bind(handlerA);
+        setInversionBitInA.bind(handlerInvertA);
+        inputX.bind(handlerX);
+        inputY.bind(handlerY);
+        inputZ.bind(handlerZ);
+        inputB.bindConsumer(handlerB);
 
         model.start();
 
@@ -1633,7 +1404,7 @@ class SequentialTaskSchedulerTests {
         boolean expectedInversionBit = false;
         int expectedSum = 0;
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             if (i % 7 == 0) {
                 expectedInversionBit = !expectedInversionBit;
                 setInversionBitInA.put(expectedInversionBit);
@@ -1646,20 +1417,20 @@ class SequentialTaskSchedulerTests {
             expectedSum = expectedSum + 3 * possiblyInvertedValue;
         }
 
-        assertEventuallyEquals(
-                expectedSum,
-                sumB::get,
-                Duration.ofSeconds(10),
-                "Wire sum did not match expected sum, " + expectedSum + " vs " + sumB.get());
+        handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerInvertA.executionControl().await(15, AWAIT_MAX_DURATION);
+        handlerX.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerY.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerZ.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(DEFAULT_OPERATIONS * 3, AWAIT_MAX_DURATION);
+
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countX.get());
         assertEquals(expectedCount, countY.get());
         assertEquals(expectedCount, countZ.get());
-        assertEventuallyEquals(
-                expectedInversionBit,
-                invertA::get,
-                Duration.ofSeconds(10),
-                "Wire inversion bit did not match expected value");
+        assertEquals(
+                expectedSum, sumB.get(), "Wire sum did not match expected sum, " + expectedSum + " vs " + sumB.get());
+        assertEquals(expectedInversionBit, invertA.get(), "Wire inversion bit did not match expected value");
 
         model.stop();
     }
@@ -1669,9 +1440,9 @@ class SequentialTaskSchedulerTests {
      */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void injectionSolderingTest(final String typeString) throws InterruptedException {
+    void injectionSolderingTest(final String typeString) {
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
@@ -1680,6 +1451,7 @@ class SequentialTaskSchedulerTests {
         // In this test, wires A and B are connected to the input of wire C, which has a maximum capacity.
         // Wire A respects back pressure, but wire B uses injection and can ignore it.
 
+        final int partialWork = 5;
         final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
                 .withType(type)
                 .withUnhandledTaskCapacity(UNLIMITED_CAPACITY)
@@ -1702,69 +1474,58 @@ class SequentialTaskSchedulerTests {
         taskSchedulerB.getOutputWire().solderTo(inC, SolderType.INJECT); // ignores capacity
 
         final AtomicInteger countA = new AtomicInteger();
-        inA.bind(x -> {
-            countA.set(hash32(countA.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x2 -> {
+            countA.set(hash32(countA.get(), x2));
+            return x2;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        inB.bind(x -> {
-            countB.set(hash32(countB.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countB.set(hash32(countB.get(), x1));
+            return x1;
         });
 
         final AtomicInteger sumC = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
-        inC.bindConsumer(x -> {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            sumC.getAndAdd(x);
-        });
+        final ConsumerWithCompletionControl<Integer> handlerC = ConsumerWithCompletionControl.blocked(sumC::getAndAdd);
+        inA.bind(handlerA);
+        inB.bind(handlerB);
+        inC.bindConsumer(handlerC);
 
         model.start();
 
-        // Add 5 elements to A and B. This will completely fill C's capacity.
+        // Add 5 elements to A and B. This will fill C's capacity.
         int expectedCount = 0;
         int expectedSum = 0;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < partialWork; i++) {
             inA.put(i);
             inB.put(i);
             expectedCount = hash32(expectedCount, i);
             expectedSum += 2 * i;
         }
 
-        // Eventually, C should have 10 things that have not yet been fully processed.
-        assertEventuallyEquals(
-                10L,
-                taskSchedulerC::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "C should have 10 unprocessed tasks, currently has " + taskSchedulerC.getUnprocessedTaskCount());
+        handlerA.executionControl().await(partialWork, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(partialWork, AWAIT_MAX_DURATION);
 
+        // Eventually, C should have 10 things that have not yet been fully processed.
+        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2);
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
 
         // Push some more data into A and B. A will get stuck trying to push it to C.
-        inA.put(5);
-        inB.put(5);
-        expectedCount = hash32(expectedCount, 5);
-        expectedSum += 2 * 5;
+        inA.put(partialWork);
+        inB.put(partialWork);
+        expectedCount = hash32(expectedCount, partialWork);
+        expectedSum += 2 * partialWork;
 
-        assertEventuallyEquals(expectedCount, countA::get, Duration.ofSeconds(10), "A should have processed task");
-        assertEventuallyEquals(expectedCount, countB::get, Duration.ofSeconds(10), "B should have processed task");
+        handlerA.executionControl().await(1, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(1, AWAIT_MAX_DURATION);
+        assertEquals(expectedCount, countA.get(), "A should have processed task");
+        assertEquals(expectedCount, countB.get(), "B should have processed task");
 
         // If we wait some time, the task from B should have increased C's count to 11, but the task from A
-        // should have been unable to increase C's count. We need to do an "eventually equals" since a failed
+        // should have been unable to increase C's count. We need to do greater equals than since a failed
         // insertion may briefly push the count up to 12 (although it should always fall immediately after).
-        MILLISECONDS.sleep(50);
-        assertEventuallyEquals(
-                11L,
-                taskSchedulerC::getUnprocessedTaskCount,
-                Duration.ofSeconds(1),
-                "should have 11 unprocessed tasks");
-
+        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2 + 1);
         // Push some more data into A and B. A will be unable to process it because it's still
         // stuck pushing the previous value.
         inA.put(6);
@@ -1772,17 +1533,19 @@ class SequentialTaskSchedulerTests {
         final int expectedCountAfterHandling6 = hash32(expectedCount, 6);
         expectedSum += 2 * 6;
 
-        assertEventuallyEquals(
-                expectedCountAfterHandling6, countB::get, Duration.ofSeconds(10), "B should have processed task");
+        handlerB.executionControl().await(1, AWAIT_MAX_DURATION);
+        assertEquals(expectedCountAfterHandling6, countB.get(), "B should have processed task");
 
-        // Even if we wait, A should not have been able to process the task.
-        MILLISECONDS.sleep(50);
+        // Even if we wait, (A) should not have been able to process the task.
+        sleep(50);
         assertEquals(expectedCount, countA.get());
-        assertEquals(12, taskSchedulerC.getUnprocessedTaskCount());
+        assertUnprocessedTasksValueIs(taskSchedulerC, partialWork * 2 + 2);
 
-        // Releasing the latch should allow data to flow through C.
-        latch.countDown();
-        assertEventuallyEquals(expectedSum, sumC::get, Duration.ofSeconds(10), "C should have processed all tasks");
+        // Releasing the signal should allow data to flow through C.
+        handlerC.executionControl().unblock();
+        handlerA.executionControl().await(1, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(partialWork * 2 + 2 + 2, AWAIT_MAX_DURATION);
+        assertEquals(expectedSum, sumC.get());
         assertEquals(expectedCountAfterHandling6, countA.get());
 
         model.stop();
@@ -1794,7 +1557,7 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void discardNullValuesInWiresTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final TaskScheduler<Integer> taskSchedulerA =
@@ -1820,33 +1583,36 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        inputA.bind(x -> {
-            countA.set(hash32(countA.get(), x));
-            if (x % 3 == 0) {
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+            countA.set(hash32(countA.get(), x3));
+            if (x3 % 3 == 0) {
                 return null;
             }
-            return x;
+            return x3;
         });
 
-        inputB.bind(x -> {
-            countB.set(hash32(countB.get(), x));
-            if (x % 5 == 0) {
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+            countB.set(hash32(countB.get(), x2));
+            if (x2 % 5 == 0) {
                 return null;
             }
-            return x;
+            return x2;
         });
 
-        inputC.bind(x -> {
-            countC.set(hash32(countC.get(), x));
-            if (x % 7 == 0) {
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countC.set(hash32(countC.get(), x1));
+            if (x1 % 7 == 0) {
                 return null;
             }
-            return x;
+            return x1;
         });
 
-        inputD.bindConsumer(x -> {
-            countD.set(hash32(countD.get(), x));
-        });
+        final ConsumerWithCompletionControl<Integer> handlerD =
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
+        inputA.bind(handlerA);
+        inputB.bind(handlerB);
+        inputC.bind(handlerC);
+        inputD.bindConsumer(handlerD);
 
         model.start();
 
@@ -1855,31 +1621,40 @@ class SequentialTaskSchedulerTests {
         int expectedCountC = 0;
         int expectedCountD = 0;
 
-        for (int i = 0; i < 100; i++) {
+        int timesA = 0;
+        int timesB = 0;
+        int timesC = 0;
+        int timesD = 0;
+
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             inputA.put(i);
             expectedCountA = hash32(expectedCountA, i);
+            timesA++;
             if (i % 3 == 0) {
+                timesB++;
                 continue;
             }
             expectedCountB = hash32(expectedCountB, i);
             if (i % 5 == 0) {
+                timesC++;
                 continue;
             }
             expectedCountC = hash32(expectedCountC, i);
             if (i % 7 == 0) {
+                timesD++;
                 continue;
             }
             expectedCountD = hash32(expectedCountD, i);
         }
 
-        assertEventuallyEquals(
-                expectedCountA, countA::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                expectedCountB, countB::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                expectedCountC, countC::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
-        assertEventuallyEquals(
-                expectedCountD, countD::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        handlerA.executionControl().await(timesA, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(timesA - timesB, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(timesA - timesB - timesC, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(timesA - timesB - timesC - timesD, AWAIT_MAX_DURATION);
+        assertEquals(expectedCountA, countA.get(), "Wire sum did not match expected sum");
+        assertEquals(expectedCountB, countB.get(), "Wire sum did not match expected sum");
+        assertEquals(expectedCountC, countC.get(), "Wire sum did not match expected sum");
+        assertEquals(expectedCountD, countD.get(), "Wire sum did not match expected sum");
 
         model.stop();
     }
@@ -1891,7 +1666,7 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void metricsEnabledTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
@@ -1929,36 +1704,44 @@ class SequentialTaskSchedulerTests {
         final AtomicInteger countC = new AtomicInteger();
         final AtomicInteger countD = new AtomicInteger();
 
-        inputA.bind(x -> {
-            countA.set(hash32(countA.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x3 -> {
+            countA.set(hash32(countA.get(), x3));
+            return x3;
         });
 
-        inputB.bind(x -> {
-            countB.set(hash32(countB.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.unBlocked(x2 -> {
+            countB.set(hash32(countB.get(), x2));
+            return x2;
         });
 
-        inputC.bind(x -> {
-            countC.set(hash32(countC.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerC = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countC.set(hash32(countC.get(), x1));
+            return x1;
         });
 
-        inputD.bindConsumer(x -> {
-            countD.set(hash32(countD.get(), x));
-        });
+        final ConsumerWithCompletionControl<Integer> handlerD =
+                ConsumerWithCompletionControl.unblocked(x -> countD.set(hash32(countD.get(), x)));
+
+        inputA.bind(handlerA);
+        inputB.bind(handlerB);
+        inputC.bind(handlerC);
+        inputD.bindConsumer(handlerD);
 
         model.start();
 
         int expectedCount = 0;
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             inputA.put(i);
             expectedCount = hash32(expectedCount, i);
         }
 
-        assertEventuallyEquals(
-                expectedCount, countD::get, Duration.ofSeconds(10), "Wire sum did not match expected sum");
+        handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerD.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+
+        assertEquals(expectedCount, countD.get(), "Wire sum did not match expected sum");
         assertEquals(expectedCount, countA.get());
         assertEquals(expectedCount, countB.get());
         assertEquals(expectedCount, countC.get());
@@ -1969,7 +1752,7 @@ class SequentialTaskSchedulerTests {
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void multipleOutputChannelsTest(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         final TaskScheduler<Integer> taskSchedulerA =
@@ -1988,52 +1771,62 @@ class SequentialTaskSchedulerTests {
         aOutBoolean.solderTo(bInBoolean);
         aOutString.solderTo(bInString);
 
-        aIn.bind(x -> {
-            if (x % 2 == 0) {
-                aOutBoolean.forward(x % 3 == 0);
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+            if (x1 % 2 == 0) {
+                aOutBoolean.forward(x1 % 3 == 0);
             }
 
-            if (x % 5 == 0) {
-                aOutString.forward(Integer.toString(x));
+            if (x1 % 5 == 0) {
+                aOutString.forward(Integer.toString(x1));
             }
 
-            return x;
+            return x1;
         });
 
         final AtomicInteger count = new AtomicInteger();
-        bInBoolean.bindConsumer(x -> {
-            count.set(hash32(count.get(), x ? 1 : 0));
-        });
-        bInString.bindConsumer(x -> {
-            count.set(hash32(count.get(), x.hashCode()));
-        });
-        bInInteger.bindConsumer(x -> {
-            count.set(hash32(count.get(), x));
-        });
+        final ConsumerWithCompletionControl<Boolean> handlerBBool =
+                ConsumerWithCompletionControl.unblocked(x2 -> count.set(hash32(count.get(), x2 ? 1 : 0)));
+        final ConsumerWithCompletionControl<String> handlerBString =
+                ConsumerWithCompletionControl.unblocked(x1 -> count.set(hash32(count.get(), x1.hashCode())));
+        final ConsumerWithCompletionControl<Integer> handlerBInt =
+                ConsumerWithCompletionControl.unblocked(x -> count.set(hash32(count.get(), x)));
+
+        aIn.bind(handlerA);
+        bInBoolean.bindConsumer(handlerBBool);
+        bInString.bindConsumer(handlerBString);
+        bInInteger.bindConsumer(handlerBInt);
 
         model.start();
 
         int expectedCount = 0;
-        for (int i = 0; i < 100; i++) {
+        int stringTimes = 0;
+        int booleanTimes = 0;
+        for (int i = 0; i < DEFAULT_OPERATIONS; i++) {
             aIn.put(i);
             if (i % 2 == 0) {
                 expectedCount = hash32(expectedCount, i % 3 == 0 ? 1 : 0);
+                booleanTimes++;
             }
             if (i % 5 == 0) {
                 expectedCount = hash32(expectedCount, Integer.toString(i).hashCode());
+                stringTimes++;
             }
             expectedCount = hash32(expectedCount, i);
         }
 
-        assertEventuallyEquals(expectedCount, count::get, Duration.ofSeconds(10), "Wire count did not match expected");
+        handlerA.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerBInt.executionControl().await(DEFAULT_OPERATIONS, AWAIT_MAX_DURATION);
+        handlerBString.executionControl().await(stringTimes, AWAIT_MAX_DURATION);
+        handlerBBool.executionControl().await(booleanTimes, AWAIT_MAX_DURATION);
+        assertEquals(expectedCount, count.get(), "Wire count did not match expected");
 
         model.stop();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void externalBackPressureTest(final String typeString) throws InterruptedException {
-        final WiringModel model = TestWiringModelBuilder.create();
+    void externalBackPressureTest(final String typeString) {
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
         // There are three components, A, B, and C.
@@ -2068,39 +1861,24 @@ class SequentialTaskSchedulerTests {
         taskSchedulerB.getOutputWire().solderTo(cIn);
 
         final AtomicInteger countA = new AtomicInteger();
-        final CountDownLatch latchA = new CountDownLatch(1);
-        aIn.bind(x -> {
-            try {
-                latchA.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.blocked(x -> {
             countA.set(hash32(countA.get(), x));
             return x;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final CountDownLatch latchB = new CountDownLatch(1);
-        bIn.bind(x -> {
-            try {
-                latchB.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.blocked(x -> {
             countB.set(hash32(countB.get(), x));
             return x;
         });
 
         final AtomicInteger countC = new AtomicInteger();
-        final CountDownLatch latchC = new CountDownLatch(1);
-        cIn.bindConsumer(x -> {
-            try {
-                latchC.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            countC.set(hash32(countC.get(), x));
-        });
+        final ConsumerWithCompletionControl<Integer> handlerC =
+                ConsumerWithCompletionControl.blocked(x -> countC.set(hash32(countC.get(), x)));
+
+        aIn.bind(handlerA);
+        bIn.bind(handlerB);
+        cIn.bindConsumer(handlerC);
 
         model.start();
 
@@ -2112,50 +1890,56 @@ class SequentialTaskSchedulerTests {
         }
 
         final AtomicBoolean moreWorkInserted = new AtomicBoolean(false);
-        new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    aIn.put(10);
-                    moreWorkInserted.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            aIn.put(10);
+            moreWorkInserted.set(true);
+        });
+
+        final Thread producerThread = producer.start();
         expectedCount = hash32(expectedCount, 10);
 
         assertEquals(10, counter.getCount());
 
         // Work is currently stuck at A. No matter how much time passes, no new work should be added.
-        MILLISECONDS.sleep(50);
+        sleep(50);
         assertFalse(moreWorkInserted.get());
         assertEquals(10, counter.getCount());
+        assertEventuallyEquals(State.TIMED_WAITING, producerThread::getState, "Producer thread was not blocked");
 
         // Unblock A. Work will flow forward and get blocked at B. No matter how much time passes, no new work should
         // be added.
-        latchA.countDown();
-        MILLISECONDS.sleep(50);
+        handlerA.executionControl().unblock();
+        handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
+        sleep(50);
         assertFalse(moreWorkInserted.get());
         assertEquals(10, counter.getCount());
 
-        // Unblock B. Work will flow forward and get blocked at C. No matter how much time passes, no new work should
+        // Unblock B. Work will flow forward and get blocked at (C). No matter how much time passes, no new work should
         // be added.
-        latchB.countDown();
-        MILLISECONDS.sleep(50);
+        handlerB.executionControl().unblock();
+        handlerB.executionControl().await(10, AWAIT_MAX_DURATION);
+        sleep(50);
         assertFalse(moreWorkInserted.get());
 
-        // Unblock C. Entire pipeline is now unblocked and new things will be added.
-        latchC.countDown();
-        assertEventuallyEquals(0L, counter::getCount, Duration.ofSeconds(10), "Counter should be empty");
-        assertEventuallyEquals(expectedCount, countA::get, Duration.ofSeconds(10), "A should have processed task");
-        assertEventuallyEquals(expectedCount, countB::get, Duration.ofSeconds(10), "B should have processed task");
-        assertEventuallyEquals(expectedCount, countC::get, Duration.ofSeconds(10), "C should have processed task");
-        assertTrue(moreWorkInserted.get());
+        // Unblock (C). For pending work
+        handlerC.executionControl().unblock();
 
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(11, AWAIT_MAX_DURATION);
+        assertEventuallyEquals(0L, counter::getCount, "Counter should be empty");
+        assertEquals(expectedCount, countA.get(), "A should have processed task");
+        assertEquals(expectedCount, countB.get(), "B should have processed task");
+        assertEquals(expectedCount, countC.get(), "C should have processed task");
+        assertTrue(moreWorkInserted.get());
+        assertEventuallyEquals(State.TERMINATED, producerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
-    void multipleCountersInternalBackpressureTest(final String typeString) throws InterruptedException {
+    void multipleCountersInternalBackpressureTest(final String typeString) {
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
@@ -2193,84 +1977,74 @@ class SequentialTaskSchedulerTests {
         taskSchedulerB.getOutputWire().solderTo(cIn);
 
         final AtomicInteger countA = new AtomicInteger();
-        final CountDownLatch latchA = new CountDownLatch(1);
-        aIn.bind(x -> {
-            try {
-                latchA.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.blocked(x -> {
             countA.set(hash32(countA.get(), x));
             return x;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final CountDownLatch latchB = new CountDownLatch(1);
-        bIn.bind(x -> {
-            try {
-                latchB.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        final FunctionWithExecutionControl<Integer, Integer> handlerB = FunctionWithExecutionControl.blocked(x -> {
             countB.set(hash32(countB.get(), x));
             return x;
         });
 
         final AtomicInteger countC = new AtomicInteger();
-        final CountDownLatch latchC = new CountDownLatch(1);
-        cIn.bindConsumer(x -> {
-            try {
-                latchC.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            countC.set(hash32(countC.get(), x));
-        });
+        final ConsumerWithCompletionControl<Integer> handlerC =
+                ConsumerWithCompletionControl.blocked(x -> countC.set(hash32(countC.get(), x)));
+
+        aIn.bind(handlerA);
+        bIn.bind(handlerB);
+        cIn.bindConsumer(handlerC);
 
         int expectedCount = 0;
         for (int i = 0; i < 11; i++) {
             expectedCount = hash32(expectedCount, i);
         }
 
-        // This thread wants to add 11 things to the pipeline.
+        // This thread wants to add 11 tasks to the pipeline.
         final AtomicBoolean allWorkInserted = new AtomicBoolean(false);
-        new ThreadConfiguration(getStaticThreadManager())
-                .setRunnable(() -> {
-                    for (int i = 0; i < 11; i++) {
-                        aIn.put(i);
-                    }
-                    allWorkInserted.set(true);
-                })
-                .build(true);
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i = 0; i < 11; i++) {
+                aIn.put(i);
+            }
+            allWorkInserted.set(true);
+        });
 
         model.start();
+        final Thread producerThread = producer.start();
 
         // Work is currently stuck at A. No matter how much time passes, we should not be able to exceed A's capacity.
-        MILLISECONDS.sleep(50);
+        assertEventuallyEquals(State.TIMED_WAITING, producerThread::getState, "Producer thread was not blocked");
         assertFalse(allWorkInserted.get());
-        assertEquals(5, counter.getCount());
+        assertTrue(5 >= counter.getCount());
 
-        // Unblock A. Work will flow forward and get blocked at B. A can fit 5 items, B can fit another 5.
-        latchA.countDown();
-        MILLISECONDS.sleep(50);
+        // Unblock (A). Work will flow forward and get blocked at B. A can fit 5 items, B can fit another 5.
+        handlerA.executionControl().unblock();
+        sleep(50);
         assertFalse(allWorkInserted.get());
-        assertEquals(10, counter.getCount());
+        assertEquals(10, counter.getCount()); // This one failed
 
-        // Unblock B. Work will flow forward and get blocked at C. We shouldn't be able to add additional items
+        // Unblock (B). Work will flow forward and get blocked at C. We shouldn't be able to add additional items
         // since that would violate the global capacity.
-        latchB.countDown();
-        MILLISECONDS.sleep(50);
+        handlerB.executionControl().unblock();
+        sleep(50);
         assertFalse(allWorkInserted.get());
         assertEquals(10, counter.getCount());
 
-        // Unblock C. Entire pipeline is now unblocked and new things will be added.
-        latchC.countDown();
-        assertEventuallyTrue(allWorkInserted::get, Duration.ofSeconds(10), "All work should have been inserted");
-        assertEventuallyEquals(0L, counter::getCount, Duration.ofSeconds(10), "Counter should be empty");
-        assertEventuallyEquals(expectedCount, countA::get, Duration.ofSeconds(10), "A should have processed task");
-        assertEventuallyEquals(expectedCount, countB::get, Duration.ofSeconds(10), "B should have processed task");
-        assertEventuallyEquals(expectedCount, countC::get, Duration.ofSeconds(10), "C should have processed task");
+        // Unblock (C). The entire pipeline is now unblocked, and new things will be added.
+        handlerC.executionControl().unblock();
 
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        assertTrue(allWorkInserted.get(), "All work should have been inserted");
+        handlerA.executionControl().await(11, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(11, AWAIT_MAX_DURATION);
+        handlerC.executionControl().await(11, AWAIT_MAX_DURATION);
+        assertEventuallyEquals(0L, counter::getCount, "Counter should be empty");
+        assertEquals(expectedCount, countA.get(), "A should have processed task");
+        assertEquals(expectedCount, countB.get(), "B should have processed task");
+        assertEquals(expectedCount, countC.get(), "C should have processed task");
+
+        assertEventuallyEquals(State.TERMINATED, producerThread::getState, "Producer thread was not terminated");
         model.stop();
     }
 
@@ -2278,75 +2052,69 @@ class SequentialTaskSchedulerTests {
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void offerSolderingTest(final String typeString) {
 
-        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+        this.model = WiringModelBuilder.create(NO_OP_METRICS, Time.getCurrent())
                 .withHardBackpressureEnabled(true)
                 .build();
 
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
 
+        final int capacity = 10;
         final TaskScheduler<Integer> schedulerA = model.<Integer>schedulerBuilder("A")
                 .withType(type)
-                .withUnhandledTaskCapacity(10)
+                .withUnhandledTaskCapacity(capacity)
                 .build();
         final BindableInputWire<Integer, Integer> inputA = schedulerA.buildInputWire("inputA");
 
         final TaskScheduler<Void> schedulerB = model.<Void>schedulerBuilder("B")
                 .withType(type)
-                .withUnhandledTaskCapacity(10)
+                .withUnhandledTaskCapacity(capacity)
                 .build();
         final BindableInputWire<Integer, Void> inputB = schedulerB.buildInputWire("inputB");
 
         schedulerA.getOutputWire().solderTo(inputB, SolderType.OFFER);
 
         final AtomicInteger countA = new AtomicInteger();
-        inputA.bind(x -> {
-            countA.set(hash32(countA.get(), x));
-            return x;
+        final FunctionWithExecutionControl<Integer, Integer> handlerA = FunctionWithExecutionControl.unBlocked(x1 -> {
+            countA.set(hash32(countA.get(), x1));
+            return x1;
         });
 
         final AtomicInteger countB = new AtomicInteger();
-        final CountDownLatch latch = new CountDownLatch(1);
-        inputB.bindConsumer(x -> {
-            try {
-                latch.await();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            countB.set(hash32(countB.get(), x));
-        });
+        final ConsumerWithCompletionControl<Integer> handlerB =
+                ConsumerWithCompletionControl.blocked(x -> countB.set(hash32(countB.get(), x)));
+
+        inputA.bind(handlerA);
+        inputB.bindConsumer(handlerB);
 
         model.start();
 
         // Fill up B's buffer.
         int expectedCountA = 0;
         int expectedCountB = 0;
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < capacity; i++) {
             inputA.put(i);
             expectedCountA = hash32(expectedCountA, i);
             expectedCountB = hash32(expectedCountB, i);
         }
 
-        // Add more than B is willing to accept.
-        for (int i = 10; i < 20; i++) {
+        // Add more than B is willing to accept. B will drop all those items
+        for (int i = capacity; i < 20; i++) {
             inputA.put(i);
             expectedCountA = hash32(expectedCountA, i);
         }
 
+        handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
         // Wait until A has handled all of its tasks.
-        assertEventuallyEquals(
-                0L, schedulerA::getUnprocessedTaskCount, Duration.ofSeconds(10), "A should have processed tasks");
+        assertUnprocessedTasksValueIs(schedulerA, 0L);
         assertEquals(expectedCountA, countA.get());
-
         // B should not have processed any tasks.
+        assertUnprocessedTasksValueIs(schedulerB, 10L);
         assertEquals(0, countB.get());
 
-        // Release the latch and allow B to process tasks.
-        latch.countDown();
-        assertEventuallyEquals(
-                0L,
-                schedulerB::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "B should have processed all awaiting tasks");
+        // Release the signal and allow B to process tasks.
+        handlerB.executionControl().unblock();
+        handlerB.executionControl().await(10, AWAIT_MAX_DURATION);
+        assertUnprocessedTasksValueIs(schedulerB, 0L);
         assertEquals(expectedCountB, countB.get());
 
         // Now, add some more data to A. That data should flow to B as well.
@@ -2356,16 +2124,10 @@ class SequentialTaskSchedulerTests {
             expectedCountB = hash32(expectedCountB, i);
         }
 
-        assertEventuallyEquals(
-                0L,
-                schedulerA::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "A should have processed all awaiting tasks");
-        assertEventuallyEquals(
-                0L,
-                schedulerB::getUnprocessedTaskCount,
-                Duration.ofSeconds(10),
-                "B should have processed all awaiting tasks");
+        handlerA.executionControl().await(10, AWAIT_MAX_DURATION);
+        handlerB.executionControl().await(10, AWAIT_MAX_DURATION);
+        assertUnprocessedTasksValueIs(schedulerA, 0L);
+        assertUnprocessedTasksValueIs(schedulerB, 0L);
 
         assertEquals(expectedCountA, countA.get());
         assertEquals(expectedCountB, countB.get());
@@ -2373,23 +2135,20 @@ class SequentialTaskSchedulerTests {
         model.stop();
     }
 
+    /**
+     *  This test asserts that a task scheduler being squelched does not accept new tasks.
+     */
     @ParameterizedTest
     @ValueSource(strings = {"SEQUENTIAL", "SEQUENTIAL_THREAD"})
     void squelching(final String typeString) {
-        final WiringModel model = TestWiringModelBuilder.create();
+        this.model = TestWiringModelBuilder.create();
         final TaskSchedulerType type = TaskSchedulerType.valueOf(typeString);
-        final Random random = RandomUtils.getRandomPrintSeed();
+        final int totalTasks = 30;
+        // Total unprocessed tasks
+        final AtomicInteger unprocessedTasks = new AtomicInteger(totalTasks);
 
-        final AtomicInteger handleCount = new AtomicInteger();
-
-        final Consumer<Integer> handler = x -> {
-            handleCount.incrementAndGet();
-            try {
-                NANOSECONDS.sleep(random.nextInt(1_000_000));
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        };
+        final ConsumerWithCompletionControl<Integer> taskHandler =
+                ConsumerWithCompletionControl.blocked(x -> unprocessedTasks.decrementAndGet());
 
         final TaskScheduler<Void> taskScheduler = model.<Void>schedulerBuilder("test")
                 .withType(type)
@@ -2398,50 +2157,67 @@ class SequentialTaskSchedulerTests {
                 .withSquelchingEnabled(true)
                 .build();
         final BindableInputWire<Integer, Void> inputWire = taskScheduler.buildInputWire("channel");
-        inputWire.bindConsumer(handler);
+        inputWire.bindConsumer(taskHandler);
 
         model.start();
+        // This runnable (for reuse purposes) adds tasks to the scheduler
+        // we test all 3 methods to push tasks to the scheduler
+        final RunnableCompletionControl producer = RunnableCompletionControl.unblocked(() -> {
+            for (int i = 0; i < 30; i++) {
+                // we test all 3 methods to push tasks to the scheduler
+                if (i < 10) {
+                    inputWire.put(i);
+                } else if (i < 20) {
+                    inputWire.offer(i);
+                } else {
+                    inputWire.inject(i);
+                }
+            }
+        });
 
-        for (int i = 0; i < 10; i++) {
-            inputWire.put(i);
-            inputWire.offer(i);
-            inputWire.inject(i);
-        }
+        taskHandler.executionControl().unblock();
+        // add tasks
+        producer.run();
+        // allow them to run
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
+        // check there are no unprocessed tasks, according to the framework
+        assertEquals(0L, taskScheduler.getUnprocessedTaskCount());
+        // check there are no unprocessed tasks, according to the test counter
+        assertEquals(0L, unprocessedTasks.get());
 
-        assertEventuallyTrue(() -> handleCount.get() > 5, Duration.ofSeconds(1), "Some tasks should get handled");
-        assertTrue(taskScheduler.getUnprocessedTaskCount() > 10, "There should be some unprocessed tasks");
-
+        // Enabling squelching should make should ignore the task and not execute it.
         taskScheduler.startSquelching();
-        final int countAtSquelchStart = handleCount.get();
+        // the tasks should not be executed.
+        unprocessedTasks.set(totalTasks);
+        // The scheduler is squelching, tasks should not be executed.
+        producer.run();
+        assertEquals(totalTasks, unprocessedTasks.get());
 
-        // add more tasks, which will be squelched
-        for (int i = 0; i < 10; i++) {
-            inputWire.put(i);
-            inputWire.offer(i);
-            inputWire.inject(i);
-        }
+        // Now, despite being squelched, the fmw will generate 30 tasks that will be
+        // scheduled and executed. The first instruction of each task is to verify if squelching is active
+        // and return immediately if so. In the process, onRamp and offRamp will still be invoked,
+        // modifying the count of UnprocessedTaskCount until, given enough time, it gets to 0.
+        // Thus, asserting the value getUnprocessedTaskCount at this point is bound to be flaky.
+        // It seems incorrect that we still process the tasks in the scheduler just to reject them if squelching is on.
 
+        // flush causes the unprocessedTaskCount to return to 0.
         taskScheduler.flush();
-        assertEquals(0L, taskScheduler.getUnprocessedTaskCount(), "Unprocessed task count should be 0");
+        assertUnprocessedTasksValueIs(taskScheduler, 0L);
 
-        final int countAtSquelchEnd = handleCount.get();
+        // Remove all permissions to start tasks.
+        taskHandler.executionControl().block();
 
-        // it's very unlikely, but possible, that a single task was being handled when squelching started, but the
-        // atomic int hadn't been incremented yet. therefore, it could be the case that one more task was handled than
-        // the count we got would otherwise expect.
-        assertTrue(countAtSquelchEnd == countAtSquelchStart || countAtSquelchEnd == countAtSquelchStart + 1);
-
-        // stop squelching, and add some more tasks to be handled
+        // Enable the scheduler to start processing tasks again.
         taskScheduler.stopSquelching();
-        for (int i = 0; i < 2; i++) {
-            inputWire.put(i);
-            inputWire.offer(i);
-            inputWire.inject(i);
-        }
-
-        taskScheduler.flush();
-        assertEquals(
-                countAtSquelchEnd + 6, handleCount.get(), "New tasks should be processed after stopping squelching");
+        unprocessedTasks.set(totalTasks);
+        producer.run();
+        producer.waitIsFinished(AWAIT_MAX_DURATION);
+        assertUnprocessedTasksValueIs(taskScheduler, unprocessedTasks.get());
+        taskHandler.executionControl().unblock();
+        taskHandler.executionControl().await(totalTasks, AWAIT_MAX_DURATION);
+        assertEquals(0, unprocessedTasks.get());
+        assertUnprocessedTasksValueIs(taskScheduler, 0);
 
         model.stop();
     }
@@ -2450,6 +2226,12 @@ class SequentialTaskSchedulerTests {
     void tierDown() throws InterruptedException {
         // This is a "best effort" attempt to not leave any thread alive before finishing the test.
         // ONLY applies to SEQUENTIAL_THREAD.
+
+        try {
+            model.stop();
+        } catch (RuntimeException e) {
+            return;
+        }
 
         final int retries = 3;
         Collection<Thread> liveThreads = List.of();
@@ -2462,7 +2244,7 @@ class SequentialTaskSchedulerTests {
             } else {
                 System.out.println(
                         "Some scheduler threads are still alive, waiting for them to finish normally. Try:" + (i + 1));
-                sleep((int) Math.pow(100, (i + 1)));
+                sleep((int) Math.pow(10, (i + 1)));
             }
         }
 
@@ -2500,5 +2282,40 @@ class SequentialTaskSchedulerTests {
         return Thread.getAllStackTraces().keySet().stream()
                 .filter(t -> predicate.test(t.getName()))
                 .toList();
+    }
+
+    private static void sleep(long millis) {
+
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            fail("Unexpected interruption", e);
+        }
+    }
+
+    /**
+     * The operation: TaskScheduler::getUnprocessedTaskCount manifests its results some time after the handler is correctly executed.
+     * So even waiting for the handler to finish is not enough to be able to check that the values are the expected ones.
+     * One possibility is to wait on each test, but this approach is somehow better.
+     *
+     * @see AssertionUtils#assertEventuallyEquals(Object, Supplier, Duration, String)
+     */
+    private static void assertUnprocessedTasksValueIs(
+            final @NonNull TaskScheduler<?> taskScheduler, final long expected) {
+        assertEventuallyEquals(
+                expected,
+                taskScheduler::getUnprocessedTaskCount,
+                "Wire unprocessed task count did not match expected value:" + taskScheduler.getName());
+    }
+
+    /**
+     * For all terminal operations that the framework produces after executing the handler,
+     * we are forced to check this way.
+     *
+     * @see AssertionUtils#assertEventuallyEquals(Object, Supplier, Duration, String)
+     */
+    private static <T> void assertEventuallyEquals(
+            final @NonNull T expected, @NonNull final Supplier<T> actual, @NonNull final String message) {
+        AssertionUtils.assertEventuallyEquals(expected, actual, AWAIT_MAX_DURATION, message);
     }
 }

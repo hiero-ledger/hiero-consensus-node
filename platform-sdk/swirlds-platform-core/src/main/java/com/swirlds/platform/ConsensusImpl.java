@@ -45,8 +45,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -190,8 +188,6 @@ public class ConsensusImpl implements Consensus {
      * round for events
      */
     private InitJudges initJudges = null;
-    /** The ancient mode used to determine if an event is ancient or not. */
-    private final AncientMode ancientMode;
     /** The marker file writer */
     private final MarkerFileWriter markerFileWriter;
     /** The rate limited logger for rounds without a super majority of weight on judges */
@@ -227,11 +223,7 @@ public class ConsensusImpl implements Consensus {
         this.rosterTotalWeight = RosterUtils.computeTotalWeight(roster);
         this.rosterIndicesMap = RosterUtils.toIndicesMap(roster);
 
-        this.ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-        this.rounds = new ConsensusRounds(config, ancientMode, roster);
+        this.rounds = new ConsensusRounds(config, roster);
 
         this.noSuperMajorityLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
         this.noJudgeLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
@@ -767,8 +759,7 @@ public class ConsensusImpl implements Consensus {
                         // by default, we set the birth round for new events to the pending round
                         decidedRoundNumber + 1,
                         nonAncientThreshold,
-                        nonExpiredThreshold,
-                        ancientMode),
+                        nonExpiredThreshold),
                 new ConsensusSnapshot(
                         decidedRoundNumber,
                         List.of(),
@@ -952,7 +943,7 @@ public class ConsensusImpl implements Consensus {
      * @return true if the event is ancient
      */
     private boolean ancient(@Nullable final EventImpl x) {
-        return x == null || x.getAgeValue(ancientMode) < rounds.getAncientThreshold();
+        return x == null || x.getBirthRound() < rounds.getAncientThreshold();
     }
 
     /**

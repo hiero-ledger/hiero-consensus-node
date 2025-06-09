@@ -4,7 +4,6 @@ package org.hiero.consensus.event;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -13,8 +12,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
@@ -50,14 +47,9 @@ public class FutureEventBuffer {
      * Constructor.
      */
     public FutureEventBuffer(
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final FutureEventBufferingOption bufferingOption) {
+            @NonNull final Metrics metrics, @NonNull final FutureEventBufferingOption bufferingOption) {
         this.bufferingOption = bufferingOption;
-        final AncientMode ancientMode =
-                configuration.getConfigData(EventConfig.class).getAncientMode();
-
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventWindow = EventWindow.getGenesisEventWindow();
 
         metrics.getOrCreate(
                 new FunctionGauge.Config<>("platform", "futureEventBuffer", Long.class, bufferedEventCount::get)

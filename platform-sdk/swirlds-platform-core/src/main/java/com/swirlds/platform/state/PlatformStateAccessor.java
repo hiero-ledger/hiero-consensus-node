@@ -7,7 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * This interface represents the platform state and provide access to the state's properties.
@@ -56,9 +55,9 @@ public interface PlatformStateAccessor {
      * indicator that is greater than or equal to this value are non-ancient. All events with an ancient indicator less
      * than this value are ancient.
      * <p>
-     * When running in {@link AncientMode#GENERATION_THRESHOLD}, this value is the minimum generation non-ancient. When
-     * running in {@link AncientMode#BIRTH_ROUND_THRESHOLD}, this value is the minimum birth round non-ancient.
+     * This value is the minimum birth round non-ancient.
      * </p>
+     *
      * @return the ancient threshold after this round has reached consensus
      * @throws IllegalStateException if no minimum judge info is found in the state
      */

@@ -15,6 +15,7 @@ import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.internal.TransformingOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -30,16 +31,23 @@ public abstract class OutputWire<OUT> {
 
     private final TraceableWiringModel model;
     private final String name;
+    private final UncaughtExceptionHandler uncaughtExceptionHandler;
 
     /**
      * Constructor.
      *
-     * @param model the wiring model containing this output wire
-     * @param name  the name of the output wire
+     * @param model                    the wiring model containing this output wire
+     * @param name                     the name of the output wire
+     * @param uncaughtExceptionHandler handler for uncaught exceptions that occur while processing data on this output
+     *                                 wire
      */
-    public OutputWire(@NonNull final TraceableWiringModel model, @NonNull final String name) {
+    public OutputWire(
+            @NonNull final TraceableWiringModel model,
+            @NonNull final String name,
+            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler) {
         this.model = Objects.requireNonNull(model);
         this.name = Objects.requireNonNull(name);
+        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
     }
 
     /**
@@ -61,6 +69,17 @@ public abstract class OutputWire<OUT> {
     @NonNull
     protected TraceableWiringModel getModel() {
         return model;
+    }
+
+    /**
+     * Get the uncaught exception handler for this output wire. This handler is called when an uncaught exception
+     * occurs while processing data on this output wire.
+     *
+     * @return the uncaught exception handler
+     */
+    @NonNull
+    protected UncaughtExceptionHandler getUncaughtExceptionHandler() {
+        return uncaughtExceptionHandler;
     }
 
     /**
@@ -255,6 +274,7 @@ public abstract class OutputWire<OUT> {
         final TransformingOutputWire<OUT, NEW_OUT> outputWire = new TransformingOutputWire<>(
                 model,
                 transformer.getTransformerName(),
+                getUncaughtExceptionHandler(),
                 transformer::transform,
                 transformer::inputCleanup,
                 transformer::outputCleanup);

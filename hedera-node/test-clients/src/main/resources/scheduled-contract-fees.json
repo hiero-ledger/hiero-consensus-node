@@ -6924,6 +6924,51 @@
 		  ]
 		}
 	  },
+      {
+		"transactionFeeSchedule": {
+		  "hederaFunctionality": "AtomicBatch",
+		  "fees": [
+			{
+			  "nodedata": {
+				"constant": 54605,
+				"bpt": 87,
+				"vpt": 218244,
+				"rbh": 0,
+				"sbh": 0,
+				"gas": 1,
+				"bpr": 87,
+				"sbpr": 2,
+				"min": 0,
+				"max": 1000000000000000
+			  },
+			  "networkdata": {
+				"constant": 873685,
+				"bpt": 1397,
+				"vpt": 3491900,
+				"rbh": 1,
+				"sbh": 0,
+				"gas": 9,
+				"bpr": 1397,
+				"sbpr": 35,
+				"min": 0,
+				"max": 1000000000000000
+			  },
+			  "servicedata": {
+				"constant": 873685,
+				"bpt": 1397,
+				"vpt": 3491900,
+				"rbh": 1,
+				"sbh": 0,
+				"gas": 9,
+				"bpr": 1397,
+				"sbpr": 35,
+				"min": 0,
+				"max": 1000000000000000
+			  }
+			}
+		  ]
+		}
+	  },
 	  {
 		"expiryTime": 1633392000
 	  }

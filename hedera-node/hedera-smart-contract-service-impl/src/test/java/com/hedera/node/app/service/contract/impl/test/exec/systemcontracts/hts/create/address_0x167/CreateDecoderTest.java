@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.address_0x167;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V1_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V2_TUPLE;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.CREATE_FUNGIBLE_V3_TUPLE;
@@ -84,6 +85,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateTokenWithCustomFeesV1() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V1_TUPLE)
                 .array();
@@ -96,6 +98,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateTokenWithCustomFeesV2() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V2_TUPLE)
                 .array();
@@ -108,6 +111,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateTokenWithCustomFeesV3() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V3_TUPLE)
                 .array();
@@ -153,6 +157,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateNonFungibleWithCustomFeesV1() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V1_TUPLE)
                 .array();
@@ -165,6 +170,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateNonFungibleWithCustomFeesV2() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V2_TUPLE)
                 .array();
@@ -177,6 +183,7 @@ class CreateDecoderTest {
 
     @Test
     void decodeCreateNonFungibleWithCustomFeesV3() {
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V3_TUPLE)
                 .array();

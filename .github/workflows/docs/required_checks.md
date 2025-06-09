@@ -20,6 +20,7 @@
 - HAPI Tests (Token) / Standard - :tada:
 - HAPI Tests (Restart) / Standard - :tada:
 - HAPI Tests (ISS) / Standard - :tada:
+- Otter Tests / Standard - :tada:
 - Title Check - :tada:
 - Spotless / Check - :tada:
 - Milestone Check - :tada:

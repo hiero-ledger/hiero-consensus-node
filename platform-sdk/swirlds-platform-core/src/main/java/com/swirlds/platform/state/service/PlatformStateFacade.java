@@ -25,9 +25,9 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**
- * This class is an entry point for the platform state. Though the class itself is stateless, given an instance of {@link State},
- * it can find an instance of {@link PlatformStateAccessor} or {@link PlatformStateModifier} and provide access to particular properties
- * of the platform state.
+ * This class is an entry point for the platform state. Though the class itself is stateless, given an instance of
+ * {@link State}, it can find an instance of {@link PlatformStateAccessor} or {@link PlatformStateModifier} and provide
+ * access to particular properties of the platform state.
  */
 public class PlatformStateFacade {
 
@@ -35,6 +35,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the creation version of the platform state if it exists.
+     *
      * @param state the state to extract the creation version from
      * @return the creation version of the platform state, or null if the state is a genesis state
      */
@@ -59,6 +60,7 @@ public class PlatformStateFacade {
 
     /**
      * Determines if the provided {@code state} is a genesis state.
+     *
      * @param state the state to check
      * @return true if the state is a genesis state
      */
@@ -93,6 +95,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the creation version of the state if it was deserialized, or null otherwise.
+     *
      * @param state the state
      * @return the version of the state if it was deserialized, otherwise null
      */
@@ -111,6 +114,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the round number of the platform state if it exists.
+     *
      * @param root the root to extract the round number from
      * @return the round number of the platform state, or zero if the state is a genesis state
      */
@@ -121,6 +125,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns an instance of {@link PlatformState} if it exists.
+     *
      * @param state the state to extract the platform state from
      * @return the platform state, or null if the state is a genesis state
      */
@@ -137,6 +142,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the legacy running event hash if it exists.
+     *
      * @param state the state to extract the legacy running event hash from
      * @return the legacy running event hash, or null if the state is a genesis state
      */
@@ -146,8 +152,9 @@ public class PlatformStateFacade {
     }
 
     /**
-     * Given a {@link State}, for the oldest non-ancient round, get the lowest ancient indicator out of all of those round's judges.
-     * See {@link PlatformStateAccessor#getAncientThreshold()} for more information.
+     * Given a {@link State}, for the oldest non-ancient round, get the lowest ancient indicator out of all of those
+     * round's judges. See {@link PlatformStateAccessor#getAncientThreshold()} for more information.
+     *
      * @param state the state to extract the ancient threshold from
      * @return the ancient threshold, or zero if the state is a genesis state
      */
@@ -157,6 +164,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the consensus snapshot if it exists.
+     *
      * @param root the root to extract the consensus snapshot from
      * @return the consensus snapshot, or null if the state is a genesis state
      */
@@ -166,8 +174,9 @@ public class PlatformStateFacade {
     }
 
     /**
-     * Given a {@link State}, returns the first software version where the birth round migration happened,
-     * or null if birth round migration has not yet happened.
+     * Given a {@link State}, returns the first software version where the birth round migration happened, or null if
+     * birth round migration has not yet happened.
+     *
      * @param state the state to extract the first version in birth round mode from
      * @return the number of non-ancient rounds, or zero if the state is a genesis state
      */
@@ -178,6 +187,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the last round before the birth round mode was enabled.
+     *
      * @param root the root to extract the round number from
      * @return the last round before the birth round mode was enabled, or zero if the state is a genesis state
      */
@@ -187,6 +197,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, lowest judge generation before birth round mode.
+     *
      * @param state the state to extract the judge generation from
      * @return the number of non-ancient rounds, or zero if the state is a genesis state
      */
@@ -196,6 +207,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns consensus timestamp if it exists.
+     *
      * @param state the state to extract the consensus timestamp from
      * @return the consensus timestamp, or null if the state is a genesis state
      */
@@ -206,6 +218,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the freeze time of the state if it exists.
+     *
      * @param state the state to extract the freeze time from
      * @return the freeze time, or null if the state is a genesis state
      */
@@ -215,6 +228,7 @@ public class PlatformStateFacade {
 
     /**
      * Update the last frozen time of the state.
+     *
      * @param state the state to update
      */
     public void updateLastFrozenTime(@NonNull final State state) {
@@ -223,6 +237,7 @@ public class PlatformStateFacade {
 
     /**
      * Given a {@link State}, returns the last frozen time of the state if it exists.
+     *
      * @param state the state to extract the last frozen time from
      * @return the last frozen time, or null if the state is a genesis state
      */
@@ -232,8 +247,8 @@ public class PlatformStateFacade {
     }
 
     /**
-     * Get writable platform state. Works only on mutable {@link State}.
-     * Call this method only if you need to modify the platform state.
+     * Get writable platform state. Works only on mutable {@link State}. Call this method only if you need to modify the
+     * platform state.
      *
      * @return mutable platform state
      */
@@ -247,6 +262,7 @@ public class PlatformStateFacade {
 
     /**
      * This is a convenience method to update multiple fields in the platform state in a single operation.
+     *
      * @param updater a consumer that updates the platform state
      */
     public void bulkUpdateOf(@NonNull final State state, @NonNull Consumer<PlatformStateModifier> updater) {

@@ -16,9 +16,7 @@ public class EventImplTest {
     void validateEqualsHashCodeCompareTo() {
         final List<EventImpl> list = EqualsVerifier.generateObjects(
                 random -> createEventImpl(
-                        new TestingEventBuilder(random)
-                                .overrideSelfParentGeneration(random.nextLong(0, Long.MAX_VALUE))
-                                .overrideOtherParentGeneration(random.nextLong(0, Long.MAX_VALUE)),
+                        new TestingEventBuilder(random),
                         createEventImpl(new TestingEventBuilder(random), null, null),
                         createEventImpl(new TestingEventBuilder(random), null, null)),
                 new long[] {1, 1, 2});

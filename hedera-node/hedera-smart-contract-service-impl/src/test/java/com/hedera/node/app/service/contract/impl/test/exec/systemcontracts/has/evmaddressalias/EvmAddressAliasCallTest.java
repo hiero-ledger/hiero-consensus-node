@@ -37,7 +37,6 @@ class EvmAddressAliasCallTest extends CallTestBase {
     void invalidAccountIdWhenNotLongZero() {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject = new EvmAddressAliasCall(attempt, APPROVED_HEADLONG_ADDRESS);
 
         final var result = subject.execute(frame).fullResult().result();

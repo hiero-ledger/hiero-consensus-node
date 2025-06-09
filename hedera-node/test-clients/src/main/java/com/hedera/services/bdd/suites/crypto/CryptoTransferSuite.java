@@ -528,9 +528,9 @@ public class CryptoTransferSuite {
                     final var registry = spec.registry();
                     ftId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                     nftId.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
-                    partyId.set(accountIdFromHexedMirrorAddress(partyMirrorAddr.get()));
+                    partyId.set(accountIdFromHexedMirrorAddress(spec, partyMirrorAddr.get()));
                     partyLiteral.set(asAccountString(partyId.get()));
-                    counterId.set(accountIdFromHexedMirrorAddress(counterMirrorAddr.get()));
+                    counterId.set(accountIdFromHexedMirrorAddress(spec, counterMirrorAddr.get()));
                     counterLiteral.set(asAccountString(counterId.get()));
                 }),
                 sourcing(() -> tokenAssociate(partyLiteral.get(), List.of(FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN))

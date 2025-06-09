@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -13,6 +14,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
@@ -35,6 +37,9 @@ class UpdateDecoderTest {
 
     @Mock
     private AddressIdConverter addressIdConverter;
+
+    @Mock
+    protected HederaNativeOperations nativeOperations;
 
     private final String newName = "NEW NAME";
     private final String metadata = "LionTigerBear";
@@ -67,6 +72,8 @@ class UpdateDecoderTest {
         final var encoded = Bytes.wrapByteBuffer(TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.encodeCallWithArgs(
                 FUNGIBLE_TOKEN_HEADLONG_ADDRESS, hederaTokenWithMetadata));
         given(attempt.input()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var body = subject.decodeTokenUpdateWithMetadata(attempt);
         final var tokenUpdate = body.tokenUpdateOrThrow();
@@ -78,6 +85,8 @@ class UpdateDecoderTest {
         final var encoded = Bytes.wrapByteBuffer(UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA.encodeCallWithArgs(
                 NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS, new long[] {1, 2, 3}, "Jerry".getBytes()));
         given(attempt.input()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var body = subject.decodeUpdateNFTsMetadata(attempt);
         final var tokenUpdate = requireNonNull(body).tokenUpdateNftsOrThrow();

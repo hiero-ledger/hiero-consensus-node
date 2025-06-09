@@ -70,7 +70,8 @@ public class UpdateDecoder extends UpdateCommonDecoder {
         final var call = UpdateNFTsMetadataTranslator.UPDATE_NFTs_METADATA.decodeCall(
                 attempt.input().toArrayUnsafe());
 
-        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final var tokenId =
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(TOKEN_ADDRESS));
         final List<Long> serialNumbers = Longs.asList(call.get(SERIAL_NUMBERS));
         final byte[] metadata = call.get(METADATA);
 
@@ -88,7 +89,8 @@ public class UpdateDecoder extends UpdateCommonDecoder {
 
         final var call = decodeCall(attempt);
 
-        final var tokenId = ConversionUtils.asTokenId(call.get(TOKEN_ADDRESS));
+        final var tokenId =
+                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(TOKEN_ADDRESS));
         final var tokenKeys =
                 decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter(), attempt.nativeOperations());
 

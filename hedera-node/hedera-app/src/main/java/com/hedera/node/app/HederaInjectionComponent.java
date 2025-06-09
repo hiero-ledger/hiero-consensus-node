@@ -59,7 +59,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -70,7 +69,6 @@ import java.nio.charset.Charset;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -101,7 +99,7 @@ public interface HederaInjectionComponent {
 
     WorkingStateAccessor workingStateAccessor();
 
-    Consumer<State> initializer();
+    FacilityInitModule.FacilityInitializer initializer();
 
     RecordCache recordCache();
 

@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.event;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -64,18 +63,10 @@ public class RandomEventUtils {
 
         final EventDescriptorWrapper selfDescriptor = (selfParent == null || selfParent.getBaseHash() == null)
                 ? null
-                : new EventDescriptorWrapper(new EventDescriptor(
-                        selfParent.getBaseHash().getBytes(),
-                        selfParent.getCreatorId().id(),
-                        selfParent.getBaseEvent().getBirthRound(),
-                        selfParent.getGeneration()));
+                : selfParent.getBaseEvent().getDescriptor();
         final EventDescriptorWrapper otherDescriptor = (otherParent == null || otherParent.getBaseHash() == null)
                 ? null
-                : new EventDescriptorWrapper(new EventDescriptor(
-                        otherParent.getBaseHash().getBytes(),
-                        otherParent.getCreatorId().id(),
-                        otherParent.getBaseEvent().getBirthRound(),
-                        otherParent.getGeneration()));
+                : otherParent.getBaseEvent().getDescriptor();
 
         final List<Bytes> convertedTransactions = new ArrayList<>();
         if (transactions != null) {

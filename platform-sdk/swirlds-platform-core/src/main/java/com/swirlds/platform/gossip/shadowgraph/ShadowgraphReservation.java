@@ -2,13 +2,11 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
- * Represents zero or more reservations for an ancient indicator (i.e. a generation or a birth round, depending on
- * current {@link AncientMode andient mode}). It is used to determine when it is safe to
- * expire events in a given ancient indicator. Reservations are made by gossip threads inside {@link Shadowgraph}.
- * Ancient indicators that have at least one reservation may not have any of its events expired.
+ * Represents zero or more reservations for an ancient indicator (i.e. the birth round). It is used to determine when it
+ * is safe to expire events in a given ancient indicator. Reservations are made by gossip threads inside
+ * {@link Shadowgraph}. Ancient indicators that have at least one reservation may not have any of its events expired.
  */
 public final class ShadowgraphReservation implements AutoCloseable {
 

@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-@Disabled("This test needs to be investigated")
+@Disabled("This test needs to be updated to use protobuf data")
 public class DataFileReaderHammerTest {
 
     @Test

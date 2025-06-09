@@ -14,6 +14,7 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
@@ -91,8 +92,8 @@ class SimulatedGossipTests {
 
             final List<PlatformEvent> receivedEventsForNode = new ArrayList<>();
             receivedEvents.put(nodeId, receivedEventsForNode);
-            final StandardOutputWire<PlatformEvent> eventOutputWire =
-                    new StandardOutputWire<>((TraceableWiringModel) model, "eventOutputWire");
+            final StandardOutputWire<PlatformEvent> eventOutputWire = new StandardOutputWire<>(
+                    (TraceableWiringModel) model, "eventOutputWire", ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
             eventOutputWire.solderTo("handleOutputEvent", "event", receivedEventsForNode::add);
 
             final BindableInputWire<PlatformEvent, Void> eventInputWire =
