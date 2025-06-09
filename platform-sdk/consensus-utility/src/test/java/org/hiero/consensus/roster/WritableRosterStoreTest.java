@@ -282,7 +282,7 @@ class WritableRosterStoreTest {
     }
 
     @Test
-    void testSameRosterDoesNotRotate() {
+    void testDoesNotSetSameRoster() {
         final Roster roster = createValidTestRoster(1);
 
         // First set the active roster (and remember its hash)
