@@ -37,26 +37,29 @@ public class MintDecoder {
         final var call = MintTranslator.MINT.decodeCall(attempt.inputBytes());
         final var amount = ((BigInteger) call.get(1)).longValueExact();
         return TransactionBody.newBuilder()
-                .tokenMint(mint(call.get(0), amount, call.get(2)))
+                .tokenMint(mint(attempt, call.get(0), amount, call.get(2)))
                 .build();
     }
 
     public TransactionBody decodeMintV2(@NonNull final HtsCallAttempt attempt) {
         final var call = MintTranslator.MINT_V2.decodeCall(attempt.inputBytes());
         return TransactionBody.newBuilder()
-                .tokenMint(mint(call.get(0), call.get(1), call.get(2)))
+                .tokenMint(mint(attempt, call.get(0), call.get(1), call.get(2)))
                 .build();
     }
 
     private TokenMintTransactionBody mint(
-            @NonNull final Address token, final long amount, @NonNull final byte[][] metadataArray) {
+            @NonNull final HtsCallAttempt attempt,
+            @NonNull final Address token,
+            final long amount,
+            @NonNull final byte[][] metadataArray) {
         final List<Bytes> metadata = new ArrayList<>();
         for (final var data : metadataArray) {
             metadata.add(Bytes.wrap(data));
         }
 
         return TokenMintTransactionBody.newBuilder()
-                .token(ConversionUtils.asTokenId(token))
+                .token(ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), token))
                 .amount(amount)
                 .metadata(metadata)
                 .build();

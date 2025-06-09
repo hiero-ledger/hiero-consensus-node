@@ -307,7 +307,7 @@ public class FrameUtils {
         requireNonNull(featureFlags);
 
         Long maybeGrandfatheredNumber = null;
-        if (isLongZero(entityIdFactory(frame), address)) {
+        if (isLongZero(address)) {
             try {
                 maybeGrandfatheredNumber =
                         asNumberedContractId(entityIdFactory(frame), address).contractNum();
@@ -357,7 +357,7 @@ public class FrameUtils {
     }
 
     private static boolean isQualifiedDelegate(@NonNull final Address recipient, @NonNull final MessageFrame frame) {
-        return isLongZero(entityIdFactory(frame), recipient)
+        return isLongZero(recipient)
                 && contractsConfigOf(frame).permittedDelegateCallers().contains(numberOfLongZero(recipient));
     }
 

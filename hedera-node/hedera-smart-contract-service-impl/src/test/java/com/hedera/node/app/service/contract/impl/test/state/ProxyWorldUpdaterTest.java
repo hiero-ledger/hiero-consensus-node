@@ -301,7 +301,6 @@ class ProxyWorldUpdaterTest {
                 .willReturn(ADDRESS_6.toBigInteger().longValueExact());
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(1234L);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupInternalAliasedCreate(ADDRESS_6, SOME_EVM_ADDRESS);
         subject.createAccount(SOME_EVM_ADDRESS, 1, Wei.ZERO);
@@ -316,7 +315,6 @@ class ProxyWorldUpdaterTest {
         given(evmFrameState.getMutableAccount(SOME_EVM_ADDRESS)).willReturn(mutableAccount);
         given(hederaOperations.contractCreationLimit()).willReturn(1234L);
         given(hederaOperations.accountCreationLimit()).willReturn(1234L);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupAliasedTopLevelCreate(ContractCreateTransactionBody.DEFAULT, SOME_EVM_ADDRESS);
         subject.createAccount(SOME_EVM_ADDRESS, 1, Wei.ZERO);
@@ -378,7 +376,6 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void dispatchesDeletingLongZeroAddressByNumber() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject.deleteAccount(ADDRESS_6);
 
         verify(hederaOperations)
@@ -387,7 +384,6 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void dispatchesDeletingEvmAddressByAddress() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         subject.deleteAccount(SOME_EVM_ADDRESS);
 
         verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS));

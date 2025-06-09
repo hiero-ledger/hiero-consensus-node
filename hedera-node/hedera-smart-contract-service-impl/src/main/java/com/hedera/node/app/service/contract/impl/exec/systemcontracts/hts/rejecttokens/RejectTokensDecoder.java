@@ -52,7 +52,7 @@ public class RejectTokensDecoder {
         var referenceList = new ArrayList<TokenReference>();
         for (Address ftAddress : ftAddresses) {
             final var tokenReference = TokenReference.newBuilder()
-                    .fungibleToken(asTokenId(ftAddress))
+                    .fungibleToken(asTokenId(attempt.nativeOperations().entityIdFactory(), ftAddress))
                     .build();
             referenceList.add(tokenReference);
         }
@@ -61,7 +61,7 @@ public class RejectTokensDecoder {
             final var nftIdSerial = (long) nftId.get(NFT_ID_SERIAL_INDEX);
             final var nftReference = TokenReference.newBuilder()
                     .nft(NftID.newBuilder()
-                            .tokenId(asTokenId(nftIdAddress))
+                            .tokenId(asTokenId(attempt.nativeOperations().entityIdFactory(), nftIdAddress))
                             .serialNumber(nftIdSerial)
                             .build())
                     .build();
