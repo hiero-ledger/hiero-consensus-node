@@ -13,7 +13,7 @@ defaults:
 
 permissions:
   contents: write
-
+break
 jobs:
   update-gs-state-variable:
     name: Update GS_STATE Variable
