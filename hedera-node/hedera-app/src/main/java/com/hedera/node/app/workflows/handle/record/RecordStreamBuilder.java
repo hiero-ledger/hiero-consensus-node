@@ -2,7 +2,6 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
@@ -202,11 +201,6 @@ public class RecordStreamBuilder
     private HederaFunctionality function;
 
     /**
-     * The type of contract operation that was performed.
-     */
-    private ContractOpType contractOpType = null;
-
-    /**
      * ops duration used by the contract transaction
      */
     private long opsDuration;
@@ -325,13 +319,7 @@ public class RecordStreamBuilder
         contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-
-        // null out the contract ID if this is a contract create or if rolling back successful transaction
-        if ((contractOpType != null
-                        && (contractOpType == ContractOpType.ETH_CREATE || contractOpType == ContractOpType.CREATE))
-                || SUCCESS.equals(status)) {
-            transactionReceiptBuilder.contractID((ContractID) null);
-        }
+        transactionReceiptBuilder.contractID((ContractID) null);
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
@@ -526,13 +514,6 @@ public class RecordStreamBuilder
     public RecordStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
         transactionRecordBuilder.contractCreateResult(contractCreateResult);
         this.contractFunctionResult = contractCreateResult;
-        if (contractCreateResult != null) {
-            if (contractOpType != ContractOpType.ETH_THROTTLED) {
-                contractOpType = ContractOpType.CREATE;
-            } else {
-                contractOpType = ContractOpType.ETH_CREATE;
-            }
-        }
         return this;
     }
 
@@ -704,7 +685,6 @@ public class RecordStreamBuilder
     @NonNull
     public RecordStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash) {
         requireNonNull(ethereumHash, "ethereumHash must not be null");
-        contractOpType = ContractOpType.ETH_THROTTLED;
         transactionRecordBuilder.ethereumHash(ethereumHash);
         return this;
     }
