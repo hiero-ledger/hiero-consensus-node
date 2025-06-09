@@ -61,6 +61,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -509,9 +510,9 @@ public abstract class NewStateRoot<T extends NewStateRoot<T>> implements State {
         MerkleStates(@NonNull final Map<String, StateMetadata<?, ?>> stateMetadata) {
             this.stateMetadata = requireNonNull(stateMetadata);
             this.stateKeys = Collections.unmodifiableSet(stateMetadata.keySet());
-            this.kvInstances = new HashMap<>();
-            this.singletonInstances = new HashMap<>();
-            this.queueInstances = new HashMap<>();
+            this.kvInstances = new TreeMap<>();
+            this.singletonInstances = new TreeMap<>();
+            this.queueInstances = new TreeMap<>();
         }
 
         @NonNull
