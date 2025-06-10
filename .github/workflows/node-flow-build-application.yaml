@@ -285,13 +285,10 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Report failure (slack)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
-        with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload: |
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          SLACK_PAYLOAD=$(cat <<EOF
             {
               "attachments": [
                 {
@@ -401,3 +398,23 @@ jobs:
                 }
               ]
             }
+            EOF
+          )
+
+          echo "slack-payload=${SLACK_PAYLOAD}" >> "${GITHUB_OUTPUT}"
+
+      - name: Report failure (slack  citr-operations)
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: ${{ steps.payload.outputs.slack-payload }}
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: ${{ steps.payload.outputs.slack-payload }}
