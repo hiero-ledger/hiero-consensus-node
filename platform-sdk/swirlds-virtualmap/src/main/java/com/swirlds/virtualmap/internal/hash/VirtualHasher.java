@@ -357,19 +357,16 @@ public final class VirtualHasher {
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            @Nullable VirtualHashListener listener,
+            final @Nullable VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
-        if (listener == null) {
-            listener =
-                    new VirtualHashListener() {
-                        /* noop */
-                    };
-        }
-
-        final VirtualHashListener listenerToUse = listener;
+        final VirtualHashListener normalizedListener = listener == null
+                ? new VirtualHashListener() {
+                    /* noop */
+                }
+                : listener;
 
         ForkJoinPool hashingPool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
                 ? thread.getPool()
@@ -380,7 +377,7 @@ public final class VirtualHasher {
                 sortedDirtyLeaves,
                 firstLeafPath,
                 lastLeafPath,
-                listenerToUse,
+                normalizedListener,
                 virtualMapConfig,
                 hashingPool)));
     }
@@ -402,7 +399,7 @@ public final class VirtualHasher {
      * @param listener
      *      Hash listener. May be {@code null}
      * @param virtualMapConfig platform configuration for VirtualMap
-     * @param hashingPool the pool to use for hashing tasks.
+     * @param pool the pool to use for hashing tasks.
      * @return calculated root hash, or null if there are no dirty leaves to hash.
      */
     private Hash hashInternal(
@@ -410,9 +407,9 @@ public final class VirtualHasher {
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            @Nullable VirtualHashListener listener,
+            final @Nullable VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig,
-            final @NonNull ForkJoinPool hashingPool) {
+            final @NonNull ForkJoinPool pool) {
         // Let the listener know we have started hashing.
         listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
@@ -461,7 +458,7 @@ public final class VirtualHasher {
         final HashMap<Long, HashProducingTask> allTasks = new HashMap<>();
 
         final int rootTaskHeight = Math.min(firstLeafRank, chunkHeight);
-        final ChunkHashTask rootTask = new ChunkHashTask(hashingPool, ROOT_PATH, rootTaskHeight);
+        final ChunkHashTask rootTask = new ChunkHashTask(pool, ROOT_PATH, rootTaskHeight);
         // The root task doesn't have an output. Still need to call setOut() to set the dependency
         rootTask.setOut(null);
         allTasks.put(ROOT_PATH, rootTask);
@@ -483,7 +480,7 @@ public final class VirtualHasher {
             long curPath = leaf.path();
             LeafHashTask leafTask = (LeafHashTask) allTasks.remove(curPath);
             if (leafTask == null) {
-                leafTask = new LeafHashTask(hashingPool, curPath);
+                leafTask = new LeafHashTask(pool, curPath);
             }
             leafTask.setLeaf(leaf);
 
@@ -537,7 +534,7 @@ public final class VirtualHasher {
                 // Parent task is always a chunk task
                 ChunkHashTask parentTask = (ChunkHashTask) allTasks.remove(parentPath);
                 if (parentTask == null) {
-                    parentTask = new ChunkHashTask(hashingPool, parentPath, parentChunkHeight);
+                    parentTask = new ChunkHashTask(pool, parentPath, parentChunkHeight);
                 }
                 curTask.setOut(parentTask);
 
@@ -571,13 +568,13 @@ public final class VirtualHasher {
                         if (siblingPath >= firstLeafPath) {
                             // Leaf sibling
                             assert !allTasks.containsKey(siblingPath);
-                            siblingTask = allTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(hashingPool, p));
+                            siblingTask = allTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(pool, p));
                         } else {
                             // Chunk sibling
                             final int taskChunkHeight =
                                     getChunkHeightForOutputRank(curRank, firstLeafRank, lastLeafRank, chunkHeight);
                             siblingTask = allTasks.computeIfAbsent(
-                                    siblingPath, path -> new ChunkHashTask(hashingPool, path, taskChunkHeight));
+                                    siblingPath, path -> new ChunkHashTask(pool, path, taskChunkHeight));
                         }
                         // Set sibling task output to the same parent
                         siblingTask.setOut(parentTask);
