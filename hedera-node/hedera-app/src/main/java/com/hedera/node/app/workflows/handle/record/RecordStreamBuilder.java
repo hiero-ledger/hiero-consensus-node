@@ -8,6 +8,8 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -33,6 +35,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -1067,10 +1070,22 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
     @Override
-    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
-        this.opsDuration = opsDuration;
-        return this;
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
     }
 
     /**

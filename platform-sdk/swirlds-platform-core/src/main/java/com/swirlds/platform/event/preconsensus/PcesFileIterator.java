@@ -9,9 +9,7 @@ import java.io.EOFException;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -20,7 +18,6 @@ import org.hiero.consensus.model.event.PlatformEvent;
 public class PcesFileIterator implements IOIterator<PlatformEvent> {
 
     private final long lowerBound;
-    private final AncientMode fileType;
     private final SerializableDataInputStream stream;
     private boolean hasPartialEvent = false;
     private PlatformEvent next;
@@ -33,14 +30,10 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
      * @param fileDescriptor describes a preconsensus event file
      * @param lowerBound     the lower bound for all events to be returned, corresponds to either generation or birth
      *                       round depending on the {@link PcesFile} type
-     * @param fileType       the type of file to read
      */
-    public PcesFileIterator(
-            @NonNull final PcesFile fileDescriptor, final long lowerBound, @NonNull final AncientMode fileType)
-            throws IOException {
+    public PcesFileIterator(@NonNull final PcesFile fileDescriptor, final long lowerBound) throws IOException {
 
         this.lowerBound = lowerBound;
-        this.fileType = Objects.requireNonNull(fileType);
         stream = new SerializableDataInputStream(new BufferedInputStream(
                 new FileInputStream(fileDescriptor.getPath().toFile())));
 
@@ -71,7 +64,7 @@ public class PcesFileIterator implements IOIterator<PlatformEvent> {
                         switch (fileVersion) {
                             case PROTOBUF_EVENTS -> new PlatformEvent(stream.readPbjRecord(GossipEvent.PROTOBUF));
                         };
-                if (fileType.selectIndicator(candidate) >= lowerBound) {
+                if (candidate.getBirthRound() >= lowerBound) {
                     next = candidate;
                 }
             } catch (final IOException e) {

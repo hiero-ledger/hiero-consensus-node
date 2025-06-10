@@ -78,7 +78,6 @@ class CustomCallOperationTest {
             given(frame.isStatic()).willReturn(true);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
 
             final var expected =
                     new Operation.OperationResult(REQUIRED_GAS, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
@@ -105,7 +104,6 @@ class CustomCallOperationTest {
             given(frame.isStatic()).willReturn(true);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
 
             final var expected =
                     new Operation.OperationResult(REQUIRED_GAS, ExceptionalHaltReason.ILLEGAL_STATE_CHANGE);
@@ -120,8 +118,6 @@ class CustomCallOperationTest {
         givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
         given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
-        given(entityIdFactory.hexLongZero(0)).willReturn("1234");
         given(addressChecks.isSystemAccount(SYSTEM_ADDRESS)).willReturn(true);
 
         final var expected = new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
@@ -136,7 +132,6 @@ class CustomCallOperationTest {
             givenWellKnownFrameWith(0L, TestHelpers.EIP_1014_ADDRESS, 2L);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
             frameUtils
                     .when(() -> FrameUtils.contractRequired(frame, EIP_1014_ADDRESS, featureFlags))
                     .thenReturn(true);
@@ -155,8 +150,6 @@ class CustomCallOperationTest {
             given(frame.getStackItem(1)).willReturn(TestHelpers.EIP_1014_ADDRESS);
             given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(2l)));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
-            frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
 
             final var expected = new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
             final var actual = subject.execute(frame, evm);
@@ -171,7 +164,6 @@ class CustomCallOperationTest {
             givenWellKnownFrameWith(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
-            given(entityIdFactory.hexLongZero(0)).willReturn("1234");
             frameUtils
                     .when(() -> FrameUtils.contractRequired(frame, TestHelpers.EIP_1014_ADDRESS, featureFlags))
                     .thenReturn(true);

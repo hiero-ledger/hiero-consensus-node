@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -40,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalcu
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
@@ -148,7 +150,7 @@ class FrameBuilderTest {
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
-        assertEquals(INTRINSIC_GAS, getHederaOpsDuration(frame));
+        assertEquals(0L, getHederaOpsDuration(frame));
     }
 
     @Test
@@ -320,6 +322,7 @@ class FrameBuilderTest {
         given(blocks.blockHashOf(SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
+                .withValue("contracts.sidecarValidationEnabled", true)
                 .getOrCreateConfig();
 
         final var frame = subject.buildInitialFrameWith(
@@ -332,6 +335,7 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS);
 
+        assertTrue(FrameUtils.hasActionValidationEnabled(frame));
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
         assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());

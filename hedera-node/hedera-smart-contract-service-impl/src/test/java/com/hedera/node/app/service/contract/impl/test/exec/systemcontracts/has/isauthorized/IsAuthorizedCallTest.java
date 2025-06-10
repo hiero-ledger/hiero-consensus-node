@@ -87,7 +87,6 @@ public class IsAuthorizedCallTest extends CallTestBase {
     void returnsErrorStatusForInvalidAddress() {
         // Not an account num alias, not an evm alias
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), any())).willReturn(MISSING_ENTITY_NUMBER);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         subject = getSubject(APPROVED_HEADLONG_ADDRESS);
 

@@ -18,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.R
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -41,7 +42,9 @@ public class CreateCommonDecoder {
      * @return list of {@link FixedFeeWrapper}
      */
     protected List<FixedFeeWrapper> decodeFixedFees(
-            @NonNull final Tuple[] fixedFeesTuples, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] fixedFeesTuples,
+            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final EntityIdFactory entityIdFactory) {
 
         // FixedFee
         final int AMOUNT = 0;
@@ -53,7 +56,7 @@ public class CreateCommonDecoder {
         final List<FixedFeeWrapper> fixedFees = new ArrayList<>(fixedFeesTuples.length);
         for (final var fixedFeeTuple : fixedFeesTuples) {
             final var amount = (long) fixedFeeTuple.get(AMOUNT);
-            final var tokenId = ConversionUtils.asTokenId(fixedFeeTuple.get(TOKEN_ID));
+            final var tokenId = ConversionUtils.asTokenId(entityIdFactory, fixedFeeTuple.get(TOKEN_ID));
             final var useHbarsForPayment = (Boolean) fixedFeeTuple.get(USE_HBARS_FOR_PAYMENTS);
             final var useCurrentTokenForPayment = (Boolean) fixedFeeTuple.get(USE_CURRENT_TOKEN_FOR_PAYMENT);
             final var feeCollector = addressIdConverter.convert(fixedFeeTuple.get(FEE_COLLECTOR));
@@ -108,7 +111,9 @@ public class CreateCommonDecoder {
      * @return list of {@link RoyaltyFeeWrapper}
      */
     protected List<RoyaltyFeeWrapper> decodeRoyaltyFees(
-            @NonNull final Tuple[] royaltyFeesTuples, @NonNull final AddressIdConverter addressIdConverter) {
+            @NonNull final Tuple[] royaltyFeesTuples,
+            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final EntityIdFactory entityIdFactory) {
 
         // RoyaltyFee
         final int NUMERATOR = 0;
@@ -125,7 +130,8 @@ public class CreateCommonDecoder {
             // When at least 1 of the following 3 values is different from its default value,
             // we treat it as though the user has tried to specify a fallbackFixedFee
             final var fixedFeeAmount = (long) royaltyFeeTuple.get(FIXED_FEE_AMOUNT);
-            final var fixedFeeTokenId = ConversionUtils.asTokenId(royaltyFeeTuple.get(FIXED_FEE_TOKEN_ID));
+            final var fixedFeeTokenId =
+                    ConversionUtils.asTokenId(entityIdFactory, royaltyFeeTuple.get(FIXED_FEE_TOKEN_ID));
             final var fixedFeeUseHbars = (Boolean) royaltyFeeTuple.get(FIXED_FEE_USE_HBARS);
             TokenCreateWrapper.FixedFeeWrapper fixedFee = null;
             if (fixedFeeAmount != 0 || fixedFeeTokenId.tokenNum() != 0 || Boolean.TRUE.equals(fixedFeeUseHbars)) {
