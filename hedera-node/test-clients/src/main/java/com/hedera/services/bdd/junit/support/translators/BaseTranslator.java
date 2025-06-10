@@ -549,7 +549,7 @@ public class BaseTranslator {
      */
     public static void mapTracesToVerboseLogs(
             @NonNull final ContractFunctionResult.Builder resultBuilder, @Nullable List<TraceData> traces) {
-        if (traces == null) {
+        if (traces == null || traces.stream().noneMatch(BaseTranslator::impliesLogs)) {
             resultBuilder.logInfo(List.of());
         } else {
             final List<Log> besuLogs = new ArrayList<>();
@@ -567,6 +567,22 @@ public class BaseTranslator {
                         verboseLogs.add(asContractLogInfo(log, besuLog));
                     }));
             resultBuilder.logInfo(verboseLogs).bloom(bloomForAll(besuLogs));
+        }
+    }
+
+    /**
+     * Determines if the given {@link TraceData} implies that there are logs present in the V6 function result.
+     * @param traceData the trace data to check
+     * @return true if the trace data implies logs, false otherwise
+     */
+    private static boolean impliesLogs(@NonNull final TraceData traceData) {
+        if (!traceData.hasEvmTraceData()) {
+            return false;
+        } else {
+            final var evmTraceData = traceData.evmTraceDataOrThrow();
+            return !evmTraceData.logs().isEmpty()
+                    || !evmTraceData.contractSlotUsages().isEmpty()
+                    || !evmTraceData.contractActions().isEmpty();
         }
     }
 
