@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -81,13 +82,23 @@ public class BlockState {
         }
 
         /**
+         * Marks this item as added to the block state.
+         */
+        boolean addedInBlockState() {
+            return state.compareAndSet(ItemState.NIL, ItemState.ADDED);
+        }
+
+        /**
          * Marks this item as being packed in the specified request.
          *
          * @param requestIdx index of the request in which this item was included - or packed - in
          */
-        void packedInRequest(final int requestIdx) {
-            state.set(ItemState.PACKED);
-            requestIndex.set(requestIdx);
+        boolean packedInRequest(final int requestIdx) {
+            if (state.compareAndSet(ItemState.ADDED, ItemState.PACKED)) {
+                requestIndex.set(requestIdx);
+                return true;
+            }
+            return false;
         }
     }
 
@@ -120,12 +131,12 @@ public class BlockState {
      */
     private final ItemInfo headerItemInfo = new ItemInfo();
     /**
-     * Object to track the state of the pre-proof state change item. This item marks the last item before the block
-     * proof is generated.
+     * Object to track the state of the block proof item.
      */
     private final ItemInfo proofItemInfo = new ItemInfo();
     /**
-     * Object to track the state of the block proof item.
+     * Object to track the state of the pre-proof state change item. This item marks the last item before the block
+     * proof is generated.
      */
     private final ItemInfo preProofItemInfo = new ItemInfo();
 
@@ -160,21 +171,21 @@ public class BlockState {
             throw new IllegalStateException("Block is closed; adding more items is not permitted");
         }
 
-        if (item.hasBlockHeader() && !headerItemInfo.state.compareAndSet(ItemState.NIL, ItemState.ADDED)) {
+        if (item.hasBlockHeader() && !headerItemInfo.addedInBlockState()) {
             logger.warn(
                     "[Block {}] Block header item added, but block header already encountered (state={})",
                     blockNumber,
                     headerItemInfo.state.get());
-        } else if (item.hasBlockProof() && !proofItemInfo.state.compareAndSet(ItemState.NIL, ItemState.ADDED)) {
+        } else if (item.hasBlockProof() && !proofItemInfo.addedInBlockState()) {
             logger.warn(
                     "[Block {}] Block proof item added, but block proof already encountered (state={})",
                     blockNumber,
                     proofItemInfo.state.get());
         } else if (item.hasStateChanges()
                 && isPreProofItemReceived(item.stateChangesOrElse(StateChanges.DEFAULT))
-                && !preProofItemInfo.state.compareAndSet(ItemState.NIL, ItemState.ADDED)) {
+                && !preProofItemInfo.addedInBlockState()) {
             logger.warn(
-                    "[Block {}] Block state changes item added, but state changes already encountered (state={})",
+                    "[Block {}] Pre-proof state change item added, but pre-proof state change already encountered (state={})",
                     blockNumber,
                     preProofItemInfo.state.get());
         }
@@ -272,15 +283,33 @@ public class BlockState {
             it.remove();
 
             if (item.hasBlockHeader()) {
-                logger.trace("[Block {}] Block header packed in request #{}", blockNumber, index);
-                headerItemInfo.packedInRequest(index);
+                if (headerItemInfo.packedInRequest(index)) {
+                    logger.trace("[Block {}] Block header packed in request #{}", blockNumber, index);
+                } else {
+                    logger.warn(
+                            "[Block {}] Block header item was not yet added (state={})",
+                            blockNumber,
+                            headerItemInfo.state.get());
+                }
             } else if (item.hasStateChanges()
                     && isPreProofItemReceived(item.stateChangesOrElse(StateChanges.DEFAULT))) {
-                logger.trace("[Block {}] Block state changes packed in request #{}", blockNumber, index);
-                preProofItemInfo.packedInRequest(index);
+                if (preProofItemInfo.packedInRequest(index)) {
+                    logger.trace("[Block {}] Pre-proof block state change packed in request #{}", blockNumber, index);
+                } else {
+                    logger.warn(
+                            "[Block {}] Pre-proof block state change was not yet added (state={})",
+                            blockNumber,
+                            preProofItemInfo.state.get());
+                }
             } else if (item.hasBlockProof()) {
-                logger.trace("[Block {}] Block proof packed in request #{}", blockNumber, index);
-                proofItemInfo.packedInRequest(index);
+                if (proofItemInfo.packedInRequest(index)) {
+                    logger.trace("[Block {}] Block proof packed in request #{}", blockNumber, index);
+                } else {
+                    logger.warn(
+                            "[Block {}] Block proof was not yet added (state={})",
+                            blockNumber,
+                            proofItemInfo.state.get());
+                }
             }
 
             if (!it.hasNext() || blockItems.size() == maxItems) {
@@ -334,11 +363,16 @@ public class BlockState {
      * @param stateChanges the changes associated with the item
      * @return true if this state changes include the block stream info value, else false
      */
-    private boolean isPreProofItemReceived(final StateChanges stateChanges) {
-        return stateChanges.stateChanges().stream()
+    private boolean isPreProofItemReceived(@NonNull final StateChanges stateChanges) {
+        final var updates = stateChanges.stateChanges().stream()
                 .map(StateChange::singletonUpdate)
                 .filter(Objects::nonNull)
-                .anyMatch(update -> update.hasBlockStreamInfoValue() && update.blockStreamInfoValue() != null);
+                .toList();
+
+        // We want to check if the block stream info value is the only singleton update state change
+        // because in genesis block, we will have one more occurrence of the block stream info value
+        // at the very beginning of the block.
+        return updates.size() == 1 && updates.getFirst().hasBlockStreamInfoValue();
     }
 
     @Override

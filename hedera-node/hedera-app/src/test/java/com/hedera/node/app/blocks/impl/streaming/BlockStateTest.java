@@ -398,6 +398,9 @@ class BlockStateTest {
         final ItemInfo proofInfo = proofItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
 
+        block.addItem(newBlockProofItem());
+        assertThat(proofInfo.state()).hasValue(ItemState.ADDED);
+
         proofInfo.packedInRequest(0);
         final RequestWrapper rw = new RequestWrapper(1, newRequest(newBlockTxItem()), new AtomicBoolean(false));
         requestsByIndex.put(1, rw);
@@ -412,6 +415,9 @@ class BlockStateTest {
     void testMarkRequestSent_valid_withProof() {
         final ItemInfo proofInfo = proofItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
+
+        block.addItem(newBlockProofItem());
+        assertThat(proofInfo.state()).hasValue(ItemState.ADDED);
 
         proofInfo.packedInRequest(0);
         final RequestWrapper rw = new RequestWrapper(0, newRequest(newBlockProofItem()), new AtomicBoolean(false));
