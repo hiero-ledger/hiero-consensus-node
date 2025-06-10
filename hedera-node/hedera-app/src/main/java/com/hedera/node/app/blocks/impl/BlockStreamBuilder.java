@@ -25,6 +25,7 @@ import com.hedera.hapi.block.stream.output.UtilPrngOutput;
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EVMTraceData;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -303,7 +304,14 @@ public class BlockStreamBuilder
     /**
      * The result of a contract function call or creation.
      */
+    @Deprecated
     private ContractFunctionResult contractFunctionResult;
+
+    /**
+     * If set, the EVM logs resulting from the transaction.
+     */
+    @Nullable
+    private List<EvmTransactionLog> logs;
 
     /**
      * If set, the contract slot usages resulting from the transaction.
@@ -487,13 +495,25 @@ public class BlockStreamBuilder
                 for (int k = i; k < j; k++) {
                     outputs[k - i] = blockItems.get(k).transactionOutput();
                 }
+                List<EvmTransactionLog> logs = null;
+                for (final var item : blockItems.subList(j, n)) {
+                    if (item.hasTraceData()) {
+                        final var traceData = item.traceDataOrThrow();
+                        if (traceData.hasEvmTraceData()) {
+                            if (logs == null) {
+                                logs = new ArrayList<>();
+                            }
+                            logs.addAll(traceData.evmTraceDataOrThrow().logs());
+                        }
+                    }
+                }
                 return (T)
                         switch (view) {
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
                                         translator.translateReceipt(translationContext, result, outputs));
-                            case RECORD -> translator.translateRecord(translationContext, result, outputs);
+                            case RECORD -> translator.translateRecord(translationContext, result, logs, outputs);
                         };
             } else {
                 return (T)
@@ -502,7 +522,7 @@ public class BlockStreamBuilder
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
                                         translator.translateReceipt(translationContext, result));
-                            case RECORD -> translator.translateRecord(translationContext, result);
+                            case RECORD -> translator.translateRecord(translationContext, result, null);
                         };
             }
         }
@@ -523,7 +543,7 @@ public class BlockStreamBuilder
                 .build());
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
-        if (slotUsages != null || contractActions != null || initcodes != null) {
+        if (slotUsages != null || contractActions != null || initcodes != null || logs != null) {
             final var builder = EVMTraceData.newBuilder();
             if (slotUsages != null) {
                 builder.contractSlotUsages(slotUsages);
@@ -533,6 +553,9 @@ public class BlockStreamBuilder
             }
             if (initcodes != null) {
                 builder.initcodes(initcodes);
+            }
+            if (logs != null) {
+                builder.logs(logs);
             }
             blockItems.add(BlockItem.newBuilder()
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
@@ -698,6 +721,13 @@ public class BlockStreamBuilder
                 contractOpType = ContractOpType.ETH_CALL;
             }
         }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder addLogs(@NonNull List<EvmTransactionLog> logs) {
+        this.logs = requireNonNull(logs);
         return this;
     }
 
@@ -1146,6 +1176,14 @@ public class BlockStreamBuilder
         }
         if (contractFunctionResult != null || ethereumHash != Bytes.EMPTY) {
             final var builder = TransactionOutput.newBuilder();
+            if (contractFunctionResult != null) {
+                // Clear log-related items to ensure they get translated from trace data in parity validator
+                final var resultBuilder = contractFunctionResult.copyBuilder();
+                if (!contractFunctionResult.logInfo().isEmpty()) {
+                    resultBuilder.logInfo(List.of());
+                }
+                contractFunctionResult = resultBuilder.bloom(Bytes.EMPTY).build();
+            }
             switch (requireNonNull(contractOpType)) {
                 case CREATE ->
                     builder.contractCreate(CreateContractOutput.newBuilder()

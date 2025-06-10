@@ -77,8 +77,6 @@ public class SetApprovalForAllCallTest extends CallTestBase {
     void setApprovalForAllCall_works() {
         // Given
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         // When
         final var result = subject.execute(frame).fullResult().result();

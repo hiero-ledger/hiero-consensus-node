@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
@@ -15,6 +14,7 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -52,6 +52,7 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
+import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.log.LogsBloomFilter;
 
 /**
@@ -372,6 +373,42 @@ public class ConversionUtils {
     }
 
     /**
+     * Returns the given Besu {@link Log}s as Hedera {@link EvmTransactionLog}s.
+     *
+     * @param logs the Besu {@link Log}s, using the long-zero address format for the logger's Hedera id number
+     * @param entityIdFactory the Hedera entity id factory
+     * @return the Hedera {@link EvmTransactionLog}s
+     */
+    public static List<EvmTransactionLog> asHederaLogs(
+            @NonNull final List<Log> logs, @NonNull final EntityIdFactory entityIdFactory) {
+        requireNonNull(logs);
+        final List<EvmTransactionLog> hederaLogs = new ArrayList<>(logs.size());
+        for (final var log : logs) {
+            hederaLogs.add(asHederaLog(entityIdFactory, log));
+        }
+        return hederaLogs;
+    }
+
+    /**
+     * Returns the given Besu {@link Log} as a Hedera {@link EvmTransactionLog}.
+     * @param entityIdFactory the Hedera entity id factory
+     * @param log the Besu {@link Log}, using the long-zero address format for the logger's Hedera id number
+     * @return the Hedera {@link EvmTransactionLog}
+     */
+    public static EvmTransactionLog asHederaLog(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Log log) {
+        final List<com.hedera.pbj.runtime.io.buffer.Bytes> topics =
+                new ArrayList<>(log.getTopics().size());
+        for (final var topic : log.getTopics()) {
+            topics.add(tuweniToPbjBytes(topic.trimLeadingZeros()));
+        }
+        return new EvmTransactionLog(
+                entityIdFactory.newContractId(numberOfLongZero(log.getLogger())),
+                tuweniToPbjBytes(log.getData()),
+                topics);
+    }
+
+    /**
      * Given a {@link MessageFrame}, returns the long-zero address of its {@code contract} address.
      *
      * @param frame the {@link MessageFrame}
@@ -519,12 +556,10 @@ public class ConversionUtils {
 
     /**
      * Converts a shard, realm, number to a long zero address.
-     *
-     * @param entityIdFactory the entity id factory
      * @param number the number to convert
      * @return the long zero address
      */
-    public static Address asLongZeroAddress(@NonNull final EntityIdFactory entityIdFactory, final long number) {
+    public static Address asLongZeroAddress(final long number) {
         return Address.wrap(Bytes.wrap(asEvmAddress(number)));
     }
 
@@ -786,7 +821,13 @@ public class ConversionUtils {
                 | (b8 & 0xFFL);
     }
 
-    private static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
+    /**
+     * Given a Besu {@link Log}, returns its bloom filter as a PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes}.
+     * @param log the Besu {@link Log}
+     * @return the PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes} bloom filter
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
+        requireNonNull(log);
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
                 LogsBloomFilter.builder().insertLog(log).build().toArray());
     }
@@ -795,7 +836,6 @@ public class ConversionUtils {
         return isLongZero(address)
                 ? address
                 : asLongZeroAddress(
-                        entityIdFactory(frame),
                         proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
     }
 
@@ -1000,5 +1040,40 @@ public class ConversionUtils {
         final var offset = contents.matchesPrefix(hexPrefix) ? hexPrefix.length : 0L;
         final var len = contents.length() - offset;
         return contents.getBytes(offset, len).toByteArray();
+    }
+
+    /**
+     * Pads the given bytes to 32 bytes by left-padding with zeros.
+     * @param bytes the bytes to pad
+     * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+        requireNonNull(bytes);
+        final int n = (int) bytes.length();
+        if (n == 32) {
+            return bytes;
+        }
+        final var padded = new byte[32];
+        bytes.getBytes(0, padded, 32 - n, n);
+        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
+    }
+
+    /**
+     * Converts a concise EVM transaction log into a Besu {@link Log}.
+     *
+     * @param log the concise EVM transaction log to convert
+     * @param paddedTopics the 32-byte padded topics to use in the log
+     * @return the Besu {@link Log} representation of the log
+     */
+    public static Log asBesuLog(@NonNull final EvmTransactionLog log, @NonNull final List<com.hedera.pbj.runtime.io.buffer.Bytes> paddedTopics) {
+        requireNonNull(log);
+        requireNonNull(paddedTopics);
+        return new Log(
+                asLongZeroAddress(log.contractIdOrThrow().contractNumOrThrow()),
+                pbjToTuweniBytes(log.data()),
+                paddedTopics.stream()
+                        .map(ConversionUtils::pbjToTuweniBytes)
+                        .map(LogTopic::create)
+                        .toList());
     }
 }

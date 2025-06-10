@@ -78,9 +78,6 @@ class HssCallFactoryTest extends CallTestBase {
     private Schedule schedule;
 
     @Mock
-    private Key maybeEthSenderKey;
-
-    @Mock
     private ContractMetrics contractMetrics;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
@@ -122,7 +119,7 @@ class HssCallFactoryTest extends CallTestBase {
 
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
-                asLongZeroAddress(entityIdFactory, CALLED_SCHEDULE_ID.scheduleNum()));
+                asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
         final var attempt = subject.createCallAttemptFrom(
                 HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());
@@ -155,7 +152,7 @@ class HssCallFactoryTest extends CallTestBase {
 
         final var input = bytesForRedirectScheduleTxn(
                 SignScheduleTranslator.SIGN_SCHEDULE_PROXY.selector(),
-                asLongZeroAddress(entityIdFactory, CALLED_SCHEDULE_ID.scheduleNum()));
+                asLongZeroAddress(CALLED_SCHEDULE_ID.scheduleNum()));
         final var attempt = subject.createCallAttemptFrom(
                 HSS_CONTRACT_ID, input, FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT, frame);
         final var call = Objects.requireNonNull(attempt.asExecutableCall());

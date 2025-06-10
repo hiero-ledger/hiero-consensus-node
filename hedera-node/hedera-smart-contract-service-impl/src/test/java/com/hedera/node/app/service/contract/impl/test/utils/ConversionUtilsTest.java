@@ -111,7 +111,7 @@ class ConversionUtilsTest {
     void convertsNumberToLongZeroAddress() {
         final var number = 0x1234L;
         final var expected = Address.fromHexString("0x1234");
-        final var actual = ConversionUtils.asLongZeroAddress(entityIdFactory, number);
+        final var actual = ConversionUtils.asLongZeroAddress(number);
         assertEquals(expected, actual);
     }
 
@@ -248,7 +248,7 @@ class ConversionUtilsTest {
     void convertContractIdToBesuAddressTest() {
         final var actual = ConversionUtils.contractIDToBesuAddress(entityIdFactory, CALLED_CONTRACT_ID);
         assertEquals(
-                actual, asLongZeroAddress(entityIdFactory, Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
+                actual, asLongZeroAddress(Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
 
         final var actual2 = ConversionUtils.contractIDToBesuAddress(entityIdFactory, VALID_CONTRACT_ADDRESS);
         assertEquals(actual2, pbjToBesuAddress(Objects.requireNonNull(VALID_CONTRACT_ADDRESS.evmAddress())));

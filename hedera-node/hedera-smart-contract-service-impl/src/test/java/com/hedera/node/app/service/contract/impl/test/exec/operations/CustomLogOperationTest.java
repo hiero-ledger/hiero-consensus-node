@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.apache.tuweni.bytes.Bytes32.leftPad;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
@@ -107,7 +108,6 @@ class CustomLogOperationTest {
         given(frame.getRecipientAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.getHederaContractId(EIP_1014_ADDRESS)).willReturn(TestHelpers.CALLED_CONTRACT_ID);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var captor = ArgumentCaptor.forClass(Log.class);
 
         final ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(3);
@@ -115,7 +115,7 @@ class CustomLogOperationTest {
             builder.add(LogTopic.create(leftPad(TOPICS[i])));
         }
         final var mirrorAddress =
-                ConversionUtils.asLongZeroAddress(entityIdFactory, CALLED_CONTRACT_ID.contractNumOrThrow());
+                asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
         final var expectedLog = new Log(mirrorAddress, pbjToTuweniBytes(TestHelpers.LOG_DATA), builder.build());
 
         final var subject = new CustomLogOperation(3, gasCalculator);

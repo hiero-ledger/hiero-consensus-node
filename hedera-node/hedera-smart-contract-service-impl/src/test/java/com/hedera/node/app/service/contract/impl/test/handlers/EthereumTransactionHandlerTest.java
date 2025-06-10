@@ -218,7 +218,13 @@ class EthereumTransactionHandlerTest {
         final var expectedResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(), CALLED_CONTRACT_ID, null, null, null);
+                expectedResult,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                null,
+                null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -254,7 +260,13 @@ class EthereumTransactionHandlerTest {
         final var expectedResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(), CALLED_CONTRACT_ID, null, null, null);
+                expectedResult,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                null,
+                null);
 
         given(createRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);

@@ -128,6 +128,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@Tag(ADHOC)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractCreateSuite {
 
@@ -602,7 +603,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> cannotCreateTooLargeContract() {
         ByteString contents;
         try {

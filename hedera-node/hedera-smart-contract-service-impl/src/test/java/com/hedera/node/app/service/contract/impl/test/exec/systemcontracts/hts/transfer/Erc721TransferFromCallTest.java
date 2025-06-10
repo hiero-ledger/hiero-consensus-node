@@ -75,8 +75,6 @@ class Erc721TransferFromCallTest extends CallTestBase {
                 .willReturn(Account.newBuilder().accountId(SENDER_ID).build());
         given(accountStore.getAliasedAccountById(RECEIVER_ID))
                 .willReturn(Account.newBuilder().accountId(RECEIVER_ID).build());
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = subjectFor(1L);
 

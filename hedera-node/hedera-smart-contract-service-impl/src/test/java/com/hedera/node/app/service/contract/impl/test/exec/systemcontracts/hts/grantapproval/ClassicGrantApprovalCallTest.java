@@ -69,8 +69,6 @@ public class ClassicGrantApprovalCallTest extends CallTestBase {
                 TokenType.FUNGIBLE_COMMON);
         given(systemContractOperations.dispatch(any(), any(), any(), any())).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
@@ -96,8 +94,6 @@ public class ClassicGrantApprovalCallTest extends CallTestBase {
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());

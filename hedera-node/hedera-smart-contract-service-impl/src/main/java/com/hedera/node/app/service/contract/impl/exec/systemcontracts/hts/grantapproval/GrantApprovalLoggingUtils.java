@@ -44,7 +44,7 @@ public class GrantApprovalLoggingUtils {
         requireNonNull(spender);
         requireNonNull(accountStore);
 
-        frame.addLog(builderFor(tokenId, sender, spender, accountStore, entityIdFactory(frame))
+        frame.addLog(builderFor(tokenId, sender, spender, accountStore)
                 .forDataItem(amount)
                 .build());
     }
@@ -70,7 +70,7 @@ public class GrantApprovalLoggingUtils {
         requireNonNull(spender);
         requireNonNull(accountStore);
 
-        frame.addLog(builderFor(tokenId, sender, spender, accountStore, entityIdFactory(frame))
+        frame.addLog(builderFor(tokenId, sender, spender, accountStore)
                 .forIndexedArgument(amount)
                 .build());
     }
@@ -79,9 +79,8 @@ public class GrantApprovalLoggingUtils {
             @NonNull final TokenID tokenId,
             @NonNull final AccountID senderId,
             @NonNull final AccountID spenderId,
-            @NonNull final ReadableAccountStore accountStore,
-            @NonNull final EntityIdFactory entityIdFactory) {
-        final var tokenAddress = asLongZeroAddress(entityIdFactory, tokenId.tokenNum());
+            @NonNull final ReadableAccountStore accountStore) {
+        final var tokenAddress = asLongZeroAddress(tokenId.tokenNum());
         final var senderAddress = priorityAddressOf(requireNonNull(accountStore.getAccountById(senderId)));
 
         final var spenderAccount = accountStore.getAccountById(spenderId);

@@ -102,8 +102,6 @@ class Erc20TransfersCallTest extends CallTestBase {
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(SENDER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = subjectForTransfer(1L);
 
@@ -126,8 +124,6 @@ class Erc20TransfersCallTest extends CallTestBase {
         given(readableAccountStore.getAliasedAccountById(A_NEW_ACCOUNT_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
-        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         subject = subjectForTransferFrom(1L);
 

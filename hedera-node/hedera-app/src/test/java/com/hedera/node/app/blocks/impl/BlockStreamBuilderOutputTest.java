@@ -85,7 +85,7 @@ class BlockStreamBuilderOutputTest {
 
     @Test
     void translatesNoOutputsToRecordAsExpected() {
-        given(translator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
+        given(translator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null))
                 .willReturn(TransactionRecord.DEFAULT);
 
         final var subject = new BlockStreamBuilder.Output(ITEMS_NO_OUTPUTS, translationContext);
@@ -98,7 +98,7 @@ class BlockStreamBuilderOutputTest {
         given(translator.translateRecord(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
-                        FIRST_OUTPUT.transactionOutputOrThrow(),
+                null, FIRST_OUTPUT.transactionOutputOrThrow(),
                         SECOND_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(TransactionRecord.DEFAULT);
 
@@ -126,7 +126,7 @@ class BlockStreamBuilderOutputTest {
         given(translator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
-                        FIRST_OUTPUT.transactionOutputOrThrow(),
+                FIRST_OUTPUT.transactionOutputOrThrow(),
                         SECOND_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(TransactionReceipt.DEFAULT);
 

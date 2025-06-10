@@ -89,8 +89,6 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());
@@ -125,8 +123,6 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());
@@ -246,8 +242,6 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());

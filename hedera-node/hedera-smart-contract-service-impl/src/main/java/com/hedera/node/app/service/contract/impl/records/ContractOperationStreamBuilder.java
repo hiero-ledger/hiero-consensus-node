@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.streams.ContractAction;
@@ -70,9 +71,12 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         if (outcome.hasStateChanges()) {
             addContractStateChanges(requireNonNull(outcome.stateChanges()), false);
         }
-        // No-op for the RecordStreamBuilder
+        // No-ops for the RecordStreamBuilder
         if (outcome.hasSlotUsages()) {
             addContractSlotUsages(outcome.slotUsagesOrThrow());
+        }
+        if (outcome.hasLogs()) {
+            addLogs(outcome.logsOrThrow());
         }
         return this;
     }
@@ -138,4 +142,12 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      */
     @NonNull
     ContractOperationStreamBuilder addContractSlotUsages(@NonNull List<ContractSlotUsage> slotUsages);
+
+    /**
+     * Tracks the EVM logs of a top-level contract transaction.
+     * @param logs the list of {@link EvmTransactionLog}s to track
+     * @return this builder
+     */
+    @NonNull
+    ContractCallStreamBuilder addLogs(@NonNull List<EvmTransactionLog> logs);
 }

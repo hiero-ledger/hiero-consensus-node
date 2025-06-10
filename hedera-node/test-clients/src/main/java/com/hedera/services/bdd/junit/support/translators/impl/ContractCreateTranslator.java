@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -39,8 +40,13 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                             .map(TransactionOutput::contractCreateOrThrow)
                             .ifPresent(createContractOutput -> {
-                                final var result = createContractOutput.contractCreateResultOrThrow();
-                                recordBuilder.contractCreateResult(result);
+                                final var resultBuilder = createContractOutput
+                                        .contractCreateResultOrThrow()
+                                        .copyBuilder();
+                                if (parts.transactionIdOrThrow().nonce() == 0 && parts.status() == SUCCESS) {
+                                    mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                }
+                                recordBuilder.contractCreateResult(resultBuilder.build());
                             });
                     if (parts.status() == SUCCESS) {
                         final var output = parts.createContractOutputOrThrow();
