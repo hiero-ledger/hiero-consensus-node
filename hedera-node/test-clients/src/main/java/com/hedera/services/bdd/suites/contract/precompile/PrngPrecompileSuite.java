@@ -200,10 +200,7 @@ public class PrngPrecompileSuite {
                 cryptoCreate(BOB),
                 uploadInitCode(prng),
                 contractCreate(prng),
-                contractCall(prng, GET_SEED)
-                        .gas(GAS_TO_OFFER)
-                        .payingWith(BOB)
-                        .via(randomBits),
+                contractCall(prng, GET_SEED).gas(GAS_TO_OFFER).payingWith(BOB).via(randomBits),
                 getTxnRecord(randomBits)
                         .andAllChildRecords()
                         .hasNonStakingChildRecordCount(1)

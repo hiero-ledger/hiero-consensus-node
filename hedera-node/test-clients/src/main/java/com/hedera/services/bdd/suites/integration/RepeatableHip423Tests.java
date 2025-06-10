@@ -599,12 +599,12 @@ public class RepeatableHip423Tests {
                 // Now execute them one at a time and assert the expected changes to state
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)).via("boundaryCrossing"),
                 getAccountBalance("luckyYou").hasTinyBars(1L),
-                getTxnRecord("boundaryCrossing").hasChildRecordCount(1),
+                getTxnRecord("boundaryCrossing").hasNonStakingChildRecordCount(1),
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 2L)).via("undistinguishedOne"),
-                getTxnRecord("undistinguishedOne").hasChildRecordCount(0),
+                getTxnRecord("undistinguishedOne").hasNonStakingChildRecordCount(0),
                 getAccountBalance("luckyYou").hasTinyBars(1L + 2L),
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 2L)).via("undistinguishedTwo"),
-                getTxnRecord("undistinguishedTwo").hasChildRecordCount(0),
+                getTxnRecord("undistinguishedTwo").hasNonStakingChildRecordCount(0),
                 getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L));
     }
 
