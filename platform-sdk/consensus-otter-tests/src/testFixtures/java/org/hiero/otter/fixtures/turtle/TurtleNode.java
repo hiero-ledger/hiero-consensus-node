@@ -350,7 +350,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      *
      * @throws InterruptedException if the thread is interrupted while the node is being destroyed
      */
-    public void destroy() throws InterruptedException {
+    void destroy() throws InterruptedException {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 

@@ -237,7 +237,6 @@ public class PcesFileManager {
         metrics.getPreconsensusEventAverageFileSpan().update(file.getSpan());
         metrics.getPreconsensusEventAverageUnUtilizedFileSpan().update(file.getUnUtilizedSpan());
         updateFileSizeMetrics();
-        metrics.updateMetricsWithPcesFileWritingStats(file.writerStats());
     }
 
     /**

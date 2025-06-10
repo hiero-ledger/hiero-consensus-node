@@ -392,6 +392,8 @@ public class BlockStreamBuilder
      */
     private long opsDuration;
 
+    private boolean isContractCreate;
+
     /**
      * Constructs a builder for a user transaction with the given characteristics.
      * @param reversingBehavior the reversing behavior
@@ -887,6 +889,21 @@ public class BlockStreamBuilder
         return this;
     }
 
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractID the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @NonNull
+    @Override
+    public BlockStreamBuilder createdContractID(@Nullable ContractID contractID) {
+        this.isContractCreate = true;
+        contractID(contractID);
+        return this;
+    }
+
     @NonNull
     @Override
     public BlockStreamBuilder exchangeRate(@Nullable final ExchangeRateSet exchangeRate) {
@@ -1007,12 +1024,6 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
-        this.opsDuration = opsDuration;
-        return this;
-    }
-
-    @Override
     @NonNull
     public BlockStreamBuilder addContractActions(
             @NonNull final ContractActions contractActions, final boolean isMigration) {
@@ -1105,7 +1116,9 @@ public class BlockStreamBuilder
         transactionFee = 0L;
 
         accountId = null;
-        contractId = null;
+        if (isContractCreate) {
+            contractId = null;
+        }
         fileId = null;
         tokenId = null;
         topicId = null;
