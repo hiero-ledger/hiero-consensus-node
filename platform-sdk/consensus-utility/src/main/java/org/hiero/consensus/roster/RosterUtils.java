@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -412,118 +411,5 @@ public final class RosterUtils {
         return new Roster(network.nodeMetadata().stream()
                 .map(NodeMetadata::rosterEntryOrThrow)
                 .toList());
-    }
-
-    /**
-     * @return a cache/factory that can be used to retrieve {@link RosterView} objects from a {@link Roster}
-     */
-    public static RosterViewCache rosterViewCache() {
-        return new RosterViewCache();
-    }
-
-    /**
-     *  This class acts as a factory and cache for RosterView instances.
-     *  Its goal is to prevent redundant transformations of Roster into RosterView objects.
-     */
-    public static class RosterViewCache {
-        private final Map<Roster, RosterView> cache = new ConcurrentHashMap<>();
-
-        private RosterViewCache() {}
-
-        /**
-         * Retrieves or creates a {@link RosterView} instance from a given {@link Roster} object.
-         *
-         * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
-         * @return A {@link RosterView} instance corresponding to the provided {@link Roster}.
-         */
-        @NonNull
-        private RosterView get(final @NonNull Roster roster) {
-            return cache.computeIfAbsent(roster, r -> new RosterView(requireNonNull(toMap(r))));
-        }
-
-        /**
-         * Returns a RosterView from a Roster instance.
-         * Uses a local thread safe cache to retrieve the wrapper if it was already requested in the past.
-         * @param roster The {@link Roster} object from which to create or retrieve the {@code WrappedRoster}.
-         * @return a WrappedRoster
-         */
-        public @Nullable RosterView getOrNull(@Nullable final Roster roster) {
-            if (roster == null) {
-                return null;
-            }
-            return this.get(roster);
-        }
-    }
-    /**
-     * RosterView provides methods to access specific roster information (entries, certificates, weights, endpoints)
-     * indexed by nodeId
-     */
-    public static class RosterView {
-
-        private final Map<Long, RosterEntry> entryMap;
-        private final Map<Long, X509Certificate> certificateMap = new ConcurrentHashMap<>();
-
-        private RosterView(final @NonNull Map<Long, RosterEntry> entryMap) {
-            this.entryMap = Objects.requireNonNull(entryMap);
-        }
-
-        @Nullable
-        private RosterEntry rosterEntry(final @NonNull NodeId nodeId) {
-            return this.entryMap.get(nodeId.id());
-        }
-
-        /**
-         * Retrieves the gossip CA {@link X509Certificate} for a given {@link NodeId}.
-         *
-         *
-         * @param nodeId The {@link NodeId} for which to retrieve the certificate.
-         * @return The {@link X509Certificate} for the given Node ID, or {@code null}
-         * if the {@link NodeId} is not present in the roster represented by this wrapper.
-         */
-        public X509Certificate gossipCaCertificate(final @NonNull NodeId nodeId) {
-            if (!entryMap.containsKey(nodeId.id())) {
-                return null;
-            }
-            return certificateMap.computeIfAbsent(
-                    nodeId.id(), id -> RosterUtils.fetchGossipCaCertificate(requireNonNull(rosterEntry(nodeId))));
-        }
-
-        /**
-         * Retrieves the list of gossip endpoints for a given {@link NodeId}.
-         *
-         * @param nodeId The {@link NodeId} for which to retrieve the gossip endpoints.
-         * @return the list of gossip endpoints, or {@code null}
-         * if the {@link NodeId} is not present in the roster represented by this wrapper.
-         */
-        public List<ServiceEndpoint> gossipEndpoints(final @NonNull NodeId nodeId) {
-            final RosterEntry entry = rosterEntry(nodeId);
-            if (entry == null) {
-                return null;
-            }
-            return entry.gossipEndpoint();
-        }
-
-        /**
-         * Retrieves the weight of a given {@link NodeId}
-         *
-         * @param nodeId The {@link NodeId} for which to retrieve the weight.
-         * @return the weight of the node, or {@code null} if the {@link NodeId} is not present in the roster represented by this wrapper.
-         */
-        public Long weight(final @NonNull NodeId nodeId) {
-            final RosterEntry entry = rosterEntry(nodeId);
-            if (entry == null) {
-                return null;
-            }
-            return entry.weight();
-        }
-
-        /**
-         * Retrieves the total weight of the roster represented by this wrapper.
-         *
-         * @return the total weight of the roster represented by this wrapper.
-         */
-        public Long totalWeight() {
-            return entryMap.values().stream().mapToLong(RosterEntry::weight).sum();
-        }
     }
 }

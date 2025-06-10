@@ -4,6 +4,8 @@ package com.swirlds.platform.event.validation;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
@@ -20,10 +22,9 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterEntryNotFoundException;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.RosterUtils.RosterView;
-import org.hiero.consensus.roster.RosterUtils.RosterViewCache;
 
 /**
  * Default implementation for verifying event signatures
@@ -60,10 +61,6 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * A logger for validation errors
      */
     private final RateLimitedLogger rateLimitedLogger;
-    /**
-     * a cache/factory to transform Roster objects into RosterView
-     */
-    private final RosterViewCache rosterViewCache;
 
     private static final LongAccumulator.Config VALIDATION_FAILED_CONFIG = new LongAccumulator.Config(
                     PLATFORM_CATEGORY, "eventsFailedSignatureValidation")
@@ -94,7 +91,6 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         this.validationFailedAccumulator = platformContext.getMetrics().getOrCreate(VALIDATION_FAILED_CONFIG);
 
         eventWindow = EventWindow.getGenesisEventWindow();
-        this.rosterViewCache = RosterUtils.rosterViewCache();
     }
 
     /**
@@ -104,8 +100,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * @return true if the event has a valid signature, otherwise false
      */
     private boolean isSignatureValid(@NonNull final PlatformEvent event) {
-        final RosterView applicableRoster =
-                rosterViewCache.getOrNull(rosterHistory.getRosterForRound(event.getBirthRound()));
+        final Roster applicableRoster = rosterHistory.getRosterForRound(event.getBirthRound());
         if (applicableRoster == null) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),
@@ -113,10 +108,20 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
                     event.getBirthRound());
             return false;
         }
-
         final NodeId eventCreatorId = event.getCreatorId();
+        final RosterEntry rosterEntry;
+        try {
+            rosterEntry = RosterUtils.getRosterEntry(applicableRoster, eventCreatorId.id());
+        } catch (RosterEntryNotFoundException e) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Node {} doesn't exist in applicable roster. Event: {}",
+                    eventCreatorId,
+                    event);
+            return false;
+        }
 
-        final X509Certificate cert = applicableRoster.gossipCaCertificate(eventCreatorId);
+        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
 
         final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
         if (publicKey == null) {
