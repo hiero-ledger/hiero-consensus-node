@@ -403,7 +403,7 @@ jobs:
 
           echo "slack-payload=${SLACK_PAYLOAD}" >> "${GITHUB_OUTPUT}"
 
-      - name: Report failure (slack  citr-operations)
+      - name: Report failure (slack citr-operations)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
