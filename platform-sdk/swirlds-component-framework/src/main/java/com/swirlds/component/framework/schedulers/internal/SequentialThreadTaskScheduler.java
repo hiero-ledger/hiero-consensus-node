@@ -33,7 +33,6 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
 
     public static final String THREAD_NAME_PREFIX = "<scheduler ";
     public static final String THREAD_NAME_SUFFIX = ">";
-    private final UncaughtExceptionHandler uncaughtExceptionHandler;
     private final ObjectCounter onRamp;
     private final ObjectCounter offRamp;
     private final ToLongFunction<Object> dataCounter;
@@ -77,9 +76,15 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
             final boolean flushEnabled,
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking) {
-        super(model, name, TaskSchedulerType.SEQUENTIAL_THREAD, flushEnabled, squelchingEnabled, insertionIsBlocking);
+        super(
+                model,
+                name,
+                TaskSchedulerType.SEQUENTIAL_THREAD,
+                uncaughtExceptionHandler,
+                flushEnabled,
+                squelchingEnabled,
+                insertionIsBlocking);
 
-        this.uncaughtExceptionHandler = Objects.requireNonNull(uncaughtExceptionHandler);
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
         this.dataCounter = dataCounter;
@@ -187,7 +192,7 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
                 try {
                     task.handle();
                 } catch (final Throwable t) {
-                    uncaughtExceptionHandler.uncaughtException(thread, t);
+                    getUncaughtExceptionHandler().uncaughtException(thread, t);
                 } finally {
                     offRamp.offRamp(dataCounter.applyAsLong(task.data()));
                 }

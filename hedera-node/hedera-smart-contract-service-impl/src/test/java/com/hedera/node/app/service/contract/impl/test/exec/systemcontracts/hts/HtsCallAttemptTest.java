@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -106,12 +105,10 @@ class HtsCallAttemptTest extends CallAttemptTestBase {
 
     @Test
     void nonLongZeroAddressesArentTokens() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var input =
                 TestHelpers.bytesForRedirect(Erc20TransfersTranslator.ERC_20_TRANSFER.selector(), OWNER_BESU_ADDRESS);
         final var subject = createHtsCallAttempt(input, false, callTranslators);
         assertNull(subject.redirectToken());
-        verify(nativeOperations).entityIdFactory();
     }
 
     @Test
@@ -177,7 +174,6 @@ class HtsCallAttemptTest extends CallAttemptTestBase {
 
     @Test
     void constructsIsApprovedForAllClassic() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(OWNER_BESU_ADDRESS);
         final var input = Bytes.wrap(IsApprovedForAllTranslator.CLASSIC_IS_APPROVED_FOR_ALL
                 .encodeCallWithArgs(address, address, address)

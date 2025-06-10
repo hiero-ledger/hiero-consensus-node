@@ -65,6 +65,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCallTranslator;
@@ -203,6 +204,7 @@ public class BlockTransactionalUnitTranslator {
     public List<SingleTransactionRecord> translate(@NonNull final BlockTransactionalUnit unit) {
         requireNonNull(unit);
         baseTranslator.prepareForUnit(unit);
+        final List<TraceData> followingTraces = new LinkedList<>(unit.allTraces());
         final List<StateChange> remainingStateChanges = new LinkedList<>(unit.stateChanges());
         final List<SingleTransactionRecord> translatedRecords = new ArrayList<>();
         for (final var blockTransactionParts : unit.blockTransactionParts()) {
@@ -210,8 +212,12 @@ public class BlockTransactionalUnitTranslator {
             if (translator == null) {
                 log.warn("No translator found for functionality {}, skipping", blockTransactionParts.functionality());
             } else {
-                final var translation =
-                        translator.translate(blockTransactionParts, baseTranslator, remainingStateChanges);
+                if (blockTransactionParts.hasTraces()) {
+                    // Remove the traces that are part of this transaction from the following traces
+                    followingTraces.removeAll(blockTransactionParts.tracesOrThrow());
+                }
+                final var translation = translator.translate(
+                        blockTransactionParts, baseTranslator, remainingStateChanges, followingTraces);
                 translatedRecords.add(translation);
             }
         }
