@@ -1109,12 +1109,6 @@ public class RecordStreamBuilder
         throw new UnsupportedOperationException("Record stream uses legacy sidecars");
     }
 
-    @Override
-    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
-        this.opsDuration = opsDuration;
-        return this;
-    }
-
     /**
      * Adds contractActions to sidecar records.
      *

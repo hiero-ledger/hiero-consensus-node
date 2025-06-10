@@ -12,27 +12,27 @@ on:
         description: "HAPI Testing Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-spotless-check:
         description: "Spotless Check Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-gradle-determinism:
         description: "Gradle Build Determinism Check Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-docker-determinism:
         description: "Docker Build Determinism Check Enabled"
         type: boolean
         required: false
-        default: false
+        default: true
       enable-ci-trigger:
         description: "Trigger CI Flows Enabled"
         type: boolean
@@ -48,6 +48,11 @@ on:
         type: string
         required: false
         default: "temurin"
+      dry-run-enabled:
+        description: "Dry Run Enabled"
+        type: boolean
+        required: false
+        default: true
   push:
     branches:
       - main
@@ -190,11 +195,13 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ github.ref }}"
+            "ref": "${{ github.sha }}",
+            "ref-name": "${{ github.ref_name }}",
+            "dry-run-enabled": ${{ inputs.dry-run-enabled || false }}
             }'
 
   report-failure:
-    name: Report XTS execution failure
+    name: Report MATS execution failure
     runs-on: hiero-network-node-linux-medium
     needs:
       - code
@@ -211,6 +218,7 @@ jobs:
       needs.mats-gradle-determinism.result != 'success' ||
       needs.mats-docker-determinism.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
+      !inputs.dry-run-enabled &&
       !cancelled() && always() }}
 
     steps:
