@@ -255,7 +255,7 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         run: |
-          SLACK_PAYLOAD=$(cat <<EOF
+          SLACK_PAYLOAD=$(cat <<'EOF'
             {
               "attachments": [
                 {
