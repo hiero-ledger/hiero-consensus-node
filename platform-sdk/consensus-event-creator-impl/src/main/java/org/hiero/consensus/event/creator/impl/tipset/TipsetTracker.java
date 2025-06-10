@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -44,7 +43,6 @@ public class TipsetTracker {
 
     private final Roster roster;
 
-    private final AncientMode ancientMode;
     private EventWindow eventWindow;
     private final NodeId selfId;
 
@@ -58,34 +56,14 @@ public class TipsetTracker {
      * @param roster      the current roster
      */
     public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final Roster roster) {
-        this(time, selfId, roster, AncientMode.BIRTH_ROUND_THRESHOLD);
-    }
-
-    /**
-     * Create a new tipset tracker.
-     *
-     * @param time        provides wall clock time
-     * @param selfId      the id of this node
-     * @param roster      the current roster
-     * @param ancientMode the {@link AncientMode} to use
-     */
-    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
-    public TipsetTracker(
-            @NonNull final Time time,
-            @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
-            @NonNull final AncientMode ancientMode) {
-
         this.roster = Objects.requireNonNull(roster);
         this.selfId = Objects.requireNonNull(selfId);
         this.latestGenerations = new Tipset(roster);
 
-        tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, ancientMode::selectIndicator);
+        tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, EventDescriptorWrapper::birthRound);
 
         ancientEventLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
-
-        this.ancientMode = Objects.requireNonNull(ancientMode);
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        this.eventWindow = EventWindow.getGenesisEventWindow();
     }
 
     /**
@@ -193,7 +171,7 @@ public class TipsetTracker {
                     EXCEPTION.getMarker(),
                     "Rejecting ancient event from {} with threshold {}. Current event window is {}",
                     eventDescriptorWrapper.creator(),
-                    ancientMode.selectIndicator(eventDescriptorWrapper),
+                    eventDescriptorWrapper.eventDescriptor().birthRound(),
                     eventWindow);
         }
     }
@@ -230,7 +208,7 @@ public class TipsetTracker {
      * Reset the tipset tracker to its initial state.
      */
     public void clear() {
-        eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        eventWindow = EventWindow.getGenesisEventWindow();
         latestGenerations = new Tipset(roster);
         tipsets.clear();
     }

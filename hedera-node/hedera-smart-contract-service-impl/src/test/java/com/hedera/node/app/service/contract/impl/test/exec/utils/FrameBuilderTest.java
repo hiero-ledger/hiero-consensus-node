@@ -150,7 +150,7 @@ class FrameBuilderTest {
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
-        assertEquals(INTRINSIC_GAS, getHederaOpsDuration(frame));
+        assertEquals(0L, getHederaOpsDuration(frame));
     }
 
     @Test

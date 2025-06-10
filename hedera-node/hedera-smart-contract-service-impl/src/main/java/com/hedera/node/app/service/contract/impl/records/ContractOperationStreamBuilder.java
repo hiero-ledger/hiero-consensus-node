@@ -39,9 +39,8 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
     ContractOperationStreamBuilder transactionFee(long transactionFee);
 
     /**
-     * Tracks the ID of an account that should be explicitly considered
-     * as in a "reward situation"; that is, to collect any pending native
-     * staking rewards it has accrued.
+     * Tracks the ID of an account that should be explicitly considered as in a "reward situation"; that is, to collect
+     * any pending native staking rewards it has accrued.
      *
      * @param accountId the account ID
      */
@@ -75,7 +74,6 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         if (outcome.hasSlotUsages()) {
             addContractSlotUsages(outcome.slotUsagesOrThrow());
         }
-        opsDuration(outcome.hederaOpsDuration());
         return this;
     }
 
@@ -83,7 +81,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * Updates this record builder to include contract actions.
      *
      * @param contractActions the contract actions
-     * @param isMigration whether these actions are exported as part of a system-initiated migration of some kind
+     * @param isMigration     whether these actions are exported as part of a system-initiated migration of some kind
      * @return this builder
      */
     @NonNull
@@ -92,6 +90,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
 
     /**
      * Updates this record builder to include contract actions.
+     *
      * @param actions the contract actions
      * @return this builder
      */
@@ -102,7 +101,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * Updates this record builder to include contract bytecode.
      *
      * @param contractBytecode the contract bytecode
-     * @param isMigration whether this bytecode is exported as part of a system-initiated migration of some kind
+     * @param isMigration      whether this bytecode is exported as part of a system-initiated migration of some kind
      * @return this builder
      */
     @NonNull
@@ -111,6 +110,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
 
     /**
      * Updates this builder to include contract initcode.
+     *
      * @param initcode the contract initcode
      * @return this builder
      */
@@ -121,7 +121,8 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * Updates this record builder to include contract state changes.
      *
      * @param contractStateChanges the contract state changes
-     * @param isMigration whether these state changes are exported as part of a system-initiated migration of some kind
+     * @param isMigration          whether these state changes are exported as part of a system-initiated migration of
+     *                             some kind
      * @return this builder
      */
     @NonNull
@@ -131,17 +132,10 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
 
     /**
      * Updates this stream builder to include contract slot usages.
+     *
      * @param slotUsages the contract slot usages
      * @return this builder
      */
     @NonNull
     ContractOperationStreamBuilder addContractSlotUsages(@NonNull List<ContractSlotUsage> slotUsages);
-
-    /**
-     * Sets the hedera gas used.
-     *
-     * @param hederaGasUsed the gas used as calculated via the Hedera gas schedule
-     * @return the updated {@link ContractOperationStreamBuilder}
-     */
-    ContractOperationStreamBuilder opsDuration(long hederaGasUsed);
 }
