@@ -30,6 +30,7 @@ jobs:
         id: payload
         run: |
             cat <<EOF > slack_payload.json
+            {
               "attachments": [
                 {
                   "color": "#FF0000",
