@@ -11,6 +11,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
@@ -29,6 +30,13 @@ import java.util.Set;
 public class BlockUnitSplit {
     private static final Set<TransactionGroupRole> NEW_UNIT_ROLES =
             EnumSet.of(STANDALONE, FIRST_CHILD, STARTING_PARENT);
+    /**
+     * When we see a batch parent (role = STARTING_PARENT) we expect one or
+     * more child result groups that have **no** preceding event-txn.
+     */
+    private boolean insideAtomicBatch = false;
+
+    private boolean nextChildIsFirst = false;
 
     /**
      * Holds the parts of a transaction that are pending processing.
@@ -96,11 +104,14 @@ public class BlockUnitSplit {
 
     /**
      * Splits the given block into transactional units.
+     *
      * @param block the block to split
      * @return the transactional units
      */
     public List<BlockTransactionalUnit> split(@NonNull final Block block) {
         final List<BlockTransactionalUnit> units = new ArrayList<>();
+        boolean insideAtomicBatch = false;
+        boolean nextChildIsFirst = false;
 
         PendingBlockTransactionParts pendingParts = new PendingBlockTransactionParts();
         final List<BlockTransactionParts> unitParts = new ArrayList<>();
@@ -126,6 +137,14 @@ public class BlockUnitSplit {
                         }
                         pendingParts.clear();
                         pendingParts.role = eventTransaction.transactionGroupRole();
+                        final var function = nextParts.function();
+                        if (eventTransaction.transactionGroupRole() == STARTING_PARENT
+                                && function == HederaFunctionality.ATOMIC_BATCH) {
+                            insideAtomicBatch = true;
+                            nextChildIsFirst = true;
+                        } else {
+                            insideAtomicBatch = false;
+                        }
                         if (genesisStateChanges != null) {
                             unitStateChanges.addAll(genesisStateChanges);
                             genesisStateChanges = null;
@@ -133,7 +152,23 @@ public class BlockUnitSplit {
                         pendingParts.parts = nextParts;
                     }
                 }
-                case TRANSACTION_RESULT -> pendingParts.result = item.transactionResultOrThrow();
+                case TRANSACTION_RESULT -> {
+                    if (pendingParts.parts != null) {
+                        pendingParts.result = item.transactionResultOrThrow();
+                        break;
+                    }
+                    if (!insideAtomicBatch) {
+                        throw new IllegalStateException("Result with no antecedent event-txn outside atomic-batch");
+                    }
+                    if (!unitParts.isEmpty()) {
+                        completeAndAdd(units, unitParts, unitStateChanges);
+                    }
+
+                    pendingParts.clear();
+                    pendingParts.role = nextChildIsFirst ? FIRST_CHILD : STANDALONE;
+                    nextChildIsFirst = false;
+                    pendingParts.result = item.transactionResultOrThrow();
+                }
                 case TRANSACTION_OUTPUT -> pendingParts.addOutput(item.transactionOutputOrThrow());
                 case TRACE_DATA -> pendingParts.addTrace(item.traceDataOrThrow());
                 case STATE_CHANGES -> {

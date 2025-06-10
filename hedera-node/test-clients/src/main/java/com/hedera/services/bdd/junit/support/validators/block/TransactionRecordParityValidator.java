@@ -74,12 +74,12 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         final var blocksLoc = node0Data
-                .resolve("blockStreams/" + NODE_BLOCK_STREAM_DIR)
+                .resolve("blockStreams/block-11.12.3")
                 .toAbsolutePath()
                 .normalize();
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blocksLoc);
         final var recordsLoc = node0Data
-                .resolve("recordStreams/" + NODE_RECORD_STREAM_DIR)
+                .resolve("recordStreams/record11.12.3")
                 .toAbsolutePath()
                 .normalize();
         final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(recordsLoc.toString(), "sidecar");

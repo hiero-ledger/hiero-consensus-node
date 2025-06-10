@@ -515,12 +515,14 @@ public class BlockStreamBuilder
      */
     public Output build() {
         final var blockItems = new ArrayList<BlockItem>();
-        blockItems.add(BlockItem.newBuilder()
-                .eventTransaction(EventTransaction.newBuilder()
-                        .applicationTransaction(getSerializedTransaction())
-                        .transactionGroupRole(role)
-                        .build())
-                .build());
+        if (category != HandleContext.TransactionCategory.BATCH_INNER) {
+            blockItems.add(BlockItem.newBuilder()
+                    .eventTransaction(EventTransaction.newBuilder()
+                            .applicationTransaction(getSerializedTransaction())
+                            .transactionGroupRole(role)
+                            .build())
+                    .build());
+        }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
         if (slotUsages != null || contractActions != null || initcodes != null) {
