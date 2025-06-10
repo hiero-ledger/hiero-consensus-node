@@ -15,7 +15,6 @@ import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -171,23 +170,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         sharedShadowgraph.deregisterPeerHandler(this);
     }
 
-    /**
-     * Send event to remote node outside of normal sync logic (most probably due to broadcast)
-     *
-     * @param gossipEvent event to be sent
-     */
-    // platform thread
-    void broadcastEvent(@NonNull final GossipEvent gossipEvent) {
-        // don't spam remote side if it is going to reconnect
-        // or if we haven't completed even a first sync, as it might be a recovery phase for either for us
-
-        // be careful - this is unsynchronized access to non-volatile variables; given it is only a hint, we don't
-        // really care if it is immediately visible with updates
-        if (!state.remoteFallenBehind && state.lastSyncTime != Instant.MIN) {
-            sender.sendBroadcastEvent(gossipEvent);
-        }
-    }
-
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
 
     /**
@@ -252,15 +234,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
             this.syncMetrics.reportSyncPhase(otherNodeId, SyncPhase.SENDING_EVENTS);
         }
         state.remoteStillSendingEvents = false;
-    }
-
-    @Override
-    public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
-        // we don't use handleIncomingSyncEvent, as we don't want to block sync till this event is resolved
-        // so no marking it in intakeEventCounter
-        this.syncMetrics.broadcastEventReceived();
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
-        eventHandler.accept(platformEvent);
     }
 
     // UTILITY METHODS

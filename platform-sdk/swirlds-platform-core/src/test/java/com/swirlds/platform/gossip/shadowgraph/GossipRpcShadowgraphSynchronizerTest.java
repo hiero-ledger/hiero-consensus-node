@@ -27,15 +27,12 @@ import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -155,46 +152,5 @@ class GossipRpcShadowgraphSynchronizerTest {
         ((FakeTime) this.platformContext.getTime()).tick(Duration.ofSeconds(10));
         conversation.checkForPeriodicActions();
         Mockito.verify(gossipSender).sendSyncData(any());
-    }
-
-    @Disabled
-    @Test
-    void broadcastSelfEvent() {
-        var otherNodeId5 = NodeId.of(5);
-        var otherNodeId7 = NodeId.of(7);
-        var gossipSender7 = mock(GossipRpcSender.class);
-        when(gossipSender7.sendEndOfEvents()).thenReturn(CompletableFuture.completedFuture(null));
-        var conversation5 = synchronizer.createPeerHandler(gossipSender, otherNodeId5);
-        var conversation7 = synchronizer.createPeerHandler(gossipSender7, otherNodeId7);
-        var event = new TestingEventBuilder(new Random())
-                .setSystemTransactionCount(0)
-                .setAppTransactionCount(0)
-                .setCreatorId(selfId)
-                .build();
-        synchronizer.addEvent(event);
-        // we are not sending events as first sync is not yet finished
-        Mockito.verifyNoInteractions(gossipSender);
-        Mockito.verifyNoInteractions(gossipSender7);
-
-        conversation5.checkForPeriodicActions();
-        conversation7.checkForPeriodicActions();
-        conversation5.receiveSyncData(EMPTY_SYNC_MESSAGE);
-        conversation7.receiveSyncData(EMPTY_SYNC_MESSAGE);
-        conversation5.receiveTips(List.of(true));
-        conversation7.receiveTips(List.of(true));
-        conversation5.receiveEventsFinished();
-        conversation7.receiveEventsFinished();
-
-        // we have finished first full sync, so we can now broadcast events
-
-        var event2 = new TestingEventBuilder(new Random())
-                .setSystemTransactionCount(0)
-                .setAppTransactionCount(0)
-                .setCreatorId(selfId)
-                .build();
-        var gossipEvent2 = event2.getGossipEvent();
-        synchronizer.addEvent(event2);
-        Mockito.verify(gossipSender).sendBroadcastEvent(gossipEvent2);
-        Mockito.verify(gossipSender7).sendBroadcastEvent(gossipEvent2);
     }
 }

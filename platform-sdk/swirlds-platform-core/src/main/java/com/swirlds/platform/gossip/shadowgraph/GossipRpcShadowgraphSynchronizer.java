@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
@@ -109,12 +108,5 @@ public class GossipRpcShadowgraphSynchronizer extends AbstractShadowgraphSynchro
     @Override
     public void addEvent(@NonNull final PlatformEvent platformEvent) {
         super.addEvent(platformEvent);
-
-        // broadcast event to other nodes as part of simplistic broadcast
-        if (syncConfig.broadcast() && selfId.equals(platformEvent.getCreatorId())) {
-            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
-            allRpcPeers.forEach(rpcPeer -> rpcPeer.broadcastEvent(gossipEvent));
-            syncMetrics.broadcastEventSent();
-        }
     }
 }

@@ -39,8 +39,6 @@ import java.time.Duration;
  *                                           style network sync, used only for rpc sync; current implementation is
  *                                           limited by {@link #idleDispatchPollTimeout} regarding worst-case frequency
  *                                           of synchronizations
- * @param broadcast                          enable simplistic broadcast, where all self-events are broadcast to all
- *                                           neighbours
  * @param idleWritePollTimeout               how long should gossip rpc mechanism wait between write actions if no
  *                                           events are ready to be sent; pings etc
  * @param idleDispatchPollTimeout            how long should gossip rpc mechanism wait between dispatch actions if no
@@ -63,6 +61,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
         @ConfigProperty(defaultValue = "0ms") Duration syncPeriod,
-        @ConfigProperty(defaultValue = "false") boolean broadcast,
         @ConfigProperty(defaultValue = "5ms") Duration idleWritePollTimeout,
         @ConfigProperty(defaultValue = "5ms") Duration idleDispatchPollTimeout) {}

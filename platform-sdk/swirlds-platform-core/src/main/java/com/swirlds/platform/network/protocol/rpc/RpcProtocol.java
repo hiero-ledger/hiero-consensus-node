@@ -23,7 +23,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Implementation of a factory for rpc protocol, encompassing new sync and broadcast atm
+ * Implementation of a factory for rpc protocol, encompassing new sync
  */
 public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchronizer> {
 
