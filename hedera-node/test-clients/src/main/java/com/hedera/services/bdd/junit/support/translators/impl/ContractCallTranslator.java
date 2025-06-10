@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.TraceData;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
@@ -31,10 +30,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                             final var result = callContractOutput.contractCallResultOrThrow();
                             recordBuilder.contractCallResult(result);
                             if (parts.transactionIdOrThrow().nonce() == 0 && result.gasUsed() > 0L) {
-                                // set contract ID only if the call was not reverted
-                                if (!parts.status().equals(ResponseCodeEnum.REVERTED_SUCCESS)) {
-                                    receiptBuilder.contractID(result.contractID());
-                                }
+                                receiptBuilder.contractID(result.contractID());
                             }
                         }),
                 remainingStateChanges,
