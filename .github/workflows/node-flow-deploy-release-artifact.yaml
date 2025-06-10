@@ -217,8 +217,7 @@ jobs:
         with:
           workflow: .github/workflows/zxf-prepare-extended-test-suite.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          #ref: main # ensure we are always using the workflow definition from the main branch
-          ref: 19585-timing-issue-with-build-application-workflow-on-main
+          ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ inputs.ref }}",
