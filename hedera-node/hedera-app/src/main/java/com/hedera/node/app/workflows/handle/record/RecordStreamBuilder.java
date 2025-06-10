@@ -200,7 +200,7 @@ public class RecordStreamBuilder
     private TokenType tokenType;
     private HederaFunctionality function;
 
-    private boolean isContractCreate = false;
+    private boolean isContractCreate;
 
     /**
      * ops duration used by the contract transaction

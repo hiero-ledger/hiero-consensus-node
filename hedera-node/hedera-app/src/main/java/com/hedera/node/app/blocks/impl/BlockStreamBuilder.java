@@ -392,7 +392,7 @@ public class BlockStreamBuilder
      */
     private long opsDuration;
 
-    private boolean isContractCreate = false;
+    private boolean isContractCreate;
 
     /**
      * Constructs a builder for a user transaction with the given characteristics.
@@ -893,14 +893,14 @@ public class BlockStreamBuilder
      * Sets the receipt contractID;
      * This is used for HAPI and Ethereum contract creation transactions.
      *
-     * @param contractId the {@link ContractID} for the receipt
+     * @param contractID the {@link ContractID} for the receipt
      * @return the builder
      */
     @NonNull
     @Override
-    public BlockStreamBuilder createdContractID(@Nullable ContractID contractId) {
+    public BlockStreamBuilder createdContractID(@Nullable ContractID contractID) {
         this.isContractCreate = true;
-        contractID(contractId);
+        contractID(contractID);
         return this;
     }
 

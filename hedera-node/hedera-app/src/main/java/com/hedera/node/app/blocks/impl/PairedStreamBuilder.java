@@ -364,7 +364,7 @@ public class PairedStreamBuilder
      */
     @NonNull
     @Override
-    public PairedStreamBuilder createdContractID(@Nullable ContractID contractId) {
+    public PairedStreamBuilder createdContractID(@Nullable final ContractID contractId) {
         recordStreamBuilder.createdContractID(contractId);
         blockStreamBuilder.createdContractID(contractId);
         return this;
