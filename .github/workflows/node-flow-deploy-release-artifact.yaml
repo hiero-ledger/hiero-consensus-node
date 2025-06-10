@@ -15,6 +15,7 @@ on:
       dry-run-enabled:
         required: false
         default: false
+        type: boolean
         description: "Specify that this is a test run which will skip certain steps."
 
 defaults:
@@ -221,7 +222,6 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ inputs.ref }}",
-            "ref-name": "${{ inputs.ref-name }}",
             "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
             }'
 
