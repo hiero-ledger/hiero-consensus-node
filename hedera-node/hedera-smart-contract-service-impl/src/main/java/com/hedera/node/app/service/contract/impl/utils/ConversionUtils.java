@@ -1047,7 +1047,8 @@ public class ConversionUtils {
      * @param bytes the bytes to pad
      * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
      */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
         requireNonNull(bytes);
         final int n = (int) bytes.length();
         if (n == 32) {
@@ -1065,7 +1066,9 @@ public class ConversionUtils {
      * @param paddedTopics the 32-byte padded topics to use in the log
      * @return the Besu {@link Log} representation of the log
      */
-    public static Log asBesuLog(@NonNull final EvmTransactionLog log, @NonNull final List<com.hedera.pbj.runtime.io.buffer.Bytes> paddedTopics) {
+    public static Log asBesuLog(
+            @NonNull final EvmTransactionLog log,
+            @NonNull final List<com.hedera.pbj.runtime.io.buffer.Bytes> paddedTopics) {
         requireNonNull(log);
         requireNonNull(paddedTopics);
         return new Log(

@@ -18,7 +18,6 @@ import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
 import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
 import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
@@ -82,7 +81,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogsBloomFilter;
 
 /**
  * Implements shared translation logic for transaction records, maintaining all the extra-stream
@@ -560,7 +558,11 @@ public class BaseTranslator {
                     .filter(TraceData::hasEvmTraceData)
                     .map(TraceData::evmTraceDataOrThrow)
                     .forEach(traceData -> traceData.logs().forEach(log -> {
-                        final var besuLog = asBesuLog(log, log.topics().stream().map(ConversionUtils::leftPad32).toList());
+                        final var besuLog = asBesuLog(
+                                log,
+                                log.topics().stream()
+                                        .map(ConversionUtils::leftPad32)
+                                        .toList());
                         besuLogs.add(besuLog);
                         verboseLogs.add(asContractLogInfo(log, besuLog));
                     }));

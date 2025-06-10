@@ -17,7 +17,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_BLOCK_NO;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownContextWith;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCall;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCreate;

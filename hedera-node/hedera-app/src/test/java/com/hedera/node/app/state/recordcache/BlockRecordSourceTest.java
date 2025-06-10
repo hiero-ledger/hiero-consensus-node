@@ -92,7 +92,8 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateRecord(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
-                null, FIRST_OUTPUT.transactionOutputOrThrow()))
+                        null,
+                        FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD);
         given(recordTranslator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null))
                 .willReturn(SECOND_RECORD);
@@ -116,7 +117,7 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
-                FIRST_OUTPUT.transactionOutputOrThrow()))
+                        FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD.receiptOrThrow());
         given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
                 .willReturn(SECOND_RECORD.receiptOrThrow());
@@ -142,7 +143,7 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
-                FIRST_OUTPUT.transactionOutputOrThrow()))
+                        FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD.receiptOrThrow());
         given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
                 .willReturn(SECOND_RECORD.receiptOrThrow());
@@ -165,7 +166,7 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
-                FIRST_OUTPUT.transactionOutputOrThrow()))
+                        FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD.receiptOrThrow());
         given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
                 .willReturn(SECOND_RECORD.receiptOrThrow());

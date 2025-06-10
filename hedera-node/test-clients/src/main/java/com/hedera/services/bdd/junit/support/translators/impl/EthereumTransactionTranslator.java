@@ -8,7 +8,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.TraceData;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -42,7 +41,9 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             // CONSENSUS_GAS_EXHAUSTED
                                             case UNSET -> ContractFunctionResult.DEFAULT;
                                             case ETHEREUM_CALL_RESULT -> {
-                                                var resultBuilder = ethTxOutput.ethereumCallResultOrThrow().copyBuilder();
+                                                var resultBuilder = ethTxOutput
+                                                        .ethereumCallResultOrThrow()
+                                                        .copyBuilder();
                                                 if (parts.status() == SUCCESS) {
                                                     mapTracesToVerboseLogs(resultBuilder, parts.traces());
                                                 }
@@ -50,7 +51,9 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                 yield resultBuilder.build();
                                             }
                                             case ETHEREUM_CREATE_RESULT -> {
-                                                var resultBuilder = ethTxOutput.ethereumCreateResultOrThrow().copyBuilder();
+                                                var resultBuilder = ethTxOutput
+                                                        .ethereumCreateResultOrThrow()
+                                                        .copyBuilder();
                                                 if (parts.status() == SUCCESS) {
                                                     mapTracesToVerboseLogs(resultBuilder, parts.traces());
                                                 }

@@ -29,15 +29,13 @@ import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.evm.log.Log;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.hyperledger.besu.evm.log.Log;
 
 /**
  * Translates a {@link TransactionResult} and, optionally, one or more {@link TransactionOutput}s within a given
@@ -73,11 +71,8 @@ public class BlockItemsTranslator {
                 .exchangeRate(context.transactionExchangeRates());
         final var function = context.functionality();
         switch (function) {
-            case CONTRACT_CALL,
-                    CONTRACT_CREATE,
-                    CONTRACT_DELETE,
-                    CONTRACT_UPDATE,
-                    ETHEREUM_TRANSACTION -> receiptBuilder.contractID(((ContractOpContext) context).contractId());
+            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION ->
+                receiptBuilder.contractID(((ContractOpContext) context).contractId());
             case CRYPTO_CREATE, CRYPTO_UPDATE -> receiptBuilder.accountID(((CryptoOpContext) context).accountId());
             case FILE_CREATE -> receiptBuilder.fileID(((FileOpContext) context).fileId());
             case NODE_CREATE -> receiptBuilder.nodeId(((NodeOpContext) context).nodeId());
@@ -98,15 +93,17 @@ public class BlockItemsTranslator {
                     receiptBuilder.scheduledTransactionID(signOutput.scheduledTransactionId());
                 }
             }
-            case CONSENSUS_SUBMIT_MESSAGE -> receiptBuilder
-                    .topicRunningHashVersion(((SubmitOpContext) context).runningHashVersion())
-                    .topicSequenceNumber(((SubmitOpContext) context).sequenceNumber())
-                    .topicRunningHash(((SubmitOpContext) context).runningHash());
-            case TOKEN_MINT -> receiptBuilder
-                    .newTotalSupply(((MintOpContext) context).newTotalSupply())
-                    .serialNumbers(((MintOpContext) context).serialNumbers());
-            case TOKEN_BURN, TOKEN_ACCOUNT_WIPE -> receiptBuilder.newTotalSupply(
-                    ((SupplyChangeOpContext) context).newTotalSupply());
+            case CONSENSUS_SUBMIT_MESSAGE ->
+                receiptBuilder
+                        .topicRunningHashVersion(((SubmitOpContext) context).runningHashVersion())
+                        .topicSequenceNumber(((SubmitOpContext) context).sequenceNumber())
+                        .topicRunningHash(((SubmitOpContext) context).runningHash());
+            case TOKEN_MINT ->
+                receiptBuilder
+                        .newTotalSupply(((MintOpContext) context).newTotalSupply())
+                        .serialNumbers(((MintOpContext) context).serialNumbers());
+            case TOKEN_BURN, TOKEN_ACCOUNT_WIPE ->
+                receiptBuilder.newTotalSupply(((SupplyChangeOpContext) context).newTotalSupply());
             case TOKEN_CREATE -> receiptBuilder.tokenID(((TokenOpContext) context).tokenId());
             case CONSENSUS_CREATE_TOPIC -> receiptBuilder.topicID(((TopicOpContext) context).topicId());
         }
@@ -148,21 +145,27 @@ public class BlockItemsTranslator {
         switch (function) {
             case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION -> {
                 if (function == CONTRACT_CALL) {
-                    recordBuilder.contractCallResult(
-                            outputValueIfPresent(TransactionOutput::hasContractCall, logAwareResultExtractor(CONTRACT_CALL_EXTRACTOR, logs), outputs));
+                    recordBuilder.contractCallResult(outputValueIfPresent(
+                            TransactionOutput::hasContractCall,
+                            logAwareResultExtractor(CONTRACT_CALL_EXTRACTOR, logs),
+                            outputs));
                 } else if (function == CONTRACT_CREATE) {
                     recordBuilder.contractCreateResult(outputValueIfPresent(
-                            TransactionOutput::hasContractCreate, logAwareResultExtractor(CONTRACT_CREATE_EXTRACTOR, logs), outputs));
+                            TransactionOutput::hasContractCreate,
+                            logAwareResultExtractor(CONTRACT_CREATE_EXTRACTOR, logs),
+                            outputs));
                 } else if (function == ETHEREUM_TRANSACTION) {
                     final var ethOutput = outputValueIfPresent(
                             TransactionOutput::hasEthereumCall, TransactionOutput::ethereumCallOrThrow, outputs);
                     if (ethOutput != null) {
                         recordBuilder.ethereumHash(ethOutput.ethereumHash());
                         switch (ethOutput.ethResult().kind()) {
-                            case ETHEREUM_CALL_RESULT -> recordBuilder.contractCallResult(
-                                    resultWithLogs(ethOutput.ethereumCallResultOrThrow(), logs));
-                            case ETHEREUM_CREATE_RESULT -> recordBuilder.contractCreateResult(
-                                    resultWithLogs(ethOutput.ethereumCreateResultOrThrow(), logs));
+                            case ETHEREUM_CALL_RESULT ->
+                                recordBuilder.contractCallResult(
+                                        resultWithLogs(ethOutput.ethereumCallResultOrThrow(), logs));
+                            case ETHEREUM_CREATE_RESULT ->
+                                recordBuilder.contractCreateResult(
+                                        resultWithLogs(ethOutput.ethereumCreateResultOrThrow(), logs));
                         }
                     }
                 }
@@ -174,10 +177,10 @@ public class BlockItemsTranslator {
                     recordBuilder.contractCallResult(synthResult);
                 }
                 switch (function) {
-                    case CRYPTO_CREATE, CRYPTO_UPDATE -> recordBuilder.evmAddress(
-                            ((CryptoOpContext) context).evmAddress());
-                    case TOKEN_AIRDROP -> recordBuilder.newPendingAirdrops(
-                            ((AirdropOpContext) context).pendingAirdropRecords());
+                    case CRYPTO_CREATE, CRYPTO_UPDATE ->
+                        recordBuilder.evmAddress(((CryptoOpContext) context).evmAddress());
+                    case TOKEN_AIRDROP ->
+                        recordBuilder.newPendingAirdrops(((AirdropOpContext) context).pendingAirdropRecords());
                     case UTIL_PRNG -> {
                         final var prngOutput = outputValueIfPresent(
                                 TransactionOutput::hasUtilPrng, TransactionOutput::utilPrngOrThrow, outputs);
@@ -200,14 +203,16 @@ public class BlockItemsTranslator {
         return output -> resultWithLogs(extractor.apply(output), logs);
     }
 
-    private ContractFunctionResult resultWithLogs(@NonNull final ContractFunctionResult result, @Nullable final List<EvmTransactionLog> logs) {
+    private ContractFunctionResult resultWithLogs(
+            @NonNull final ContractFunctionResult result, @Nullable final List<EvmTransactionLog> logs) {
         if (logs == null || logs.isEmpty()) {
             return result;
         } else {
             final List<Log> besuLogs = new ArrayList<>(logs.size());
             final List<ContractLoginfo> verboseLogs = new ArrayList<>(logs.size());
             for (final var log : logs) {
-                final var paddedTopics = log.topics().stream().map(ConversionUtils::leftPad32).toList();
+                final var paddedTopics =
+                        log.topics().stream().map(ConversionUtils::leftPad32).toList();
                 final var besuLog = asBesuLog(log, paddedTopics);
                 besuLogs.add(besuLog);
                 verboseLogs.add(ContractLoginfo.newBuilder()

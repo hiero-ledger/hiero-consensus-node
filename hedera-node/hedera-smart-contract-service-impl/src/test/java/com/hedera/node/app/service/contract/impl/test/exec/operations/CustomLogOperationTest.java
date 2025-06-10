@@ -15,7 +15,6 @@ import com.google.common.collect.ImmutableList;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomLogOperation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -114,8 +113,7 @@ class CustomLogOperationTest {
         for (int i = 0; i < 3; i++) {
             builder.add(LogTopic.create(leftPad(TOPICS[i])));
         }
-        final var mirrorAddress =
-                asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
+        final var mirrorAddress = asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
         final var expectedLog = new Log(mirrorAddress, pbjToTuweniBytes(TestHelpers.LOG_DATA), builder.build());
 
         final var subject = new CustomLogOperation(3, gasCalculator);

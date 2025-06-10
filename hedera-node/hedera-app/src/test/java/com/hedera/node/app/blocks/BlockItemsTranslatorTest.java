@@ -393,7 +393,8 @@ class BlockItemsTranslatorTest {
                         .build(),
                 actualRecordNoOutput);
 
-        final var actualRecordWithOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
+        final var actualRecordWithOutput =
+                BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()
@@ -426,7 +427,8 @@ class BlockItemsTranslatorTest {
                         .build(),
                 actualRecordNoOutput);
 
-        final var actualRecordWithOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
+        final var actualRecordWithOutput =
+                BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()
@@ -462,7 +464,8 @@ class BlockItemsTranslatorTest {
                         .build(),
                 actualRecordNoOutput);
 
-        final var actualRecordWithOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
+        final var actualRecordWithOutput =
+                BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()
@@ -499,7 +502,8 @@ class BlockItemsTranslatorTest {
                         .build(),
                 actualRecordNoOutput);
 
-        final var actualRecordWithOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
+        final var actualRecordWithOutput =
+                BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()
@@ -523,7 +527,8 @@ class BlockItemsTranslatorTest {
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(EXPECTED_BASE_RECORD, actualRecordNoOutput);
 
-        final var actualRecordWithOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
+        final var actualRecordWithOutput =
+                BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null, output);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()

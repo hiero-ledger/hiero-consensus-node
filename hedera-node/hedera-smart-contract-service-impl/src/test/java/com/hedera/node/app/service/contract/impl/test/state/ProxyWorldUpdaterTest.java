@@ -167,7 +167,8 @@ class ProxyWorldUpdaterTest {
     @Test
     void getsHederaAccountByAlias() {
         final var aliasId = AccountID.newBuilder()
-                .alias(tuweniToPbjBytes(asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
+                .alias(tuweniToPbjBytes(
+                        asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
                 .build();
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
         assertSame(proxyEvmContract, subject.getHederaAccount(aliasId));
@@ -176,7 +177,8 @@ class ProxyWorldUpdaterTest {
     @Test
     void getsHederaContractByAlias() {
         final var aliasId = ContractID.newBuilder()
-                .evmAddress(tuweniToPbjBytes(asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
+                .evmAddress(tuweniToPbjBytes(
+                        asLongZeroAddress(ADDRESS_6.toBigInteger().longValueExact())))
                 .build();
         given(hederaOperations.shardAndRealmValidated(aliasId)).willReturn(aliasId);
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
@@ -465,8 +467,7 @@ class ProxyWorldUpdaterTest {
         given(evmFrameState.getAddress(NUMBER)).willReturn(asLongZeroAddress(NUMBER));
         given(evmFrameState.getAddress(NEXT_NUMBER)).willReturn(SOME_EVM_ADDRESS);
         given(evmFrameState.getAddress(NUMBER_OF_DELETED)).willReturn(null);
-        given(evmFrameState.getAccount(asLongZeroAddress(NUMBER)))
-                .willReturn(anImmutableAccount);
+        given(evmFrameState.getAccount(asLongZeroAddress(NUMBER))).willReturn(anImmutableAccount);
         given(evmFrameState.getAccount(SOME_EVM_ADDRESS)).willReturn(anotherImmutableAccount);
 
         final var touched = subject.getTouchedAccounts();

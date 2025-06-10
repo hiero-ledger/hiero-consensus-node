@@ -34,7 +34,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                             final var resultBuilder = callContractOutput
                                     .contractCallResultOrThrow()
                                     .copyBuilder();
-                            if (parts.transactionIdOrThrow().nonce() == 0 && parts.status() == SUCCESS) {
+                            if (parts.status() == SUCCESS) {
                                 mapTracesToVerboseLogs(resultBuilder, parts.traces());
                             }
                             final var result = resultBuilder.build();

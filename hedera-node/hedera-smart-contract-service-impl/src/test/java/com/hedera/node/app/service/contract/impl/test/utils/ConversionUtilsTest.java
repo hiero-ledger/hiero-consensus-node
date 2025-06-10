@@ -247,8 +247,7 @@ class ConversionUtilsTest {
     @Test
     void convertContractIdToBesuAddressTest() {
         final var actual = ConversionUtils.contractIDToBesuAddress(entityIdFactory, CALLED_CONTRACT_ID);
-        assertEquals(
-                actual, asLongZeroAddress(Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
+        assertEquals(actual, asLongZeroAddress(Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
 
         final var actual2 = ConversionUtils.contractIDToBesuAddress(entityIdFactory, VALID_CONTRACT_ADDRESS);
         assertEquals(actual2, pbjToBesuAddress(Objects.requireNonNull(VALID_CONTRACT_ADDRESS.evmAddress())));
