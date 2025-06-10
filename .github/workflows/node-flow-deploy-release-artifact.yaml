@@ -8,7 +8,15 @@ on:
     inputs:
       ref:
         required: true
-        description: "The github branch or tag that triggered the workflow"
+        description: "Git Reference (branch, tag, or commit SHA)"
+      ref-name:
+        required: true
+        description: "Git Reference Name (branch name or tag name)"
+      dry-run-enabled:
+        required: false
+        default: false
+        type: boolean
+        description: "Specify that this is a test run which will skip certain steps."
 
 defaults:
   run:
@@ -69,6 +77,8 @@ jobs:
       new-version: ${{ needs.prepare-tag-release.outputs.version }}
       trigger-env-deploy: none
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
+      ref: ${{ github.ref }}
+      ref-name: ${{ github.ref_name }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -102,7 +112,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          ref: main
+          ref: ${{ inputs.ref }}
           fetch-depth: "0"
 
       - name: Checkout Hedera Protobufs Code
@@ -152,6 +162,9 @@ jobs:
       version-policy: branch-commit
       trigger-env-deploy: integration
       release-profile: DevelopCommit
+      ref: ${{ inputs.ref }}
+      ref-name: ${{ inputs.ref-name }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -185,7 +198,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Prep XTS Job State
@@ -207,11 +220,15 @@ jobs:
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{ "ref": "${{ inputs.ref }}" }'
+          inputs: '{
+            "ref": "${{ inputs.ref }}",
+            "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
+            }'
 
   deploy-integration-ci-trigger:
     name: Trigger XTS CI Flows
     runs-on: hiero-network-node-linux-medium
+    if: ${{ inputs.dry-run-enabled == false }}
     needs:
       - release-branch
     steps:
@@ -224,7 +241,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Integration Job State
@@ -247,7 +264,8 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ inputs.ref }}"
+            "ref": "${{ inputs.ref }}",
+            "ref-name": "${{ inputs.ref-name }}"
             }'
 
   report-failures:
@@ -256,7 +274,7 @@ jobs:
     needs:
       - release-branch
       - deploy-xts-ci-trigger
-    if: ${{ (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
+    if: ${{ inputs.dry-run-enabled == false && (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -267,7 +285,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -298,9 +316,9 @@ jobs:
         id: fetch-commit-info
         continue-on-error: true
         run: |
-          echo "commit-hash=$(git rev-parse ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-hash=${{ inputs.ref }}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git show -s --format='%an <%ae>' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git show -s --format='%ae' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
