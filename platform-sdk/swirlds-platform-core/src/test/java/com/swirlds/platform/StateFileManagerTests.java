@@ -330,7 +330,7 @@ class StateFileManagerTests {
 
                 assertNotNull(stateSavingResult, "state should have been saved");
                 assertEquals(
-                        oldestMetadata.minimumNonAncientBirthRound(),
+                        oldestMetadata.minimumBirthRoundNonAncient(),
                         stateSavingResult.oldestMinimumBirthRoundOnDisk());
 
                 assertTrue(

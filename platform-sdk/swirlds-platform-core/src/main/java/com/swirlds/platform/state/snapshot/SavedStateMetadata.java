@@ -67,7 +67,7 @@ import org.hiero.consensus.roster.RosterUtils;
  *                                       to {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH}.
  * @param legacyRunningEventHashMnemonic the mnemonic for the {@link #legacyRunningEventHash}, corresponds to
  *                                       {@link SavedStateMetadataField#LEGACY_RUNNING_EVENT_HASH_MNEMONIC}.
- * @param minimumNonAncientBirthRound    the minimum birth round of non-ancient events after this state reached
+ * @param minimumBirthRoundNonAncient    the minimum birth round of non-ancient events after this state reached
  *                                       consensus, corresponds to
  *                                       {@link SavedStateMetadataField#MINIMUM_BIRTH_ROUND_NON_ANCIENT}
  * @param softwareVersion                the application software version that created this state, corresponds to
@@ -91,7 +91,7 @@ public record SavedStateMetadata(
         @NonNull Instant consensusTimestamp,
         @Nullable Hash legacyRunningEventHash,
         @Nullable String legacyRunningEventHashMnemonic,
-        long minimumNonAncientBirthRound,
+        long minimumBirthRoundNonAncient,
         @NonNull String softwareVersion,
         @NonNull Instant wallClockTime,
         @NonNull NodeId nodeId,
@@ -615,7 +615,7 @@ public record SavedStateMetadata(
         putRequireNonNull(map, CONSENSUS_TIMESTAMP, consensusTimestamp);
         putRequireNonNull(map, LEGACY_RUNNING_EVENT_HASH, legacyRunningEventHash);
         putRequireNonNull(map, LEGACY_RUNNING_EVENT_HASH_MNEMONIC, legacyRunningEventHashMnemonic);
-        putRequireNonNull(map, MINIMUM_BIRTH_ROUND_NON_ANCIENT, minimumNonAncientBirthRound);
+        putRequireNonNull(map, MINIMUM_BIRTH_ROUND_NON_ANCIENT, minimumBirthRoundNonAncient);
         putRequireNonNull(map, SOFTWARE_VERSION, softwareVersion);
         putRequireNonNull(map, WALL_CLOCK_TIME, wallClockTime);
         putRequireNonNull(map, NODE_ID, nodeId);

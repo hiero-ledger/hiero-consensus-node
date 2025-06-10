@@ -128,7 +128,7 @@ class SavedStateMetadataTests {
         assertEquals(timestamp, deserialized.consensusTimestamp());
         assertEquals(legacyRunningEventHash, deserialized.legacyRunningEventHash());
         assertEquals(Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
-        assertEquals(minimumBirthRoundNonAncient, deserialized.minimumNonAncientBirthRound());
+        assertEquals(minimumBirthRoundNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
@@ -179,7 +179,7 @@ class SavedStateMetadataTests {
         assertEquals(Mnemonics.generateMnemonic(hash), deserialized.hashMnemonic());
         assertEquals(numberOfConsensusEvents, deserialized.numberOfConsensusEvents());
         assertEquals(timestamp, deserialized.consensusTimestamp());
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumNonAncientBirthRound());
+        assertEquals(minimumGenerationNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
@@ -262,7 +262,7 @@ class SavedStateMetadataTests {
         assertEquals(hashMnemonic, deserialized.hashMnemonic());
         assertEquals(numberOfConsensusEvents, deserialized.numberOfConsensusEvents());
         assertEquals(timestamp, deserialized.consensusTimestamp());
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumNonAncientBirthRound());
+        assertEquals(minimumGenerationNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals("why//are//there//newlines//here//please//stop//", deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
@@ -282,7 +282,7 @@ class SavedStateMetadataTests {
                 .resolve("state")
                 .resolve("metadata_with_generation_key.txt");
         final SavedStateMetadata metadata = SavedStateMetadata.parse(metadataFile);
-        assertEquals(123456789, metadata.minimumNonAncientBirthRound());
+        assertEquals(123456789, metadata.minimumBirthRoundNonAncient());
     }
 
     private interface FileUpdater {
@@ -394,7 +394,7 @@ class SavedStateMetadataTests {
             assertEquals(
                     Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
         }
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumNonAncientBirthRound());
+        assertEquals(minimumGenerationNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
