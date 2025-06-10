@@ -197,7 +197,7 @@ jobs:
           inputs: '{
             "ref": "${{ github.sha }}",
             "ref-name": "${{ github.ref_name }}",
-            "dry-run-enabled": ${{ inputs.dry-run-enabled || false}}
+            "dry-run-enabled": ${{ inputs.dry-run-enabled || false }}
             }'
 
   report-failure:
