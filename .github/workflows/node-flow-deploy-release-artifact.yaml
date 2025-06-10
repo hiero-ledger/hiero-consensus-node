@@ -222,7 +222,6 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ inputs.ref }}",
-            "ref-name": "${{ inputs.ref-name }}",
             "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
             }'
 
