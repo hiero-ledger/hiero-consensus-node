@@ -790,6 +790,8 @@ Independent of the gossip CA certificate format, the `--declineRewards` option c
 new node should decline reward payments. Use `--declineRewards` to decline rewards, or `--declineRewards false`
 to accept rewards. This value defaults to `true` (declines the rewards) if not specified.
 
+The `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`, can be used to specify a gRPC proxy endpoint for the node. This is optional.
+
 :warning: If the payer and admin keys do not meet the signing requirements of the new node's fee collection account,
 there must be a key in the target network's _keys/_ directory for that account.
 
@@ -861,3 +863,5 @@ Targeting localhost, paying with 0.0.2
 A node can also be updated to begin declining or accepting reward payments. Use `--startDecliningRewards` to
 begin accepting reward payments, or `--stopDecliningRewards` to stop accepting reward payments. These params have
 no default values.
+
+A node's gRPC proxy endpoint can also be updated with the `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`. This is optional.

@@ -60,6 +60,9 @@ public class UpdateNodeSuite extends HapiSuite {
 
     private final Boolean declineRewards;
 
+    @Nullable
+    private final ServiceEndpoint grpcProxyEndpoint;
+
     public UpdateNodeSuite(
             @NonNull final ConfigManager configManager,
             final long nodeId,
@@ -72,7 +75,8 @@ public class UpdateNodeSuite extends HapiSuite {
             @Nullable final List<ServiceEndpoint> hapiEndpoints,
             @Nullable final byte[] gossipCaCertificate,
             @Nullable final byte[] hapiCertificateHash,
-            @Nullable final Boolean declineRewards) {
+            @Nullable final Boolean declineRewards,
+            @Nullable final ServiceEndpoint grpcProxyEndpoint) {
         this.configManager = requireNonNull(configManager);
         this.nodeId = nodeId;
         this.accountId = accountId;
@@ -85,6 +89,7 @@ public class UpdateNodeSuite extends HapiSuite {
         this.gossipCaCertificate = gossipCaCertificate;
         this.hapiCertificateHash = hapiCertificateHash;
         this.declineRewards = declineRewards;
+        this.grpcProxyEndpoint = grpcProxyEndpoint;
     }
 
     @Override
@@ -137,6 +142,9 @@ public class UpdateNodeSuite extends HapiSuite {
         }
         if (declineRewards != null) {
             op.declineReward(declineRewards);
+        }
+        if (grpcProxyEndpoint != null) {
+            op.grpcProxyEndpoint(grpcProxyEndpoint);
         }
         return op.signedBy(availableSigners());
     }
