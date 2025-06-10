@@ -368,18 +368,18 @@ public final class VirtualHasher {
                 }
                 : listener;
 
-        ForkJoinPool hashingPool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
+        final ForkJoinPool pool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
                 ? thread.getPool()
                 : getHashingPool(virtualMapConfig);
 
-        return hashingPool.invoke(ForkJoinTask.adapt(() -> hashInternal(
+        return pool.invoke(ForkJoinTask.adapt(() -> hashInternal(
                 hashReader,
                 sortedDirtyLeaves,
                 firstLeafPath,
                 lastLeafPath,
                 normalizedListener,
                 virtualMapConfig,
-                hashingPool)));
+                pool)));
     }
 
     /**
