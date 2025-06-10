@@ -39,6 +39,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,7 +91,7 @@ class SavedStateMetadataTests {
         final long numberOfConsensusEvents = random.nextLong();
         final Instant timestamp = RandomUtils.randomInstant(random);
         final Hash legacyRunningEventHash = randomHash(random);
-        final long minimumGenerationNonAncient = random.nextLong();
+        final long minimumBirthRoundNonAncient = random.nextLong();
         final SemanticVersion softwareVersion =
                 SemanticVersion.newBuilder().major(random.nextInt()).build();
         final Instant wallClockTime = RandomUtils.randomInstant(random);
@@ -110,7 +111,7 @@ class SavedStateMetadataTests {
                 timestamp,
                 legacyRunningEventHash,
                 Mnemonics.generateMnemonic(legacyRunningEventHash),
-                minimumGenerationNonAncient,
+                minimumBirthRoundNonAncient,
                 softwareVersion.toString(),
                 wallClockTime,
                 nodeId,
@@ -127,7 +128,7 @@ class SavedStateMetadataTests {
         assertEquals(timestamp, deserialized.consensusTimestamp());
         assertEquals(legacyRunningEventHash, deserialized.legacyRunningEventHash());
         assertEquals(Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumNonAncientBirthRound());
+        assertEquals(minimumBirthRoundNonAncient, deserialized.minimumNonAncientBirthRound());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
@@ -271,9 +272,17 @@ class SavedStateMetadataTests {
     }
 
     @Test
-    @DisplayName("Handle Files With Old Generation Key Test")
-    void testFileWithOldGenerationKey() {
-        final Path metadataFile = 
+    @DisplayName("Parse Files With Old Generation Key Test")
+    void testParseFileWithOldGenerationKey() throws IOException {
+        final Path resourceDir = Paths.get("src", "test", "resources");
+        final Path metadataFile = resourceDir
+                .resolve("com")
+                .resolve("swirlds")
+                .resolve("platform")
+                .resolve("state")
+                .resolve("metadata_with_generation_key.txt");
+        final SavedStateMetadata metadata = SavedStateMetadata.parse(metadataFile);
+        assertEquals(123456789, metadata.minimumNonAncientBirthRound());
     }
 
     private interface FileUpdater {

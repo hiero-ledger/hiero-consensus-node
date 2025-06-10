@@ -134,7 +134,10 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             signedState.stateSavedToDisk();
             final long minBirthRound = deleteOldStates();
             stateSavingResult = new StateSavingResult(
-                    signedState.getRound(), signedState.isFreezeState(), signedState.getConsensusTimestamp(), minBirthRound);
+                    signedState.getRound(),
+                    signedState.isFreezeState(),
+                    signedState.getConsensusTimestamp(),
+                    minBirthRound);
         }
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
