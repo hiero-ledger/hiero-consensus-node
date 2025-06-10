@@ -30,45 +30,45 @@ jobs:
         id: payload
         run: |
           SLACK_PAYLOAD=$(jq -n \
-          '{
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "Testing slack-message-payloads to multiple channels.",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Test multiple channels*"
-                    },
-                    "fields": [
-                      {
+            '{
+              "attachments": [
+                {
+                  "color": "#FF0000",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
                         "type": "plain_text",
-                        "text": "Test"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Hello World!"
+                        "text": "Testing slack-message-payloads to multiple channels.",
+                        "emoji": true
                       }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }'
-          )
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Test multiple channels*"
+                      },
+                      "fields": [
+                        {
+                          "type": "plain_text",
+                          "text": "Test"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "Hello World!"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }')
           
+          echo ${SLACK_PAYLOAD} >> "${GITHUB_STEP_SUMMARY}"
           echo "slack-payload=${SLACK_PAYLOAD}" >> "${GITHUB_OUTPUT}" 
 
       - name: Report failure (slack citr-failures)
