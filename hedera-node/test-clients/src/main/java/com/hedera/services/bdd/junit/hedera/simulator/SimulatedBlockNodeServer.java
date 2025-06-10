@@ -266,8 +266,6 @@ public class SimulatedBlockNodeServer {
                         // Move endOfStreamConfig check inside the lock for thread safety
                         final EndOfStreamConfig config = endOfStreamConfig.getAndSet(null);
                         if (config != null) {
-                            // Release the lock before sending the response to avoid potential deadlocks
-                            blockTrackingLock.writeLock().unlock();
                             sendEndOfStream(responseObserver, config.responseCode(), config.blockNumber());
                             return;
                         }
@@ -287,8 +285,6 @@ public class SimulatedBlockNodeServer {
 
                                 final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
                                 if (blockNumber - lastVerifiedBlockNum > 1) {
-                                    // Release the lock before sending the response to avoid potential deadlocks
-                                    blockTrackingLock.writeLock().unlock();
                                     handleBehindResponse(responseObserver, blockNumber, lastVerifiedBlockNum);
                                     return;
                                 }
@@ -579,11 +575,8 @@ public class SimulatedBlockNodeServer {
                 final long blockNumber,
                 final long lastVerifiedBlockNum) {
 
-            // Ensure lastVerifiedBlockNum is at least 0 to avoid client getting stuck in a loop
-            final long safeLastVerifiedBlockNum = Math.max(0, lastVerifiedBlockNum);
-
             final PublishStreamResponse.EndOfStream eos = PublishStreamResponse.EndOfStream.newBuilder()
-                    .setBlockNumber(safeLastVerifiedBlockNum)
+                    .setBlockNumber(lastVerifiedBlockNum)
                     .setStatus(EndOfStream.Code.BEHIND)
                     .build();
             final PublishStreamResponse response =
@@ -596,7 +589,7 @@ public class SimulatedBlockNodeServer {
                         blockNumber,
                         responseObserver.hashCode(),
                         port,
-                        safeLastVerifiedBlockNum);
+                        lastVerifiedBlockNum);
             } catch (Exception e) {
                 log.error(
                         "Failed to send EndOfStream BEHIND for block {} to stream {} on port {}. Removing stream.",
