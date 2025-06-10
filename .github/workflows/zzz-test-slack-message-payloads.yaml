@@ -3,8 +3,6 @@ name: "ZZZ: Test Slack Message Payloads"
 on:
   workflow_dispatch:
 
-INTENTIONALLY BROKEN!
-
 permissions:
   contents: read
 
