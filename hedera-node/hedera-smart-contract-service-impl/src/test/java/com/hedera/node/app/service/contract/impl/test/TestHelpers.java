@@ -22,6 +22,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doReturn;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -55,6 +57,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
+import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
@@ -575,7 +578,7 @@ public class TestHelpers {
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
 
-    public static final HederaEvmTransactionResult SUCCESS_RESULT = HederaEvmTransactionResult.successFrom(
+    public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
             Wei.of(NETWORK_GAS_PRICE),
             SENDER_ID,
@@ -588,20 +591,19 @@ public class TestHelpers {
             null,
             null);
 
-    public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE =
-            HederaEvmTransactionResult.successFrom(
-                            GAS_LIMIT / 2,
-                            Wei.of(NETWORK_GAS_PRICE),
-                            SENDER_ID,
-                            CALLED_CONTRACT_ID,
-                            CALLED_CONTRACT_EVM_ADDRESS,
-                            pbjToTuweniBytes(CALL_DATA),
-                            List.of(BESU_LOG),
-                            null,
-                            null,
-                            null,
-                            null)
-                    .withSignerNonce(SIGNER_NONCE);
+    public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE = explicitSuccessFrom(
+                    GAS_LIMIT / 2,
+                    Wei.of(NETWORK_GAS_PRICE),
+                    SENDER_ID,
+                    CALLED_CONTRACT_ID,
+                    CALLED_CONTRACT_EVM_ADDRESS,
+                    pbjToTuweniBytes(CALL_DATA),
+                    List.of(BESU_LOG),
+                    null,
+                    null,
+                    null,
+                    null)
+            .withSignerNonce(SIGNER_NONCE);
 
     public static final HederaEvmTransactionResult HALT_RESULT = new HederaEvmTransactionResult(
             GAS_LIMIT / 2,
@@ -1040,5 +1042,35 @@ public class TestHelpers {
 
     public static TokenTransferListBuilder tokenTransferList() {
         return new TokenTransferListBuilder();
+    }
+
+    private static HederaEvmTransactionResult explicitSuccessFrom(
+            final long gasUsed,
+            @NonNull final Wei gasPrice,
+            @NonNull final AccountID senderId,
+            @NonNull final ContractID recipientId,
+            @NonNull final ContractID recipientEvmAddress,
+            @NonNull final org.apache.tuweni.bytes.Bytes output,
+            @NonNull @Deprecated final List<Log> logs,
+            @Nullable final List<EvmTransactionLog> evmLogs,
+            @Nullable @Deprecated final ContractStateChanges stateChanges,
+            @Nullable final List<ContractSlotUsage> slotUsages,
+            @Nullable final List<ContractAction> actions) {
+        return new HederaEvmTransactionResult(
+                gasUsed,
+                requireNonNull(gasPrice).toLong(),
+                requireNonNull(senderId),
+                requireNonNull(recipientId),
+                requireNonNull(recipientEvmAddress),
+                tuweniToPbjBytes(requireNonNull(output)),
+                null,
+                null,
+                requireNonNull(logs),
+                evmLogs,
+                stateChanges,
+                slotUsages,
+                null,
+                actions,
+                null);
     }
 }

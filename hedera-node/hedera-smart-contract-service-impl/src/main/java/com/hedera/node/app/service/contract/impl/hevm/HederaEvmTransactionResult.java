@@ -49,7 +49,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
-import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
@@ -113,8 +112,7 @@ public record HederaEvmTransactionResult(
             // This curious presentation of the revert reason is needed for backward compatibility
             return withMaybeEthFields(asUncommittedFailureResult(errorMessageForRevert(revertReason)), ethTxData);
         } else {
-            final var result = withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData);
-            return result;
+            return withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData);
         }
     }
 
@@ -189,6 +187,9 @@ public record HederaEvmTransactionResult(
             @NonNull final MessageFrame frame,
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final EntityIdFactory entityIdFactory) {
+        requireNonNull(senderId);
+        requireNonNull(recipientId);
+        requireNonNull(recipientEvmAddress);
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(entityIdFactory);
@@ -196,48 +197,23 @@ public record HederaEvmTransactionResult(
         final var streamMode = FrameUtils.configOf(frame)
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
-        final var evmLogs = frame.getLogs().isEmpty() ? null : asHederaLogs(frame.getLogs(), entityIdFactory);
-        return successFrom(
+        final var besuLogs = frame.getLogs();
+        final var evmLogs = besuLogs.isEmpty() ? null : asHederaLogs(besuLogs, entityIdFactory);
+        return new HederaEvmTransactionResult(
                 gasUsed,
-                frame.getGasPrice(),
+                frame.getGasPrice().toLong(),
                 senderId,
                 recipientId,
                 recipientEvmAddress,
-                frame.getOutputData(),
-                frame.getLogs(),
+                tuweniToPbjBytes(frame.getOutputData()),
+                null,
+                null,
+                besuLogs,
                 evmLogs,
                 streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
                 streamMode != RECORDS ? asPbjSlotUsages(storageAccesses) : null,
-                maybeActionsFrom(frame, tracer));
-    }
-
-    public static HederaEvmTransactionResult successFrom(
-            final long gasUsed,
-            @NonNull final Wei gasPrice,
-            @NonNull final AccountID senderId,
-            @NonNull final ContractID recipientId,
-            @NonNull final ContractID recipientEvmAddress,
-            @NonNull final org.apache.tuweni.bytes.Bytes output,
-            @NonNull @Deprecated final List<Log> logs,
-            @Nullable final List<EvmTransactionLog> evmLogs,
-            @Nullable @Deprecated final ContractStateChanges stateChanges,
-            @Nullable final List<ContractSlotUsage> slotUsages,
-            @Nullable final List<ContractAction> actions) {
-        return new HederaEvmTransactionResult(
-                gasUsed,
-                requireNonNull(gasPrice).toLong(),
-                requireNonNull(senderId),
-                requireNonNull(recipientId),
-                requireNonNull(recipientEvmAddress),
-                tuweniToPbjBytes(requireNonNull(output)),
                 null,
-                null,
-                requireNonNull(logs),
-                evmLogs,
-                stateChanges,
-                slotUsages,
-                null,
-                actions,
+                maybeActionsFrom(frame, tracer),
                 null);
     }
 
@@ -457,7 +433,7 @@ public record HederaEvmTransactionResult(
                 haltReason,
                 revertReason,
                 logs,
-                null,
+                evmLogs,
                 stateChanges,
                 slotUsages,
                 finalStatus,
