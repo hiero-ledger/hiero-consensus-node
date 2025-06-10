@@ -287,9 +287,12 @@ public class HandleWorkflow {
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
+            final var stateChangesTime = blockHashSigner.isReady()
+                    ? boundaryStateChangeListener.lastConsensusTimeOrThrow()
+                    : round.getConsensusTimestamp();
             recordCache.commitRoundReceipts(
                     state,
-                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
+                    stateChangesTime,
                     round.getConsensusTimestamp(),
                     immediateStateChangeListener,
                     blockStreamManager,

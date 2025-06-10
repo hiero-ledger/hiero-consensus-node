@@ -61,7 +61,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
@@ -739,12 +738,17 @@ public abstract class NewStateRoot<T extends NewStateRoot<T>> implements State {
 
         @Override
         public void commit() {
-            // Ensure all commits always happen in lexicographic order by state key
-            kvInstances.keySet().stream().sorted().forEach(key -> ((WritableKVStateBase) kvInstances.get(key)).commit());
-            if (startupMode) {
-                singletonInstances.keySet().stream().sorted().forEach(key -> ((WritableSingletonStateBase) singletonInstances.get(key)).commit());
+            for (final ReadableKVState kv : kvInstances.values()) {
+                ((WritableKVStateBase) kv).commit();
             }
-            queueInstances.keySet().stream().sorted().forEach(key -> ((WritableQueueStateBase) queueInstances.get(key)).commit());
+            if (startupMode) {
+                for (final ReadableSingletonState s : singletonInstances.values()) {
+                    ((WritableSingletonStateBase) s).commit();
+                }
+            }
+            for (final ReadableQueueState q : queueInstances.values()) {
+                ((WritableQueueStateBase) q).commit();
+            }
             readableStatesMap.remove(serviceName);
         }
 
