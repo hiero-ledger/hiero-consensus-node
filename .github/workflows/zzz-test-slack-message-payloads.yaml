@@ -68,7 +68,7 @@ jobs:
               ]
             }
           EOF
-          
+
           cat slack_payload.json >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Report failure (slack citr-failures)

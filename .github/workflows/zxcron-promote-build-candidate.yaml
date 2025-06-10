@@ -255,76 +255,73 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         run: |
-          SLACK_PAYLOAD=$(cat <<'EOF'
-            {
-              "attachments": [
-                {
-                  "color": "#FF0000",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":warning: Hiero Consensus Node - Build Candidate Promotion Error Report",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Fetch Latest Build Candidate"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.determine-build-candidate.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Promote Build Candidate"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.promote-build-candidate.result }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Additional Information:*"
-                      },
-                      "fields":[
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":warning: Hiero Consensus Node - Build Candidate Promotion Error Report",
+                      "emoji": true
                     }
-                  ]
-                }
-              ]
-            }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Fetch Latest Build Candidate"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.determine-build-candidate.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Promote Build Candidate"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.promote-build-candidate.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Additional Information:*"
+                    },
+                    "fields":[
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
           EOF
-          )
-
-          echo "slack-payload=${SLACK_PAYLOAD}" >> "${GITHUB_OUTPUT}"
 
       - name: Report failure (slack citr-operations)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
@@ -332,7 +329,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: ${{ steps.payload.outputs.slack-payload }}
+          payload-file-path: slack_payload.json
 
       - name: Report failure (slack release-team)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
@@ -340,4 +337,4 @@ jobs:
           webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: ${{ steps.payload.outputs.slack-payload }}
+          payload-file-path: slack_payload.json
