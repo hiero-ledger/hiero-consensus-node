@@ -75,7 +75,8 @@ public class ReplaceSyncPhaseParallelExecutor implements ParallelExecutor {
      * Not implemented
      */
     @Override
-    public void doParallel(final Runnable onThrow, final ThrowingRunnable task1, final ThrowingRunnable... tasks)
+    public void doParallel(
+            final Runnable onThrow, final ThrowingRunnable foregroundTask, final ThrowingRunnable... tasks)
             throws ParallelExecutionException {
         throw new UnsupportedOperationException();
     }

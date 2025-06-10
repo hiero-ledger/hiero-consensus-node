@@ -14,39 +14,39 @@ public interface ParallelExecutor extends Mutable, Startable {
     /**
      * Run two tasks in parallel
      *
-     * @param task1 a task to execute in parallel
-     * @param task2 a task to execute in parallel
+     * @param foregroundTask a task to execute in parallel, utilizing caller thread
+     * @param task2 a task to execute in parallel, using pool thread
      * @throws MutabilityException        if executed prior to object being started
      * @throws ParallelExecutionException if anything goes wrong
      */
-    <T> T doParallel(Callable<T> task1, Callable<Void> task2) throws ParallelExecutionException;
+    <T> T doParallel(Callable<T> foregroundTask, Callable<Void> task2) throws ParallelExecutionException;
 
     /**
      * Run number of tasks in parallel
      *
-     * @param task1 a task to execute in parallel
-     * @param tasks number of tasks to execute in parallel
+     * @param foregroundTask a task to execute in parallel, utilizing caller thread
+     * @param tasks number of tasks to execute in parallel, using pool threads
      * @throws MutabilityException        if executed prior to object being started
      * @throws ParallelExecutionException if anything goes wrong
      */
-    void doParallel(final Runnable onThrow, ThrowingRunnable task1, ThrowingRunnable... tasks)
+    void doParallel(final Runnable onThrow, ThrowingRunnable foregroundTask, ThrowingRunnable... tasks)
             throws ParallelExecutionException;
 
     /**
      * Same as {@link #doParallel(Callable, Callable, Runnable)} but without a return type
      */
-    default void doParallel(final ThrowingRunnable task1, final ThrowingRunnable task2, final Runnable onThrow)
+    default void doParallel(final ThrowingRunnable foregroundTask, final ThrowingRunnable task2, final Runnable onThrow)
             throws ParallelExecutionException {
-        doParallel(task1, (Callable<Void>) task2, onThrow);
+        doParallel(foregroundTask, (Callable<Void>) task2, onThrow);
     }
 
     /**
      * Run two tasks in parallel
      *
-     * @param task1
-     * 		a task to execute in parallel
+     * @param foregroundTask
+     * 		a task to execute in parallel, utilizing caller thread
      * @param task2
-     * 		a task to execute in parallel
+     * 		a task to execute in parallel, using pool thread
      * @param onThrow
      * 		a task to run if an exception gets thrown
      * @throws MutabilityException
@@ -54,7 +54,7 @@ public interface ParallelExecutor extends Mutable, Startable {
      * @throws ParallelExecutionException
      * 		if anything goes wrong
      */
-    default <T> T doParallel(final Callable<T> task1, final Callable<Void> task2, final Runnable onThrow)
+    default <T> T doParallel(final Callable<T> foregroundTask, final Callable<Void> task2, final Runnable onThrow)
             throws ParallelExecutionException {
         throw new UnsupportedOperationException("not implemented");
     }

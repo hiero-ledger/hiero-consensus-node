@@ -33,10 +33,11 @@ public class ExceptionSuppressingParallelExecutor implements ParallelExecutor {
      * {@inheritDoc}
      */
     @Override
-    public void doParallel(final Runnable onThrow, final ThrowingRunnable task1, final ThrowingRunnable... tasks)
+    public void doParallel(
+            final Runnable onThrow, final ThrowingRunnable foregroundTask, final ThrowingRunnable... tasks)
             throws ParallelExecutionException {
         try {
-            executor.doParallel(onThrow, task1, tasks);
+            executor.doParallel(onThrow, foregroundTask, tasks);
         } catch (final ParallelExecutionException e) {
             // suppress exceptions
         }
