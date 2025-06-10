@@ -485,8 +485,8 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("hbarApprove(address,int256)")
         public Stream<DynamicTest> failToApproveHbar() {
-            // TODO Glib: java.lang.IllegalStateException: Not an account redirect
-            // impossible to call? see HbarApproveTranslator.bodyForApproveProxy
+            // TODO Glib: hbarApprove(address,int256) call from contract not going to HbarApproveTranslator.callFrom
+            // see also HbarAllowanceApprovalTest.hrc632ApproveFromEOA test
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
                             new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
