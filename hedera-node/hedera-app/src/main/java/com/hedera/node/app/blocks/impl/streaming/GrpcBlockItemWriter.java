@@ -79,15 +79,6 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         logger.debug("Closed block in GrpcBlockItemWriter");
     }
 
-    /**
-     * Signals that all items before the block proof should be streamed. This allows the state manager
-     * to create a streaming request for all accumulated items before the block proof is added.
-     */
-    @Override
-    public void preBlockProofAction() {
-        blockBufferService.preBlockProofAction(blockNumber);
-    }
-
     @Override
     public void jumpToBlockAfterFreeze(long blockNumber) {
         logger.debug("Setting target block number to jump to {}", blockNumber);

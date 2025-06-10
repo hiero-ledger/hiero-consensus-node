@@ -8,10 +8,8 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VE
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_050;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_051;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_062;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.HEDERA_OPS_DURATION;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV034;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV038;
@@ -84,11 +82,7 @@ public interface ContractServiceModule {
     @Provides
     @Singleton
     static HederaOpsDuration provideHederaOpsDuration() {
-        var hederaOpsDuration = new HederaOpsDuration(
-                () -> HederaOpsDuration.class.getClassLoader().getResourceAsStream(HEDERA_OPS_DURATION),
-                new ObjectMapper());
-        hederaOpsDuration.loadOpsDuration();
-        return hederaOpsDuration;
+        return new HederaOpsDuration();
     }
 
     /**

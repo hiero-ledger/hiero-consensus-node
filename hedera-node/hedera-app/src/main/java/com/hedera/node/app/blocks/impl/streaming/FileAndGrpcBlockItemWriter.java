@@ -74,12 +74,6 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void preBlockProofAction() {
-        // The FileBlockItemWriter doesn't support preBlockProofAction, so we don't call it here
-        this.grpcBlockItemWriter.preBlockProofAction();
-    }
-
-    @Override
     public void jumpToBlockAfterFreeze(long blockNumber) {
         this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
     }

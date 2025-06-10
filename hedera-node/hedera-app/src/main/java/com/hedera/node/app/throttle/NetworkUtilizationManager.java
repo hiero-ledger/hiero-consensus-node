@@ -48,16 +48,13 @@ public interface NetworkUtilizationManager {
     void leakUnusedGasPreviouslyReserved(@NonNull final TransactionInfo txnInfo, final long value);
 
     /**
-     * Updates the throttle requirements for the given transaction and returns whether the transaction
-     * should be throttled for the current time(Instant.now).
+     * Determines if the transaction should be throttled during transaction handling based on ops duration.
      *
-     * @param txnInfo the transaction to update the throttle requirements for
-     * @param state the current state of the node
-     * @param consensusTime the consensus time
+     * @param currentOpsDuration - the ops duration consumed by the transaction so far
+     * @param consensusTime - the consensus time
      * @return whether the transaction should be throttled
      */
-    boolean shouldThrottle(
-            @NonNull final TransactionInfo txnInfo, @NonNull final State state, @NonNull final Instant consensusTime);
+    boolean shouldThrottleByOpsDuration(final long currentOpsDuration, @NonNull final Instant consensusTime);
 
     /**
      * Verifies if the throttle in this operation context has enough capacity to handle the given number of the

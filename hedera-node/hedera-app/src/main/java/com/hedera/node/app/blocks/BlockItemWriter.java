@@ -55,10 +55,5 @@ public interface BlockItemWriter {
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
 
-    /**
-     * Performs any actions that need to be done before the block proof is complete.
-     */
-    void preBlockProofAction();
-
     void jumpToBlockAfterFreeze(long blockNumber);
 }

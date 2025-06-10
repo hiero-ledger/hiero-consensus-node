@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: Update GS_STATE Variable"
+on:
+  workflow_dispatch:
+    inputs:
+      value:
+        description: "New value for GS_STATE:"
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+
+jobs:
+  update-gs-state-variable:
+    name: Update GS_STATE Variable
+    runs-on: hiero-network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Update GS_STATE to input value
+        uses: mmoyaferrer/set-github-variable@31e0d07964802728d7bf8e09dc45b86ee2c8d5f8 # v1.0.0
+        with:
+          name: "GS_STATE"
+          value: ${{ inputs.value }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}

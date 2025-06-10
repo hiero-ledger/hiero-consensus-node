@@ -15,6 +15,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.sources.PropertyConfigSource;
@@ -57,6 +58,7 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConfigDataType(TssConfig.class)
                 .withConfigDataType(ContractsConfig.class)
                 .withConfigDataType(BlockNodeConnectionConfig.class)
+                .withConfigDataType(OpsDurationConfig.class)
                 .withConverter(Bytes.class, new BytesConverter())
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())
                 .withConverter(LongPair.class, new LongPairConverter());

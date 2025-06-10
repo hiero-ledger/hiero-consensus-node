@@ -71,9 +71,8 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     }
 
     @Override
-    public boolean shouldThrottle(
-            @NonNull final TransactionInfo txnInfo, @NonNull final State state, @NonNull final Instant consensusTime) {
-        return backendThrottle.checkAndEnforceThrottle(txnInfo, consensusTime, state, null);
+    public boolean shouldThrottleByOpsDuration(final long currentOpsDuration, @NonNull final Instant consensusTime) {
+        return backendThrottle.checkAndEnforceOpsDurationThrottle(currentOpsDuration, consensusTime);
     }
 
     @Override

@@ -6,7 +6,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -93,9 +96,16 @@ public abstract class BlockNodeCommunicationTestBase {
         return BlockItem.newBuilder().build();
     }
 
-    protected static BlockItem newBlockStateChangesItem() {
+    protected static BlockItem newPreProofBlockStateChangesItem() {
         return BlockItem.newBuilder()
-                .stateChanges(StateChanges.newBuilder().build())
+                .stateChanges(StateChanges.newBuilder()
+                        .stateChanges(StateChange.newBuilder()
+                                .singletonUpdate(SingletonUpdateChange.newBuilder()
+                                        .blockStreamInfoValue(
+                                                BlockStreamInfo.newBuilder().build())
+                                        .build())
+                                .build())
+                        .build())
                 .build();
     }
 

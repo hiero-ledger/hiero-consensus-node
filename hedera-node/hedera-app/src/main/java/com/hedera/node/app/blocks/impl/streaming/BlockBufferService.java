@@ -114,6 +114,9 @@ public class BlockBufferService {
         }
     }
 
+    /**
+     * @return true if streaming to block nodes is enabled, else false
+     */
     private boolean streamToBlockNodesEnabled() {
         return configProvider
                 .getConfiguration()
@@ -263,23 +266,6 @@ public class BlockBufferService {
      */
     public boolean isAcked(final long blockNumber) {
         return highestAckedBlockNumber.get() >= blockNumber;
-    }
-
-    /**
-     * Creates a new request from the current items in the block prior to BlockProof if there are any.
-     * @param blockNumber the block number
-     */
-    public void preBlockProofAction(final long blockNumber) {
-        if (!isStreamingEnabled.get()) {
-            return;
-        }
-
-        final BlockState blockState = getBlockState(blockNumber);
-        if (blockState == null) {
-            throw new IllegalStateException("Block state not found for block " + blockNumber);
-        }
-
-        blockState.updatePreProofState();
     }
 
     /**

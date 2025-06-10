@@ -26,7 +26,6 @@ import java.util.List;
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
  * @param slotUsages any contract slot usages that should be externalized in trace data
- * @param hederaOpsDuration the duration of the evm ops performed during the transaction
  */
 public record CallOutcome(
         @NonNull ContractFunctionResult result,
@@ -34,8 +33,7 @@ public record CallOutcome(
         @Nullable ContractID recipientId,
         @Nullable List<ContractAction> actions,
         @Nullable @Deprecated ContractStateChanges stateChanges,
-        @Nullable List<ContractSlotUsage> slotUsages,
-        long hederaOpsDuration) {
+        @Nullable List<ContractSlotUsage> slotUsages) {
 
     /**
      * @return whether some state changes appeared from the execution of the contract
@@ -71,8 +69,7 @@ public record CallOutcome(
                 hevmResult.recipientId(),
                 hevmResult.actions(),
                 hevmResult.stateChanges(),
-                hevmResult.slotUsages(),
-                hevmResult.opsDuration());
+                hevmResult.slotUsages());
     }
 
     /**
@@ -82,8 +79,7 @@ public record CallOutcome(
      */
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
-        return new CallOutcome(
-                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, null, hevmResult.opsDuration());
+        return new CallOutcome(result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, null);
     }
 
     /**

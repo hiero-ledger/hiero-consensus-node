@@ -349,7 +349,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Deploy Prroduction Release job resulted in failure on `main`. See status below.*"
+                        "text": "*Deploy Production Release job resulted in failure on `main`. See status below.*"
                       },
                       "fields": [
                         {
