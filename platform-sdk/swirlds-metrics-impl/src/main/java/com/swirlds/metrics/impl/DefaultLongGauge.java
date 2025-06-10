@@ -51,7 +51,7 @@ public class DefaultLongGauge extends AbstractMetric implements LongGauge {
      * {@inheritDoc}
      */
     @Override
-    public void update(final long change) {
+    public void add(final long change) {
         value.addAndGet(change);
     }
 

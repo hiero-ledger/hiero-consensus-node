@@ -51,7 +51,7 @@ public class DefaultIntegerGauge extends AbstractMetric implements IntegerGauge 
      * {@inheritDoc}
      */
     @Override
-    public void update(final int change) {
+    public void add(final int change) {
         this.value.addAndGet(change);
     }
 

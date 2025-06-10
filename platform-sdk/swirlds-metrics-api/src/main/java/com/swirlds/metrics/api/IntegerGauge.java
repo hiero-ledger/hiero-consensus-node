@@ -71,12 +71,12 @@ public interface IntegerGauge extends Metric {
     void set(final int newValue);
 
     /**
-     * Update the current value
+     * Modify the current value by adding passed parameter. Supports negative values which will result in subtraction.
      *
      * @param change
      * 		value change
      */
-    void update(final int change);
+    void add(final int change);
 
     /**
      * Configuration of a {@link IntegerGauge}

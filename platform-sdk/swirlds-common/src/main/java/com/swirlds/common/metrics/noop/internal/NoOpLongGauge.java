@@ -31,5 +31,5 @@ public class NoOpLongGauge extends AbstractNoOpMetric implements LongGauge {
      * {@inheritDoc}
      */
     @Override
-    public void update(final long change) {}
+    public void add(final long change) {}
 }
