@@ -29,7 +29,7 @@ jobs:
       - name: Setup payload
         id: payload
         run: |
-            cat <<EOF > slack_payload.json
+          cat <<EOF > slack_payload.json
             {
               "attachments": [
                 {
