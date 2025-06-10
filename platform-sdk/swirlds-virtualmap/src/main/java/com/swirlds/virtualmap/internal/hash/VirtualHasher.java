@@ -407,7 +407,7 @@ public final class VirtualHasher {
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            final @Nullable VirtualHashListener listener,
+            final @NonNull VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig,
             final @NonNull ForkJoinPool pool) {
         // Let the listener know we have started hashing.
