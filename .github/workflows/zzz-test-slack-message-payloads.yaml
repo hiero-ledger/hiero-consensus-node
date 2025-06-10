@@ -12,7 +12,7 @@ defaults:
 
 jobs:
   test-slack-message-payloads:
-    name: Report XTS execution failure
+    name: Slack outputs
     runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
@@ -29,8 +29,7 @@ jobs:
       - name: Setup payload
         id: payload
         run: |
-          SLACK_PAYLOAD=$(jq -n \
-            '{
+            cat <<EOF > slack_payload.json
               "attachments": [
                 {
                   "color": "#FF0000",
@@ -66,10 +65,10 @@ jobs:
                   ]
                 }
               ]
-            }')
+            }
+          EOF
           
-          echo ${SLACK_PAYLOAD} >> "${GITHUB_STEP_SUMMARY}"
-          echo "slack-payload=${SLACK_PAYLOAD}" >> "${GITHUB_OUTPUT}" 
+          cat slack_payload.json >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Report failure (slack citr-failures)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
@@ -77,7 +76,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: ${{ steps.payload.outputs.slack-payload }}
+          payload-file-path: slack_payload.json
 
       - name: Report failure (slack test)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
@@ -85,4 +84,4 @@ jobs:
           webhook: ${{ secrets.SLACK_TEST_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: ${{ steps.payload.outputs.slack-payload }}
+          payload-file-path: slack_payload.json
