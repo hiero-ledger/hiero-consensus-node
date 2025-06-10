@@ -561,6 +561,7 @@ public class NumericValidationTest {
         @HapiTest
         @DisplayName("when using createFungibleTokenWithCustomFees with FixedFee")
         public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFees() {
+            // CUSTOM_FEE_MUST_BE_POSITIVE
             return hapiTest(numericContractComplex
                     .call("createFungibleTokenWithCustomFeesFixedFee", 0L)
                     .gas(1_000_000L)
@@ -571,6 +572,7 @@ public class NumericValidationTest {
         @HapiTest
         @DisplayName("when using createFungibleTokenWithCustomFeesV3 with Negative FixedFee")
         public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3NegativeFixedFee() {
+            // CUSTOM_FEE_MUST_BE_POSITIVE
             return hapiTest(numericContractComplex
                     .call("createFungibleTokenWithCustomFeesV3WithNegativeFixedFee")
                     .gas(1_000_000L)
