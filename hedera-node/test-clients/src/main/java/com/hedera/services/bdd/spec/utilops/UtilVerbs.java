@@ -2731,7 +2731,7 @@ public class UtilVerbs {
     public static CustomSpecAssert throttleUsagePercentageWithin(
             final double expectedPercentage, final double allowedPercentDiff) {
         return assertionsHold((spec, opLog) -> {
-            final var metrics = getDurationThrottleMetrics();
+            final var metrics = getDurationThrottleMetrics(spec);
             assertFalse(metrics.isEmpty(), "No throttle metrics found!");
             final var latestThrottleMetric = metrics.getLast();
             final var actualPercentage = Double.parseDouble(latestThrottleMetric.split(" ")[1]);
@@ -2758,17 +2758,13 @@ public class UtilVerbs {
         return list;
     }
 
-    private static List<String> getDurationThrottleMetrics() {
-        final var list = new ArrayList<String>();
-        withOpContext((spec, opLog) -> allRunFor(
-                spec,
-                doAdhoc(() -> list.addAll(spec.prometheusClient()
-                        .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
-                                .nodes()
-                                .getFirst()
-                                .metadata()
-                                .prometheusPort())))));
-        return list;
+    private static List<String> getDurationThrottleMetrics(final HapiSpec spec) {
+        return spec.prometheusClient()
+                .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
+                        .nodes()
+                        .getFirst()
+                        .metadata()
+                        .prometheusPort());
     }
 
     private static final class DurationConverter implements ConfigConverter<Duration> {
