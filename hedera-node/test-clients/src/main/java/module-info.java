@@ -123,6 +123,7 @@ open module com.hedera.node.test.clients {
     requires org.assertj.core;
     requires org.bouncycastle.provider;
     requires org.hyperledger.besu.datatypes;
+    requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.json;
