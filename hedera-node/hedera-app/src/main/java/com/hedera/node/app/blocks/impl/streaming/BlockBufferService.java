@@ -120,6 +120,9 @@ public class BlockBufferService {
         }
     }
 
+    /**
+     * @return true if streaming to block nodes is enabled, else false
+     */
     private boolean streamToBlockNodesEnabled() {
         return configProvider
                 .getConfiguration()

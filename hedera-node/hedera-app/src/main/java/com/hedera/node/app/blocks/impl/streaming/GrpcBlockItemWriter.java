@@ -75,15 +75,6 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     /**
-     * Signals that all items before the block proof should be streamed. This allows the state manager
-     * to create a streaming request for all accumulated items before the block proof is added.
-     */
-    @Override
-    public void writePreBlockProofItems() {
-        // no-op
-    }
-
-    /**
      * No-op implementation as pending proofs are handled differently in the gRPC streaming context.
      */
     @Override

@@ -46,6 +46,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.data.RatesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -113,7 +114,8 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 VersionConfig.class,
                 TssConfig.class,
                 JumboTransactionsConfig.class,
-                GrpcUsageTrackerConfig.class);
+                GrpcUsageTrackerConfig.class,
+                OpsDurationConfig.class);
     }
 
     @NonNull

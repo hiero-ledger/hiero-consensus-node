@@ -471,11 +471,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     new MerkleSiblingHash(false, depth2Node1),
                     new MerkleSiblingHash(false, depth1Node1)));
 
-            if (streamToBlockNodes) {
-                // Write any pre-block proof block items
-                writer.writePreBlockProofItems();
-            }
-
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;

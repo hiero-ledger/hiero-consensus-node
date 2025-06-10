@@ -3,8 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeCommunicationTestBase.newBlockHeaderItem;
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeCommunicationTestBase.newBlockProofItem;
-import static com.hedera.node.app.blocks.impl.streaming.BlockNodeCommunicationTestBase.newBlockStateChangesItem;
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeCommunicationTestBase.newBlockTxItem;
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeCommunicationTestBase.newPreProofBlockStateChangesItem;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -136,7 +136,7 @@ class BlockStateTest {
         final ItemInfo preProofInfo = preProofItemInfo();
         final ItemInfo proofInfo = proofItemInfo();
         final Queue<BlockItem> pendingItems = pendingItems();
-        final BlockItem item = newBlockStateChangesItem();
+        final BlockItem item = newPreProofBlockStateChangesItem();
 
         block.addItem(item);
 
@@ -185,6 +185,17 @@ class BlockStateTest {
         block.closeBlock();
 
         assertThat(block.closedTimestamp()).isNotNull().isAfterOrEqualTo(now);
+    }
+
+    @Test
+    void testCloseBlock_alreadyClosed() throws InterruptedException {
+        block.closeBlock();
+
+        Thread.sleep(3_000);
+        final Instant aLilBeforeNow = Instant.now().minusSeconds(2);
+
+        block.closeBlock();
+        assertThat(block.closedTimestamp()).isNotNull().isBefore(aLilBeforeNow);
     }
 
     @Test
@@ -305,7 +316,7 @@ class BlockStateTest {
         requestsByIndex.clear(); // ensure nothing exists
 
         block.addItem(newBlockTxItem());
-        block.addItem(newBlockStateChangesItem());
+        block.addItem(newPreProofBlockStateChangesItem());
 
         block.processPendingItems(10);
 
@@ -354,7 +365,7 @@ class BlockStateTest {
         block.addItem(newBlockTxItem());
         block.addItem(newBlockTxItem());
         block.addItem(newBlockTxItem());
-        block.addItem(newBlockStateChangesItem());
+        block.addItem(newPreProofBlockStateChangesItem());
         block.addItem(newBlockProofItem());
 
         assertThat(pendingItems).hasSize(9);
@@ -387,6 +398,9 @@ class BlockStateTest {
         final ItemInfo proofInfo = proofItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
 
+        block.addItem(newBlockProofItem());
+        assertThat(proofInfo.state()).hasValue(ItemState.ADDED);
+
         proofInfo.packedInRequest(0);
         final RequestWrapper rw = new RequestWrapper(1, newRequest(newBlockTxItem()), new AtomicBoolean(false));
         requestsByIndex.put(1, rw);
@@ -401,6 +415,9 @@ class BlockStateTest {
     void testMarkRequestSent_valid_withProof() {
         final ItemInfo proofInfo = proofItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
+
+        block.addItem(newBlockProofItem());
+        assertThat(proofInfo.state()).hasValue(ItemState.ADDED);
 
         proofInfo.packedInRequest(0);
         final RequestWrapper rw = new RequestWrapper(0, newRequest(newBlockProofItem()), new AtomicBoolean(false));
