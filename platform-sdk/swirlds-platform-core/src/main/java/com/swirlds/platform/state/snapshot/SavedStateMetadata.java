@@ -144,6 +144,10 @@ public record SavedStateMetadata(
                 parsePrimitiveLong(data, TOTAL_WEIGHT));
     }
 
+    /**
+     * We used to write generation values to this file, but now we write birth round values. We need to support both for
+     * a period of time before removing the generation field.
+     */
     private static long parseBirthRoundNonAncient(final Map<SavedStateMetadataField, String> data) throws IOException {
         if (data.containsKey(MINIMUM_BIRTH_ROUND_NON_ANCIENT)) {
             // This is a new file, parse the new field.
