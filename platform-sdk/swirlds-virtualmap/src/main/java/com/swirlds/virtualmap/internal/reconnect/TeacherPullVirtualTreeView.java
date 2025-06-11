@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.base.time.Time;
@@ -94,10 +93,7 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
                 .setRunnable(() -> {
                     try {
                         records = pipeline.pausePipelineAndRun("copy", root::detach);
-                    } catch (final Throwable t) {
-                        // Log and rethrow
-                        logger.error(RECONNECT.getMarker(), "Exception preparing teacher view", t);
-                        throw t;
+                        ready.set(true);
                     } finally {
                         readyLatch.countDown();
                     }

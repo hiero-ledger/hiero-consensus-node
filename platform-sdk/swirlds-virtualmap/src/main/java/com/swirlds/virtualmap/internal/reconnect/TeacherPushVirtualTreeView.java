@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
@@ -161,10 +160,6 @@ public final class TeacherPushVirtualTreeView<K extends VirtualKey, V extends Vi
                     try {
                         records = pipeline.pausePipelineAndRun("copy", root::detach);
                         ready.set(true);
-                    } catch (final Throwable t) {
-                        // Log and rethrow
-                        logger.error(RECONNECT.getMarker(), "Exception preparing teacher view", t);
-                        throw t;
                     } finally {
                         readyLatch.countDown();
                     }
