@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static java.util.Collections.emptyList;
@@ -112,7 +110,6 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -1108,12 +1105,7 @@ public class BlockStreamBuilder
         transactionFee = 0L;
 
         accountId = null;
-
-        // null out the contract ID if this is a contract create or if rolling back successful transaction
-        if (Objects.equals(functionality(), CONTRACT_CREATE) || SUCCESS.equals(status)) {
-            contractId = null;
-        }
-
+        contractId = null;
         fileId = null;
         tokenId = null;
         topicId = null;

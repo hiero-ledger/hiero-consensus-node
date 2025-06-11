@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
@@ -89,7 +87,6 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.hiero.base.crypto.DigestType;
 
@@ -319,15 +316,10 @@ public class RecordStreamBuilder
 
         newTotalSupply = 0L;
         transactionFee = 0L;
+        contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-
-        // null out the contract ID if this is a contract create or if rolling back successful transaction
-        if (Objects.equals(functionality(), CONTRACT_CREATE) || SUCCESS.equals(status)) {
-            transactionReceiptBuilder.contractID((ContractID) null);
-        }
-
-        contractFunctionResult = null;
+        transactionReceiptBuilder.contractID((ContractID) null);
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
