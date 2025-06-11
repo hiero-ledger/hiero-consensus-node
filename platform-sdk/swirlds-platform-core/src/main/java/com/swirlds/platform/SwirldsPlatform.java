@@ -4,7 +4,6 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
-import static com.swirlds.platform.event.preconsensus.PcesBirthRoundMigration.migratePcesToBirthRoundMode;
 import static com.swirlds.platform.state.BirthRoundStateMigration.modifyStateForBirthRoundMigration;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static org.hiero.base.CompareTo.isLessThan;
@@ -30,14 +29,10 @@ import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.EventCounter;
-import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
@@ -63,9 +58,6 @@ import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -157,12 +149,6 @@ public class SwirldsPlatform implements Platform {
     private final PlatformWiring platformWiring;
 
     /**
-     * Flag to indicate whether PCES events were migrated to use birth rounds instead of generation-based ancient age.
-     * True indicates events were migrated.
-     */
-    private final boolean wereEventsMigratedToBirthRound;
-
-    /**
      * Indicates how ancient events are determined, e.g. based on the event's birth round or generation.
      */
     private final AncientMode ancientMode;
@@ -200,38 +186,7 @@ public class SwirldsPlatform implements Platform {
         // the correct sequence number.
         InlinePcesWriter inlinePcesWriter = null;
 
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            try {
-                // This method is a no-op if we have already completed birth round migration or if we are at genesis.
-                wereEventsMigratedToBirthRound = migratePcesToBirthRoundMode(
-                        platformContext,
-                        selfId,
-                        initialState.getRound(),
-                        platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(initialState.getState()));
-
-                // re-load the PCES files now that they have been migrated
-                final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
-                final Path databaseDir = PcesUtilities.getDatabaseDirectory(platformContext, selfId);
-                initialPcesFiles = PcesFileReader.readFilesFromDisk(
-                        platformContext, databaseDir, initialState.getRound(), pcesConfig.permitGaps(), ancientMode);
-
-                if (wereEventsMigratedToBirthRound) {
-                    final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                            blocks.platformContext(),
-                            initialPcesFiles,
-                            blocks.selfId(),
-                            blocks.initialState().get().getRound());
-                    inlinePcesWriter = new DefaultInlinePcesWriter(
-                            blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
-                }
-
-            } catch (final IOException e) {
-                throw new UncheckedIOException("Birth round migration failed during PCES migration.", e);
-            }
-        } else {
-            wereEventsMigratedToBirthRound = false;
-            initialPcesFiles = blocks.initialPcesFiles();
-        }
+        initialPcesFiles = blocks.initialPcesFiles();
 
         notificationEngine = blocks.notificationEngine();
 
