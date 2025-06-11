@@ -2,16 +2,26 @@
 
 ## Previous solution
 
-Network communication based on dynamic negotiation of one of 3 protocols (Heartbeat, Sync, Reconnect), each of them hogging socket till it is finished with current task. Implemented using ad-hoc byte sequences.
+Network communication based on dynamic negotiation of one of 3 protocols (Heartbeat/Ping, Sync, Reconnect), each of them hogging socket till it is finished with current task. Implemented using ad-hoc byte sequences.
+
+<img src="rpc-gossip-OldNetwork.drawio.png"/>
+
+Negotiator selects one of the protocols and it is holding socket until it gives it back or disconnection happens.
 
 ## Current Implementation
 
 - We need to stay compatible with the reconnect protocol as much as possible
 - We don’t want to mess with connection creation/teardown
 
-Decision was to piggyback message based protocol on top of existing network. This means that instead of 3 protocols (Heartbeat, Sync, Reconnect) we have 2 protocols (Rpc and Reconnect). Rpc takes over the socket and handles everything (ping, sync, broadcast), releasing the connection only in case of falling behind, when reconnect will take over the responsibilities.
+Decision was to piggyback message based protocol on top of existing network. This means that instead of 3 protocols (Heartbeat/Ping, Sync, Reconnect) we have different 3 protocols (Heartbeat/Ping, Rpc and Reconnect). Rpc takes over the socket and handles everything (ping, sync, broadcast), releasing the connection only in case of falling behind, when reconnect will take over the responsibilities.
 
 After the reconnect is done, RPC again grabs the connection forever.
+
+<img src="rpc-gossip-NewNetwork.drawio.png">
+
+This way, RPC can interlace messages between various RPC services, without handing over entire connection to different protocol, which allows interlacing future messages like broadcast or chatter while Sync is running.
+
+In diagram above, grey boxes indicate future extensions, which are not implemented yet, but considered, but it is not a limit - we can have other services living on the same connection, exchanging messaged independent from each other, at the same time, having full benefit of connected session logic and detection of disconnections.
 
 ## Future implementation
 
@@ -73,6 +83,8 @@ void receiveEventsFinished();
 ```
 
 There is also corresponding send message interface. Writing messages is asynchronous, they are mostly prepared from the socket read thread and put into a queue, which is later processed by socket write thread.
+
+Actual synchronization logic is identical to one described at - [Sync protocol](../syncing/sync-protocol.md).
 
 # Relationships between classes
 
