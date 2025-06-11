@@ -576,7 +576,7 @@ public class SyncMetrics {
      * @param change +1 or -1 depending if thread is started or stopped
      */
     public void rpcReadThreadRunning(final int change) {
-        rpcReadThreadRunning.update(change);
+        rpcReadThreadRunning.add(change);
     }
 
     /**
@@ -585,7 +585,7 @@ public class SyncMetrics {
      * @param change +1 or -1 depending if thread is started or stopped
      */
     public void rpcWriteThreadRunning(final int change) {
-        rpcWriteThreadRunning.update(change);
+        rpcWriteThreadRunning.add(change);
     }
 
     /**
@@ -594,6 +594,6 @@ public class SyncMetrics {
      * @param change +1 or -1 depending if thread is started or stopped
      */
     public void rpcDispatchThreadRunning(final int change) {
-        rpcDispatchThreadRunning.update(change);
+        rpcDispatchThreadRunning.add(change);
     }
 }
