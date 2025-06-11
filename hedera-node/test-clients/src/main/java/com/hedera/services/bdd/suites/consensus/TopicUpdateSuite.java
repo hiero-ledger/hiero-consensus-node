@@ -382,16 +382,34 @@ public class TopicUpdateSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> updateTheSubmitKeyWithRandomKey() {
+    final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithRandomKey() {
         var randomKey = "randomKey";
         var submitKey = "submitKey";
         var topic = "topic";
         return hapiTest(
-                cryptoCreate(submitKey),
                 cryptoCreate(randomKey),
+                cryptoCreate(submitKey),
                 createTopic(topic).submitKeyName(submitKey),
                 updateTopic(topic)
                         .submitKey(EMPTY_KEY)
+                        .signedBy(randomKey)
+                        .payingWith(randomKey)
+                        .hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyWithRandomKey() {
+        var randomKey = "randomKey";
+        var submitKey = "submitKey";
+        var topic = "topic";
+        var newSubmitKey = "newSubmitKey";
+        return hapiTest(
+                cryptoCreate(randomKey),
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic)
+                        .submitKey(newSubmitKey)
                         .signedBy(randomKey)
                         .payingWith(randomKey)
                         .hasKnownStatus(INVALID_SIGNATURE));
