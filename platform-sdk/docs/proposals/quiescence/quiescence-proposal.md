@@ -31,7 +31,11 @@ of bandwidth used by the network.
 - When a transaction is submitted to a quiesced network, the network should start producing events and reach consensus
   on this newly submitted transaction.
 - No existing functionality should be affected.
-- Metrics should not produce misleading information due to the pause in event creation.
+- Metrics should not produce misleading information due to the pause in event creation. Example: `secC2C` tracks the
+  amount of time that passes from an event being created to it reaching consensus. Ordinarily, this is a few seconds. If
+  this value spikes, it is usually an indicator of a performance issue in the network. If quiescence is not taken into
+  account, this value will spike to the amount of time the network was quiesced, which would look like an issue, but is
+  expected behavior.
 
 ---
 
