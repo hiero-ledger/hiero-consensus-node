@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
 import static java.util.Objects.requireNonNull;
 
@@ -44,7 +45,17 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                         .contractCreateResultOrThrow()
                                         .copyBuilder();
                                 if (parts.status() == SUCCESS) {
-                                    mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                    // If all sidecars are disabled and there were no logs for a top-level creation,
+                                    // for parity we still need to fill in the result with empty logs and implied bloom
+                                    if (!parts.hasTraces()
+                                            && parts.transactionIdOrThrow().nonce() == 0) {
+                                        resultBuilder
+                                                .logInfo(List.of())
+                                                .bloom(bloomForAll(List.of()))
+                                                .build();
+                                    } else {
+                                        mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                    }
                                 }
                                 recordBuilder.contractCreateResult(resultBuilder.build());
                             });

@@ -726,7 +726,7 @@ public class BlockStreamBuilder
 
     @NonNull
     @Override
-    public ContractCallStreamBuilder addLogs(@NonNull List<EvmTransactionLog> logs) {
+    public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
         this.logs = requireNonNull(logs);
         return this;
     }

@@ -29,6 +29,7 @@ import com.hedera.hapi.block.stream.output.SignScheduleOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -405,6 +406,40 @@ class BlockItemsTranslatorTest {
                                 .build())
                         .build(),
                 actualRecordWithOutput);
+    }
+
+    @Test
+    void contractCallUsesResultOutputAndTraceLogsIfPresent() {
+        final var output = TransactionOutput.newBuilder()
+                .contractCall(new CallContractOutput(FUNCTION_RESULT))
+                .build();
+        final var context = new ContractOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CALL, CONTRACT_ID);
+
+        final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
+        assertEquals(
+                EXPECTED_BASE_RECORD
+                        .copyBuilder()
+                        .contractCallResult((ContractFunctionResult) null)
+                        .receipt(EXPECTED_BASE_RECEIPT
+                                .copyBuilder()
+                                .contractID(CONTRACT_ID)
+                                .build())
+                        .build(),
+                actualRecordNoOutput);
+
+        final var aContractId = ContractID.newBuilder().contractNum(123).build();
+        final var bContractId = ContractID.newBuilder().contractNum(456).build();
+        final var aLog = new EvmTransactionLog(aContractId, Bytes.wrap("Apple"), List.of(Bytes.wrap("A")));
+        final var bLog = new EvmTransactionLog(bContractId, Bytes.wrap("Banana"), List.of(Bytes.wrap("B")));
+        final var logs = List.of(aLog, bLog);
+        final var actualRecordWithOutputAndLogs =
+                BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, logs, output);
+        assertEquals(
+                2,
+                actualRecordWithOutputAndLogs
+                        .contractCallResultOrThrow()
+                        .logInfo()
+                        .size());
     }
 
     @Test
