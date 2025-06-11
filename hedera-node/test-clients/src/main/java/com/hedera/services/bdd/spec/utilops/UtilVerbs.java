@@ -2731,10 +2731,7 @@ public class UtilVerbs {
     public static CustomSpecAssert throttleUsagePercentageWithin(
             final double expectedPercentage, final double allowedPercentDiff) {
         return assertionsHold((spec, opLog) -> {
-            final var metrics = getDurationThrottleMetrics(spec);
-            assertFalse(metrics.isEmpty(), "No throttle metrics found!");
-            final var latestThrottleMetric = metrics.getLast();
-            final var actualPercentage = Double.parseDouble(latestThrottleMetric.split(" ")[1]);
+            final var actualPercentage = getOpsDurationValue(spec);
             assertEquals(
                     expectedPercentage,
                     actualPercentage,
@@ -2743,6 +2740,30 @@ public class UtilVerbs {
                             "%s Throttle bucket filled more than %.2f percent different than expected!",
                             sdec(actualPercentage, 4), allowedPercentDiff));
         });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+
+                    amount > threshold,
+                    String.format("%s Throttle bucket filled is not greater than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageLessThreshold(final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    amount < threshold,
+                    String.format("%s Throttle bucket filled is not less than %s!", amount, threshold));
+        });
+    }
+
+    public static Double getOpsDurationValue(HapiSpec spec) {
+        final var metrics = getDurationThrottleMetrics(spec);
+        assertFalse(metrics.isEmpty(), "No throttle metrics found!");
+        final var latestThrottleMetric = metrics.getLast();
+        return Double.parseDouble(latestThrottleMetric.split(" ")[1]);
     }
 
     private static List<String> getTransactionMetrics() {
