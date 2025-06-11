@@ -325,14 +325,6 @@ public class TopicUpdateSuite {
                 getTopicInfo("testTopic").hasNoAdminKey());
     }
 
-    @HapiTest
-    final Stream<DynamicTest> updateSubmitKeyOnTopicWithNoAdminKeyFails() {
-        return hapiTest(
-                newKeyNamed("submitKey"),
-                createTopic("testTopic"),
-                updateTopic("testTopic").submitKey("submitKey").hasKnownStatus(UNAUTHORIZED));
-    }
-
     // TOPIC_RENEW_18
     @HapiTest
     final Stream<DynamicTest> updateTopicWithoutAutoRenewAccountWithNewInvalidAutoRenewAccountAdded() {
@@ -365,5 +357,43 @@ public class TopicUpdateSuite {
                             updateTopic("testTopic").expiry(newExpiry),
                             getTopicInfo("testTopic").hasExpiry(newExpiry));
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithoutAdminKey() {
+        var submitKey = "submitKey";
+        var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyWithoutAdminKey() {
+        var submitKey = "submitKey";
+        var newSubmitKey = "newSubmitKey";
+        var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic).submitKey(newSubmitKey).signedBy(submitKey).payingWith(submitKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateTheSubmitKeyWithRandomKey() {
+        var randomKey = "randomKey";
+        var submitKey = "submitKey";
+        var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                cryptoCreate(randomKey),
+                createTopic(topic).submitKeyName(submitKey),
+                updateTopic(topic)
+                        .submitKey(EMPTY_KEY)
+                        .signedBy(randomKey)
+                        .payingWith(randomKey)
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 }
