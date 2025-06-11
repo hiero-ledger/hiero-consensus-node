@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -33,8 +34,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.HapiSuite.salted;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -55,9 +59,6 @@ import org.junit.jupiter.api.Nested;
 @HapiTestLifecycle
 public class AtomicBatchInvalidSignaturesTests {
 
-    private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
-    private static final String ADMIN_KEY = "adminKey";
-    private static final String SUPPLY_KEY = "supplyKey";
     private static final String TOKEN_TREASURY = "treasury";
     private static final String DEFAULT_BATCH_OPERATOR = "DEFAULT_BATCH_OPERATOR";
 
@@ -142,11 +143,22 @@ public class AtomicBatchInvalidSignaturesTests {
                             .signedByPayerAnd(batchOperator, adminKey)
                             .via("mixedAssocBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    getTxnRecord("mixedAssocBatch").logged(),
 
-                    // Verify the contracts exist (skip inner record queries that cause RECORD_NOT_FOUND)
-                    getContractInfo(contractWithKey).logged(),
-                    getContractInfo(contractWithoutKey).logged());
+                    // Verify the first transaction would have succeeded but was reverted due to batch failure
+                    getTxnRecord(associate1TxnId)
+                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
+                            .assertingNothingAboutHashes()
+                            .logged(),
+
+                    // Verify the second transaction failed as expected (causing the batch to fail)
+                    getTxnRecord(associate2TxnId)
+                            .hasPriority(recordWith().status(INVALID_SIGNATURE))
+                            .assertingNothingAboutHashes()
+                            .logged(),
+
+                    // Verify the contracts exist but associations were rolled back
+                    getContractInfo(contractWithKey).hasNoTokenRelationship(token1),
+                    getContractInfo(contractWithoutKey).hasNoTokenRelationship(token2));
         }
 
         @HapiTest
@@ -202,10 +214,26 @@ public class AtomicBatchInvalidSignaturesTests {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     getTxnRecord("complexAssocBatch").logged(),
 
-                    // Verify contracts exist (skip association checks that might be problematic)
-                    getContractInfo(contract1).logged(),
-                    getContractInfo(contract2).logged(),
-                    getContractInfo(contractNoKey).logged());
+                    // Verify the first two transactions would have succeeded but were reverted
+                    getTxnRecord(associate1TxnId)
+                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
+                            .assertingNothingAboutHashes()
+                            .logged(),
+                    getTxnRecord(associate2TxnId)
+                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
+                            .assertingNothingAboutHashes()
+                            .logged(),
+
+                    // Verify the third transaction failed as expected (causing the batch to fail)
+                    getTxnRecord(associate3TxnId)
+                            .hasPriority(recordWith().status(INVALID_SIGNATURE))
+                            .assertingNothingAboutHashes()
+                            .logged(),
+
+                    // Verify contracts exist but associations were rolled back
+                    getContractInfo(contract1).hasNoTokenRelationship(token1),
+                    getContractInfo(contract2).hasNoTokenRelationship(token2),
+                    getContractInfo(contractNoKey).hasNoTokenRelationship(token1));
         }
 
         @HapiTest
@@ -240,10 +268,17 @@ public class AtomicBatchInvalidSignaturesTests {
                             .via("deleteBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and check transaction records
-                    getTxnRecord("deleteBatch").logged(),
-                    getTxnRecord(deleteTxnId).assertingNothingAboutHashes().logged(),
-                    getTxnRecord(associateTxnId).assertingNothingAboutHashes().logged(),
+                    // Verify the first transaction (contract deletion) would have succeeded but was reverted
+                    getTxnRecord(deleteTxnId)
+                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
+                            .assertingNothingAboutHashes()
+                            .logged(),
+
+                    // Verify the second transaction failed as expected (trying to associate with deleted contract)
+                    getTxnRecord(associateTxnId)
+                            .hasPriority(recordWith().status(ACCOUNT_DELETED))
+                            .assertingNothingAboutHashes()
+                            .logged(),
 
                     // Verify contract still exists due to batch rollback
                     getContractInfo(contract).hasNoTokenRelationship(misc));
@@ -283,9 +318,18 @@ public class AtomicBatchInvalidSignaturesTests {
                         .signedByPayerAnd(batchOperator, tokenAdminKey)
                         .via("deletedTokenAssoc")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTxnRecord("deletedTokenAssoc").logged(),
-                getTxnRecord(deleteTokenTxnId).assertingNothingAboutHashes().logged(),
-                getTxnRecord(associateTxnId).assertingNothingAboutHashes().logged());
+
+                // Verify the first transaction (token deletion) would have succeeded but was reverted
+                getTxnRecord(deleteTokenTxnId)
+                        .hasPriority(recordWith().status(REVERTED_SUCCESS))
+                        .assertingNothingAboutHashes()
+                        .logged(),
+
+                // Verify the second transaction failed as expected (trying to associate deleted token)
+                getTxnRecord(associateTxnId)
+                        .hasPriority(recordWith().status(TOKEN_WAS_DELETED))
+                        .assertingNothingAboutHashes()
+                        .logged());
     }
 
     @Nested
@@ -347,9 +391,6 @@ public class AtomicBatchInvalidSignaturesTests {
         @DisplayName("Batch with missing treasury signature failure")
         public Stream<DynamicTest> batchWithMissingTreasurySignature() {
             final var batchOperator = "batchOperator";
-            final var memo = "JUMP";
-            final var saltedName = salted("PRIMARY");
-            final var pauseKey = "pauseKey";
             final var tokenName = "PRIMARY";
             final var tokenCreateTxnId = "tokenCreateTxnId";
             final var treasuryKey1 = "treasuryKey1";
@@ -364,40 +405,13 @@ public class AtomicBatchInvalidSignaturesTests {
                             .shape(KeyShape.threshOf(2, PREDEFINED_SHAPE, PREDEFINED_SHAPE)
                                     .signedWith(sigs(treasuryKey1, treasuryKey2))),
                     cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS).key(treasuryThresholdKey),
-                    cryptoCreate(AUTO_RENEW_ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                    newKeyNamed(ADMIN_KEY),
-                    newKeyNamed("freezeKey"),
-                    newKeyNamed("kycKey"),
-                    newKeyNamed(SUPPLY_KEY),
-                    newKeyNamed("wipeKey"),
-                    newKeyNamed("feeScheduleKey"),
-                    newKeyNamed(pauseKey),
 
                     // Batch that should fail due to missing treasury threshold signature
                     atomicBatch(tokenCreate(tokenName)
-                                    .supplyType(TokenSupplyType.FINITE)
-                                    .entityMemo(memo)
-                                    .name(saltedName)
                                     .treasury(TOKEN_TREASURY)
-                                    .autoRenewAccount(AUTO_RENEW_ACCOUNT)
-                                    .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                    .maxSupply(1000)
-                                    .initialSupply(500)
-                                    .decimals(1)
-                                    .adminKey(ADMIN_KEY)
-                                    .freezeKey("freezeKey")
-                                    .kycKey("kycKey")
-                                    .supplyKey(SUPPLY_KEY)
-                                    .wipeKey("wipeKey")
-                                    .feeScheduleKey("feeScheduleKey")
-                                    .pauseKey(pauseKey)
                                     .via(tokenCreateTxnId)
                                     .batchKey(batchOperator))
-                            .signedByPayerAnd(
-                                    batchOperator,
-                                    ADMIN_KEY,
-                                    AUTO_RENEW_ACCOUNT,
-                                    treasuryKey1) // Missing treasuryKey2 for 2/2 threshold
+                            .signedByPayerAnd(batchOperator, treasuryKey1) // Missing treasuryKey2 for 2/2 threshold
                             .via("treasuryBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
