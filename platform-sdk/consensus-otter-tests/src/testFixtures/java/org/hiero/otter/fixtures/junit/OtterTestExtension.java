@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.solo.SoloTestEnvironment;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.RepeatedTest;
@@ -28,6 +29,16 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.platform.commons.support.AnnotationSupport;
 
+/**
+ * A JUnit 5 extension for testing with the Otter framework.
+ *
+ * <p>This extension supports parameter resolution for {@link TestEnvironment} and manages the lifecycle of the test
+ * environment. The type of the {@link TestEnvironment} is selected based on the system property {@code "otter.env"}.
+ *
+ * <p>The extension checks if the test method is annotated with any standard JUnit test annotations
+ * (e.g., {@link RepeatedTest} or {@link ParameterizedTest}). If none of these annotations are present, this extension
+ * ensures that the method is executed like a regular test (i.e., as if annotated with {@link Test}).
+ */
 public class OtterTestExtension
         implements TestInstancePreDestroyCallback, ParameterResolver, TestTemplateInvocationContextProvider {
 
@@ -40,6 +51,9 @@ public class OtterTestExtension
      * The key to store the environment in the extension context.
      */
     private static final String ENVIRONMENT_KEY = "environment";
+
+    public static final String SYSTEM_PROPERTY_OTTER_ENV = "otter.env";
+    public static final String SOLO_ENV_KEY = "solo";
 
     /**
      * Checks if this extension supports parameter resolution for the given parameter context.
@@ -85,7 +99,7 @@ public class OtterTestExtension
                 .map(ParameterContext::getParameter)
                 .map(Parameter::getType)
                 .filter(t -> t.equals(TestEnvironment.class))
-                .map(t -> createTurtleTestEnvironment(extensionContext))
+                .map(t -> createTestEnvironment(extensionContext))
                 .orElseThrow(() -> new ParameterResolutionException("Could not resolve parameter"));
     }
 
@@ -95,15 +109,11 @@ public class OtterTestExtension
      * @param extensionContext the current extension context; never {@code null}
      */
     @Override
-    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) throws Exception {
+    public void preDestroyTestInstance(@NonNull final ExtensionContext extensionContext) throws InterruptedException {
         final TestEnvironment testEnvironment =
                 (TestEnvironment) extensionContext.getStore(EXTENSION_NAMESPACE).remove(ENVIRONMENT_KEY);
         if (testEnvironment != null) {
-            try {
-                testEnvironment.destroy();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            testEnvironment.destroy();
         }
     }
 
@@ -119,7 +129,7 @@ public class OtterTestExtension
         Objects.requireNonNull(context, "context must not be null");
         return Stream.of(new TestTemplateInvocationContext() {
             @Override
-            public String getDisplayName(int invocationIndex) {
+            public String getDisplayName(final int invocationIndex) {
                 return "OtterTest";
             }
 
@@ -145,7 +155,23 @@ public class OtterTestExtension
     }
 
     /**
-     * Creates a new {@link TurtleTestEnvironment} instance which gets stored in the extension context.
+     * Creates a new {@link TestEnvironment} instance based on the current system property {@code "otter.env"}.
+     *
+     * @param extensionContext the extension context of the test
+     *
+     * @return a new {@link TestEnvironment} instance
+     */
+    private TestEnvironment createTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+        final String environmentKey = System.getProperty(SYSTEM_PROPERTY_OTTER_ENV);
+        final TestEnvironment testEnvironment = SOLO_ENV_KEY.equalsIgnoreCase(environmentKey)
+                ? createSoloTestEnvironment(extensionContext)
+                : createTurtleTestEnvironment(extensionContext);
+        extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, testEnvironment);
+        return testEnvironment;
+    }
+
+    /**
+     * Creates a new {@link TurtleTestEnvironment} instance.
      *
      * @param extensionContext the extension context of the test
      *
@@ -156,11 +182,18 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        final TurtleTestEnvironment turtleTestEnvironment = new TurtleTestEnvironment(randomSeed);
+        return new TurtleTestEnvironment(randomSeed);
+    }
 
-        extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, turtleTestEnvironment);
-
-        return turtleTestEnvironment;
+    /**
+     * Creates a new {@link org.hiero.otter.fixtures.solo.SoloTestEnvironment} instance.
+     *
+     * @param extensionContext the extension context of the test
+     *
+     * @return a new {@link TestEnvironment} instance for solo tests
+     */
+    private TestEnvironment createSoloTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+        return new SoloTestEnvironment();
     }
 
     /**

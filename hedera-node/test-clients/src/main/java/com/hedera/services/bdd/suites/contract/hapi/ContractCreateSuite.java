@@ -601,7 +601,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    //    @Tag(ADHOC)
     final Stream<DynamicTest> cannotCreateTooLargeContract() {
         ByteString contents;
         try {

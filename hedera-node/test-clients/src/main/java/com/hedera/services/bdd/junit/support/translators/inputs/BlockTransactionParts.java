@@ -25,7 +25,6 @@ import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
 import java.util.Optional;
 

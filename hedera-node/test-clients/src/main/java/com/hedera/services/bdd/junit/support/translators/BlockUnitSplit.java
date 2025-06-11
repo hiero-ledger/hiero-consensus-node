@@ -20,7 +20,6 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -118,8 +117,9 @@ public class BlockUnitSplit {
         for (int i = 0, n = block.items().size(); i < n; i++) {
             final var item = block.items().get(i);
             switch (item.item().kind()) {
-                case UNSET, RECORD_FILE -> throw new IllegalStateException("Cannot split block with item of kind "
-                        + item.item().kind());
+                case UNSET, RECORD_FILE ->
+                    throw new IllegalStateException("Cannot split block with item of kind "
+                            + item.item().kind());
                 case BLOCK_HEADER, EVENT_HEADER, ROUND_HEADER, FILTERED_ITEM_HASH, BLOCK_PROOF -> {
                     // No-op
                 }
@@ -147,7 +147,8 @@ public class BlockUnitSplit {
                                 && function == HederaFunctionality.ATOMIC_BATCH) {
                             try {
                                 final var batchBody = bodyFrom(eventTransaction);
-                                pendingInnerTxns.addAll(batchBody.atomicBatchOrThrow().transactions());
+                                pendingInnerTxns.addAll(
+                                        batchBody.atomicBatchOrThrow().transactions());
                             } catch (Exception e) {
                                 throw new IllegalStateException("Failed to extract body from event transaction", e);
                             }
@@ -173,9 +174,11 @@ public class BlockUnitSplit {
                     }
 
                     pendingParts.clear();
-                    pendingParts.role = childIndex == 1 ? FIRST_CHILD :
-                            childIndex < pendingInnerTxns.size() - 1 ? TransactionGroupRole.MIDDLE_CHILD :
-                                    TransactionGroupRole.LAST_CHILD;
+                    pendingParts.role = childIndex == 1
+                            ? FIRST_CHILD
+                            : childIndex < pendingInnerTxns.size() - 1
+                                    ? TransactionGroupRole.MIDDLE_CHILD
+                                    : TransactionGroupRole.LAST_CHILD;
 
                     // Pull the next inner txn from the batch list
                     pendingParts.parts = TransactionParts.from(requireNonNull(pendingInnerTxns.pollFirst()));

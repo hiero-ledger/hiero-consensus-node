@@ -7,6 +7,10 @@ on:
         description: "Version:"
         type: string
         required: true
+      ref:
+        description: "Git Reference - branch, tag, or commit SHA."
+        type: string
+        required: true
       # Valid version policies are as follows: specified, branch-commit, adhoc-commit
       version-policy:
         description: "Version Policy:"
@@ -85,7 +89,7 @@ jobs:
         with:
           fail-on-cache-miss: true
           path: ~/artifact-build
-          key: node-build-artifacts-${{ inputs.version }}-${{ github.sha }}
+          key: node-build-artifacts-${{ inputs.version }}-${{ inputs.ref }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
