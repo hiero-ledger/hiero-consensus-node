@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
@@ -11,7 +12,8 @@ import org.testcontainers.containers.output.OutputFrame;
 
 public class PlatformStatusLogParser implements Consumer<OutputFrame> {
 
-    private static final Pattern PLATFORM_STATUS_PATTERN = Pattern.compile("Platform spent \\d*\\.\\d* s in [A-Z]+\\. Now in ([A-Z]+)");
+    private static final Pattern PLATFORM_STATUS_PATTERN =
+            Pattern.compile("Platform spent \\d*\\.\\d* s in [A-Z]+\\. Now in ([A-Z]+)");
 
     private final Consumer<PlatformStatus> target;
 

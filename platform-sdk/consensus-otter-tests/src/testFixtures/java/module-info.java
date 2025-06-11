@@ -10,6 +10,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.apache.logging.log4j;
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
+    requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.config;
     requires com.hedera.pbj.runtime;
@@ -29,7 +30,6 @@ module org.hiero.otter.fixtures {
     requires awaitility;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
-    requires org.testcontainers;
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.otter.fixtures;

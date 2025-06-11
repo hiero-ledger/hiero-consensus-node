@@ -92,7 +92,8 @@ public class ContainerNetwork extends AbstractNetwork implements Network {
     public List<Node> addNodes(final int count) {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
 
-        final List<ContainerNode> newNodes = IntStream.range(0, count).mapToObj(i -> createNode()).toList();
+        final List<ContainerNode> newNodes =
+                IntStream.range(0, count).mapToObj(i -> createNode()).toList();
         nodes.addAll(newNodes);
         sendUpdatedRosterToNodes();
 
@@ -124,7 +125,8 @@ public class ContainerNetwork extends AbstractNetwork implements Network {
     }
 
     private void sendUpdatedRosterToNodes() {
-        final List<RosterEntry> rosterEntries = nodes.stream().map(ContainerNode::rosterEntry).toList();
+        final List<RosterEntry> rosterEntries =
+                nodes.stream().map(ContainerNode::rosterEntry).toList();
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
         for (final ContainerNode node : nodes) {
             node.setRoster(roster);

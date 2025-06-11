@@ -57,8 +57,10 @@ public class ContainerNode extends AbstractNode implements Node {
     public ContainerNode(@NonNull final NodeId selfId, @NonNull final Network network) {
         super(selfId);
 
-        final Consumer<OutputFrame> logConsumer = frame -> log.log(frame.getType() == OutputType.STDERR? Level.ERROR : Level.INFO, frame.getUtf8String());
-        final PlatformStatusLogParser platformStatusLogParser = new PlatformStatusLogParser(newValue -> platformStatus = newValue);
+        final Consumer<OutputFrame> logConsumer = frame ->
+                log.log(frame.getType() == OutputType.STDERR ? Level.ERROR : Level.INFO, frame.getUtf8String());
+        final PlatformStatusLogParser platformStatusLogParser =
+                new PlatformStatusLogParser(newValue -> platformStatus = newValue);
         this.container = new GenericContainer<>(DOCKER_IMAGE_NAME)
                 .withNetwork(network)
                 .withLogConsumer(logConsumer.andThen(platformStatusLogParser));
