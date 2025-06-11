@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.contract.precompile.address_16c;
+package com.hedera.services.bdd.suites.contract.precompile.token.address_16c;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
-import static com.hedera.services.bdd.suites.contract.precompile.token.NumericValidationTest.zeroNegativeAndGreaterThanLong;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_SERIAL_NUMBERS;
@@ -22,6 +21,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+import com.hedera.services.bdd.suites.contract.precompile.token.NumericValidationTest;
 import java.math.BigInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -71,7 +71,7 @@ public class NumericValidation16c {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for NFT")
     public Stream<DynamicTest> failToGetTokenKeyNFT() {
-        return zeroNegativeAndGreaterThanLong.stream()
+        return NumericValidationTest.allFail.stream()
                 .flatMap(testCase -> hapiTest(numericContract
                         .call("getTokenKey", nft, testCase.amount())
                         .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -80,7 +80,7 @@ public class NumericValidation16c {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for Fungible Token")
     public Stream<DynamicTest> failToGetTokenKeyFT() {
-        return zeroNegativeAndGreaterThanLong.stream()
+        return NumericValidationTest.allFail.stream()
                 .flatMap(testCase -> hapiTest(numericContract
                         .call("getTokenKey", fungibleToken, testCase.amount())
                         .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));

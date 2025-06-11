@@ -20,7 +20,7 @@ contract NumericContractComplex is KeyHelper {
     }
 
     function buildFixedFeeV2(int64 amount) private returns (Structs.FixedFeeV2 memory fixedFee) {
-        fixedFee = Structs.FixedFeeV2(amount, address(0), true, true, msg.sender);
+        fixedFee = Structs.FixedFeeV2(amount, address(0), true, false, msg.sender);
     }
 
     function buildTokenV1(uint32 expirySecond, uint32 expiryRenew, uint32 maxSupply)
