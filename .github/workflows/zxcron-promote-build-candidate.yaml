@@ -231,27 +231,6 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Report failure (PagerDuty)
-        run: |
-          curl --request 'POST' \
-          --url 'https://events.pagerduty.com/v2/enqueue' \
-          --header 'Content-Type: application/json' \
-          --data '{
-            "payload": {
-              "summary": "Hiero Consensus Node - eXtended Test Suite Failure",
-              "severity": "error",
-              "source": "GitHub Actions - eXtended Test Suite",
-              "custom_details": {
-                "Fetch Latest Build Candidate": "${{ needs.determine-build-candidate.result }}",
-                "Promote Build Candidate": "${{ needs.promote-build-candidate.result }}",
-                "Source Commit": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>",
-                "Workflow Run": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-              }
-            },
-            "routing_key": "${{ secrets.PAGERDUTY_CITR_INTEGRATION_KEY }}",
-            "event_action": "trigger"
-          }'
-
       - name: Build Slack Payload Message
         id: payload
         run: |
