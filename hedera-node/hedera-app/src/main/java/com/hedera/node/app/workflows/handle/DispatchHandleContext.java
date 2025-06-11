@@ -344,7 +344,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -354,10 +353,18 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 authorizer,
                 storeFactory.asReadOnly(),
                 consensusNow,
-                transactionCategory == TransactionCategory.BATCH_INNER ? verifier : null,
-                transactionCategory == TransactionCategory.BATCH_INNER
+                shouldChargeForSignatureVerification(txBody) ? verifier : null,
+                shouldChargeForSignatureVerification(txBody)
                         ? txnInfo.signatureMap().sigPair().size()
                         : 0));
+    }
+
+    private boolean shouldChargeForSignatureVerification(@NonNull final TransactionBody txBody) {
+        // com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideSystemContractGasCalculator
+        // is using the parent context to calculate the gas.
+        // If we check only the transaction category,
+        // we will charge again for the signature verification of the parent call.
+        return transactionCategory == TransactionCategory.BATCH_INNER && txBody.hasBatchKey();
     }
 
     @NonNull
