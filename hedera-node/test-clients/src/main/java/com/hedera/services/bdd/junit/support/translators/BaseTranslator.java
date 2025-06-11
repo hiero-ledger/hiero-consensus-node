@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -56,6 +57,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,6 +72,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -109,6 +112,7 @@ public class BaseTranslator {
     private final Map<TokenID, List<Long>> highestPutSerialNos = new HashMap<>();
     private final Map<EntityType, List<Long>> nextCreatedNums = new EnumMap<>(EntityType.class);
     private final Set<ScheduleID> purgedScheduleIds = new HashSet<>();
+    private boolean batchTxns = false;
 
     /**
      * Defines how a translator specifies details of a translated transaction record.
@@ -440,7 +444,7 @@ public class BaseTranslator {
                                         .filter(nextUsages ->
                                                 nextUsages.contractIdOrThrow().equals(contractId)
                                                         && nextUsages.writtenSlotKeys().stream()
-                                                                .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
+                                                        .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
                                         .findFirst();
                                 if (nextTracedWriteUsage.isPresent()) {
                                     final int finalWriteIndex = nextTracedWriteUsage
@@ -562,6 +566,7 @@ public class BaseTranslator {
 
     /**
      * Updates the active exchange rates with the contents of the given state change.
+     *
      * @param change the state change to update from
      */
     public void updateActiveRates(@NonNull final StateChange change) {
@@ -577,6 +582,7 @@ public class BaseTranslator {
 
     /**
      * Returns the active exchange rates.
+     *
      * @return the active exchange rates
      */
     public ExchangeRateSet activeRates() {
@@ -662,6 +668,13 @@ public class BaseTranslator {
         userTimestamp = null;
         unit.blockTransactionParts().forEach(parts -> {
             if (PARENT_ROLES.contains(parts.role())) {
+                userTimestamp = asInstant(parts.consensusTimestamp());
+                if (parts.role() == STARTING_PARENT) {
+                    batchTxns = parts.functionality() == HederaFunctionality.ATOMIC_BATCH;
+                } else if (parts.role() == ENDING_PARENT || parts.role() == STANDALONE) {
+                    batchTxns = false;
+                }
+            } else if (batchTxns) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }
             if (parts.functionality() == HederaFunctionality.TOKEN_MINT) {

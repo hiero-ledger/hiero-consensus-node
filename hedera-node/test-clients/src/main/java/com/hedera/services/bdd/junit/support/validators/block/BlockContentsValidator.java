@@ -13,7 +13,9 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
@@ -159,22 +161,29 @@ public class BlockContentsValidator implements BlockStreamValidator {
         try {
             final var eventTransaction = item.eventTransactionOrThrow();
             if (eventTransaction.hasApplicationTransaction()) {
-                final var applicationTransaction = eventTransaction.applicationTransactionOrThrow();
-                final var txn = Transaction.PROTOBUF.parse(Bytes.wrap(applicationTransaction.toByteArray()));
-                if (txn.signedTransactionBytes() != null
-                        && txn.signedTransactionBytes().length() > 0) {
-                    return HapiUtils.functionOf(TransactionBody.PROTOBUF.parse(SignedTransaction.PROTOBUF
-                            .parse(txn.signedTransactionBytes())
-                            .bodyBytes()));
-                } else {
-                    return HapiUtils.functionOf(TransactionBody.PROTOBUF.parse(txn.bodyBytes()));
-                }
+                final TransactionBody transactionBody = bodyFrom(eventTransaction);
+                return HapiUtils.functionOf(transactionBody);
             }
         } catch (Exception e) {
             Assertions.fail("Failed to parse event transaction at index " + currentIndex + ": " + e.getMessage());
             return HederaFunctionality.NONE;
         }
         return HederaFunctionality.NONE;
+    }
+
+    @NonNull
+    public static TransactionBody bodyFrom(final EventTransaction eventTransaction) throws ParseException {
+        final var applicationTransaction = eventTransaction.applicationTransactionOrThrow();
+        final var txn = Transaction.PROTOBUF.parse(Bytes.wrap(applicationTransaction.toByteArray()));
+        final TransactionBody transactionBody;
+        if (txn.signedTransactionBytes() != null && txn.signedTransactionBytes().length() > 0) {
+            transactionBody = TransactionBody.PROTOBUF.parse(SignedTransaction.PROTOBUF
+                    .parse(txn.signedTransactionBytes())
+                    .bodyBytes());
+        } else {
+            transactionBody = TransactionBody.PROTOBUF.parse(txn.bodyBytes());
+        }
+        return transactionBody;
     }
 
     private static final Set<BlockItem.ItemOneOfType> OPTIONAL_ITEM_TYPES = Set.of(TRANSACTION_OUTPUT, TRACE_DATA);

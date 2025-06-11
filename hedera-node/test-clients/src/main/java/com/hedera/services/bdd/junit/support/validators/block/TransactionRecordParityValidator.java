@@ -4,8 +4,6 @@ package com.hedera.services.bdd.junit.support.validators.block;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
-import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_BLOCK_STREAM_DIR;
-import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_RECORD_STREAM_DIR;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
 
@@ -73,10 +71,8 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .resolve(workingDirFor(0, "hapi").resolve("data"))
                 .toAbsolutePath()
                 .normalize();
-        final var blocksLoc = node0Data
-                .resolve("blockStreams/block-11.12.3")
-                .toAbsolutePath()
-                .normalize();
+        final var blocksLoc =
+                node0Data.resolve("blockStreams/block-11.12.3").toAbsolutePath().normalize();
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blocksLoc);
         final var recordsLoc = node0Data
                 .resolve("recordStreams/record11.12.3")
