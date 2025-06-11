@@ -19,8 +19,8 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,10 +39,10 @@ import org.hiero.consensus.model.transaction.Transaction;
 public class MigrationTestToolConsensusStateEventHandler
         implements ConsensusStateEventHandler<MigrationTestingToolState> {
     private static final Logger logger = LogManager.getLogger(MigrationTestToolConsensusStateEventHandler.class);
+    public static final Duration DURATION = Duration.ofSeconds(10);
 
     public NodeId selfId;
 
-    private AtomicBoolean freezeRequested = new AtomicBoolean(false);
     private MigrationTestingToolConfig configData;
 
     @Override
@@ -66,9 +66,8 @@ public class MigrationTestToolConsensusStateEventHandler
             selfId = platform.getSelfId();
         }
 
-        final SemanticVersion staticPrevVersion = PREVIOUS_SOFTWARE_VERSION;
         if (previousVersion == null
-                || HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, staticPrevVersion) != 0) {
+                || HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(previousVersion, PREVIOUS_SOFTWARE_VERSION) != 0) {
             logger.warn(
                     STARTUP.getMarker(),
                     "previousSoftwareVersion was {} when expecting it to be {}",
@@ -91,18 +90,21 @@ public class MigrationTestToolConsensusStateEventHandler
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         state.throwIfImmutable();
 
-        if (configData.generateFreezeState()
-                && round.getRoundNum() > configData.targetFreezeRoundAfter()
-                && freezeRequested.compareAndSet(false, true)) {
-            // After enough rounds, we set the state to be a freeze state
-            logger.info(STARTUP.getMarker(), "Setting freeze time to {} seconds after genesis.", Duration.ofSeconds(1));
+        // After enough rounds, we set the state to be a freeze state
+        if (configData.applyFreezeTimeInRound() > 0 && round.getRoundNum() == configData.applyFreezeTimeInRound()) {
+            final Instant freezeTime = round.getConsensusTimestamp().plus(DURATION);
+            logger.info(
+                    STARTUP.getMarker(),
+                    "Setting freeze time to {} seconds after:{}. Value:{}",
+                    DURATION.getSeconds(),
+                    round.getConsensusTimestamp(),
+                    freezeTime);
             PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
-                v.setFreezeTime(round.getConsensusTimestamp().plus(Duration.ofSeconds(1)));
+                v.setFreezeTime(freezeTime);
             });
         }
 
-        for (final Iterator<ConsensusEvent> eventIt = round.iterator(); eventIt.hasNext(); ) {
-            final ConsensusEvent event = eventIt.next();
+        for (final ConsensusEvent event : round) {
             for (final Iterator<ConsensusTransaction> transIt = event.consensusTransactionIterator();
                     transIt.hasNext(); ) {
                 final ConsensusTransaction trans = transIt.next();
