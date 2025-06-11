@@ -55,24 +55,34 @@ no non-ancient non-consensus transactions, there is nothing to reach consensus, 
 Additionally, we should also check if there are any pending transactions, if there are, we should not quiesce.
 
 One complication comes from state/block signature transactions. These transactions do not need to reach consensus.
-However, they do need to be gossiped (for block signatures it has not yet been decided if they need to reach consensus
-as of this writing, this document will proceed assuming they don't need to). If we want a fully signed state/block,
-we need to create an event with this transaction and then stop creating events immediately after. If we create too many
-events, we can reach consensus on another round. If we reach consensus again, we will have another state/block to sign.
-The consensus module will need to be able to distinguish between signature transactions and normal transactions. An
-additional API is needed for this.
+However, they do need to be gossiped. If we want a fully signed state/block, we need to create an event with this
+transaction and then gossip it. But in order for a state/block to be fully signed, it needs signatures from a majority
+of nodes. If a node stops creating events after it has sent out its signature, other nodes might not be able to do the
+same as they might not have eligible parents. Because of this, we should only stop creating events when a state/block
+is fully signed. This can lead to a situation where more rounds reach consensus without any transactions in them, and
+empty blocks end up being produced. The consensus module will need to be able to distinguish between signature
+transactions and normal transactions. An additional API is needed for this.
 
-Another exception is due to the freeze mechanism. Because the freeze mechanism relies on consensus time advancing, it
-cannot occur if the network is quiescing. To circumvent this problem, quiescence cannot occur 1 minute before the freeze
-time based on the wall-clock.
+Another exception is because some functionalities rely on consensus time advancing (i.e. freeze, scheduled
+transactions). Because these mechanisms rely on consensus time advancing, they don't work if the network is quiescing.
+To circumvent this problem, execution needs to tell consensus what consensus time needs to be reached, we shall call 
+this target consensus timestamp (or TCT). After each consensus round is handled, the consensus module can ask execution
+for the next TCT. Quiescence should not be active some duration before the TCT based on the wall-clock. This duration
+shall be configurable, and will be named `tctDuration`.
+
+The third exception is due to boundary rounds. A transaction must not only reach consensus, but it must also be written
+to a block which is completed and signed. Not all consensus rounds complete a block and sign it. Rounds that do complete
+a block are called boundary rounds. Quiescence should not start until all transactions that have been handled are in a 
+boundary round, or have a boundary round after them.
 
 ### Quiescing
 
 Once all the conditions are met, we can quiesce. This is done by simply stopping event creation. The consensus module
-will stay in this state until:
+will stay in this state until one of the following conditions is met:
 
 - A transaction is submitted to the node that needs to be put into an event
-- OR a node sends us an event with transactions that need to reach consensus
+- A node sends us an event with transactions that need to reach consensus
+- `wallClockTime` + `tctDuration` is less than the next target consensus timestamp (TCT)
 
 If either of these conditions is met, we will break quiescence.
 
@@ -89,9 +99,9 @@ quiescence will be called a QB (Quiescence Breaker). A QB will not have other-pa
 only a self-parent, the QB can be easily identified and special rules can be applied to it. To prevent malicious nodes
 from flooding the network with QBs, a QB should not be allowed to have another QB as a self-parent.
 
-Another condition for breaking quiescence is that the wall-clock time is 1 minute before the freeze time. If this
-occurs, while the network is quiescing, the network should resume creating events regulaly. There is no need to create a
-QB in this case, since the whole network will be resuming event creation.
+Another condition for breaking quiescence is that the wall-clock time is nearing the next TCT. If this occurs, while the 
+network is quiescing, the network should resume creating events regularly. There is no need to create a QB in this case, 
+since the whole network should be resuming event creation.
 
 ### Side effects of quiescence
 
@@ -100,6 +110,7 @@ quiescence, this is not the case. This means that various parts of the system ne
 
 - The `SignedStateSentinel` uses wall-clock time to determine if a signed state is old. This will need to be modified to
   use the take quiescence into account.
+- `PcesConfig.minimumRetentionPeriod` uses wall-clock time to determine how long to keep events.
 - The platform status `ACTIVE` currently moves to `CHECKING` based on wall-clock time. We will need to add a
   `QUIESCED` status.
 - Various metrics can be misleading if the network is quiescing.
@@ -115,6 +126,9 @@ quiescence, this is not the case. This means that various parts of the system ne
   needs to reach consensus or not.
 - We will need functionality to detect non-ancient transactions that need to reach consensus. This should be part of the
   event creation module.
+- The event creator module should be updated with information about consensus transactions that do not have a boundary
+  round after them. This will be used to determine if the network can quiesce or not. This information needs to be sent
+  from the transaction handler to the event creator module.
 - The event creator should stop creating events if there are no transactions that need to reach consensus, unless there
   are pending transactions, or there is less than 1 minute before the freeze time according to the wall-clock.
 - The event creator should update the platform status to `QUIESCED` when appropriate.
@@ -163,8 +177,8 @@ The following metrics should be removed since they would need to be modified, bu
 
 New unit tests for the event creator should be written for the following scenarios:
 
-- If no non-ancient transactions need to reach consensus, and there is no upcoming freeze, it should stop creating
-  events.
+- If no non-ancient transactions need to reach consensus, there are no consensus transactions without a boundary round
+  after them, and there is no upcoming freeze; it should stop creating events.
 - If the wall-clock time is less than 1 minute before the freeze time, it should create events regardless of any
   transactions that are pending or need to reach consensus.
 - If it is quiesced and there is a pending transaction that does not need to reach consensus (a state/block signature),
