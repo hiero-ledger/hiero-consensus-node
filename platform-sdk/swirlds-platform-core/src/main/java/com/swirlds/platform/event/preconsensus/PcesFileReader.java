@@ -18,7 +18,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * This class is responsible for reading event files from disk and adding them to the collection of tracked files.
@@ -47,41 +46,17 @@ public class PcesFileReader {
             final long startingRound,
             final boolean permitGaps)
             throws IOException {
-        return readFilesFromDisk(
-                platformContext, databaseDirectory, startingRound, permitGaps, AncientMode.BIRTH_ROUND_THRESHOLD);
-    }
-
-    /**
-     * Scan the file system for event files and add them to the collection of tracked files.
-     *
-     * @param platformContext   the platform context
-     * @param databaseDirectory the directory to scan for files
-     * @param startingRound     the round to start reading from
-     * @param permitGaps        if gaps are permitted in sequence number
-     * @param typeToRead        the type of file to read, files of other types will be ignored
-     * @return the files read from disk
-     * @throws IOException if there is an error reading the files
-     */
-    @Deprecated(forRemoval = true) // we no longer support multiple ancient modes
-    public static PcesFileTracker readFilesFromDisk(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final Path databaseDirectory,
-            final long startingRound,
-            final boolean permitGaps,
-            final AncientMode typeToRead)
-            throws IOException {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(databaseDirectory);
 
-        final PcesFileTracker files = new PcesFileTracker(typeToRead);
+        final PcesFileTracker files = new PcesFileTracker();
 
         try (final Stream<Path> fileStream = Files.walk(databaseDirectory)) {
             fileStream
                     .filter(f -> !Files.isDirectory(f))
                     .map(PcesUtilities::parseFile)
                     .filter(Objects::nonNull)
-                    .filter(f -> f.getFileType() == typeToRead)
                     .sorted()
                     .forEachOrdered(buildFileHandler(files, permitGaps));
         }

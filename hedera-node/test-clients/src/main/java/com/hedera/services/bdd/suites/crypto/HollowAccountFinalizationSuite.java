@@ -649,7 +649,7 @@ public class HollowAccountFinalizationSuite {
                             .hasKnownStatus(MAX_CHILD_RECORDS_EXCEEDED)
                             .via(TRANSFER_TXN_2);
                     final var op3 =
-                            getTxnRecord(TRANSFER_TXN_2).andAllChildRecords().hasChildRecordCount(3);
+                            getTxnRecord(TRANSFER_TXN_2).andAllChildRecords().hasNonStakingChildRecordCount(3);
                     final Consumer<Boolean> consumer = b -> {
                         if (b) {
                             numHollow.incrementAndGet();

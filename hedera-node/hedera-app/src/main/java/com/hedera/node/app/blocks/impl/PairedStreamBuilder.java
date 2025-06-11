@@ -355,6 +355,21 @@ public class PairedStreamBuilder
         return this;
     }
 
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractId the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @NonNull
+    @Override
+    public PairedStreamBuilder createdContractID(@Nullable final ContractID contractId) {
+        recordStreamBuilder.createdContractID(contractId);
+        blockStreamBuilder.createdContractID(contractId);
+        return this;
+    }
+
     @NonNull
     @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
@@ -419,13 +434,6 @@ public class PairedStreamBuilder
     @Override
     public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
         blockStreamBuilder.addContractSlotUsages(slotUsages);
-        return this;
-    }
-
-    @Override
-    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
-        recordStreamBuilder.opsDuration(opsDuration);
-        blockStreamBuilder.opsDuration(opsDuration);
         return this;
     }
 

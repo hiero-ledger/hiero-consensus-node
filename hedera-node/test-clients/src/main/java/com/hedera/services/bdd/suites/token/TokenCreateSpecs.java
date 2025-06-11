@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.account
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairsInAnyOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -495,6 +496,7 @@ public class TokenCreateSpecs {
                         .feeScheduleKey("feeScheduleKey")
                         .pauseKey(pauseKey)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 tokenCreate(PRIMARY)
                         .supplyType(TokenSupplyType.FINITE)
@@ -514,6 +516,8 @@ public class TokenCreateSpecs {
                         .feeScheduleKey("feeScheduleKey")
                         .pauseKey(pauseKey)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT, TOKEN_TREASURY)
+                        .sigMapPrefixes(
+                                uniqueWithFullPrefixesFor(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT, TOKEN_TREASURY))
                         .via(CREATE_TXN),
                 withOpContext((spec, opLog) -> {
                     var createTxn = getTxnRecord(CREATE_TXN);
@@ -932,6 +936,7 @@ public class TokenCreateSpecs {
                                 .payingWith(PAYER)
                                 .adminKey(ADMIN_KEY)
                                 .signedBy(PAYER, ADMIN_KEY)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(PAYER, ADMIN_KEY))
                                 .hasKnownStatus(INVALID_SIGNATURE));
     }
 
