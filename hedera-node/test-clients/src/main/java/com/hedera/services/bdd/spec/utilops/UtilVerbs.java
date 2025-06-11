@@ -2745,7 +2745,6 @@ public class UtilVerbs {
     public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(final double amount, final double threshold) {
         return assertionsHold((spec, opLog) -> {
             assertTrue(
-
                     amount > threshold,
                     String.format("%s Throttle bucket filled is not greater than %s!", amount, threshold));
         });
