@@ -23,7 +23,7 @@ public record MultipleNodeStatusProgressionImpl(@NonNull List<SingleNodeStatusPr
     @NonNull
     public MultipleNodeStatusProgression ignoring(@NonNull final Node node) {
         final List<SingleNodeStatusProgression> filtered = statusProgressions.stream()
-                .filter(it -> Objects.equals(it.nodeId(), node.getSelfId()))
+                .filter(it -> Objects.equals(it.nodeId(), node.selfId()))
                 .toList();
         return new MultipleNodeStatusProgressionImpl(filtered);
     }

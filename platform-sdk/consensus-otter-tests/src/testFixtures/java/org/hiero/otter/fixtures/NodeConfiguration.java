@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * This class contains the current configuration of the node at the time it was requested via
- * {@link Node#getConfiguration()}. It can also be used to modify the configuration.
+ * {@link Node#configuration()}. It can also be used to modify the configuration.
  *
  * @param <T> the type of the configuration, allowing for method chaining
  */

@@ -23,7 +23,7 @@ public record MultipleNodePcesResultsImpl(@NonNull List<SingleNodePcesResult> pc
     @NonNull
     public MultipleNodePcesResults ignoring(@NonNull final Node node) {
         final List<SingleNodePcesResult> filtered = pcesResults.stream()
-                .filter(it -> Objects.equals(it.nodeId(), node.getSelfId()))
+                .filter(it -> Objects.equals(it.nodeId(), node.selfId()))
                 .toList();
         return new MultipleNodePcesResultsImpl(filtered);
     }

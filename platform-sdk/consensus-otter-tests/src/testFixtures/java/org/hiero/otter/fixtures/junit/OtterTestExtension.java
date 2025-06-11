@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.TestEnvironment;
-import org.hiero.otter.fixtures.solo.SoloTestEnvironment;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.RepeatedTest;
@@ -53,7 +53,7 @@ public class OtterTestExtension
     private static final String ENVIRONMENT_KEY = "environment";
 
     public static final String SYSTEM_PROPERTY_OTTER_ENV = "otter.env";
-    public static final String SOLO_ENV_KEY = "solo";
+    public static final String CONTAINER_ENV_KEY = "container";
 
     /**
      * Checks if this extension supports parameter resolution for the given parameter context.
@@ -163,8 +163,8 @@ public class OtterTestExtension
      */
     private TestEnvironment createTestEnvironment(@NonNull final ExtensionContext extensionContext) {
         final String environmentKey = System.getProperty(SYSTEM_PROPERTY_OTTER_ENV);
-        final TestEnvironment testEnvironment = SOLO_ENV_KEY.equalsIgnoreCase(environmentKey)
-                ? createSoloTestEnvironment(extensionContext)
+        final TestEnvironment testEnvironment = CONTAINER_ENV_KEY.equalsIgnoreCase(environmentKey)
+                ? createContainerTestEnvironment(extensionContext)
                 : createTurtleTestEnvironment(extensionContext);
         extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, testEnvironment);
         return testEnvironment;
@@ -186,14 +186,14 @@ public class OtterTestExtension
     }
 
     /**
-     * Creates a new {@link org.hiero.otter.fixtures.solo.SoloTestEnvironment} instance.
+     * Creates a new {@link ContainerTestEnvironment} instance.
      *
      * @param extensionContext the extension context of the test
      *
-     * @return a new {@link TestEnvironment} instance for solo tests
+     * @return a new {@link TestEnvironment} instance for container tests
      */
-    private TestEnvironment createSoloTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        return new SoloTestEnvironment();
+    private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+        return new ContainerTestEnvironment();
     }
 
     /**

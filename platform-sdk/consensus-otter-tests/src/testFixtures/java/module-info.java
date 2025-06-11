@@ -29,6 +29,7 @@ module org.hiero.otter.fixtures {
     requires awaitility;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
+    requires org.testcontainers;
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.otter.fixtures;

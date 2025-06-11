@@ -86,7 +86,7 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration getConfiguration();
+    NodeConfiguration configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
@@ -94,7 +94,7 @@ public interface Node {
      * @return the self id
      */
     @NonNull
-    NodeId getSelfId();
+    NodeId selfId();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
@@ -119,23 +119,19 @@ public interface Node {
      * @return the software version of the node
      */
     @NonNull
-    SemanticVersion getVersion();
+    SemanticVersion version();
 
     /**
      * Sets the software version of the node.
      *
-     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used.
-     *
-     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is not running.
      *
      * @param version the software version to set for the node
      */
     void setVersion(@NonNull SemanticVersion version);
 
     /**
-     * This method updates the version to trigger a "config only upgrade" on the next restart.
-     *
-     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be called while the node is not running.
      */
     void bumpConfigVersion();
 
