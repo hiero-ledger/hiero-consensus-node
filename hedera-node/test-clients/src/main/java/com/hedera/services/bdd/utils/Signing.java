@@ -72,6 +72,7 @@ public final class Signing {
                 ethTx.value(),
                 ethTx.callData(),
                 ethTx.accessList(),
+                null,
                 flipRecId ? ((byte) recId.getValue()) ^ 1 : (byte) recId.getValue(),
                 val == null ? null : val.toByteArray(),
                 r,
