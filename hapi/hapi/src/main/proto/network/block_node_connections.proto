@@ -38,10 +38,25 @@ message BlockNodeConfig {
     string address = 1;
 
     /**
-     * The port used to communicate with the block node.<br/>
+     * The port of the block node.<br/>
      * Valid port range is 1 to 65535.
      */
     int32 port = 2;
+
+  /**
+   * The priority of the block node.<br/>
+   * A lower number indicates a higher priority (e.g., priority 1 is highest).
+   * <p>
+   * This field SHALL be strictly positive.<br/>
+   * Priority MAY be unique, or shared with multiple nodes. Nodes with the same
+   * priority belong to the same priority group.<br/>
+   * In choosing which connections to establish and maintain, the consensus node
+   * SHALL prefer the highest-priority block node(s) over any belonging to
+   * a lower priority group.<br/>
+   * If all nodes in the highest priority group are unresponsive, the consensus
+   * node SHALL connect to a node in the next-highest available priority group.
+   */
+    int32 priority = 3;
 }
 
 /**
@@ -54,7 +69,9 @@ message BlockNodeConnectionInfo {
     /**
      * A list of block node configurations.<br/>
      * This field SHALL list all block node configurations
-     * to which the consensus node SHOULD connect.
+     * to which the consensus node could connect.
+     * The consensus node MUST connect to at least one block node to stream blocks.
      */
     repeated BlockNodeConfig nodes = 1;
 }
+

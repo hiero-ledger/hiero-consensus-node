@@ -398,12 +398,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    @Override
-    public void writePreBlockProofItems() {
-        throw new UnsupportedOperationException(
-                "FileBlockItemWriter does not support writing pre-block proof block items");
-    }
-
     /**
      * Get the path for a block file with the block number.
      *

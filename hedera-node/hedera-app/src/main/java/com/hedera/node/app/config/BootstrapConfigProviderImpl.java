@@ -8,6 +8,7 @@ import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.converter.LongPairConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ContractsConfig;
@@ -56,6 +57,7 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
                 .withConfigDataType(ContractsConfig.class)
+                .withConfigDataType(BlockNodeConnectionConfig.class)
                 .withConfigDataType(OpsDurationConfig.class)
                 .withConverter(Bytes.class, new BytesConverter())
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())

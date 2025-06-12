@@ -471,11 +471,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     new MerkleSiblingHash(false, depth2Node1),
                     new MerkleSiblingHash(false, depth1Node1)));
 
-            if (streamToBlockNodes) {
-                // Write any pre-block proof block items
-                writer.writePreBlockProofItems();
-            }
-
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
@@ -761,6 +756,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             next.send();
             return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            log.error("Error occurred while executing task", t);
         }
 
         void send(SequentialTask next) {

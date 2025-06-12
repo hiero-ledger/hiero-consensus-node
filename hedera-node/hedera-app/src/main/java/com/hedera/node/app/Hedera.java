@@ -58,6 +58,7 @@ import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.NoBlockNodesAvailableException;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -105,6 +106,7 @@ import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -1384,22 +1386,29 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     /**
      * Initializes block node connections and waits for at least one connection to be established.
      * This should be called before platform.start() to ensure we don't miss any blocks.
-     *
-     * @param timeout maximum time to wait for a connection
      */
-    public void initializeBlockNodeConnections(java.time.Duration timeout) {
-        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+    public void initializeBlockNodeConnections() {
+        final BlockStreamConfig blockStreamConfig =
+                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+
         if (!blockStreamConfig.streamToBlockNodes()) {
             logger.info("Block stream to Block Nodes is disabled, skipping block node connection initialization");
             return;
         }
 
-        logger.info("Initializing block node connections with timeout {}", timeout);
-        boolean connected = daggerApp.blockNodeConnectionManager().waitForConnection(timeout);
-        if (blockStreamConfig.shutdownNodeOnNoBlockNodes() && !connected) {
-            logger.error("No block node connections established within timeout, shutting down");
-            this.shutdown();
-            System.exit(1);
+        final BlockNodeConnectionConfig blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+
+        try {
+            daggerApp.blockNodeConnectionManager().start();
+        } catch (final NoBlockNodesAvailableException e) {
+            if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()) {
+                logger.fatal("No block nodes available to connect to; shutting down");
+                shutdown();
+                System.exit(1);
+            } else {
+                logger.warn("No block nodes available to connect to");
+            }
         }
     }
 }
