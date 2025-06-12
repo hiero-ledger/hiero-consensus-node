@@ -37,4 +37,5 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
     exports org.hiero.otter.fixtures.result;
+    exports org.hiero.otter.fixtures.turtle.app;
 }
