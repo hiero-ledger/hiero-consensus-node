@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.netty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,7 +54,8 @@ public class NettyRestServer {
 
         try {
             ServerBootstrap bootstrap = new ServerBootstrap();
-            bootstrap.group(boss, worker)
+            bootstrap
+                    .group(boss, worker)
                     .channel(NioServerSocketChannel.class)
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
@@ -82,18 +84,22 @@ public class NettyRestServer {
                                         byte[] json = objectMapper.writeValueAsBytes(result);
                                         sendResponse(ctx, HttpResponseStatus.OK, json);
                                     } catch (Exception e) {
-                                        sendResponse(ctx, HttpResponseStatus.INTERNAL_SERVER_ERROR, "Error: " + e.getMessage());
+                                        sendResponse(
+                                                ctx,
+                                                HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                                                "Error: " + e.getMessage());
                                     }
                                 }
 
-                                private void sendResponse(ChannelHandlerContext ctx, HttpResponseStatus status, String message) {
+                                private void sendResponse(
+                                        ChannelHandlerContext ctx, HttpResponseStatus status, String message) {
                                     sendResponse(ctx, status, message.getBytes(StandardCharsets.UTF_8));
                                 }
 
-                                private void sendResponse(ChannelHandlerContext ctx, HttpResponseStatus status, byte[] bytes) {
+                                private void sendResponse(
+                                        ChannelHandlerContext ctx, HttpResponseStatus status, byte[] bytes) {
                                     FullHttpResponse response = new DefaultFullHttpResponse(
-                                            HttpVersion.HTTP_1_1, status,
-                                            Unpooled.wrappedBuffer(bytes));
+                                            HttpVersion.HTTP_1_1, status, Unpooled.wrappedBuffer(bytes));
                                     response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
                                     response.headers().set(HttpHeaderNames.CONTENT_LENGTH, bytes.length);
                                     ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);

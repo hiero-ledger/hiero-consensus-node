@@ -10,13 +10,13 @@ import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 
 public class DockerInit {
 
-    private final static Logger LOGGER = LogManager.getLogger(DockerInit.class);
+    private static final Logger LOGGER = LogManager.getLogger(DockerInit.class);
 
     private final NettyRestServer server;
     private DockerApp app;
 
     private DockerInit() throws Exception {
-         server = new NettyRestServer(8080);
+        server = new NettyRestServer(8080);
 
         // POST /hello
         server.addPost("/hello", (req, body) -> {
@@ -42,7 +42,7 @@ public class DockerInit {
         });
 
         server.addGet("/start-node", req -> {
-            if(app != null) {
+            if (app != null) {
                 app.get().start();
                 return Map.of("platform", "started");
             }
@@ -58,5 +58,4 @@ public class DockerInit {
 
         new DockerInit().startWebserver();
     }
-
 }

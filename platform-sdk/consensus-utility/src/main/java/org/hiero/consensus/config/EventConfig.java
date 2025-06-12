@@ -17,5 +17,8 @@ import com.swirlds.config.api.ConfigProperty;
 public record EventConfig(
         @ConfigProperty(defaultValue = "5000") int eventStreamQueueCapacity,
         @ConfigProperty(defaultValue = "5") long eventsLogPeriod,
-        @ConfigProperty(defaultValue = "/Users/timo/SwirldsLabs/Projects/hedera-services/platform-sdk/consensus-otter-docker-app/build/data/apps/events") String eventsLogDir,
+        @ConfigProperty(
+                        defaultValue =
+                                "/Users/timo/SwirldsLabs/Projects/hedera-services/platform-sdk/consensus-otter-docker-app/build/data/apps/events")
+                String eventsLogDir,
         @ConfigProperty(defaultValue = "true") boolean enableEventStreaming) {}

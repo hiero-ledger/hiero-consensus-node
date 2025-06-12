@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.otter.docker.app {
     requires transitive com.hedera.node.hapi;
-    requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.common;
     requires transitive com.swirlds.platform.core;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
-    requires com.swirlds.component.framework;
-    requires com.swirlds.logging;
-    requires org.apache.logging.log4j;
-    requires static transitive com.github.spotbugs.annotations;
-    requires com.swirlds.merkledb;
+    requires transitive io.netty.codec.http;
+    requires transitive io.netty.transport;
+    requires com.hedera.pbj.runtime;
+    requires com.swirlds.base;
+    requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
+    requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
+    requires com.swirlds.state.api;
+    requires org.hiero.consensus.utility;
     requires org.hiero.otter.fixtures;
-    requires io.grpc.netty;
-    requires io.netty.handler;
-    requires io.netty.transport.classes.epoll;
-    requires io.netty.transport;
-    requires io.netty.codec.http;
+    requires com.fasterxml.jackson.databind;
     requires io.netty.buffer;
     requires io.netty.common;
+    requires org.apache.logging.log4j;
+    requires static transitive com.github.spotbugs.annotations;
 }

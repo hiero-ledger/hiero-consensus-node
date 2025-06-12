@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.platform;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -17,16 +18,20 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 public class DockerStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
     @Override
-    public void onPreHandle(@NonNull final Event event, @NonNull final MerkleNodeState state,
-            @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-
-    }
+    public void onPreHandle(
+            @NonNull final Event event,
+            @NonNull final MerkleNodeState state,
+            @NonNull
+                    final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
+                            stateSignatureTransactionCallback) {}
 
     @Override
-    public void onHandleConsensusRound(@NonNull final Round round, @NonNull final MerkleNodeState state,
-            @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
-
-    }
+    public void onHandleConsensusRound(
+            @NonNull final Round round,
+            @NonNull final MerkleNodeState state,
+            @NonNull
+                    final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
+                            stateSignatureTransactionCallback) {}
 
     @Override
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
@@ -34,19 +39,18 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Merkl
     }
 
     @Override
-    public void onStateInitialized(@NonNull final MerkleNodeState state, @NonNull final Platform platform,
-            @NonNull final InitTrigger trigger, @Nullable final SemanticVersion previousVersion) {
-
-    }
-
-    @Override
-    public void onUpdateWeight(@NonNull final MerkleNodeState state, @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext context) {
-
-    }
+    public void onStateInitialized(
+            @NonNull final MerkleNodeState state,
+            @NonNull final Platform platform,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion previousVersion) {}
 
     @Override
-    public void onNewRecoveredState(@NonNull final MerkleNodeState recoveredState) {
+    public void onUpdateWeight(
+            @NonNull final MerkleNodeState state,
+            @NonNull final AddressBook configAddressBook,
+            @NonNull final PlatformContext context) {}
 
-    }
+    @Override
+    public void onNewRecoveredState(@NonNull final MerkleNodeState recoveredState) {}
 }

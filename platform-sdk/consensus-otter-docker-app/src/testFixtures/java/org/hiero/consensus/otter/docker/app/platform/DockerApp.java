@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
@@ -53,7 +54,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
 public class DockerApp {
-    private final static Logger LOGGER = LogManager.getLogger(DockerApp.class);
+    private static final Logger LOGGER = LogManager.getLogger(DockerApp.class);
 
     private static final String APP_NAME = "org.hiero.consensus.otter.docker.app.platform.DockerApp";
     private static final String SWIRLD_NAME = "123";
@@ -62,7 +63,8 @@ public class DockerApp {
     private final Platform platform;
 
     public DockerApp()
-            throws KeyStoreException, KeyGeneratingException, NoSuchAlgorithmException, NoSuchProviderException, ConstructableRegistryException {
+            throws KeyStoreException, KeyGeneratingException, NoSuchAlgorithmException, NoSuchProviderException,
+                    ConstructableRegistryException {
         // --- Configure platform infrastructure and derive node id from the command line and environment ---
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
@@ -73,8 +75,10 @@ public class DockerApp {
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         final Random random = new Random(); // TODO Should we do seeded random?
-        final Roster genesisRoster = RandomRosterBuilder.create(random).withSize(4).build(); // TODO From CLI/Config/Rest?
-        final NodeId selfId = NodeId.of(genesisRoster.rosterEntries().getFirst().nodeId()); // TODO From CLI/Config/Rest?
+        final Roster genesisRoster =
+                RandomRosterBuilder.create(random).withSize(4).build(); // TODO From CLI/Config/Rest?
+        final NodeId selfId =
+                NodeId.of(genesisRoster.rosterEntries().getFirst().nodeId()); // TODO From CLI/Config/Rest?
 
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
@@ -116,7 +120,8 @@ public class DockerApp {
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
-        final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(selfId, EMPTY, EMPTY, EMPTY, new PublicStores());
+        final KeysAndCerts keysAndCerts =
+                KeysAndCertsGenerator.generate(selfId, EMPTY, EMPTY, EMPTY, new PublicStores());
 
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(

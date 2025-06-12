@@ -35,11 +35,11 @@ tasks.testFixturesJar {
     doFirst {
         manifest.attributes(
             "Class-Path" to
-                    inputs.files
-                        .filter { it.extension == "jar" }
-                        .map { "../lib/" + it.name }
-                        .sorted()
-                        .joinToString(separator = " ")
+                inputs.files
+                    .filter { it.extension == "jar" }
+                    .map { "../lib/" + it.name }
+                    .sorted()
+                    .joinToString(separator = " ")
         )
     }
 }
