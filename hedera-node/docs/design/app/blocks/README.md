@@ -1,7 +1,7 @@
 # Block Node Connection Components Design Documents
 
 This folder contains documents describing the internal design and expected behavior
-for various components of the Consensus node to Block Node communication. Each document focuses on a single
+for various components of the Consensus Node (CN) to Block Node (BN) communication. Each document focuses on a single
 class or component and its role, including interactions with other components.
 
 ## Contents
@@ -21,7 +21,7 @@ The following diagram illustrates the main flow and interactions between these c
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
     participant Connection as BlockNodeConnection
-    participant StateMgr as BlockBufferService
+    participant Buffer as BlockBufferService
     participant BlockState as BlockState
 
     Manager->>Connection: Initiate connection
@@ -36,69 +36,34 @@ sequenceDiagram
 
 ## Block Node Connection Initialization During Consensus Node Startup
 
-During a `Consensus Node` startup, it might establish connections to external `Block Nodes` depending on the configurations.
-The connection process is vital to ensure that blocks produced by the `Consensus Node` are streamed to the `Block Nodes` for further processing.
+During startup of the Consensus Node, if block node streaming is enabled, an asynchronous task will be spawned that will
+select a Block Node to connect to and attempt to establish a bi-directional gRPC stream to that node.
 
 ### Initialization Flow
 
-The connection initialization is handled by the `Hedera` class and occurs during the `Consensus Node` startup process.
+The connection initialization is handled by the `Hedera` class and occurs during the Consensus Node startup process.
 The initialization flow includes:
 
 1. Configuration Check
-   - The following configuration controls whether the Block Node connections should be established:
-     `blockStream.streamToBlockNodes = true`
-   - If this configuration is set to `false`, the connection process will be skipped.
-   - If set to `true`, the connection process will proceed.
-2. Dependency Injection Setup
-   - The `initializeDagger(...)` method is called during startup to construct and wire dependencies using Dagger.
-   - This includes:
-     - BlockStreamManager
-     - BlockNodeConnectionManager
-     - Other block-related and state-related services
-   - Dagger provides the `blockNodeConnectionManager()` instance needed to manage connections.
-3. Connection Initialization
-   - After `Dagger` setup, the following method may be invoked:
-     `public void initializeBlockNodeConnections(Duration timeout)`
-   - The method will:
-     - Log the start of the connection attempt.
-     - Wait up to timeout duration for at least one connection to a `Block Node`.
-     - Use `blockNodeConnectionManager().waitForConnection(timeout)` to determine success.
-4. Failure Handling
-   - If no valid block node configurations exists (e.g. they are missing) then if `blockNode.shutdownNodeOnNoBlockNodes`
-     is `true` then startup will halt and the node will be shut down. If the configuration is set to `false` then a
-     warning will be logged and startup will continue.
-   - Asynchronously, one or more attempts to connect to valid block nodes will be performed. If none of the block nodes
-     are successfully connected to, then back pressure will eventually engage since no blocks can be acknowledged.
-
-### Initialization Flow Sequence Diagram
-
-```mermaid
-sequenceDiagram
-  participant Config as Configuration
-  participant Hedera as Hedera Startup
-  participant Dagger as Dagger Init
-  participant BNodeMgr as BlockNodeConnectionManager
-  participant Sys as System
-
-  Config->>Hedera: streamToBlockNodes = true?
-  alt If true
-    Hedera->>Dagger: initializeDagger()
-    Dagger-->>Hedera: Provides blockNodeConnectionManager()
-    Hedera->>BNodeMgr: waitForConnection(timeout)
-    alt Connection Success
-      BNodeMgr-->>Hedera: Connection established
-    else Timeout Exceeded
-      Config->>Hedera: shutdownNodeOnNoBlockNodes = true?
-      alt If true
-        Hedera->>Sys: System.exit(1)
-      else
-        Note over Hedera: Log warning, continue
-      end
-    end
-  else
-    Note over Hedera: Skips block node connection
-  end
-```
+   - The primary configuration property that determines if block node streaming is enabled is `blockStream.writerMode`.
+     If this property is set to `FILE_AND_GRPC` or `GRPC` then streaming is enabled. Any other value (e.g. `FILE`) means
+     streaming is NOT enabled.
+2. If streaming is enabled:
+   - The connection manager singleton (`BlockNodeConnectionManager`) is retrieved and the startup method is invoked.
+   - A background "worker thread" is started whose eventual job is to process block items and send them to the actively
+     connected Block Node.
+   - Finally, a Block Node is selected to be the active connection. Once this selection process is complete, an asynchronous
+     task is created and executed immediately to attempt the connection process. Note: The actual connection process is
+     asynchronous from the Consensus Node startup; if there are valid configurations but connection attempts fail, then
+     back pressure will eventually be applied, as described in documentation for the block buffer.
+   - If there are no Block Nodes available to connect to (e.g. missing or invalid connection configs) then the connection
+     manager startup process will fail by throwing an exception: `NoBlockNodesAvailableException`
+     - This error will propagate back to the Consensus Node startup where the error will be caught.
+     - If the configuration property `blockNode.shutdownNodeOnNoBlockNodes` is set to `true` then the Consensus Node will
+       immediately shut down and a fatal log message will be written. If the property is set to `false` then the Consensus
+       Node will be permitted to continue startup with only a warning message written to the log. However, keep in mind in
+       this latter scenario, eventually back pressure will engage if continued attempts to connect to a Block Node fail.
+3. If streaming is NOT enabled, then nothing happens.
 
 ## Block Node and Block Stream Configurations
 
@@ -108,13 +73,15 @@ These configurations ensure scalable, resilient, and tunable block node communic
 ## Block Node Connection Configurations
 
 These settings control how the Consensus Node discovers and connects to Block Nodes, and define fallback behavior if connections fail.
+These property names are formatted as `blockNode.[propertyName]`
 - Connection File Path & Name: The node loads block node definitions from a file (e.g., `block-nodes.json`) located in a specified directory.
 - Connection Management: Parameters like `maxEndOfStreamsAllowed` and `endOfStreamTimeFrame` manage retries and limits.
 - Shutdown Behavior: If no connections are made and `shutdownNodeOnNoBlockNodes` is true, the node will shut down to avoid running in a degraded state.
 
 ## Block Stream Configurations
 
-These define how the Consensus Node batches, stores, or streams blocks of data.
+These define how the Consensus Node batches, stores, or streams blocks of data. These property names are formatted as:
+`blockStream.[propertyName]`
 - Streaming Mode: Controlled via `streamMode` and `writerMode`, the node can either write to local files or stream blocks to Block Nodes over gRPC.
 - Performance Tuning: Settings like `blockPeriod`, `blockItemBatchSize`, and `buffer TTLs/pruning intervals` help manage throughput and resource usage.
 - Block Formation: Parameters such as `roundsPerBlock` and `hashCombineBatchSize` govern how data is grouped into blocks.

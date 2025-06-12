@@ -58,6 +58,7 @@ import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.NoBlockNodesAvailableException;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -1400,7 +1401,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
         try {
             daggerApp.blockNodeConnectionManager().start();
-        } catch (final RuntimeException e) {
+        } catch (final NoBlockNodesAvailableException e) {
             if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()) {
                 logger.fatal("No block nodes available to connect to; shutting down");
                 shutdown();

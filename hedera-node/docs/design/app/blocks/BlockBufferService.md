@@ -60,8 +60,8 @@ The backpressure mechanism operates at two levels:
 
 1. **Block State Buffer Level**
    - An asynchronous thread is continuously running in the background to prune the buffer.
-   - Pruning occurs on a configurable interval defined in `BlockStreamConfig.blockBufferPruneInterval` (if set to `0`, the pruning is disabled)
-   - Acknowledged states older than `BlockStreamConfig.blockBufferTtl` are removed
+   - Pruning occurs on a configurable interval defined in `blockStream.blockBufferPruneInterval` (if set to `0`, the pruning is disabled)
+   - Acknowledged states older than `blockStream.blockBufferTtl` are removed
    - If buffer size exceeds safe thresholds after pruning, backpressure is applied
 2. **HandleWorkflow Level**
    - `HandleWorkflow` checks for backpressure signals before processing each round of transactions
@@ -73,7 +73,7 @@ The backpressure mechanism operates at two levels:
 
 1. **Monitoring Phase**
    - `BlockBufferService` tracks buffer size and block age
-   - Periodic pruning task runs based on `BlockStreamConfig.blockBufferPruneInterval`
+   - Periodic pruning task runs based on `blockStream.blockBufferPruneInterval`
    - Buffer metrics are updated for monitoring purposes
 2. **Triggering Phase**
    - Backpressure triggers when:

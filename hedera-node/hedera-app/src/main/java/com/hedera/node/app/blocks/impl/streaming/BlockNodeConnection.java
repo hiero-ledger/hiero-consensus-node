@@ -223,7 +223,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 acknowledgedBlockNumber,
                 blockAlreadyExists);
 
-        if (acknowledgedBlockNumber >= currentBlockProducing || acknowledgedBlockNumber >= currentBlockStreaming) {
+        if (acknowledgedBlockNumber > currentBlockProducing || acknowledgedBlockNumber > currentBlockStreaming) {
             /*
             We received an acknowledgement for a block that the consensus node is either currently streaming or
             producing. This likely indicates this consensus node is behind other consensus nodes (since the

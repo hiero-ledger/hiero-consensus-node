@@ -396,7 +396,7 @@ public class BlockNodeConnectionManager {
 
         if (!selectNewBlockNodeForStreaming()) {
             isConnectionManagerActive.set(false);
-            throw new IllegalStateException("No block nodes available to connect to");
+            throw new NoBlockNodesAvailableException();
         }
     }
 

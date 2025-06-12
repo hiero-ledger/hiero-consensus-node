@@ -11,14 +11,16 @@
 
 ## Abstract
 
-`BlockState` encapsulates the state of a single block being processed by the Block Node.
-It is responsible for tracking the block number, storing block items (BlockItem),
-managing the generation of PublishStreamRequests, and indicating when a block is considered complete and closed.
+`BlockState` encapsulates the state of a single block created by the Consensus Node that is eventually sent to a Block
+Node. This wrapper around the block data is used to associate items and requests to the block, along with tracking state
+changes such as if the block proof has been sent.
+
+A block itself is made up of many items including, but not limited to: one block header, transactions, and one block
+proof. These items will get batched into one or more requests that get sent to a Block Node.
 
 ## Definitions
 
 <dl>
-<dt>BlockState</dt> <dd>A component that holds streaming and request data for a single block number, helping support batching, tracking, and stream publication.</dd>
 <dt>BlockItem</dt> <dd>An individual unit of work or data associated with a block, to be streamed to downstream systems.</dd>
 <dt>PublishStreamRequest</dt> <dd>A request message constructed from one or more BlockItems, used to stream block data.</dd>
 </dl>

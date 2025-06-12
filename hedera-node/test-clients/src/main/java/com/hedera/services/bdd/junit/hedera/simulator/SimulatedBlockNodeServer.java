@@ -251,15 +251,15 @@ public class SimulatedBlockNodeServer {
 
                 @Override
                 public void onNext(final PublishStreamRequest request) {
-                    final EndOfStreamConfig config = endOfStreamConfig.getAndSet(null);
-                    if (config != null) {
-                        sendEndOfStream(responseObserver, config.responseCode(), config.blockNumber());
-                        return;
-                    }
-
                     // Acquire lock once for the entire request processing
                     blockTrackingLock.writeLock().lock();
                     try {
+                        // Move endOfStreamConfig check inside the lock for thread safety
+                        final EndOfStreamConfig config = endOfStreamConfig.getAndSet(null);
+                        if (config != null) {
+                            sendEndOfStream(responseObserver, config.responseCode(), config.blockNumber());
+                            return;
+                        }
                         // Iterate through each BlockItem in the request
                         for (final BlockItem item : request.getBlockItems().getBlockItemsList()) {
                             if (item.hasBlockHeader()) {

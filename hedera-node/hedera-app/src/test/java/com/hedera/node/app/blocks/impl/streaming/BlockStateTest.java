@@ -384,6 +384,10 @@ class BlockStateTest {
         assertThat(request2.blockItems().blockItems()).hasSize(4);
         final PublishStreamRequest request3 = block.getRequest(2);
         assertThat(request3.blockItems().blockItems()).hasSize(1);
+
+        assertThat(headerInfo.state()).hasValue(ItemState.PACKED);
+        assertThat(preProofInfo.state()).hasValue(ItemState.PACKED);
+        assertThat(proofInfo.state()).hasValue(ItemState.PACKED);
     }
 
     @Test
