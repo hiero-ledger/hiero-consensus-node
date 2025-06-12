@@ -231,7 +231,6 @@ tasks.register<Test>("testSubprocess") {
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
-    systemProperty("hapi.spec.blocknode.mode", System.getProperty("hapi.spec.blocknode.mode"))
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
