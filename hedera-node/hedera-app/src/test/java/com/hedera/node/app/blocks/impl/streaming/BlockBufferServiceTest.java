@@ -137,6 +137,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 () -> assertThat(blockBufferService
                                 .getBlockState(TEST_BLOCK_NUMBER)
                                 .blockNumber())
+                        .isEqualTo(TEST_BLOCK_NUMBER),
+                () -> assertThat(blockBufferService.getEarliestAvailableBlockNumber())
                         .isEqualTo(TEST_BLOCK_NUMBER));
     }
 
@@ -199,7 +201,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 () -> assertThat(blockBufferService
                                 .getBlockState(TEST_BLOCK_NUMBER2)
                                 .blockNumber())
-                        .isEqualTo(TEST_BLOCK_NUMBER2));
+                        .isEqualTo(TEST_BLOCK_NUMBER2),
+                () -> assertThat(blockBufferService.getEarliestAvailableBlockNumber())
+                        .isEqualTo(TEST_BLOCK_NUMBER));
     }
 
     @Test
@@ -437,6 +441,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(6);
 
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(1L);
         // ack up to block 3
         blockBufferService.setLatestAcknowledgedBlock(3L);
         verify(blockStreamMetrics).setLatestAcknowledgedBlockNumber(3L);
@@ -454,6 +459,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(3);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(4L);
 
         // ack up to block 6, run pruning, and verify the buffer is not saturated
         blockBufferService.setLatestAcknowledgedBlock(6L);
@@ -465,6 +471,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         reset(blockStreamMetrics);
         assertThat(buffer).isEmpty();
 
+        // indicates that there are no blocks available in the buffer
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(Long.MIN_VALUE);
+
         // now add another block without acking and ensure the buffer is partially saturated
         blockBufferService.openBlock(7L);
         blockBufferService.closeBlock(7L);
@@ -475,6 +484,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
         reset(blockStreamMetrics);
         assertThat(buffer).hasSize(1);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(7L);
     }
 
     @Test
@@ -522,6 +532,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(5L);
         blockBufferService.openBlock(6L);
 
+        // verify the earliest block in the buffer is 1
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(1L);
+
         // close the blocks
         blockBufferService.closeBlock(1L);
         blockBufferService.closeBlock(2L);
@@ -541,6 +554,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(buffer).hasSize(2);
         assertThat(buffer.get(6L)).isNotNull();
         assertThat(buffer.get(7L)).isNotNull();
+
+        // verify the earliest block in the buffer is 6 after pruning the acked ones
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(6L);
     }
 
     @Test
@@ -587,6 +603,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.closeBlock(2L);
         blockBufferService.openBlock(3L);
         blockBufferService.closeBlock(3L);
+
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(1L);
 
         // Auto-pruning is enabled and since the prune internal is less than the block TTL, by waiting for the block TTL
         // period, plus some extra time, the pruning should detect that the buffer is saturated and enable backpressure
