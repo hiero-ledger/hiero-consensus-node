@@ -1,47 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.readFixed64;
-import static com.hedera.pbj.runtime.ProtoParserTools.readString;
-import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLong;
-import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfString;
-import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
-import static com.hedera.pbj.runtime.ProtoWriterTools.writeString;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.pbj.runtime.FieldDefinition;
-import com.hedera.pbj.runtime.FieldType;
-import com.hedera.pbj.runtime.ProtoConstants;
-import com.hedera.pbj.runtime.ProtoParserTools;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 
 /**
  * Contains state for a {@link VirtualMap}. This state is stored in memory. When an instance of {@link VirtualMap}
  * is serialized, it's stored as one of the key-value pairs.
  */
 public class VirtualMapState {
-
-    /**
-     * A singleton key for the virtual map state. This is used to store the state in the {@link VirtualMap}.
-     * These bytes correspond {@code VirtualMapKey.SINGLETON_KEY (VIRTUAL_MAP_STATE)} (see {@code virtual_map_state.proto}).
-     * Field tag=8 (field 1, varint), value=51 (VIRTUAL_MAP_STATE)
-     */
-    public static final Bytes VM_STATE_KEY = Bytes.wrap(new byte[] {0x08, 0x33}); //
-
-    public static final FieldDefinition FIELD_FIRST_LEAF_PATH =
-            new FieldDefinition("firstLeafPath", FieldType.FIXED64, false, true, false, 1);
-    public static final FieldDefinition FIELD_LAST_LEAF_PATH =
-            new FieldDefinition("lastLeafPath", FieldType.FIXED64, false, true, false, 2);
-    public static final FieldDefinition FIELD_LABEL =
-            new FieldDefinition("label", FieldType.STRING, false, true, false, 3);
 
     public static final int MAX_LABEL_CHARS = 512;
 
@@ -71,6 +42,21 @@ public class VirtualMapState {
     }
 
     /**
+     * Create a new {@link VirtualMapState}.
+     */
+    public VirtualMapState(@NonNull final String label, final long stateSize) {
+        requireNonNull(label);
+        if (stateSize == 1) {
+            firstLeafPath = 1;
+            lastLeafPath = 1;
+        } else {
+            firstLeafPath = stateSize - 1;
+            lastLeafPath = firstLeafPath + stateSize - 1;
+        }
+        this.label = label;
+    }
+
+    /**
      * Create a new {@link VirtualMapState} base on an {@link ExternalVirtualMapState} instance.
      * To be removed with ExternalVirtualMapState.
      *
@@ -91,42 +77,6 @@ public class VirtualMapState {
         firstLeafPath = virtualMapState.getFirstLeafPath();
         lastLeafPath = virtualMapState.getLastLeafPath();
         label = virtualMapState.getLabel();
-    }
-
-    /**
-     * Create a new {@link VirtualMapState} from the given bytes.
-     *
-     * @param bytes The bytes to read. Cannot be null.
-     */
-    public VirtualMapState(@NonNull final Bytes bytes) {
-        requireNonNull(bytes);
-        final ReadableSequentialData data = bytes.toReadableSequentialData();
-        while (data.hasRemaining()) {
-            final int field = data.readVarInt(false);
-            final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
-            if (tag == FIELD_FIRST_LEAF_PATH.number()) {
-                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
-                    throw new IllegalArgumentException("Wrong field type: " + field);
-                }
-                firstLeafPath = readFixed64(data);
-            } else if (tag == FIELD_LAST_LEAF_PATH.number()) {
-                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
-                    throw new IllegalArgumentException("Wrong field type: " + field);
-                }
-                lastLeafPath = readFixed64(data);
-            } else if (tag == FIELD_LABEL.number()) {
-                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
-                    throw new IllegalArgumentException("Wrong field type: " + field);
-                }
-                try {
-                    label = readString(data);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            } else {
-                throw new IllegalArgumentException("Unknown field: " + field);
-            }
-        }
     }
 
     /**
@@ -210,28 +160,6 @@ public class VirtualMapState {
             throw new IllegalArgumentException("Label cannot be greater than 512 characters");
         }
         this.label = label;
-    }
-
-    /**
-     * Converts current object into instance of {@link Bytes}
-     * @return resulting bytes
-     */
-    public Bytes toBytes() {
-        int size = sizeOfLong(FIELD_FIRST_LEAF_PATH, firstLeafPath)
-                + sizeOfLong(FIELD_LAST_LEAF_PATH, lastLeafPath)
-                + sizeOfString(FIELD_LABEL, label);
-
-        BufferedData out = BufferedData.allocate(size);
-        writeLong(out, FIELD_FIRST_LEAF_PATH, firstLeafPath);
-        writeLong(out, FIELD_LAST_LEAF_PATH, lastLeafPath);
-        try {
-            writeString(out, FIELD_LABEL, label);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        out.flip();
-        return out.readBytes(size);
     }
 
     public VirtualMapState copy() {

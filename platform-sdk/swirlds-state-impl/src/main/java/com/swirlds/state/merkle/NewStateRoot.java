@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
-import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -838,13 +837,11 @@ public abstract class NewStateRoot<T extends NewStateRoot<T>> implements State {
         final JSONObject rootJson = new JSONObject();
 
         final RecordAccessorImpl recordAccessor = (RecordAccessorImpl) virtualMap.getRecords();
-        final VirtualLeafBytes<?> virtualLeafBytes = recordAccessor.findLeafRecord(VM_STATE_KEY);
-        final VirtualMapState virtualMapState = new VirtualMapState(virtualLeafBytes.valueBytes());
+        final VirtualMapState virtualMapState = virtualMap.getState();
 
         final JSONObject virtualMapStateJson = new JSONObject();
         virtualMapStateJson.put("firstLeafPath", virtualMapState.getFirstLeafPath());
         virtualMapStateJson.put("lastLeafPath", virtualMapState.getLastLeafPath());
-        virtualMapStateJson.put("path", virtualLeafBytes.path());
 
         rootJson.put("VirtualMapState", virtualMapStateJson);
 
