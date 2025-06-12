@@ -59,4 +59,10 @@ contract OpsDurationThrottle {
             addr := create(0,add(code,0x20), mload(code))
         }
     }
+
+    function runMulti(uint iterations) public {
+        for (uint i = 0; i < iterations; i++) {
+            run();
+        }
+    }
 }

@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.burstIncreasesThroughputBy;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.restoreDefault;
@@ -30,6 +31,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.swirlds.metrics.impl.AtomicDouble;
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -49,6 +51,7 @@ public class OpsDurationThrottleTest {
     private static final String RECEIVER = "receiver";
     private static final String TOKEN = "token";
     protected static final String THROTTLE_THROTTLE_BY_OPS_DURATION = "contracts.throttle.throttleByOpsDuration";
+    protected static final String OPS_DURATION_THROTTLE_BURST_SECONDS = "contracts.opsDurationThrottleBurstSeconds";
     protected static final String MAX_OPS_DURATION = "contracts.maxOpsDuration";
     protected static final String DURATION_PERIOD = "1000000";
 
@@ -113,7 +116,7 @@ public class OpsDurationThrottleTest {
                 tokenCreate(TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(1_000_000L)
-                                .treasury(SENDER),
+                        .treasury(SENDER),
                 tokenAssociate(RECEIVER, TOKEN),
                 uploadInitCode(SYSTEM_CONTRACT_TRANSFER),
                 contractCreate(SYSTEM_CONTRACT_TRANSFER).gas(2_000_000L),
@@ -130,8 +133,13 @@ public class OpsDurationThrottleTest {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 4_000)
-                                    .mapToObj(i -> sourcing(() -> contractCall(SYSTEM_CONTRACT_TRANSFER, "htsTransferFrom",
-                                            tokenAddress, senderAddress, receiverAddress, BigInteger.ONE)
+                                    .mapToObj(i -> sourcing(() -> contractCall(
+                                                    SYSTEM_CONTRACT_TRANSFER,
+                                                    "htsTransferFrom",
+                                                    tokenAddress,
+                                                    senderAddress,
+                                                    receiverAddress,
+                                                    BigInteger.ONE)
                                             .gas(200_000L)
                                             .hasKnownStatusFrom(
                                                     ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
@@ -153,7 +161,7 @@ public class OpsDurationThrottleTest {
                 tokenCreate(TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(1_000_000L)
-                                .treasury(SENDER),
+                        .treasury(SENDER),
                 tokenAssociate(RECEIVER, TOKEN),
                 uploadInitCode(SYSTEM_CONTRACT_TRANSFER),
                 contractCreate(SYSTEM_CONTRACT_TRANSFER).gas(2_000_000L),
@@ -170,8 +178,13 @@ public class OpsDurationThrottleTest {
                     allRunFor(
                             spec,
                             inParallel(IntStream.range(0, 5)
-                                    .mapToObj(i -> sourcing(() -> contractCall(SYSTEM_CONTRACT_TRANSFER, "htsTransferFrom",
-                                            tokenAddress, senderAddress, receiverAddress, BigInteger.ONE)
+                                    .mapToObj(i -> sourcing(() -> contractCall(
+                                                    SYSTEM_CONTRACT_TRANSFER,
+                                                    "htsTransferFrom",
+                                                    tokenAddress,
+                                                    senderAddress,
+                                                    receiverAddress,
+                                                    BigInteger.ONE)
                                             .gas(200_000L)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
@@ -195,7 +208,8 @@ public class OpsDurationThrottleTest {
                             inParallel(IntStream.range(0, 400)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRun")
                                             .gas(400_000L)
-                                            .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(
+                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 98.0));
@@ -240,7 +254,9 @@ public class OpsDurationThrottleTest {
                             inParallel(IntStream.range(0, 400)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunRevert")
                                             .gas(400_000L)
-                                            .hasKnownStatusFrom(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(
+                                                    ResponseCodeEnum.CONTRACT_REVERT_EXECUTED,
+                                                    ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 98.0));
@@ -270,7 +286,6 @@ public class OpsDurationThrottleTest {
                 }));
     }
 
-
     @HapiTest
     @Order(9)
     @DisplayName("call create opcode with expected halt to exceed ops duration throttle")
@@ -287,7 +302,9 @@ public class OpsDurationThrottleTest {
                             inParallel(IntStream.range(0, 400)
                                     .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "opsRunHalt")
                                             .gas(400_000L)
-                                            .hasKnownStatusFrom(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .hasKnownStatusFrom(
+                                                    ResponseCodeEnum.CONTRACT_REVERT_EXECUTED,
+                                                    ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageMoreThanThreshold(duration.get(), 98.0));
@@ -314,6 +331,61 @@ public class OpsDurationThrottleTest {
                                             .collectMaxOpsDuration(duration)))
                                     .toArray(HapiSpecOperation[]::new)));
                     allRunFor(spec, throttleUsagePercentageLessThreshold(duration.get(), 10.0));
+                }));
+    }
+
+    @HapiTest
+    @Order(11)
+    @DisplayName("compare number of successful calls before and after updating the burst size")
+    public Stream<DynamicTest> burstTest() {
+        final AtomicLong preSuccessCounter = new AtomicLong(0);
+        final AtomicLong postSuccessCounter = new AtomicLong(0);
+        return hapiTest(
+                overriding(THROTTLE_THROTTLE_BY_OPS_DURATION, "true"),
+                uploadInitCode(OPS_DURATION_THROTTLE),
+                contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
+                withOpContext((spec, opLog) -> {
+                    allRunFor(
+                            spec,
+                            inParallel(IntStream.range(0, 800)
+                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "run")
+                                            .gas(200_000L)
+                                            .hasKnownStatusFrom(
+                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .countingSuccessfulTransactionTo(preSuccessCounter)))
+                                    .toArray(HapiSpecOperation[]::new)));
+                    overriding(OPS_DURATION_THROTTLE_BURST_SECONDS, "2");
+                    allRunFor(
+                            spec,
+                            inParallel(IntStream.range(0, 800)
+                                    .mapToObj(i -> sourcing(() -> contractCall(OPS_DURATION_THROTTLE, "run")
+                                            .gas(200_000L)
+                                            .hasKnownStatusFrom(
+                                                    ResponseCodeEnum.SUCCESS, ResponseCodeEnum.THROTTLED_AT_CONSENSUS)
+                                            .countingSuccessfulTransactionTo(postSuccessCounter)))
+                                    .toArray(HapiSpecOperation[]::new)));
+                    burstIncreasesThroughputBy(preSuccessCounter.get(), postSuccessCounter.get(), 200L);
+                }),
+                restoreDefault(OPS_DURATION_THROTTLE_BURST_SECONDS));
+    }
+
+    @HapiTest
+    @Order(12)
+    @DisplayName("call nested function to exceed ops duration throttle")
+    public Stream<DynamicTest> nestedExceedOpsDuration() {
+        return hapiTest(
+                overriding(THROTTLE_THROTTLE_BY_OPS_DURATION, "true"),
+                uploadInitCode(OPS_DURATION_THROTTLE),
+                contractCreate(OPS_DURATION_THROTTLE).gas(2_000_000L),
+                withOpContext((spec, opLog) -> {
+                    allRunFor(
+                            spec,
+                            contractCall(OPS_DURATION_THROTTLE, "runMulti", BigInteger.valueOf(5L))
+                                    .gas(10_000_000L)
+                                    .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                            contractCall(OPS_DURATION_THROTTLE, "runMulti", BigInteger.valueOf(100))
+                                    .gas(10_000_000L)
+                                    .hasKnownStatus(ResponseCodeEnum.THROTTLED_AT_CONSENSUS));
                 }));
     }
 }

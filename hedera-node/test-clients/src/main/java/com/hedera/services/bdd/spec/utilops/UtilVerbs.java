@@ -2742,7 +2742,8 @@ public class UtilVerbs {
         });
     }
 
-    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(final double amount, final double threshold) {
+    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(
+            final double amount, final double threshold) {
         return assertionsHold((spec, opLog) -> {
             assertTrue(
                     amount > threshold,
@@ -2755,6 +2756,14 @@ public class UtilVerbs {
             assertTrue(
                     amount < threshold,
                     String.format("%s Throttle bucket filled is not less than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert burstIncreasesThroughputBy(final long pre, final long post, final long delta) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    (pre + delta) < post,
+                    String.format("post value: %s is not %s greater than pre value: %s", post, delta, pre));
         });
     }
 
