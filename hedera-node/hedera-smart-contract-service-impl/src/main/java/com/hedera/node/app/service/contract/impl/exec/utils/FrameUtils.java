@@ -37,6 +37,7 @@ public class FrameUtils {
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
     public static final String HEDERA_OPS_DURATION = "hederaOpsDuration";
+    public static final String THROTTLE_BY_OPS_DURATION = "throttleByOpsDuration";
 
     public enum EntityType {
         TOKEN,
@@ -408,6 +409,9 @@ public class FrameUtils {
     }
 
     public static void checkHederaOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
-        proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
+        final boolean throttleByOpsDuration = initialFrameOf(frame).getContextVariable(THROTTLE_BY_OPS_DURATION, false);
+        if (throttleByOpsDuration) {
+            proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
+        }
     }
 }

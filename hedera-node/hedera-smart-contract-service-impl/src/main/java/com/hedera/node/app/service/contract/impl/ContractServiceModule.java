@@ -16,7 +16,7 @@ import com.hedera.node.app.service.contract.impl.annotations.ServicesV038;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV046;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV050;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
-import com.hedera.node.app.service.contract.impl.annotations.ServicesV062;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV064;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesVersionKey;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -29,7 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.v038.V038Module;
 import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
-import com.hedera.node.app.service.contract.impl.exec.v062.V062Module;
+import com.hedera.node.app.service.contract.impl.exec.v064.V064Module;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
@@ -55,7 +55,7 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
             V046Module.class,
             V050Module.class,
             V051Module.class,
-            V062Module.class,
+            V064Module.class,
             ProcessorModule.class
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
@@ -153,5 +153,5 @@ public interface ContractServiceModule {
     @IntoMap
     @Singleton
     @ServicesVersionKey(VERSION_062)
-    TransactionProcessor bindV062Processor(@ServicesV062 @NonNull final TransactionProcessor processor);
+    TransactionProcessor bindV062Processor(@ServicesV064 @NonNull final TransactionProcessor processor);
 }

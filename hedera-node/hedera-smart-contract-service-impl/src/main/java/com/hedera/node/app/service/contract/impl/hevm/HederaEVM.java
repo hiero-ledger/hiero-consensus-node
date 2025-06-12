@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ge
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
 
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.hyperledger.besu.evm.EVM;
@@ -83,7 +84,8 @@ public class HederaEVM extends EVM {
             @NonNull final GasCalculator gasCalculator,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final EvmSpecVersion evmSpecVersion,
-            @NonNull final HederaOpsDuration opsDuration) {
+            @NonNull final HederaOpsDuration opsDuration,
+            @NonNull final ContractMetrics contractMetrics) {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
         this.operations = operations;
         this.gasCalculator = gasCalculator;
