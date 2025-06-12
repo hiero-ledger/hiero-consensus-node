@@ -10,13 +10,19 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.threading.manager.ThreadManager;
+import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.gossip.shadowgraph.AbstractShadowgraphSynchronizer;
+import com.swirlds.platform.gossip.shadowgraph.GossipRpcShadowgraphSynchronizer;
+import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
+import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.SyncManagerImpl;
 import com.swirlds.platform.metrics.ReconnectMetrics;
+import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
@@ -75,6 +81,7 @@ public class SyncGossipModular implements Gossip {
     private final List<Protocol> protocols;
     private final AbstractSyncProtocol<?> syncProtocol;
     private final SyncManagerImpl syncManager;
+    private final AbstractShadowgraphSynchronizer synchronizer;
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
@@ -140,25 +147,54 @@ public class SyncGossipModular implements Gossip {
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
 
+        final int rosterSize = peers.size() + 1;
+        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime());
+        final Shadowgraph shadowgraph = new Shadowgraph(platformContext, rosterSize, intakeEventCounter);
+
         if (protocolConfig.rpcGossip()) {
+
+            final GossipRpcShadowgraphSynchronizer rpcSynchronizer = new GossipRpcShadowgraphSynchronizer(
+                    platformContext,
+                    shadowgraph,
+                    rosterSize,
+                    syncMetrics,
+                    event -> receivedEventHandler.accept(event),
+                    syncManager,
+                    intakeEventCounter,
+                    selfId);
+
+            this.synchronizer = rpcSynchronizer;
+
             this.syncProtocol = RpcProtocol.create(
                     platformContext,
-                    syncManager,
-                    event -> receivedEventHandler.accept(event),
+                    rpcSynchronizer,
                     intakeEventCounter,
                     threadManager,
                     peers.size() + 1,
-                    selfId,
-                    this.network.getNetworkMetrics());
+                    this.network.getNetworkMetrics(),
+                    syncMetrics);
 
         } else {
+
+            final ShadowgraphSynchronizer shadowgraphSynchronizer = new ShadowgraphSynchronizer(
+                    platformContext,
+                    shadowgraph,
+                    rosterSize,
+                    syncMetrics,
+                    event -> receivedEventHandler.accept(event),
+                    syncManager,
+                    intakeEventCounter,
+                    new CachedPoolParallelExecutor(threadManager, "node-sync"));
+
+            this.synchronizer = shadowgraphSynchronizer;
+
             this.syncProtocol = SyncProtocol.create(
                     platformContext,
+                    shadowgraphSynchronizer,
                     syncManager,
-                    event -> receivedEventHandler.accept(event),
                     intakeEventCounter,
-                    threadManager,
-                    peers.size() + 1);
+                    peers.size() + 1,
+                    syncMetrics);
         }
 
         this.protocols = new ArrayList<>();
@@ -325,8 +361,8 @@ public class SyncGossipModular implements Gossip {
         });
 
         clearInput.bindConsumer(ignored -> syncProtocol.clear());
-        eventInput.bindConsumer(syncProtocol::addEvent);
-        eventWindowInput.bindConsumer(syncProtocol::updateEventWindow);
+        eventInput.bindConsumer(synchronizer::addEvent);
+        eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
         systemHealthInput.bindConsumer(syncProtocol::reportUnhealthyDuration);
         platformStatusInput.bindConsumer(status -> {

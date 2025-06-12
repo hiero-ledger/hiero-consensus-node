@@ -15,8 +15,6 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * Base class for synchronization protocols using tipset exchange
@@ -133,24 +131,6 @@ public abstract class AbstractSyncProtocol<T extends AbstractShadowgraphSynchron
      */
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         permitProvider.reportUnhealthyDuration(duration);
-    }
-
-    /**
-     * Updates the current event window (mostly ancient thresholds)
-     *
-     * @param eventWindow new event window to apply
-     */
-    public void updateEventWindow(@NonNull final EventWindow eventWindow) {
-        synchronizer.updateEventWindow(eventWindow);
-    }
-
-    /**
-     * Events sent here should be gossiped to the network
-     *
-     * @param platformEvent event to be sent outside
-     */
-    public void addEvent(@NonNull final PlatformEvent platformEvent) {
-        synchronizer.addEvent(platformEvent);
     }
 
     /**

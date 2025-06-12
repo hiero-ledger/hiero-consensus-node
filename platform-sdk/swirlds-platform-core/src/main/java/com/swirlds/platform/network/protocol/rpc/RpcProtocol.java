@@ -8,7 +8,6 @@ import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.GossipRpcShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
-import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.NetworkMetrics;
 import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
@@ -16,9 +15,6 @@ import com.swirlds.platform.network.protocol.PeerProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
-import org.hiero.consensus.gossip.FallenBehindManager;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -63,36 +59,20 @@ public class RpcProtocol extends AbstractSyncProtocol<GossipRpcShadowgraphSynchr
 
     /**
      * @param platformContext      the platform context
-     * @param fallenBehindManager  tracks if we have fallen behind
-     * @param receivedEventHandler output wiring to call when event is received from neighbour
      * @param intakeEventCounter   keeps track of how many events have been received from each peer
      * @param threadManager        the thread manager
      * @param rosterSize           estimated roster size
-     * @param selfId               id of current node
      * @param networkMetrics       network metrics to register data about communication traffic and latencies
+     * @param syncMetrics          metrics of synchronization process
      */
     public static RpcProtocol create(
             @NonNull final PlatformContext platformContext,
-            @NonNull final FallenBehindManager fallenBehindManager,
-            @NonNull final Consumer<PlatformEvent> receivedEventHandler,
+            @NonNull final GossipRpcShadowgraphSynchronizer synchronizer,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final ThreadManager threadManager,
             final int rosterSize,
-            @NonNull final NodeId selfId,
-            @NonNull final NetworkMetrics networkMetrics) {
-
-        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime());
-        final Shadowgraph shadowgraph = new Shadowgraph(platformContext, rosterSize, intakeEventCounter);
-
-        final GossipRpcShadowgraphSynchronizer synchronizer = new GossipRpcShadowgraphSynchronizer(
-                platformContext,
-                shadowgraph,
-                rosterSize,
-                syncMetrics,
-                receivedEventHandler,
-                fallenBehindManager,
-                intakeEventCounter,
-                selfId);
+            @NonNull final NetworkMetrics networkMetrics,
+            final SyncMetrics syncMetrics) {
 
         return new RpcProtocol(
                 synchronizer,

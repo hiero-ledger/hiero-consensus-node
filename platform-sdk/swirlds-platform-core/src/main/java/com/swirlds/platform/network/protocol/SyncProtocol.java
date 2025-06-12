@@ -3,11 +3,8 @@ package com.swirlds.platform.network.protocol;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
-import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.protocol.SyncPeerProtocol;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -15,11 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.gossip.FallenBehindManager;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -67,40 +62,22 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
      *
      * @param platformContext      the platform context
      * @param fallenBehindManager  tracks if we have fallen behind
-     * @param receivedEventHandler output wiring to call when event is received from neighbour
      * @param intakeEventCounter   keeps track of how many events have been received from each peer
-     * @param threadManager        the thread manager
      * @param rosterSize           estimated roster size
+     * @param syncMetrics          metrics of synchronization process
      * @return constructed SyncProtocol
      */
     public static SyncProtocol create(
             @NonNull final PlatformContext platformContext,
+            @NonNull final ShadowgraphSynchronizer synchronizer,
             @NonNull final FallenBehindManager fallenBehindManager,
-            @NonNull final Consumer<PlatformEvent> receivedEventHandler,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final ThreadManager threadManager,
-            final int rosterSize) {
-
-        final CachedPoolParallelExecutor shadowgraphExecutor =
-                new CachedPoolParallelExecutor(threadManager, "node-sync");
-
-        final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime());
-
-        final Shadowgraph shadowgraph = new Shadowgraph(platformContext, rosterSize, intakeEventCounter);
-
-        final ShadowgraphSynchronizer syncShadowgraphSynchronizer = new ShadowgraphSynchronizer(
-                platformContext,
-                shadowgraph,
-                rosterSize,
-                syncMetrics,
-                receivedEventHandler,
-                fallenBehindManager,
-                intakeEventCounter,
-                shadowgraphExecutor);
+            final int rosterSize,
+            final SyncMetrics syncMetrics) {
 
         return new SyncProtocol(
                 platformContext,
-                syncShadowgraphSynchronizer,
+                synchronizer,
                 fallenBehindManager,
                 intakeEventCounter,
                 Duration.ZERO,
