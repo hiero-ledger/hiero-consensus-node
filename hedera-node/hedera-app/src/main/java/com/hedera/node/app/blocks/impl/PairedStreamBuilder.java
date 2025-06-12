@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -375,6 +376,13 @@ public class PairedStreamBuilder
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCreateResult(result);
         blockStreamBuilder.contractCreateResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public PairedStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        blockStreamBuilder.addLogs(logs);
         return this;
     }
 

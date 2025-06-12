@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.priorityAddressOf;
 import static java.util.Objects.requireNonNull;
@@ -11,7 +10,6 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbiConstants;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -44,7 +42,7 @@ public class GrantApprovalLoggingUtils {
         requireNonNull(spender);
         requireNonNull(accountStore);
 
-        frame.addLog(builderFor(tokenId, sender, spender, accountStore, entityIdFactory(frame))
+        frame.addLog(builderFor(tokenId, sender, spender, accountStore)
                 .forDataItem(amount)
                 .build());
     }
@@ -70,7 +68,7 @@ public class GrantApprovalLoggingUtils {
         requireNonNull(spender);
         requireNonNull(accountStore);
 
-        frame.addLog(builderFor(tokenId, sender, spender, accountStore, entityIdFactory(frame))
+        frame.addLog(builderFor(tokenId, sender, spender, accountStore)
                 .forIndexedArgument(amount)
                 .build());
     }
@@ -79,9 +77,8 @@ public class GrantApprovalLoggingUtils {
             @NonNull final TokenID tokenId,
             @NonNull final AccountID senderId,
             @NonNull final AccountID spenderId,
-            @NonNull final ReadableAccountStore accountStore,
-            @NonNull final EntityIdFactory entityIdFactory) {
-        final var tokenAddress = asLongZeroAddress(entityIdFactory, tokenId.tokenNum());
+            @NonNull final ReadableAccountStore accountStore) {
+        final var tokenAddress = asLongZeroAddress(tokenId.tokenNum());
         final var senderAddress = priorityAddressOf(requireNonNull(accountStore.getAccountById(senderId)));
 
         final var spenderAccount = accountStore.getAccountById(spenderId);
