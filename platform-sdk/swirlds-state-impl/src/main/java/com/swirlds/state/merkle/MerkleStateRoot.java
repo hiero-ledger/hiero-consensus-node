@@ -8,6 +8,7 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.decomposeLabel;
+import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForQueue;
 import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
 import static java.util.Objects.requireNonNull;
@@ -1241,7 +1242,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                             older.release();
                             virtualMapRef.set(currentMap);
                         }
-                        virtualMapRef.get().putBytes(stateIdBytes.append(pair.key()), pair.value());
+                        final var keyBytes = getVirtualMapKeyForKv(serviceName, stateKey, pair.key());
+                        virtualMapRef.get().putBytes(keyBytes, pair.value());
                     };
 
                     try {
