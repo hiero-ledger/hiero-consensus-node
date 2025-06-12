@@ -919,8 +919,7 @@ public class ThrottleAccumulator {
             log.warn("{} gas throttling enabled, but limited to 0 gas/sec", throttleType.name());
         }
 
-        gasThrottle =
-                new LeakyBucketDeterministicThrottle(maxGasPerSec, "Gas", gasThrottleBurstSecondsOf(contractsConfig));
+        gasThrottle = new LeakyBucketDeterministicThrottle(maxGasPerSec, "Gas", DEFAULT_BURST_SECONDS);
         if (throttleMetrics != null) {
             throttleMetrics.setupGasThrottleMetric(gasThrottle, configuration);
         }
@@ -939,9 +938,9 @@ public class ThrottleAccumulator {
                 : contractsConfig.maxGasPerSec();
     }
 
-    private int gasThrottleBurstSecondsOf(@NonNull final ContractsConfig contractsConfig) {
+    private int opsDurationThrottleBurstSecondsOf(@NonNull final ContractsConfig contractsConfig) {
         return throttleType.equals(ThrottleType.BACKEND_THROTTLE)
-                ? contractsConfig.gasThrottleBurstSeconds()
+                ? contractsConfig.opsDurationThrottleBurstSeconds()
                 : DEFAULT_BURST_SECONDS;
     }
 
@@ -972,8 +971,8 @@ public class ThrottleAccumulator {
         if (contractConfig.throttleThrottleByOpsDuration() && maxOpsDuration == 0) {
             log.warn("{} ops duration throttles are enabled, but limited to 0 ops/sec", throttleType.name());
         }
-        contractOpsDurationThrottle =
-                new LeakyBucketDeterministicThrottle(maxOpsDuration, "OpsDuration", DEFAULT_BURST_SECONDS);
+        contractOpsDurationThrottle = new LeakyBucketDeterministicThrottle(
+                maxOpsDuration, "OpsDuration", opsDurationThrottleBurstSecondsOf(contractConfig));
         if (throttleMetrics != null) {
             throttleMetrics.setupOpsDurationMetric(contractOpsDurationThrottle, configuration);
         }

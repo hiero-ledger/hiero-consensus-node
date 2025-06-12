@@ -2731,10 +2731,7 @@ public class UtilVerbs {
     public static CustomSpecAssert throttleUsagePercentageWithin(
             final double expectedPercentage, final double allowedPercentDiff) {
         return assertionsHold((spec, opLog) -> {
-            final var metrics = getDurationThrottleMetrics();
-            assertFalse(metrics.isEmpty(), "No throttle metrics found!");
-            final var latestThrottleMetric = metrics.getLast();
-            final var actualPercentage = Double.parseDouble(latestThrottleMetric.split(" ")[1]);
+            final var actualPercentage = getOpsDurationValue(spec);
             assertEquals(
                     expectedPercentage,
                     actualPercentage,
@@ -2743,6 +2740,38 @@ public class UtilVerbs {
                             "%s Throttle bucket filled more than %.2f percent different than expected!",
                             sdec(actualPercentage, 4), allowedPercentDiff));
         });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageMoreThanThreshold(
+            final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    amount > threshold,
+                    String.format("%s Throttle bucket filled is not greater than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert throttleUsagePercentageLessThreshold(final double amount, final double threshold) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    amount < threshold,
+                    String.format("%s Throttle bucket filled is not less than %s!", amount, threshold));
+        });
+    }
+
+    public static CustomSpecAssert burstIncreasesThroughputBy(final long pre, final long post, final long delta) {
+        return assertionsHold((spec, opLog) -> {
+            assertTrue(
+                    (pre + delta) < post,
+                    String.format("post value: %s is not %s greater than pre value: %s", post, delta, pre));
+        });
+    }
+
+    public static Double getOpsDurationValue(HapiSpec spec) {
+        final var metrics = getDurationThrottleMetrics(spec);
+        assertFalse(metrics.isEmpty(), "No throttle metrics found!");
+        final var latestThrottleMetric = metrics.getLast();
+        return Double.parseDouble(latestThrottleMetric.split(" ")[1]);
     }
 
     private static List<String> getTransactionMetrics() {
@@ -2758,17 +2787,13 @@ public class UtilVerbs {
         return list;
     }
 
-    private static List<String> getDurationThrottleMetrics() {
-        final var list = new ArrayList<String>();
-        withOpContext((spec, opLog) -> allRunFor(
-                spec,
-                doAdhoc(() -> list.addAll(spec.prometheusClient()
-                        .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
-                                .nodes()
-                                .getFirst()
-                                .metadata()
-                                .prometheusPort())))));
-        return list;
+    private static List<String> getDurationThrottleMetrics(final HapiSpec spec) {
+        return spec.prometheusClient()
+                .getThrottleDurationMetrics(spec.targetNetworkOrThrow()
+                        .nodes()
+                        .getFirst()
+                        .metadata()
+                        .prometheusPort());
     }
 
     private static final class DurationConverter implements ConfigConverter<Duration> {

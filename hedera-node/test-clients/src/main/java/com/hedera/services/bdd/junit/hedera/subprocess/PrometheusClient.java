@@ -37,7 +37,7 @@ public class PrometheusClient {
     private static final Pattern PROM_TXN_METRIC_PATTERN =
             Pattern.compile("(transaction|ops|precompile|system_contract)_.*_duration_ns\\{.*\\}.*");
     private static final Pattern PROM_THROTTLE_DURATION_METRIC_PATTERN =
-            Pattern.compile("app_hapiOpsDurationPercentUsed\\{.*\\}.*");
+            Pattern.compile("app_consOpsDurationPercentUsed\\{.*\\}.*");
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     /**
