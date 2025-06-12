@@ -104,6 +104,20 @@ public class InMemoryAppender extends AbstractAppender {
     }
 
     /**
+     * Returns an unmodifiable list of all captured log statements for all nodes
+     *
+     * @return an unmodifiable list of all captured log statements
+     */
+    @NonNull
+    public static List<StructuredLog> getLogs() {
+        synchronized (logs) {
+            return logs.stream()
+                    .filter(Objects::nonNull)
+                    .toList();
+        }
+    }
+
+    /**
      * Clears all logs currently stored in the in-memory appender.
      */
     public static void clearLogs() {

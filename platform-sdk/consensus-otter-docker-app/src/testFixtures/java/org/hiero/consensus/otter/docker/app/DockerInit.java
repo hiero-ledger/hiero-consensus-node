@@ -7,6 +7,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.netty.NettyRestServer;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 
 public class DockerInit {
 
@@ -48,6 +49,7 @@ public class DockerInit {
             }
             return Map.of("error", "platform not created");
         });
+        server.addGet("/logs", req -> InMemoryAppender.getLogs());
     }
 
     public void startWebserver() throws InterruptedException {

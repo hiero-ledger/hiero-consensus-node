@@ -1,13 +1,50 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+  <Properties>
+    <Property name="logDir">logs</Property>
+  </Properties>
 
-<Configuration>
   <Appenders>
-    <Console name="CONSOLE"/>
+    <Console name="ConsoleMarker" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+      <Filters>
+        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
+      </Filters>
+    </Console>
+
+    <File name="FileLogger" fileName="${logDir}/otter.log" append="true">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+      <Filters>
+        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
+      </Filters>
+    </File>
+
+    <File name="FileLogger-nodeId-0" fileName="${logDir}/nodeId-0/swirlds.log" append="true">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+      <Filters>
+        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
+        <MarkerFilter marker="STATE_HASH" onMatch="DENY" onMismatch="NEUTRAL"/>
+      </Filters>
+    </File>
+
+    <File name="HashStreamLogger-nodeId-0" fileName="${logDir}/nodeId-0/swirlds-hashstream.log" append="true">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+      <Filters>
+        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
+        <MarkerFilter marker="STATE_HASH" onMatch="NEUTRAL" onMismatch="DENY"/>
+      </Filters>
+    </File>
+
+    <InMemoryAppender name="InMemory"/>
   </Appenders>
 
   <Loggers>
-    <Root level="INFO">
-      <AppenderRef ref="CONSOLE"/>
+    <Root level="all">
+      <AppenderRef ref="ConsoleMarker"/>
+      <AppenderRef ref="FileLogger"/>
+      <AppenderRef ref="FileLogger-nodeId-0"/>
+      <AppenderRef ref="HashStreamLogger-nodeId-0"/>
+      <AppenderRef ref="InMemory"/>
     </Root>
   </Loggers>
 </Configuration>
