@@ -255,9 +255,13 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
+        // Pick the timestamp we will use for non-transactional state changes due to system work
+        final var systemWorkTime = blockHashSigner.isReady()
+                ? boundaryStateChangeListener.lastConsensusTimeOrThrow()
+                : round.getConsensusTimestamp();
         configureTssCallbacks(state);
         try {
-            reconcileTssState(state, round.getConsensusTimestamp());
+            reconcileTssState(state, systemWorkTime);
         } catch (Exception e) {
             logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
@@ -287,12 +291,9 @@ public class HandleWorkflow {
         } finally {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
-            final var stateChangesTime = blockHashSigner.isReady()
-                    ? boundaryStateChangeListener.lastConsensusTimeOrThrow()
-                    : round.getConsensusTimestamp();
             recordCache.commitRoundReceipts(
                     state,
-                    stateChangesTime,
+                    systemWorkTime,
                     round.getConsensusTimestamp(),
                     immediateStateChangeListener,
                     blockStreamManager,
