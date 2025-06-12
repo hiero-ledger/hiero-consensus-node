@@ -55,25 +55,25 @@ no non-ancient non-consensus transactions, there is nothing to reach consensus, 
 Additionally, we should also check if there are any pending transactions, if there are, we should not quiesce.
 
 One complication comes from state/block signature transactions. These transactions do not need to reach consensus.
-However, they do need to be gossiped. If we want a fully signed state/block, we need to create an event with this
-transaction and then gossip it. But in order for a state/block to be fully signed, it needs signatures from a majority
-of nodes. If a node stops creating events after it has sent out its signature, other nodes might not be able to do the
-same as they might not have eligible parents. Because of this, we should only stop creating events when a state/block
+However, they do need to be gossiped. If we want a fully signed state/block with all transactions, we need to create
+events with these transactions and then gossip them. If we were to try to reach consensus on these signature
+transactions as well, we would produce another block that would again need signatures, this way the network would never
+quiesce. The consensus module will need to be able to distinguish between signature transactions and user transactions.
+An additional API is needed for this.
+
+In order for a state/block to be fully signed, it needs signatures from a majority of nodes. If a node stops creating
+events after it has sent out its signature, other nodes might not be able to do the same as they might not have eligible
+parents. Because of this, we should only stop creating events when a state/block that encompasses all user transactions
 is fully signed. This can lead to a situation where more rounds reach consensus without any transactions in them, and
-empty blocks end up being produced. The consensus module will need to be able to distinguish between signature
-transactions and normal transactions. An additional API is needed for this.
+empty blocks end up being produced. In order for the consensus module to know when a block is fully signed, the
+execution module would need to notify it. An additional API is needed for this as well.
 
 Another exception is because some functionalities rely on consensus time advancing (i.e. freeze, scheduled
 transactions). Because these mechanisms rely on consensus time advancing, they don't work if the network is quiescing.
-To circumvent this problem, execution needs to tell consensus what consensus time needs to be reached, we shall call 
+To circumvent this problem, execution needs to tell consensus what consensus time needs to be reached, we shall call
 this target consensus timestamp (or TCT). After each consensus round is handled, the consensus module can ask execution
 for the next TCT. Quiescence should not be active some duration before the TCT based on the wall-clock. This duration
 shall be configurable, and will be named `tctDuration`.
-
-The third exception is due to boundary rounds. A transaction must not only reach consensus, but it must also be written
-to a block which is completed and signed. Not all consensus rounds complete a block and sign it. Rounds that do complete
-a block are called boundary rounds. Quiescence should not start until all transactions that have been handled are in a 
-boundary round, or have a boundary round after them.
 
 ### Quiescing
 
@@ -99,9 +99,9 @@ quiescence will be called a QB (Quiescence Breaker). A QB will not have other-pa
 only a self-parent, the QB can be easily identified and special rules can be applied to it. To prevent malicious nodes
 from flooding the network with QBs, a QB should not be allowed to have another QB as a self-parent.
 
-Another condition for breaking quiescence is that the wall-clock time is nearing the next TCT. If this occurs, while the 
-network is quiescing, the network should resume creating events regularly. There is no need to create a QB in this case, 
-since the whole network should be resuming event creation.
+Other conditions for breaking quiescence are that the wall-clock time is nearing the next TCT, or we have received an
+event with a user transaction. If this occurs, while the network is quiescing, the network should resume creating events
+regularly. There is no need to create a QB in this case, since the whole network should be resuming event creation.
 
 ### Side effects of quiescence
 
