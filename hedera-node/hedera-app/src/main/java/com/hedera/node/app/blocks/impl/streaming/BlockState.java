@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -277,6 +278,7 @@ public class BlockState {
         final int index = requestIdxCtr.getAndIncrement();
         final Iterator<BlockItem> it = pendingItems.iterator();
 
+        boolean forceCreation = false;
         while (it.hasNext()) {
             final BlockItem item = it.next();
             blockItems.add(item);
@@ -294,6 +296,7 @@ public class BlockState {
             } else if (item.hasStateChanges()
                     && isPreProofItemReceived(item.stateChangesOrElse(StateChanges.DEFAULT))) {
                 if (preProofItemInfo.packedInRequest(index)) {
+                    forceCreation = true;
                     logger.trace("[Block {}] Pre-proof block state change packed in request #{}", blockNumber, index);
                 } else {
                     logger.warn(
@@ -303,6 +306,7 @@ public class BlockState {
                 }
             } else if (item.hasBlockProof()) {
                 if (proofItemInfo.packedInRequest(index)) {
+                    forceCreation = true;
                     logger.trace("[Block {}] Block proof packed in request #{}", blockNumber, index);
                 } else {
                     logger.warn(
@@ -312,7 +316,7 @@ public class BlockState {
                 }
             }
 
-            if (!it.hasNext() || blockItems.size() == maxItems) {
+            if (!it.hasNext() || blockItems.size() == maxItems || forceCreation) {
                 break;
             }
         }
@@ -364,15 +368,13 @@ public class BlockState {
      * @return true if this state changes include the block stream info value, else false
      */
     private boolean isPreProofItemReceived(@NonNull final StateChanges stateChanges) {
-        final var updates = stateChanges.stateChanges().stream()
+        return stateChanges.stateChanges().stream()
                 .map(StateChange::singletonUpdate)
                 .filter(Objects::nonNull)
-                .toList();
-
-        // We want to check if the block stream info value is the only singleton update state change
-        // because in genesis block, we will have one more occurrence of the block stream info value
-        // at the very beginning of the block.
-        return updates.size() == 1 && updates.getFirst().hasBlockStreamInfoValue();
+                .anyMatch(update -> update.hasBlockStreamInfoValue()
+                        && update.blockStreamInfoValueOrElse(BlockStreamInfo.DEFAULT)
+                                        .blockNumber()
+                                != -1);
     }
 
     @Override
