@@ -353,17 +353,17 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 authorizer,
                 storeFactory.asReadOnly(),
                 consensusNow,
-                shouldChargeForSignatureVerification(txBody) ? verifier : null,
-                shouldChargeForSignatureVerification(txBody)
+                shouldChargeForSigVerification(txBody) ? verifier : null,
+                shouldChargeForSigVerification(txBody)
                         ? txnInfo.signatureMap().sigPair().size()
                         : 0));
     }
 
-    private boolean shouldChargeForSignatureVerification(@NonNull final TransactionBody txBody) {
-        // com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideSystemContractGasCalculator
-        // is using the parent context to calculate the gas.
-        // If we check only the transaction category,
-        // we will charge again for the signature verification of the parent call.
+    private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
+        // The SystemContractGasCalculator's feeCalculator relies on the parent contract call context.
+        // In this case we can't relay on transaction category when we call child dispatch for system contract calls.
+        // To ensure signature verification charges apply only to inner batch transactions,
+        // the batch key in the transaction body is checked.
         return transactionCategory == TransactionCategory.BATCH_INNER && txBody.hasBatchKey();
     }
 
