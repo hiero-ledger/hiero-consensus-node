@@ -42,6 +42,7 @@ class ContractOperationStreamBuilderTest {
                 ContractID.DEFAULT,
                 List.of(),
                 stateChanges,
+                null,
                 null);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
@@ -58,6 +59,7 @@ class ContractOperationStreamBuilderTest {
                 ContractID.DEFAULT,
                 null,
                 ContractStateChanges.DEFAULT,
+                null,
                 null);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
