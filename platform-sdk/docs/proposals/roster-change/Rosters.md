@@ -17,10 +17,9 @@ The RosterStates object is composed of:
 * List of Round-to-Roster-Hash Pairs:
 
   * Behaves like a stack, always containing two elements during runtime:
+    * The first (newest) element: Represents the active roster.
 
-  * The first (newest) element: Represents the active roster.
-
-  * The second (older) element: Represents the previous roster.
+    * The second (older) element: Represents the previous roster.
 
 ### Rosters (Key-Value State)
 
@@ -28,15 +27,13 @@ The Rosters object is a map from a roster hash to a roster object.
 
 Each `Roster` object is a pbj object containing:
 
-* A list of RosterEntries.
-
-  Each roster entry includes:
+* A list of RosterEntries. Each roster entry includes:
   * A node ID (long).
   * A certificate (as a byte[]).
   * A list of addresses, each consisting of:
-  * An address (byte[] representing an ipv4 address).
-  * A port (int).
-  * A domain name (String).
+    - An address (byte[] representing an ipv4 address).
+    - A port (int).
+    - A domain name (String).
 
 ### Diagram
 
@@ -93,7 +90,7 @@ Consumes Roster via different utility classes:
 
 ### Immutable approach
 
-- Create `RosterSnapshot` as an immutable class, which is a pojo roster with better per node lookup capabilities (internally uses a NodeIdXRosterEntry),
+- Create `RosterSnapshot` as an immutable class, which is a pojo roster with better per node lookup capabilities (internally uses a NodeId -> Roster entry),
   and it can be created out of a pbj Roster. All translations to better data types are performed in the constructor of this class (i.e.: Certificates or Address instead of bytes)
 - Platform code does not use `Roster` anymore, all components and code use a `RosterSnapshot`
 - Methods in `RosterUtils` become either a property or a method in `RosterSnapshot` (or a possible RosterSnapshotEntry)
@@ -104,13 +101,21 @@ Consumes Roster via different utility classes:
 - Optional, when `PlatformRosterStore` is required to provide `activeRoster`, `previousRoster` or `rosterForRound`, it first retrieves the hash of the applicable roster from the state,
   and tries to get the corresponding `RosterSnapshot` from its internal cache if existed. This is in case we need to provide support for future use cases where the rosters can be modified in the state in any circumstances and not only upgrade boundaries.
 
-Note:
+#### Note
 
 ```
 Given that components will interact with a PlatformRosterStore (that has a ReadableRosterStore internally and because of that a reference to the state)
 a reference to the state will be mantained in the platform code.
 While Service code still use Roster, we wont be able to completelly remove the class, but it will become simpler
 ```
+
+#### Pros & Cons
+
++ (+) Solves all the mentioned problems at minimum runtime cost.
++ (+) Scales better: In case that, for dab, we need to retrieve newest roster versions from the state
++ (+) Most of the transformation cost is paid upfront during start-up time
+- (-) High Impact
+- (-) Breaks the boundary between platform and state. Today no other component uses or access the state directly.
 
 ### Mutable approach (or Wrapper)
 
@@ -121,3 +126,14 @@ While Service code still use Roster, we wont be able to completelly remove the c
 - each component that needs to access a roster, uses the `readableRosterStore` and wraps the result in a RosterView.
   If it makes sense for the particular component to save the transformation cost, it can cache the result locally. The component must guard the access and protect that no the same `RosterView` is accessed in different threads.
 - Platform code that sporadically uses the Roster object can continue doing so.
+
+#### Pros & Cons
+
++ (+) Minimum impact
++ (+) Enables a gradual approach, allows to convert critical logic and leave non-critical paths unchanged
++ (+) Allows for multiple types of wrapper. we can use that to for example allow caching `Signature` instances only in the component that so requires it.
+- (-) The cost of transformation from Roster to RosterView needs to be cover in each component doing the translation
+- (-) Duplicate code
+- (-) Duplicate memory cost, as each component needs to duplicate the cache (if they include one)
+- (-) Open to concurrency issues if not handled externally
+- (-) The first access to the information pays the cost of the transformations during runtime
