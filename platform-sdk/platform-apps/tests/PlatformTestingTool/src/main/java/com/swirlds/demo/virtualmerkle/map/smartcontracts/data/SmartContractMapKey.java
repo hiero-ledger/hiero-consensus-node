@@ -4,8 +4,10 @@ package com.swirlds.demo.virtualmerkle.map.smartcontracts.data;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualKey;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -44,6 +46,12 @@ public final class SmartContractMapKey implements VirtualKey {
     public SmartContractMapKey(final long contractId, final long keyValuePairIndex) {
         this.contractId = contractId;
         this.keyValuePairIndex = keyValuePairIndex;
+    }
+
+    public Bytes toBytes() {
+        final byte[] bytes = new byte[Long.BYTES * 2];
+        ByteBuffer.wrap(bytes).putLong(this.contractId).putLong(keyValuePairIndex);
+        return Bytes.wrap(bytes);
     }
 
     /**
