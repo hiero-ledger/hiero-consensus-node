@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.google.common.io.Files;
@@ -58,21 +59,23 @@ public class RekeyCommand implements Callable<Integer> {
                     "Must set --gen-new-key if no --replacement-key given");
         }
 
-        final var optKeyFile = backupCurrentAssets(config, accountNum);
+		final var normalizedAcct = normalizePossibleIdLiteral(config, accountNum);
+
+        final var optKeyFile = backupCurrentAssets(config, normalizedAcct);
         final String replTarget = optKeyFile
                 .map(File::getPath)
-                .orElseGet(() -> config.keysLoc() + File.separator + "account" + accountNum + ".pem");
+                .orElseGet(() -> config.keysLoc() + File.separator + "account" + normalizedAcct + ".pem");
 
         final SigControl sigType =
                 Optional.ofNullable(ParseUtils.keyTypeFromParam(keyType)).orElse(SigControl.ED25519_ON);
         final var delegate =
-                new RekeySuite(config.asSpecConfig(), accountNum, replKeyLoc, genNewKey, sigType, replTarget);
+                new RekeySuite(config.asSpecConfig(), normalizedAcct, replKeyLoc, genNewKey, sigType, replTarget);
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - account 0.0." + accountNum + " has been re-keyed");
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
+            COMMON_MESSAGES.info("SUCCESS - account " + config.shard() + "." + config.realm() + "." + normalizedAcct + " has been re-keyed");
         } else {
-            COMMON_MESSAGES.warn("FAILED to re-key account 0.0." + accountNum);
+            COMMON_MESSAGES.warn("FAILED to re-key account " + config.shard() + "." + config.realm() + "." + normalizedAcct);
             return 1;
         }
 

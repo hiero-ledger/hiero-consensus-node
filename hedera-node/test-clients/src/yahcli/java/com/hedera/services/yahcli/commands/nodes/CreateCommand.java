@@ -4,6 +4,7 @@ package com.hedera.services.yahcli.commands.nodes;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
@@ -98,7 +99,8 @@ public class CreateCommand implements Callable<Integer> {
         var config = ConfigUtils.configFrom(yahcli);
 
         validateAdminKeyLoc(adminKeyPath);
-        final var accountId = Long.parseLong(accountNum);
+		final var normalizedAcctNum = normalizePossibleIdLiteral(config, accountNum);
+        final var accountId = Long.parseLong(normalizedAcctNum);
         final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + accountId);
         final var maybeFeeAccountKeyPath = feeAccountKeyFile.map(File::getPath).orElse(null);
         if (maybeFeeAccountKeyPath == null) {

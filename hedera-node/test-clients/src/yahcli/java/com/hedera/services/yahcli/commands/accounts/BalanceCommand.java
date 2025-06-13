@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
+
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.BalanceSuite;
+
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.HelpCommand;
@@ -32,7 +36,8 @@ public class BalanceCommand implements Callable<Integer> {
 
         printTable(balanceRegister);
 
-        var delegate = new BalanceSuite(config.asSpecConfig(), accounts);
+		var normalizedAccounts = Arrays.stream(accounts).map(s -> normalizePossibleIdLiteral(config, s)).toArray(String[]::new);
+        var delegate = new BalanceSuite(config.asSpecConfig(), normalizedAccounts);
         delegate.runSuiteSync();
 
         return 0;

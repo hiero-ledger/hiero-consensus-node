@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 import static com.hedera.services.yahcli.commands.nodes.CreateCommand.allBytesAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
@@ -109,7 +110,8 @@ public class UpdateCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
-        final var targetNodeId = validatedNodeId(nodeId);
+		final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
+        final var targetNodeId = validatedNodeId(normalizedNodeId);
         final AccountID newAccountId;
         final String feeAccountKeyLoc;
         final List<ServiceEndpoint> newGossipEndpoints;
@@ -117,12 +119,13 @@ public class UpdateCommand implements Callable<Integer> {
         final byte[] newGossipCaCertificate;
         final byte[] newHapiCertificateHash;
         final ServiceEndpoint newGrpcProxyEndpoint;
-        if (accountId == null) {
+		final var normalizedAccountId = normalizePossibleIdLiteral(config, accountId);
+        if (normalizedAccountId == null) {
             newAccountId = null;
             feeAccountKeyLoc = null;
         } else {
             newAccountId = validatedAccountId(
-                    config.shard().getShardNum(), config.realm().getRealmNum(), accountId);
+                    config.shard().getShardNum(), config.realm().getRealmNum(), normalizedAccountId);
             final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + newAccountId.getAccountNum());
             feeAccountKeyLoc = feeAccountKeyFile.map(File::getPath).orElse(null);
             if (feeAccountKeyLoc == null) {
