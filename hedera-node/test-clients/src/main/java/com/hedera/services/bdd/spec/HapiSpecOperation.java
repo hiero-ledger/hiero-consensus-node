@@ -44,7 +44,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.text.MessageFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -385,14 +384,12 @@ public abstract class HapiSpecOperation implements SpecOperation {
                 : spec.keys().sign(spec, builder, keys, overrides);
     }
 
-    public Map<Key, SigControl> setKeyControlOverrides(final HapiSpec spec) {
+    public void setKeyControlOverrides(final HapiSpec spec) {
         if (controlOverrides.isPresent()) {
             overrides = new HashMap<>();
             Stream.of(controlOverrides.get())
                     .forEach(c -> overrides.put(lookupKey(spec, c.getKeyName()), c.getController()));
-            return overrides;
         }
-        return Collections.emptyMap();
     }
 
     public List<Key> signersToUseFor(final HapiSpec spec) {
@@ -400,7 +397,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
                 .map(f -> f.apply(spec))
                 .filter(k -> k != null && k != Key.getDefaultInstance())
                 .collect(toList());
-        if (!signers.isPresent()) {
+        if (signers.isEmpty()) {
             active.addAll(variableDefaultSigners().apply(spec));
         }
         return active;
@@ -411,7 +408,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     }
 
     protected List<Function<HapiSpec, Key>> defaultSigners() {
-        return Arrays.asList(spec -> spec.registry().getKey(effectivePayer(spec)));
+        return List.of(spec -> spec.registry().getKey(effectivePayer(spec)));
     }
 
     protected Function<HapiSpec, List<Key>> variableDefaultSigners() {
