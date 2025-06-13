@@ -4,6 +4,7 @@ package com.swirlds.state;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.FastCopyable;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
@@ -27,11 +28,17 @@ public interface State extends FastCopyable, Hashable {
     /**
      * Initializes the state with the given parameters.
      * @param time The time provider.
+     * @param configuration The platform configuration.
      * @param metrics The metrics provider.
      * @param merkleCryptography The merkle cryptography provider.
      * @param roundSupplier The round supplier.
      */
-    void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier);
+    void init(
+            Time time,
+            Configuration configuration,
+            Metrics metrics,
+            MerkleCryptography merkleCryptography,
+            LongSupplier roundSupplier);
 
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't
@@ -129,5 +136,13 @@ public interface State extends FastCopyable, Hashable {
      */
     default boolean isStartUpMode() {
         return true;
+    }
+
+    /**
+     * Returns a JSON string containing information about the current state.
+     * @return A JSON representation of the state information, or an empty string if no information is available.
+     */
+    default String getInfoJson() {
+        return "";
     }
 }

@@ -347,7 +347,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         requireNonNull(blockStreamManager);
         requireNonNull(streamMode);
         if (streamMode != RECORDS) {
-            immediateStateChangeListener.reset();
+            immediateStateChangeListener.resetQueueStateChanges();
         }
         final var states = state.getWritableStates(NAME);
         final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
@@ -359,7 +359,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             committable.commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = immediateStateChangeListener.getStateChanges();
+            final var changes = immediateStateChangeListener.getQueueStateChanges();
             if (!changes.isEmpty()) {
                 final var stateChangesItem = BlockItem.newBuilder()
                         .stateChanges(new StateChanges(asTimestamp(lastConsensus), new ArrayList<>(changes)))

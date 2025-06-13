@@ -63,6 +63,7 @@ import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -83,7 +84,21 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     private final List<StateChange> queueStateChanges = new ArrayList<>();
 
     /**
-     * Resets the state changes.
+     * Resets kv state changes.
+     */
+    public void resetKvStateChanges() {
+        kvStateChanges.clear();
+    }
+
+    /**
+     * Resets queue state changes.
+     */
+    public void resetQueueStateChanges() {
+        queueStateChanges.clear();
+    }
+
+    /**
+     * Resets all state changes.
      */
     public void reset() {
         kvStateChanges.clear();
@@ -100,7 +115,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         Objects.requireNonNull(serviceName, "serviceName must not be null");
         Objects.requireNonNull(stateKey, "stateKey must not be null");
 
-        return BlockImplUtils.stateIdFor(serviceName, stateKey);
+        return StateUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override
@@ -143,6 +158,22 @@ public class ImmediateStateChangeListener implements StateChangeListener {
                 .queuePop(new QueuePopChange())
                 .build();
         queueStateChanges.add(stateChange);
+    }
+
+    /**
+     * Returns the list of kv state changes.
+     * @return the list of kv state changes
+     */
+    public List<StateChange> getKvStateChanges() {
+        return kvStateChanges;
+    }
+
+    /**
+     * Returns the list of queue state changes.
+     * @return the list of queue state changes
+     */
+    public List<StateChange> getQueueStateChanges() {
+        return queueStateChanges;
     }
 
     /**

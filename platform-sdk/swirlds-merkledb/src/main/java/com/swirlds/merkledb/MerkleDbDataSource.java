@@ -787,6 +787,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (aSnapshotWasInProgress) {
             throw new IllegalStateException("Tried to start a snapshot when one was already in progress");
         }
+        logger.info(MERKLE_DB.getMarker(), "[{}] Starting snapshot to {}", tableName, snapshotDirectory);
         try {
             // start timing snapshot
             final long START = System.currentTimeMillis();

@@ -9,6 +9,7 @@ import static com.swirlds.state.merkle.logging.StateLogger.logMapRemove;
 
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.merkle.map.MerkleMap;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,11 +20,14 @@ import java.util.Objects;
 /**
  * An implementation of {@link WritableKVState} backed by a {@link MerkleMap}, resulting in a state
  * that is stored in memory.
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}. {@code InMemoryWritableStateTest}
+ * should be removed as well.
  *
  * @param <K> The type of key for the state
  * @param <V> The type of value for the state
  */
 @SuppressWarnings("DuplicatedCode")
+@Deprecated
 public final class InMemoryWritableKVState<K, V> extends WritableKVStateBase<K, V> {
     /** The underlying merkle tree data structure with the data */
     private final MerkleMap<InMemoryKey<K>, InMemoryValue<K, V>> merkle;
@@ -44,11 +48,12 @@ public final class InMemoryWritableKVState<K, V> extends WritableKVStateBase<K, 
      */
     public InMemoryWritableKVState(
             @NonNull final String stateKey,
+            @NonNull final String serviceName,
             final long inMemoryValueClassId,
             @Nullable Codec<K> keyCodec,
             @NonNull Codec<V> valueCodec,
             @NonNull MerkleMap<InMemoryKey<K>, InMemoryValue<K, V>> merkleMap) {
-        super(stateKey);
+        super(stateKey, serviceName);
         this.keyCodec = keyCodec;
         this.valueCodec = valueCodec;
         this.inMemoryValueClassId = inMemoryValueClassId;
