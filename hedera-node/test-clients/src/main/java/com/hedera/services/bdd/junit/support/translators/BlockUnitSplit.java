@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
@@ -181,7 +182,9 @@ public class BlockUnitSplit {
                                     : TransactionGroupRole.LAST_CHILD;
 
                     // Pull the next inner txn from the batch list
-                    pendingParts.parts = TransactionParts.from(requireNonNull(pendingInnerTxns.pollFirst()));
+                    final var txn = Transaction.newBuilder().signedTransactionBytes(requireNonNull(pendingInnerTxns.pollFirst())).build();
+                    final var bytes = Transaction.PROTOBUF.toBytes(txn);
+                    pendingParts.parts = TransactionParts.from(bytes);
                     pendingParts.result = item.transactionResultOrThrow();
                 }
                 case TRANSACTION_OUTPUT -> pendingParts.addOutput(item.transactionOutputOrThrow());
