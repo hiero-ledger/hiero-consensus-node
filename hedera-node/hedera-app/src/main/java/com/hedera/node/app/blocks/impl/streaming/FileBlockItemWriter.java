@@ -329,8 +329,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    @Override
-    public void writeItem(@NonNull final byte[] bytes) {
+    /**
+     * Writes a serialized item to the destination stream.
+     *
+     * @param bytes the serialized item to write
+     */
+    void writeItem(@NonNull final byte[] bytes) {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
@@ -343,6 +347,19 @@ public class FileBlockItemWriter implements BlockItemWriter {
         writableStreamingData.writeVarInt(bytes.length, false);
         // Write the item bytes themselves.
         writableStreamingData.writeBytes(bytes);
+    }
+
+    /**
+     * Writes a block item and its serialized bytes to the destination stream.
+     * Only the serialized bytes are used, the block item is ignored.
+     *
+     * @param item the item to write (ignored in this implementation)
+     * @param bytes the serialized item to write
+     */
+    @Override
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(bytes, "bytes must not be null");
+        writeItem(bytes.toByteArray());
     }
 
     @Override

@@ -50,14 +50,19 @@ class GrpcBlockItemWriterTest {
     }
 
     @Test
-    void testWriteItemUnsupported() {
+    void testWritePbjItemAndBytes() {
         GrpcBlockItemWriter grpcBlockItemWriter =
                 new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
 
-        assertThatThrownBy(
-                        () -> grpcBlockItemWriter.writeItem(new byte[] {1, 2, 3, 4, 5}),
-                        "writeItem is not supported in this implementation")
-                .isInstanceOf(UnsupportedOperationException.class);
+        // Create BlockProof as easiest way to build object from BlockStreams
+        Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
+        final var proof = BlockItem.newBuilder()
+                .blockProof(BlockProof.newBuilder().blockSignature(bytes).siblingHashes(new ArrayList<>()))
+                .build();
+
+        grpcBlockItemWriter.writePbjItemAndBytes(proof, bytes);
+
+        verify(blockBufferService).addItem(0L, proof);
     }
 
     @Test

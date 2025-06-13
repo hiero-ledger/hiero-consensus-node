@@ -50,12 +50,6 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writeItem(@NonNull byte[] bytes) {
-        this.fileBlockItemWriter.writeItem(bytes);
-        // The GrpcBlockItemWriter doesn't support writeItem, so we don't call it here
-    }
-
-    @Override
     public void closeCompleteBlock() {
         this.fileBlockItemWriter.closeCompleteBlock();
         this.grpcBlockItemWriter.closeCompleteBlock();

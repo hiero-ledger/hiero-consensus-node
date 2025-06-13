@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,12 +63,17 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     }
 
     /**
-     * This operation is not supported by the gRPC implementation as it expects protocol buffer.
-     * @param bytes the serialized item to write
+     * Writes a protocol buffer formatted block item and its serialized bytes to the current block's state.
+     * Only the block item is used, the serialized bytes are ignored.
+     *
+     * @param item the block item to write
+     * @param bytes the serialized item to write (ignored in this implementation)
      */
     @Override
-    public void writeItem(@NonNull byte[] bytes) {
-        throw new UnsupportedOperationException("writeItem is not supported in this implementation");
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(item, "item must not be null");
+        requireNonNull(bytes, "bytes must not be null");
+        writePbjItem(item);
     }
 
     /**
