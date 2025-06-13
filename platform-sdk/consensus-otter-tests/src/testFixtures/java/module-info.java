@@ -28,10 +28,10 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.platform.core.test.fixtures;
     requires org.hiero.consensus.utility;
     requires awaitility;
+    requires java.net.http;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
-    requires java.net.http;
 
     exports org.hiero.otter.fixtures;
     exports org.hiero.otter.fixtures.assertions;
@@ -39,5 +39,6 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.logging;
     exports org.hiero.otter.fixtures.result;
     exports org.hiero.otter.fixtures.turtle.app;
-    exports org.hiero.otter.fixtures.logging.internal to org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.logging.internal to
+            org.hiero.consensus.otter.docker.app;
 }

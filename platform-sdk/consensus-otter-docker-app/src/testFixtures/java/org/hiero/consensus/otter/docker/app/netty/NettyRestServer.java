@@ -70,7 +70,8 @@ public class NettyRestServer {
      * @param path    the path for the POST request
      * @param handler the handler function that processes the request and accepts the request body
      */
-    public void addPost(@NonNull final String path, @NonNull final BiFunction<FullHttpRequest, byte[], Object> handler) {
+    public void addPost(
+            @NonNull final String path, @NonNull final BiFunction<FullHttpRequest, byte[], Object> handler) {
         postRoutes.put(path, handler);
     }
 
@@ -95,7 +96,9 @@ public class NettyRestServer {
                             ch.pipeline().addLast(new HttpObjectAggregator(65536));
                             ch.pipeline().addLast(new SimpleChannelInboundHandler<FullHttpRequest>() {
                                 @Override
-                                protected void channelRead0(@NonNull final ChannelHandlerContext ctx, @NonNull final FullHttpRequest request) {
+                                protected void channelRead0(
+                                        @NonNull final ChannelHandlerContext ctx,
+                                        @NonNull final FullHttpRequest request) {
                                     final String uri = request.uri().split("\\?")[0];
                                     final HttpMethod method = request.method();
                                     Object result = null;
@@ -130,12 +133,16 @@ public class NettyRestServer {
                                 }
 
                                 private void sendResponse(
-                                        @NonNull final ChannelHandlerContext ctx, @NonNull final HttpResponseStatus status, @NonNull final String message) {
+                                        @NonNull final ChannelHandlerContext ctx,
+                                        @NonNull final HttpResponseStatus status,
+                                        @NonNull final String message) {
                                     sendResponse(ctx, status, message.getBytes(StandardCharsets.UTF_8));
                                 }
 
                                 private void sendResponse(
-                                        @NonNull final ChannelHandlerContext ctx, @NonNull final HttpResponseStatus status, @NonNull final byte[] bytes) {
+                                        @NonNull final ChannelHandlerContext ctx,
+                                        @NonNull final HttpResponseStatus status,
+                                        @NonNull final byte[] bytes) {
                                     final FullHttpResponse response = new DefaultFullHttpResponse(
                                             HttpVersion.HTTP_1_1, status, Unpooled.wrappedBuffer(bytes));
                                     response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");

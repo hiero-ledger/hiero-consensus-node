@@ -111,9 +111,7 @@ public class InMemoryAppender extends AbstractAppender {
     @NonNull
     public static List<StructuredLog> getLogs() {
         synchronized (logs) {
-            return logs.stream()
-                    .filter(Objects::nonNull)
-                    .toList();
+            return logs.stream().filter(Objects::nonNull).toList();
         }
     }
 

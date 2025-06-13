@@ -88,7 +88,6 @@ public class DockerApp {
         LOGGER.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-//        BootstrapUtils.setupConstructableRegistryWithConfiguration(platformConfig);
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin =

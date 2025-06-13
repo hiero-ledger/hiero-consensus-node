@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,7 +11,8 @@ import org.hiero.otter.fixtures.NodeConfiguration;
  *
  * @param <T> the type of the configuration, allowing for method chaining
  */
-public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfiguration<T>> implements NodeConfiguration<T> {
+public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfiguration<T>>
+        implements NodeConfiguration<T> {
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
 

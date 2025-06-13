@@ -36,7 +36,8 @@ public record RestContext(ChannelHandlerContext ctx) {
      * @param ctx the ChannelHandlerContext to write the response to
      */
     public static void send404(@NonNull final ChannelHandlerContext ctx) {
-        final FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND);
+        final FullHttpResponse response =
+                new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND);
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 }

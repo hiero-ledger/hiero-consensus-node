@@ -57,7 +57,8 @@ public class DockerInit {
                     throw new IllegalArgumentException("selfId must be a positive number");
                 }
                 keysAndCerts = generateKeysAndCerts(selfId);
-                final String content = Base64.getEncoder().encodeToString(keysAndCerts.sigCert().getEncoded());
+                final String content = Base64.getEncoder()
+                        .encodeToString(keysAndCerts.sigCert().getEncoded());
                 return Map.of("sigcrt", content);
             } catch (final IOException e) {
                 throw new IllegalArgumentException(e);
@@ -72,10 +73,13 @@ public class DockerInit {
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode json = mapper.readTree(body);
 
-                final SemanticVersion version = SemanticVersion.JSON.parse(Bytes.wrap(json.get("version").textValue()));
-                final Roster roster = Roster.JSON.parse(Bytes.wrap(json.get("roster").asText()));
+                final SemanticVersion version = SemanticVersion.JSON.parse(
+                        Bytes.wrap(json.get("version").textValue()));
+                final Roster roster =
+                        Roster.JSON.parse(Bytes.wrap(json.get("roster").asText()));
                 // noinspection unchecked
-                final Map<String, String> overriddenProperties = (Map<String, String>)mapper.convertValue(json.get("properties"), Map.class);
+                final Map<String, String> overriddenProperties =
+                        (Map<String, String>) mapper.convertValue(json.get("properties"), Map.class);
 
                 final DockerApp app = new DockerApp(selfId, version, roster, keysAndCerts, overriddenProperties);
                 app.start();

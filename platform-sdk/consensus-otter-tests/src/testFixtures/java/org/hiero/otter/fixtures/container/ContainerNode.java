@@ -68,13 +68,19 @@ public class ContainerNode extends AbstractNode implements Node {
      * @throws IOException if an I/O error occurs while starting the container
      * @throws InterruptedException if the thread is interrupted while starting the container
      */
-    public ContainerNode(@NonNull final NodeId selfId, @NonNull final Network network,
-            @NonNull final ImageFromDockerfile dockerImage) throws IOException, InterruptedException {
+    public ContainerNode(
+            @NonNull final NodeId selfId,
+            @NonNull final Network network,
+            @NonNull final ImageFromDockerfile dockerImage)
+            throws IOException, InterruptedException {
         super(selfId);
         final String alias = "node" + selfId;
 
-        final Consumer<OutputFrame> logWriter = frame ->
-                log.log(frame.getType() == OutputType.STDERR ? Level.ERROR : Level.INFO, "%s: %s".formatted(alias, frame.getUtf8StringWithoutLineEnding()));
+        final Consumer<OutputFrame> logWriter = frame -> {
+            final Level level = frame.getType() == OutputType.STDERR ? Level.ERROR : Level.INFO;
+            final String message = "%s: %s".formatted(alias, frame.getUtf8StringWithoutLineEnding());
+            log.log(level, message);
+        };
         final PlatformStatusLogParser platformStatusLogParser =
                 new PlatformStatusLogParser(newValue -> platformStatus = newValue);
 
@@ -91,14 +97,18 @@ public class ContainerNode extends AbstractNode implements Node {
                 .withContent("{\"selfId\":" + selfId.id() + "}")
                 .withErrorMessage("Failed to set self ID")
                 .send();
-        final String base64 = new ObjectMapper().readTree(response).get("sigcrt").asText();
+        final String base64 =
+                new ObjectMapper().readTree(response).get("sigcrt").asText();
         final byte[] sigCertBytes = Base64.getDecoder().decode(base64);
 
         this.rosterEntry = RosterEntry.newBuilder()
                 .nodeId(selfId.id())
                 .weight(1L)
                 .gossipCaCertificate(Bytes.wrap(sigCertBytes))
-                .gossipEndpoint(ServiceEndpoint.newBuilder().domainName(alias).port(GOSSIP_PORT).build())
+                .gossipEndpoint(ServiceEndpoint.newBuilder()
+                        .domainName(alias)
+                        .port(GOSSIP_PORT)
+                        .build())
                 .build();
     }
 
@@ -246,8 +256,7 @@ public class ContainerNode extends AbstractNode implements Node {
             final Map<String, Object> initConfig = Map.of(
                     "version", SemanticVersion.JSON.toJSON(version),
                     "roster", Roster.JSON.toJSON(roster),
-                    "properties", nodeConfiguration.overriddenProperties()
-            );
+                    "properties", nodeConfiguration.overriddenProperties());
             final String content = mapper.writeValueAsString(initConfig);
             new PostCommand()
                     .withPath("start-node")

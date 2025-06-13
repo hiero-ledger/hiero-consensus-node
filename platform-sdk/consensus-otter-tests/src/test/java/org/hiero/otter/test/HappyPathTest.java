@@ -24,15 +24,15 @@ public class HappyPathTest {
         timeManager.waitFor(Duration.ofMinutes(1L));
 
         // Validations
-//        final MultipleNodeLogResults logResults =
-//                network.getLogResults().ignoring(network.getNodes().getFirst()).ignoring(STARTUP);
-//        assertThat(logResults).noMessageWithLevelHigherThan(Level.WARN);
-//
-//        assertThat(network.getStatusProgression())
-//                .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-//
-//        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1);
-//
-//        assertThat(network.getConsensusResults()).haveEqualRoundsIgnoringLast(Percentage.withPercentage(1));
+        //        final MultipleNodeLogResults logResults =
+        //                network.getLogResults().ignoring(network.getNodes().getFirst()).ignoring(STARTUP);
+        //        assertThat(logResults).noMessageWithLevelHigherThan(Level.WARN);
+        //
+        //        assertThat(network.getStatusProgression())
+        //                .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+        //
+        //        assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1);
+        //
+        //        assertThat(network.getConsensusResults()).haveEqualRoundsIgnoringLast(Percentage.withPercentage(1));
     }
 }
