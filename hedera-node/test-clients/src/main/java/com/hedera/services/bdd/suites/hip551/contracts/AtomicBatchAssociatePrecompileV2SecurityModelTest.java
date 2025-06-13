@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsTranslator.ASSOCIATE_ONE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -25,6 +26,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -45,20 +47,18 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsTranslator;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
-import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeAll;
@@ -69,8 +69,6 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     private static final long GAS_TO_OFFER = 6_000_000L;
-    private static final long TOTAL_SUPPLY = 1_000;
-    private static final String SIGNER = "anybody";
     private static final String TOKEN_TREASURY = "treasury";
     public static final String ASSOCIATE_CONTRACT = "AssociateDissociate";
     public static final String NESTED_ASSOCIATE_CONTRACT = "NestedAssociateDissociate";
@@ -91,263 +89,214 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
-        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+                "atomicBatch.isEnabled", "true",
+                "atomicBatch.maxNumberOfTransactions", "50",
+                "contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                // create contracts
                 uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT, MINT_TOKEN_CONTRACT),
                 contractCreate(ASSOCIATE_CONTRACT),
-                contractCreate(MINT_TOKEN_CONTRACT));
-    }
-
-    // Create keys and accounts FREEZE_KEY, KYC_KEY, TOKEN_TREASURY, SIGNER and ACCOUNT
-    // Create tokens FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, FROZEN_TOKEN, UNFROZEN_TOKEN and KYC_TOKEN
-    private static HapiSpecOperation[] createEntities() {
-        return List.of(
-                        newKeyNamed(FREEZE_KEY),
-                        newKeyNamed(KYC_KEY),
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(FROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(true)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(UNFROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(false)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(KYC_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .kycKey(KYC_KEY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY))
-                .toArray(new HapiSpecOperation[0]);
+                contractCreate(MINT_TOKEN_CONTRACT),
+                // create accounts
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(KYC_KEY),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
-    final Stream<DynamicTest> associateSingleTokenWithDelegateContractKey() {
-        return hapiTest(flattened(
-                // Create keys and accounts FREEZE_KEY, KYC_KEY, TOKEN_TREASURY, SIGNER and ACCOUNT
-                // Create tokens FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, FROZEN_TOKEN, UNFROZEN_TOKEN and KYC_TOKEN
-                createEntities(),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_CONTRACT))),
-                        cryptoUpdate(SIGNER).key(CONTRACT_KEY),
-                        atomicBatchDefaultOperator(
-                                tokenUpdate(FUNGIBLE_TOKEN)
-                                        .supplyKey(CONTRACT_KEY)
-                                        .signedByPayerAnd(TOKEN_TREASURY),
-                                // Test Case 1: Account paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
-                                // when signer has a threshold key
-                                // associating ACCOUNT to the token
-                                // SIGNER → call → CONTRACT A → call → HTS
-                                contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokenAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(SIGNER)
-                                        .via("fungibleTokenAssociate")
-                                        .gas(GAS_TO_OFFER),
-                                // Test Case 2: Account paying and signing a non fungible TOKEN ASSOCIATE TRANSACTION,
-                                // when signer has a threshold key
-                                // associating ACCOUNT to the token
-                                // SIGNER → call → CONTRACT A → call → HTS
-
-                                tokenUpdate(NON_FUNGIBLE_TOKEN)
-                                        .supplyKey(CONTRACT_KEY)
-                                        .signedByPayerAnd(TOKEN_TREASURY),
-                                contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokenAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
-                                        .payingWith(SIGNER)
-                                        .via("nonFungibleTokenAssociate")
-                                        .gas(GAS_TO_OFFER),
-                                // Test Case 3: Account paying and signing a multiple TOKENS ASSOCIATE TRANSACTION,
-                                // when signer has a threshold key
-                                // SIGNER → call → CONTRACT A → call → HTS
-
-                                tokenUpdate(FROZEN_TOKEN)
-                                        .supplyKey(CONTRACT_KEY)
-                                        .signedByPayerAnd(TOKEN_TREASURY),
-                                tokenUpdate(UNFROZEN_TOKEN)
-                                        .supplyKey(CONTRACT_KEY)
-                                        .signedByPayerAnd(TOKEN_TREASURY),
-                                tokenUpdate(KYC_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
-                                contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokensAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                new Address[] {
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(FROZEN_TOKEN))),
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(UNFROZEN_TOKEN))),
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(KYC_TOKEN))),
-                                                })
-                                        .payingWith(SIGNER)
-                                        .via("multipleTokensAssociate")
-                                        .gas(GAS_TO_OFFER)),
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(FUNGIBLE_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(FreezeNotApplicable))
-                                .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(FreezeNotApplicable))
-                                .hasToken(relationshipWith(FROZEN_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(Frozen))
-                                .hasToken(relationshipWith(UNFROZEN_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(Unfrozen))
-                                .hasToken(
-                                        relationshipWith(KYC_TOKEN).kyc(Revoked).freeze(FreezeNotApplicable))))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> tokenAssociateNegativeTests() {
-        return hapiTest(flattened(
-                // Create keys and accounts FREEZE_KEY, KYC_KEY, TOKEN_TREASURY, SIGNER and ACCOUNT
-                // Create tokens FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, FROZEN_TOKEN, UNFROZEN_TOKEN and KYC_TOKEN
-                createEntities(),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                NESTED_ASSOCIATE_CONTRACT,
-                                asHeadlongAddress(getNestedContractAddress(ASSOCIATE_CONTRACT, spec))),
-                        // Test Case 1: SIGNER account  paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
-                        // associating token to ACCOUNT
+    final Stream<DynamicTest> associateSingleFungibleTokenWithDelegateContractKey() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        return hapiTest(
+                // create tokens and signer
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+                // add contract id key to the signer
+                newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        // Test Case 1: Account paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
+                        // when signer has a threshold key
+                        // associating ACCOUNT to the token
                         // SIGNER → call → CONTRACT A → call → HTS
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokenAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(ACCOUNT)
-                                        .via("fungibleTokenAssociate")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        childRecordsCheck(
-                                "fungibleTokenAssociate",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(
-                                                                INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE))))))));
+                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                        contractCall(ASSOCIATE_CONTRACT, "tokenAssociate", accountAddress.get(), fungibleAddress.get())
+                                .payingWith(ACCOUNT)
+                                .via("fungibleTokenAssociate")
+                                .gas(GAS_TO_OFFER))),
+                getAccountInfo(ACCOUNT)
+                        .hasToken(relationshipWith(FUNGIBLE_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(FreezeNotApplicable)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> tokenAssociateNegativeTestsPart2() {
-        return hapiTest(flattened(
-                // Create keys and accounts FREEZE_KEY, KYC_KEY, TOKEN_TREASURY, SIGNER and ACCOUNT
-                // Create tokens FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, FROZEN_TOKEN, UNFROZEN_TOKEN and KYC_TOKEN
-                createEntities(),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                NESTED_ASSOCIATE_CONTRACT,
-                                asHeadlongAddress(getNestedContractAddress(ASSOCIATE_CONTRACT, spec))),
-
-                        // Test Case 2: SIGNER account  paying and signing a non fungible TOKEN ASSOCIATE TRANSACTION,
-                        // associating to ACCOUNT
+    final Stream<DynamicTest> associateSingleNftWithDelegateContractKey() {
+        final AtomicReference<Address> nftAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        return hapiTest(
+                // create tokens and signer
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nftAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+                // add contract id key to the signer
+                newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                // perform contract call in a batch
+                sourcing(() -> atomicBatchDefaultOperator(
+                        // Test Case 2: Account paying and signing a non fungible TOKEN ASSOCIATE TRANSACTION,
+                        // when signer has a threshold key
+                        // associating ACCOUNT to the token
                         // SIGNER → call → CONTRACT A → call → HTS
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokenAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
-                                        .payingWith(ACCOUNT)
-                                        .via("nonFungibleTokenAssociate")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
-                        // Test Case 3: SIGNER account  paying and signing multiple TOKENS ASSOCIATE TRANSACTION,
-                        // associating to ЕОА ACCOUNT
-                        // SIGNER → call → CONTRACT A → call → HTS
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_CONTRACT,
-                                                "tokensAssociate",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                new Address[] {
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(FROZEN_TOKEN))),
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(UNFROZEN_TOKEN))),
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getTokenID(KYC_TOKEN)))
-                                                })
-                                        .payingWith(ACCOUNT)
-                                        .via("multipleTokensAssociate")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        childRecordsCheck(
-                                "nonFungibleTokenAssociate",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "multipleTokensAssociate",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(
-                                                                INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE))))))));
+                        tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                        contractCall(ASSOCIATE_CONTRACT, "tokenAssociate", accountAddress.get(), nftAddress.get())
+                                .payingWith(ACCOUNT)
+                                .via("nonFungibleTokenAssociate")
+                                .gas(GAS_TO_OFFER))),
+                getAccountInfo(ACCOUNT)
+                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(FreezeNotApplicable)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> tokenAssociateNegativeTestsPart3() {
-        return hapiTest(flattened(
-                // Create keys and accounts FREEZE_KEY, KYC_KEY, TOKEN_TREASURY, SIGNER and ACCOUNT
-                // Create tokens FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, FROZEN_TOKEN, UNFROZEN_TOKEN and KYC_TOKEN
-                createEntities(),
+    final Stream<DynamicTest> associateMultipleTokensWithDelegateContractKey() {
+        final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> unfrozenTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        return hapiTest(
+                // create tokens and a signer
+                createFrozenTokenAndExposeAdr(FROZEN_TOKEN, frozenTokenAddress, true),
+                createFrozenTokenAndExposeAdr(UNFROZEN_TOKEN, unfrozenTokenAddress, false),
+                createKycTokenAndExposeAdr(KYC_TOKEN, kycTokenAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+                // add contract id key to the signer
+                newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        // Test Case 3: Account paying and signing a multiple TOKENS ASSOCIATE TRANSACTION,
+                        // when signer has a threshold key
+                        // SIGNER → call → CONTRACT A → call → HTS
+                        tokenUpdate(FROZEN_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                        tokenUpdate(UNFROZEN_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                        tokenUpdate(KYC_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                        contractCall(ASSOCIATE_CONTRACT, "tokensAssociate", accountAddress.get(), new Address[] {
+                                    frozenTokenAddress.get(), unfrozenTokenAddress.get(), kycTokenAddress.get(),
+                                })
+                                .payingWith(ACCOUNT)
+                                .via("multipleTokensAssociate")
+                                .gas(GAS_TO_OFFER))),
+                getAccountInfo(ACCOUNT)
+                        .hasToken(relationshipWith(FROZEN_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(Frozen))
+                        .hasToken(relationshipWith(UNFROZEN_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(Unfrozen))
+                        .hasToken(relationshipWith(KYC_TOKEN).kyc(Revoked).freeze(FreezeNotApplicable)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenAssociateFungibleTokenNegative() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+
+        return hapiTest(
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+                // Test Case 1: SIGNER account  paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
+                // associating token to ACCOUNT
+                // SIGNER → call → CONTRACT A → call → HTS
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_CONTRACT,
+                                        "tokenAssociate",
+                                        accountAddress.get(),
+                                        fungibleAddress.get())
+                                .payingWith(ACCOUNT)
+                                .via("fungibleTokenAssociate")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                childRecordsCheck(
+                        "fungibleTokenAssociate",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenAssociateNftNegative() {
+        final AtomicReference<Address> nftAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        return hapiTest(
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nftAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+                // Test Case 2: SIGNER account  paying and signing a non fungible TOKEN ASSOCIATE TRANSACTION,
+                // associating to ACCOUNT
+                // SIGNER → call → CONTRACT A → call → HTS
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_CONTRACT, "tokenAssociate", accountAddress.get(), nftAddress.get())
+                                .payingWith(ACCOUNT)
+                                .via("nonFungibleTokenAssociate")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                childRecordsCheck(
+                        "nonFungibleTokenAssociate",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenAssociateMultipleTokensNegative() {
+        final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> unfrozenTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+
+        return hapiTest(
+                createFrozenTokenAndExposeAdr(FROZEN_TOKEN, frozenTokenAddress, true),
+                createFrozenTokenAndExposeAdr(UNFROZEN_TOKEN, unfrozenTokenAddress, false),
+                createKycTokenAndExposeAdr(KYC_TOKEN, kycTokenAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+
+                // Test Case 3: SIGNER account  paying and signing multiple TOKENS ASSOCIATE TRANSACTION,
+                // associating to ЕОА ACCOUNT
+                // SIGNER → call → CONTRACT A → call → HTS
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_CONTRACT, "tokensAssociate", accountAddress.get(), new Address[] {
+                                            frozenTokenAddress.get(), unfrozenTokenAddress.get(), kycTokenAddress.get(),
+                                        })
+                                .payingWith(ACCOUNT)
+                                .via("multipleTokensAssociate")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                childRecordsCheck(
+                        "multipleTokensAssociate",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenAssociateFromNestedContractNegative() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        return hapiTest(
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
+                        // create nested contract
                         contractCreate(
                                 NESTED_ASSOCIATE_CONTRACT,
                                 asHeadlongAddress(getNestedContractAddress(ASSOCIATE_CONTRACT, spec))),
@@ -357,57 +306,67 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         atomicBatchDefaultOperator(contractCall(
                                                 NESTED_ASSOCIATE_CONTRACT,
                                                 "associateInternalContractCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
+                                                accountAddress.get(),
+                                                fungibleAddress.get())
                                         .payingWith(ACCOUNT)
                                         .via("nestedAssociateFungibleTxn")
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                childRecordsCheck(
+                        "nestedAssociateFungibleTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+    }
 
-                        // Test Case 5: SIGNER account paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
-                        // associating to CONTRACT
-                        // when signer has a threshold key
-                        // SIGNER → call → CONTRACT A → call → HTS
+    @HapiTest
+    final Stream<DynamicTest> tokenAssociateTokenWithContractNegative() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        return hapiTest(
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                // Test Case 5: SIGNER account paying and signing a fungible TOKEN ASSOCIATE TRANSACTION,
+                // associating to CONTRACT
+                // when signer has a threshold key
+                // SIGNER → call → CONTRACT A → call → HTS
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
                         newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_TOKEN_CONTRACT))),
-                        cryptoUpdate(SIGNER).key(CONTRACT_KEY),
+                        cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
                         tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                         atomicBatchDefaultOperator(contractCall(
                                                 ASSOCIATE_CONTRACT,
                                                 "tokenAssociate",
                                                 asHeadlongAddress(getNestedContractAddress(MINT_TOKEN_CONTRACT, spec)),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(SIGNER)
+                                                fungibleAddress.get())
+                                        .payingWith(ACCOUNT)
                                         .via("associateTokenToContractFails")
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        childRecordsCheck(
-                                "nestedAssociateFungibleTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "associateTokenToContractFails",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(
-                                                                INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE))))))));
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                childRecordsCheck(
+                        "associateTokenToContractFails",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
     }
 
     @HapiTest
     final Stream<DynamicTest> nestedAssociateNftAndNonFungibleTokens() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        final AtomicReference<Address> nftAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+
         return hapiTest(flattened(
-                // Create keys and accounts FREEZE_KEY, KYC_KEY, TOKEN_TREASURY, SIGNER and ACCOUNT
-                // Create tokens FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, FROZEN_TOKEN, UNFROZEN_TOKEN and KYC_TOKEN
-                createEntities(),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nftAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
@@ -423,10 +382,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                 contractCall(
                                                 NESTED_ASSOCIATE_CONTRACT,
                                                 "associateInternalContractCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
+                                                accountAddress.get(),
+                                                fungibleAddress.get())
                                         .signedBy(ACCOUNT)
                                         .payingWith(ACCOUNT)
                                         .via("nestedAssociateFungibleTxn")
@@ -438,10 +395,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                 contractCall(
                                                 NESTED_ASSOCIATE_CONTRACT,
                                                 "associateInternalContractCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
+                                                accountAddress.get(),
+                                                nftAddress.get())
                                         .signedBy(ACCOUNT)
                                         .payingWith(ACCOUNT)
                                         .via("nestedAssociateNonFungibleTxn")
@@ -471,22 +426,13 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
 
     @HapiTest
     final Stream<DynamicTest> V2Security036TokenAssociateFromDelegateCallWithDelegateContractId() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        final AtomicReference<Address> nftAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .supplyKey(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .treasury(TOKEN_TREASURY),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .supplyKey(TOKEN_TREASURY)
-                        .initialSupply(0)
-                        .adminKey(TOKEN_TREASURY)
-                        .treasury(TOKEN_TREASURY),
-                uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT),
-                contractCreate(ASSOCIATE_CONTRACT),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nftAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
@@ -500,10 +446,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                 contractCall(
                                                 NESTED_ASSOCIATE_CONTRACT,
                                                 "associateDelegateCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
+                                                accountAddress.get(),
+                                                fungibleAddress.get())
                                         .payingWith(ACCOUNT)
                                         .via("nestedAssociateFungibleTxn")
                                         .gas(GAS_TO_OFFER)
@@ -513,10 +457,8 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                 contractCall(
                                                 NESTED_ASSOCIATE_CONTRACT,
                                                 "associateDelegateCall",
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getAccountID(ACCOUNT))),
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
+                                                accountAddress.get(),
+                                                nftAddress.get())
                                         .payingWith(ACCOUNT)
                                         .via("nestedAssociateNonFungibleTxn")
                                         .gas(GAS_TO_OFFER)
@@ -546,9 +488,12 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
 
     @HapiTest
     final Stream<DynamicTest> tokenAssociateFromStaticcallAndCallcode() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
 
         return hapiTest(flattened(
-                createEntities(),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                createAccountAndExposeAddr(ACCOUNT, accountAddress),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
@@ -558,44 +503,32 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_CONTRACT))),
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                        atomicBatchDefaultOperator(
-                                        // Test Case 1: Account paying and signing a nested fungible TOKEN ASSOCIATE
-                                        // TRANSACTION,
-                                        // when we associate the token to the signer
-                                        // via STATICCALL
-                                        contractCall(
-                                                        NESTED_ASSOCIATE_CONTRACT,
-                                                        "associateStaticCall",
-                                                        HapiParserUtil.asHeadlongAddress(asAddress(
-                                                                spec.registry().getAccountID(ACCOUNT))),
-                                                        HapiParserUtil.asHeadlongAddress(asAddress(
-                                                                spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                                .payingWith(ACCOUNT)
-                                                .via("associateStaticcallFungibleTxn")
-                                                .gas(GAS_TO_OFFER)
-                                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                        // Test Case 1: Account paying and signing a nested fungible TOKEN ASSOCIATE
+                        // TRANSACTION,
+                        // when we associate the token to the signer
+                        // via STATIC CALL
+                        atomicBatchDefaultOperator(contractCall(
+                                                NESTED_ASSOCIATE_CONTRACT,
+                                                "associateStaticCall",
+                                                accountAddress.get(),
+                                                fungibleAddress.get())
+                                        .payingWith(ACCOUNT)
+                                        .via("associateStaticcallFungibleTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
                         // Test Case 2: Account paying and signing a nested fungible TOKEN ASSOCIATE TRANSACTION,
                         // when we associate the token to the signer
-                        // via CALLCODE
+                        // via CALL CODE
                         // SIGNER → call → CONTRACT A → callcode → CONTRACT B → call → PRECOMPILE(HTS)
                         atomicBatchDefaultOperator(contractCall(
                                                 CALLCODE_CONTRACT,
                                                 "callCodeToContractWithoutAmount",
                                                 asHeadlongAddress(getNestedContractAddress(ASSOCIATE_CONTRACT, spec)),
-                                                Bytes.wrap(AssociationsTranslator.ASSOCIATE_ONE
+                                                Bytes.wrap(ASSOCIATE_ONE
                                                                 .encodeCallWithArgs(
-                                                                        HapiParserUtil.asHeadlongAddress(
-                                                                                asAddress(
-                                                                                        spec.registry()
-                                                                                                .getAccountID(
-                                                                                                        ACCOUNT))),
-                                                                        HapiParserUtil.asHeadlongAddress(
-                                                                                asAddress(
-                                                                                        spec.registry()
-                                                                                                .getTokenID(
-                                                                                                        FUNGIBLE_TOKEN))))
+                                                                        accountAddress.get(), fungibleAddress.get())
                                                                 .array())
                                                         .toArray())
                                         .via("associateCallcodeFungibleTxn")
@@ -611,10 +544,50 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         getAccountInfo(ACCOUNT).hasNoTokenRelationship(FUNGIBLE_TOKEN)))));
     }
 
+    /* --------------- Helper methods --------------- */
+
     private HapiAtomicBatch atomicBatchDefaultOperator(HapiTxnOp<?>... ops) {
         return atomicBatch(Arrays.stream(ops)
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))
                 .payingWith(DEFAULT_BATCH_OPERATOR);
+    }
+
+    private HapiTokenCreate createFungibleAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(TOKEN_TREASURY)
+                .supplyKey(TOKEN_TREASURY)
+                .adminKey(TOKEN_TREASURY)
+                .exposingAddressTo(addressRef::set);
+    }
+
+    private HapiTokenCreate createFrozenTokenAndExposeAdr(
+            String tokenName, AtomicReference<Address> addressRef, boolean freezeDefault) {
+        final var create = createFungibleAndExposeAdr(tokenName, addressRef);
+        create.freezeKey(FREEZE_KEY).freezeDefault(freezeDefault);
+        return create;
+    }
+
+    private HapiTokenCreate createKycTokenAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        final var create = createFungibleAndExposeAdr(tokenName, addressRef);
+        create.kycKey(KYC_KEY);
+        return create;
+    }
+
+    private HapiCryptoCreate createAccountAndExposeAddr(String accountName, AtomicReference<Address> addressRef) {
+        return cryptoCreate(accountName)
+                .balance(ONE_MILLION_HBARS)
+                .exposingCreatedIdTo(id -> addressRef.set(asHeadlongAddress(asAddress(id))));
+    }
+
+    private HapiTokenCreate createNftAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        return tokenCreate(tokenName)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0)
+                .treasury(TOKEN_TREASURY)
+                .supplyKey(TOKEN_TREASURY)
+                .adminKey(TOKEN_TREASURY)
+                .exposingAddressTo(addressRef::set);
     }
 }
