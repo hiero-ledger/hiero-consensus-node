@@ -9,6 +9,7 @@ import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -78,7 +79,7 @@ public class StateEditorExec extends StateEditorOperation {
                 try (final ReservedSignedState reservedSignedState =
                         getStateEditor().getState("StateEditorExec.run()")) {
                     new MerkleRouteIterator(
-                                    reservedSignedState.get().getState().getRoot(),
+                                    ((MerkleNodeState) reservedSignedState.get().getState()).getRoot(),
                                     parentInfo.parent().getRoute())
                             .forEachRemaining(Hashable::invalidateHash);
                 }

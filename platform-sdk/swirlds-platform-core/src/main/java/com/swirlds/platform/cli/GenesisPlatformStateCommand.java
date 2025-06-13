@@ -63,8 +63,14 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
-        final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readStateFile(statePath, stateFacade, platformContext);
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+                statePath,
+                (virtualMap) -> {
+                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                    throw new UnsupportedOperationException();
+                },
+                stateFacade,
+                platformContext);
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             stateFacade.bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");
@@ -80,10 +86,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                 ((CommittableWritableStates) writableStates).commit();
             }
             System.out.printf("Hashing state %n");
-            platformContext
-                    .getMerkleCryptography()
-                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
-                    .get();
+            reservedSignedState.get().getState().getHash();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
             writeSignedStateFilesToDirectory(
                     platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateFacade);

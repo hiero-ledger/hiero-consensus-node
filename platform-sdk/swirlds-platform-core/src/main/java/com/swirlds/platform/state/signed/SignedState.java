@@ -13,6 +13,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
@@ -21,11 +22,11 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -92,7 +93,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * The root of the merkle state.
      */
-    private final MerkleNodeState state;
+    private final State state;
 
     /**
      * The timestamp of when this object was created.
@@ -179,7 +180,7 @@ public class SignedState implements SignedStateInfo {
     public SignedState(
             @NonNull final Configuration configuration,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
@@ -188,7 +189,7 @@ public class SignedState implements SignedStateInfo {
         this.platformStateFacade = platformStateFacade;
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.state = requireNonNull(state);
-        state.getRoot().reserve();
+        ((Reservable) state).reserve();
 
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         if (stateConfig.stateHistoryEnabled()) {
@@ -209,6 +210,7 @@ public class SignedState implements SignedStateInfo {
     public void init(@NonNull PlatformContext platformContext) {
         state.init(
                 platformContext.getTime(),
+                platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> {
@@ -282,7 +284,7 @@ public class SignedState implements SignedStateInfo {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull MerkleNodeState getState() {
+    public @NonNull State getState() {
         return state;
     }
 

@@ -276,8 +276,9 @@ public class ReconnectPeerProtocol implements PeerProtocol {
             switch (initiatedBy) {
                 case PEER -> teacher(connection);
                 case SELF -> learner(connection);
-                default -> throw new NetworkProtocolException(
-                        "runProtocol() called but it is unclear who the teacher and who the learner is");
+                default ->
+                    throw new NetworkProtocolException(
+                            "runProtocol() called but it is unclear who the teacher and who the learner is");
             }
         } finally {
             initiatedBy = InitiatedBy.NO_ONE;

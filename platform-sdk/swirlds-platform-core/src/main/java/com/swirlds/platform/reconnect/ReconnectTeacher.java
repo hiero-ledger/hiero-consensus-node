@@ -17,6 +17,7 @@ import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -183,7 +184,7 @@ public class ReconnectTeacher {
                 """
                         The following state will be sent to the learner:
                         {}""",
-                () -> platformStateFacade.getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                () -> platformStateFacade.getInfoString(signedState.getState()));
     }
 
     private void logReconnectFinish() {
@@ -216,7 +217,7 @@ public class ReconnectTeacher {
                 threadManager,
                 new MerkleDataInputStream(connection.getDis()),
                 new MerkleDataOutputStream(connection.getDos()),
-                signedState.getState().getRoot(),
+                ((MerkleNodeState) signedState.getState()).getRoot(),
                 connection::disconnect,
                 reconnectConfig);
 

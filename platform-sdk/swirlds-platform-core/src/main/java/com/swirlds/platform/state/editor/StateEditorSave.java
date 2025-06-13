@@ -13,6 +13,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.config.DefaultConfiguration;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -48,7 +49,8 @@ public class StateEditorSave extends StateEditorOperation {
             logger.info(LogMarker.CLI.getMarker(), "Hashing state");
             platformContext
                     .getMerkleCryptography()
-                    .digestTreeAsync(reservedSignedState.get().getState().getRoot())
+                    .digestTreeAsync(
+                            ((MerkleNodeState) reservedSignedState.get().getState()).getRoot())
                     .get();
 
             if (logger.isInfoEnabled(LogMarker.CLI.getMarker())) {

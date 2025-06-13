@@ -7,6 +7,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -45,9 +46,11 @@ public final class ReconnectUtils {
     /**
      * Hash the working state to prepare for reconnect
      */
-    static void hashStateForReconnect(final MerkleCryptography merkleCryptography, final MerkleNodeState workingState) {
+    static void hashStateForReconnect(final MerkleCryptography merkleCryptography, final State workingState) {
         try {
-            merkleCryptography.digestTreeAsync(workingState.getRoot()).get();
+            merkleCryptography
+                    .digestTreeAsync(((MerkleNodeState) workingState).getRoot())
+                    .get();
         } catch (final ExecutionException e) {
             logger.error(
                     EXCEPTION.getMarker(),

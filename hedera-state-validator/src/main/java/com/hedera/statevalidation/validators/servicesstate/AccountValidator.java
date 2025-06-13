@@ -36,7 +36,7 @@ public class AccountValidator {
     @Test
     void validate(DeserializedSignedState deserializedState, Report report) throws IOException {
         final MerkleNodeState servicesState =
-                deserializedState.reservedSignedState().get().getState();
+                (MerkleNodeState) deserializedState.reservedSignedState().get().getState();
 
         ReadableKVState<AccountID, Account> accounts =
                 servicesState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_KEY);

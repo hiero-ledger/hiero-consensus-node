@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.listeners;
 
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
 import java.time.Instant;
 import org.hiero.consensus.model.notification.AbstractNotification;
@@ -14,10 +13,9 @@ public class ReconnectCompleteNotification extends AbstractNotification {
 
     private long roundNumber;
     private Instant consensusTimestamp;
-    private MerkleNodeState state;
+    private State state;
 
-    public ReconnectCompleteNotification(
-            final long roundNumber, final Instant consensusTimestamp, final MerkleNodeState state) {
+    public ReconnectCompleteNotification(final long roundNumber, final Instant consensusTimestamp, final State state) {
         this.roundNumber = roundNumber;
         this.consensusTimestamp = consensusTimestamp;
         this.state = state;

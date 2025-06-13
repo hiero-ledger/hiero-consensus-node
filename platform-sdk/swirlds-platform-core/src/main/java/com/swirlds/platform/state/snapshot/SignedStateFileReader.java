@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
+import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
@@ -19,9 +20,11 @@ import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.File;
@@ -30,6 +33,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.function.Function;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -47,6 +51,7 @@ public final class SignedStateFileReader {
      */
     public static @NonNull DeserializedSignedState readStateFile(
             @NonNull final Path stateFile,
+            @NonNull final Function<VirtualMap, ? extends State> stateRootFunction,
             @NonNull final PlatformStateFacade stateFacade,
             @NonNull final PlatformContext platformContext)
             throws IOException {
@@ -58,7 +63,7 @@ public final class SignedStateFileReader {
         checkSignedStatePath(stateFile);
 
         final DeserializedSignedState returnState;
-        final MerkleTreeSnapshotReader.StateFileData data = MerkleTreeSnapshotReader.readStateFileData(stateFile);
+        final MerkleTreeSnapshotReader.StateFileData data = MerkleTreeSnapshotReader.readStateFileData(conf, stateFile);
         final File sigSetFile =
                 stateFile.getParent().resolve(SIGNATURE_SET_FILE_NAME).toFile();
         final SigSet sigSet = deserializeAndDebugOnFailure(
@@ -67,10 +72,13 @@ public final class SignedStateFileReader {
                     return in.readSerializable();
                 });
 
+        final State merkleNodeState =
+                initializeMerkleNodeState(stateRootFunction, data.stateRoot(), platformContext.getMetrics());
+
         final SignedState newSignedState = new SignedState(
                 conf,
                 CryptoStatic::verifySignature,
-                (MerkleNodeState) data.stateRoot(),
+                merkleNodeState,
                 "SignedStateFileReader.readStateFile()",
                 false,
                 false,
@@ -145,23 +153,34 @@ public final class SignedStateFileReader {
      * See the doc for registerServiceStates(SignedState) above for more details.
      * @param state a State to register schemas in
      */
-    public static void registerServiceStates(@NonNull final MerkleNodeState state) {
+    public static void registerServiceStates(@NonNull final State state) {
         registerServiceState(state, new V0540PlatformStateSchema(), PlatformStateService.NAME);
         registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.NAME);
     }
 
     private static void registerServiceState(
-            @NonNull final MerkleNodeState state, @NonNull final Schema schema, @NonNull final String name) {
+            @NonNull final State state, @NonNull final Schema schema, @NonNull final String name) {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(name, schema, def);
                     if (def.singleton() || def.onDisk()) {
-                        state.putServiceStateIfAbsent(md, () -> {
-                            throw new IllegalStateException(
-                                    "State nodes " + md.stateDefinition().stateKey() + " for service " + name
-                                            + " are supposed to exist in the state snapshot already.");
-                        });
+                        try {
+                            // Production case
+                            // Attempt to initialize the state if it is a NewStateRoot
+                            ((MerkleNodeState) state).initializeState(md);
+                        } catch (UnsupportedOperationException e) {
+                            // Non production case (testing tools)
+                            // Otherwise assume it is a MerkleStateRoot
+
+                            // This branch should be removed once the MerkleStateRoot is removed along with
+                            // putServiceStateIfAbsent method in the MerkleNodeState interface
+                            ((MerkleNodeState) state).putServiceStateIfAbsent(md, () -> {
+                                throw new IllegalStateException(
+                                        "State nodes " + md.stateDefinition().stateKey() + " for service " + name
+                                                + " are supposed to exist in the state snapshot already.");
+                            });
+                        }
                     } else {
                         throw new IllegalStateException(
                                 "Only singletons and onDisk virtual maps are supported as stub states");
@@ -181,7 +200,7 @@ public final class SignedStateFileReader {
      * @param signedState a signed state to unregister services from
      */
     public static void unregisterServiceStates(@NonNull final SignedState signedState) {
-        final MerkleNodeState state = signedState.getState();
+        final MerkleNodeState state = (MerkleNodeState) signedState.getState();
         state.unregisterService(PlatformStateService.NAME);
         state.unregisterService(RosterStateId.NAME);
     }

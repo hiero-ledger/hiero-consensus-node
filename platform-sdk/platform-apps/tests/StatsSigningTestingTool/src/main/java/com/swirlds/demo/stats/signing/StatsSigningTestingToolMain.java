@@ -23,6 +23,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -35,9 +36,13 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ClassConstructorPair;
@@ -292,9 +297,25 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
         return state;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+     * </p>
+     */
+    @Override
+    public Function<VirtualMap, StatsSigningTestingToolState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public ConsensusStateEventHandler<StatsSigningTestingToolState> newConsensusStateEvenHandler() {
         return new StatsSigningTestingToolConsensusStateEventHandler(() -> sttTransactionPool);
+    }
+
+    @Override
+    public StateLifecycleManager newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl(new NoOpMetrics());
     }
 
     /**

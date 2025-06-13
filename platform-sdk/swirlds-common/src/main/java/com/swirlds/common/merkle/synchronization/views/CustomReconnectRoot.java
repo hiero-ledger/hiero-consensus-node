@@ -58,6 +58,14 @@ public interface CustomReconnectRoot<T, L> extends MerkleNode {
     void setupWithNoData();
 
     /**
+     * Creates a new empty root instance of the same type and registers the current instance with
+     * {@link #setupWithOriginalNode(com.swirlds.common.merkle.MerkleNode)}
+     *
+     * @return new empty root instance
+     */
+    CustomReconnectRoot<T, L> createNewRoot();
+
+    /**
      * {@inheritDoc}
      */
     @Override

@@ -4,6 +4,8 @@ package com.swirlds.common.merkle.interfaces;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Handles migration of merkle node types.
@@ -41,11 +43,11 @@ public interface MerkleMigratable {
      * automatically migrated by the merkle utilities.
      * </p>
      *
-     * @param version
-     * 		the version of this class when it was deserialized. This parameter may be useful if migration needs
-     * 		to be performed only on transitions between specific versions.
+     * @param configuration the configuration for this node
+     * @param version       the version of this class when it was deserialized. This parameter may be useful if migration needs
+     *                      to be performed only on transitions between specific versions.
      * @return this node if no migration is needed, a new node if this node should be replaced, or null if this
-     * 		node should be deleted and not replaced
+     * node should be deleted and not replaced
      */
-    MerkleNode migrate(final int version);
+    MerkleNode migrate(@NonNull final Configuration configuration, final int version);
 }
