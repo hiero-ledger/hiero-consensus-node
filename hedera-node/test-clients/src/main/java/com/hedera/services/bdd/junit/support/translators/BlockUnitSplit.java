@@ -66,7 +66,7 @@ public class BlockUnitSplit {
          * @return whether the pending parts are complete
          */
         boolean areComplete() {
-            return parts != null && result != null;
+            return result != null;
         }
 
         void addOutput(@NonNull final TransactionOutput output) {
@@ -85,7 +85,7 @@ public class BlockUnitSplit {
 
         BlockTransactionParts toBlockTransactionParts() {
             requireNonNull(role);
-            requireNonNull(parts);
+//            requireNonNull(parts);
             requireNonNull(result);
             return new BlockTransactionParts(parts, result, role, traces, outputs);
         }
