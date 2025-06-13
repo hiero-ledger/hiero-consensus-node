@@ -124,6 +124,11 @@ public class BlockBufferService {
                 .streamToBlockNodes();
     }
 
+    public void shutdown() {
+        execSvc.shutdownNow();
+        blockNodeConnectionManager.shutdown();
+    }
+
     /**
      * @return the interval in which the block buffer will be pruned (a duration of 0 means pruning is disabled)
      */

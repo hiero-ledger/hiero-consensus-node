@@ -31,9 +31,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService) {
+            @NonNull final BlockBufferService blockBufferService,
+            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
     }
 
     @Override
@@ -46,12 +47,6 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull Bytes bytes) {
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
         this.grpcBlockItemWriter.writePbjItem(item);
-    }
-
-    @Override
-    public void writeItem(@NonNull byte[] bytes) {
-        this.fileBlockItemWriter.writeItem(bytes);
-        // The GrpcBlockItemWriter doesn't support writeItem, so we don't call it here
     }
 
     @Override
@@ -70,5 +65,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void writePbjItem(@NonNull BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+    }
+
+    @Override
+    public void jumpToBlockAfterFreeze(long blockNumber) {
+        this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
     }
 }

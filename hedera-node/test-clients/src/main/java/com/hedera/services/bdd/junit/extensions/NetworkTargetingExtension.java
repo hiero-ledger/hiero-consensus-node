@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirVersion;
 import static com.hedera.services.bdd.spec.HapiSpec.doTargetSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAllLogsAfter;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateStreams;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
@@ -41,6 +42,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -116,6 +118,10 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 targetNetwork
                         .getPostInitWorkingDirActions()
                         .add(targetBlockNodeNetwork::configureBlockNodeConnectionInformation);
+                targetNetwork
+                        .getPostInitWorkingDirActions()
+                        .add(node -> targetNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
+
                 // Configure block node mode based on annotation
                 for (BlockNodeConfig blockNodeConfig : annotation.blockNodeConfigs()) {
                     targetBlockNodeNetwork.getBlockNodeModeById().put(blockNodeConfig.nodeId(), blockNodeConfig.mode());
@@ -165,10 +171,10 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // If a per-method network exists, run validation and terminate it
                 try {
                     // Create a temporary HapiSpec to run the validation against the per-method network
+                    final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
                     final var streamValidationOp = validateStreams();
                     final var validationSpec = new HapiSpec(
-                            "StreamValidation",
-                            new com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp[] {streamValidationOp});
+                            "LogAndStreamValidationSpec", new SpecOperation[] {logValidationOp, streamValidationOp});
                     validationSpec.setTargetNetwork(SHARED_NETWORK.get());
                     // Execute the validation spec
                     try {

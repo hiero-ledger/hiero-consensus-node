@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -25,18 +23,7 @@ public interface BlockItemWriter {
      * @param item the item to write
      * @param bytes the serialized item to write
      */
-    default void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
-        requireNonNull(item);
-        requireNonNull(bytes);
-        writeItem(bytes.toByteArray());
-    }
-
-    /**
-     * Writes a serialized item to the destination stream.
-     *
-     * @param bytes the serialized item to write
-     */
-    void writeItem(@NonNull byte[] bytes);
+    void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes);
 
     /**
      * Writes a PBJ item to the destination stream.
@@ -54,4 +41,6 @@ public interface BlockItemWriter {
      * @param pendingProof the proof pending a signature
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
+
+    void jumpToBlockAfterFreeze(long blockNumber);
 }
