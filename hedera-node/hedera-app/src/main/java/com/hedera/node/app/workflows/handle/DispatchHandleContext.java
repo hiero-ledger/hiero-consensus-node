@@ -344,7 +344,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -354,10 +353,17 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 authorizer,
                 storeFactory.asReadOnly(),
                 consensusNow,
-                transactionCategory == TransactionCategory.BATCH_INNER ? verifier : null,
-                transactionCategory == TransactionCategory.BATCH_INNER
+                shouldChargeForSigVerification(txBody) ? verifier : null,
+                shouldChargeForSigVerification(txBody)
                         ? txnInfo.signatureMap().sigPair().size()
                         : 0));
+    }
+
+    private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
+        // The SystemContractGasCalculator's feeCalculator relies on the parent contract call context.
+        // The batchKey check is used to differentiate batch inner transactions from system contract calls
+        // dispatched by inner transactions.
+        return transactionCategory == TransactionCategory.BATCH_INNER && txBody.hasBatchKey();
     }
 
     @NonNull

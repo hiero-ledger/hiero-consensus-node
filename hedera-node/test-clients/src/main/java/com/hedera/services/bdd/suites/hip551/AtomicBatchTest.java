@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
+import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -23,15 +26,20 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -48,6 +56,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
@@ -57,6 +66,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -66,8 +76,12 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -110,6 +124,67 @@ public class AtomicBatchTest {
                 validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
                 validateInnerTxnChargedUsd("innerTxn", "batchTxn", BASE_FEE_HBAR_CRYPTO_TRANSFER, 5),
                 validateInnerTxnChargedUsd("innerTxn2", "batchTxn", BASE_FEE_SUBMIT_MESSAGE_CUSTOM_FEE, 5));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> validateFeeForInnerTxnChildren() {
+        final var nft = "nft";
+        final var gasToOffer = 2_000_000L;
+        final var burnContract = "BurnToken";
+        final var supplyKey = "supplyKey";
+        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
+        final KeyShape listOfPredefinedAndContract = KeyShape.threshOf(1, PREDEFINED_SHAPE, CONTRACT);
+        final AtomicLong gasUsed = new AtomicLong(0);
+        return hapiTest(
+                cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
+                tokenCreate(nft)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(ALICE)
+                        .adminKey(ALICE)
+                        .treasury(ALICE)
+                        .exposingAddressTo(tokenAddress::set),
+                mintToken(nft, List.of(copyFromUtf8("1"), copyFromUtf8("2"))),
+                uploadInitCode(burnContract),
+                sourcing(() -> contractCreate(burnContract, tokenAddress.get())
+                        .payingWith(ALICE)
+                        .gas(gasToOffer)),
+                newKeyNamed(supplyKey).shape(listOfPredefinedAndContract.signedWith(sigs(ALICE, burnContract))),
+                tokenUpdate(nft).supplyKey(supplyKey).signedByPayerAnd(ALICE),
+
+                // burn NFT with precompile and save the used gas
+                contractCall(burnContract, "burnToken", BigInteger.ZERO, new long[] {1L})
+                        .payingWith(ALICE)
+                        .alsoSigningWithFullPrefix(supplyKey)
+                        .gas(gasToOffer)
+                        .via("burn"),
+
+                // save precompile gas used
+                withOpContext((spec, op) -> {
+                    final var callRecord = getTxnRecord("burn").andAllChildRecords();
+                    allRunFor(spec, callRecord);
+                    gasUsed.set(callRecord
+                            .getFirstNonStakingChildRecord()
+                            .getContractCallResult()
+                            .getGasUsed());
+                }),
+
+                // burn NFT with precompile as inner batch txn
+                atomicBatch(contractCall(burnContract, "burnToken", BigInteger.ZERO, new long[] {2L})
+                                .batchKey(ALICE)
+                                .payingWith(ALICE)
+                                .alsoSigningWithFullPrefix(supplyKey)
+                                .gas(gasToOffer)
+                                .via("burnFomBatch"))
+                        .payingWith(ALICE),
+
+                // validate precompile used gas is the same as in the previous call
+                sourcing(() -> childRecordsCheck(
+                        "burnFomBatch",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith().gasUsed(gasUsed.get())))));
     }
 
     @BeforeAll
