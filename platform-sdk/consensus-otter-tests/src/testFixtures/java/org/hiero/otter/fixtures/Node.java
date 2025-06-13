@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -60,9 +61,10 @@ public interface Node {
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
      * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
      *
+     * @throws IOException if an I/O error occurs while starting the node
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start() throws IOException, InterruptedException;
 
     /**
      * Allows to override the default timeout for node operations.

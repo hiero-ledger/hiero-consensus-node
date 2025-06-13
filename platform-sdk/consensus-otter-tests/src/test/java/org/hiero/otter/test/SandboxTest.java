@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.Level;
@@ -24,7 +25,7 @@ public class SandboxTest {
 
     @OtterTest
     @Disabled
-    void testConsistencyNDReconnect(TestEnvironment env) throws InterruptedException {
+    void testConsistencyNDReconnect(TestEnvironment env) throws IOException, InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -57,7 +58,7 @@ public class SandboxTest {
 
     @OtterTest
     @Disabled
-    void testBranching(TestEnvironment env) throws InterruptedException {
+    void testBranching(TestEnvironment env) throws IOException, InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 

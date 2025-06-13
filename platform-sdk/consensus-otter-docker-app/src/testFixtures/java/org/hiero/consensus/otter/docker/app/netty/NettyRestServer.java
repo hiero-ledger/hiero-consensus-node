@@ -2,6 +2,7 @@
 package org.hiero.consensus.otter.docker.app.netty;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.swirlds.base.utility.ThrowableFunction;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -27,12 +28,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 public class NettyRestServer {
 
     private final int port;
-    private final Map<String, Function<FullHttpRequest, Object>> getRoutes = new HashMap<>();
+    private final Map<String, ThrowableFunction<FullHttpRequest, Object>> getRoutes = new HashMap<>();
     private final Map<String, BiFunction<FullHttpRequest, byte[], Object>> postRoutes = new HashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -40,7 +40,7 @@ public class NettyRestServer {
         this.port = port;
     }
 
-    public void addGet(String path, Function<FullHttpRequest, Object> handler) {
+    public void addGet(String path, ThrowableFunction<FullHttpRequest, Object> handler) {
         getRoutes.put(path, handler);
     }
 
@@ -83,7 +83,14 @@ public class NettyRestServer {
                                         }
                                         byte[] json = objectMapper.writeValueAsBytes(result);
                                         sendResponse(ctx, HttpResponseStatus.OK, json);
-                                    } catch (Exception e) {
+                                    } catch (IllegalArgumentException e) {
+                                        sendResponse(
+                                                ctx,
+                                                HttpResponseStatus.BAD_REQUEST,
+                                                "Invalid request: " + e.getMessage());
+                                    } catch (IllegalStateException e) {
+                                        sendResponse(ctx, HttpResponseStatus.CONFLICT, e.getMessage());
+                                    } catch (Throwable e) {
                                         sendResponse(
                                                 ctx,
                                                 HttpResponseStatus.INTERNAL_SERVER_ERROR,

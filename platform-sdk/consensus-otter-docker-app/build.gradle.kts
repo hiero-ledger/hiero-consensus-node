@@ -55,7 +55,13 @@ tasks.register<Sync>("copyTestFixturesApp") {
     rename { "DockerApp.jar" }
 }
 
+tasks.register<Sync>("copyDockerfile") {
+    from(layout.projectDirectory.file("src/testFixtures/docker/Dockerfile"))
+    into(layout.buildDirectory.dir("data"))
+}
+
 tasks.assemble {
     dependsOn("copyTestFixturesLib")
     dependsOn("copyTestFixturesApp")
+    dependsOn("copyDockerfile")
 }

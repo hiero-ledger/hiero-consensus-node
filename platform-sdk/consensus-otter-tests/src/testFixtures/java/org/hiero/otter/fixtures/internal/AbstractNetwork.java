@@ -7,6 +7,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -112,7 +113,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void start() throws InterruptedException {
+    public void start() throws IOException, InterruptedException {
         defaultStartAction.start();
     }
 
@@ -240,7 +241,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void start() throws InterruptedException {
+        public void start() throws IOException, InterruptedException {
             throwIfInState(State.RUNNING, "Network is already running.");
 
             log.info("Starting network...");

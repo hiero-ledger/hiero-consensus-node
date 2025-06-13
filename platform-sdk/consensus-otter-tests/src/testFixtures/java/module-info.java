@@ -31,6 +31,7 @@ module org.hiero.otter.fixtures {
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
+    requires java.net.http;
 
     exports org.hiero.otter.fixtures;
     exports org.hiero.otter.fixtures.assertions;

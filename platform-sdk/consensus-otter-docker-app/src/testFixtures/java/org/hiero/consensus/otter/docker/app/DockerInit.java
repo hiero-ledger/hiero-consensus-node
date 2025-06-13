@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.crypto.CryptoStatic;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.security.KeyStoreException;
+import java.security.cert.CertificateEncodingException;
+import java.util.Base64;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.otter.docker.app.netty.NettyRestServer;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
@@ -14,7 +29,9 @@ public class DockerInit {
     private static final Logger LOGGER = LogManager.getLogger(DockerInit.class);
 
     private final NettyRestServer server;
-    private DockerApp app;
+
+    private NodeId selfId;
+    private KeysAndCerts keysAndCerts;
 
     private DockerInit() throws Exception {
         server = new NettyRestServer(8080);
@@ -33,25 +50,53 @@ public class DockerInit {
             }
         });
 
-        server.addGet("/create-node", req -> {
+        server.addPost("/self-id", (req, body) -> {
             try {
-                app = new DockerApp();
-                return Map.of("platform", "created");
-            } catch (Exception e) {
-                return Map.of("error", e.getMessage());
+                final Map<?, ?> json = new ObjectMapper().readValue(body, Map.class);
+                if (json.containsKey("selfId")) {
+                    selfId = NodeId.of((Integer) json.get("selfId"));
+                    keysAndCerts = generateKeysAndCerts(selfId);
+                    final String content = Base64.getEncoder().encodeToString(keysAndCerts.sigCert().getEncoded());
+                    return Map.of("sigcrt", content);
+                }
+            } catch (final IOException e) {
+                throw new IllegalArgumentException(e);
+            } catch (final CertificateEncodingException e) {
+                // This should not happen, as we just generated the certificate
+                throw new RuntimeException(e);
+            }
+            return null;
+        });
+
+        server.addPost("/start-node", (req, body) -> {
+            try {
+                final ObjectMapper mapper = new ObjectMapper();
+                final JsonNode json = mapper.readTree(body);
+
+                final SemanticVersion version = SemanticVersion.JSON.parse(Bytes.wrap(json.get("version").textValue()));
+                final Roster roster = Roster.JSON.parse(Bytes.wrap(json.get("roster").asText()));
+                // noinspection unchecked
+                final Map<String, String> overriddenProperties = (Map<String, String>)mapper.convertValue(json.get("properties"), Map.class);
+
+                final DockerApp app = new DockerApp(selfId, version, roster, keysAndCerts, overriddenProperties);
+                app.start();
+
+                return Map.of("node", "started");
+            } catch (final IOException | ParseException | ClassCastException e) {
+                throw new IllegalArgumentException(e);
             }
         });
 
-        server.addGet("/start-node", req -> {
-            if (app != null) {
-                app.get().start();
-                return Map.of("platform", "started");
-            }
-            return Map.of("error", "platform not created");
-        });
         server.addGet("/logs", req -> InMemoryAppender.getLogs());
     }
 
+    private static KeysAndCerts generateKeysAndCerts(@NonNull final NodeId selfId) {
+        try {
+            return CryptoStatic.generateKeysAndCerts(List.of(selfId), null).get(selfId);
+        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
+    }
     public void startWebserver() throws InterruptedException {
         server.start();
     }
