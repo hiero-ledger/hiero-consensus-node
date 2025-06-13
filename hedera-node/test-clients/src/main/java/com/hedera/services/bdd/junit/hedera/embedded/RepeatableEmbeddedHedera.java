@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 
@@ -198,6 +199,11 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         @Override
         public void start() {
             // No-op
+        }
+
+        @Override
+        public void destroy() throws InterruptedException {
+            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
         }
 
         /**

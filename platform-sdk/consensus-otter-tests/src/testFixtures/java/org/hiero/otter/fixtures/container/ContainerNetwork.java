@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.solo;
+package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -11,19 +15,21 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
-import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
+import org.testcontainers.containers.Network;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
- * An implementation of {@link Network} for the Solo environment.
- * This class provides a basic structure for a Solo network, but does not implement all functionalities yet.
+ * An implementation of {@link org.hiero.otter.fixtures.Network} for the container environment.
+ * This class provides a basic structure for a container network, but does not implement all functionalities yet.
  */
-public class SoloNetwork extends AbstractNetwork implements Network {
+public class ContainerNetwork extends AbstractNetwork {
 
     private static final Logger log = LogManager.getLogger();
 
@@ -31,10 +37,14 @@ public class SoloNetwork extends AbstractNetwork implements Network {
     private static final Duration DEFAULT_FREEZE_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofMinutes(1);
 
+    private final Network network = Network.newNetwork();
     private final RegularTimeManager timeManager;
-    private final SoloTransactionGenerator transactionGenerator;
-    private final List<SoloNode> nodes = new ArrayList<>();
+    private final ContainerTransactionGenerator transactionGenerator;
+    private final List<ContainerNode> nodes = new ArrayList<>();
     private final List<Node> publicNodes = Collections.unmodifiableList(nodes);
+    private final ImageFromDockerfile dockerImage;
+
+    private long nextNodeId = 1L;
 
     /**
      * Constructor for SoloNetwork.
@@ -42,12 +52,14 @@ public class SoloNetwork extends AbstractNetwork implements Network {
      * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
      */
-    public SoloNetwork(
+    public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
-            @NonNull final SoloTransactionGenerator transactionGenerator) {
+            @NonNull final ContainerTransactionGenerator transactionGenerator) {
         super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
+        this.dockerImage = new ImageFromDockerfile()
+                .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
     }
 
     /**
@@ -82,8 +94,19 @@ public class SoloNetwork extends AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public List<Node> addNodes(final int count) {
-        throw new UnsupportedOperationException("Not implemented yet!");
+    public List<Node> addNodes(final int count) throws IOException, InterruptedException {
+        throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
+
+        final List<ContainerNode> newNodes = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            final NodeId selfId = NodeId.of(nextNodeId++);
+            final ContainerNode node = new ContainerNode(selfId, network, dockerImage);
+            newNodes.add(node);
+        }
+        nodes.addAll(newNodes);
+        sendUpdatedRosterToNodes();
+
+        return Collections.unmodifiableList(newNodes);
     }
 
     /**
@@ -104,16 +127,26 @@ public class SoloNetwork extends AbstractNetwork implements Network {
         return publicNodes;
     }
 
+    private void sendUpdatedRosterToNodes() {
+        final List<RosterEntry> rosterEntries =
+                nodes.stream().map(ContainerNode::rosterEntry).toList();
+        final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
+        for (final ContainerNode node : nodes) {
+            node.setRoster(roster);
+        }
+    }
+
     /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
      *
-     * @throws InterruptedException if the thread is interrupted while the network is being destroyed
+     * @throws IOException if an I/O error occurs during the shutdown process
+     * @throws InterruptedException if the thread is interrupted while waiting for the shutdown process to complete
      */
-    void destroy() throws InterruptedException {
+    void destroy() throws IOException, InterruptedException {
         log.info("Destroying network...");
         transactionGenerator.stop();
-        for (final SoloNode node : nodes) {
+        for (final ContainerNode node : nodes) {
             node.destroy();
         }
     }

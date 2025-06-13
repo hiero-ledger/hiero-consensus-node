@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -138,6 +139,12 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         public void start() {
             executorService.scheduleWithFixedDelay(
                     this::handleTransactions, 0, WALL_CLOCK_ROUND_DURATION.toMillis(), MILLISECONDS);
+        }
+
+        @Override
+        public void destroy() throws InterruptedException {
+            executorService.shutdown();
+            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
         }
 
         @Override

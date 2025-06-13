@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.solo;
+package org.hiero.otter.fixtures.container;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -9,19 +10,19 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 
 /**
- * Implementation of {@link TestEnvironment} for tests running on a Solo network.
+ * Implementation of {@link TestEnvironment} for tests running on a container network.
  */
-public class SoloTestEnvironment implements TestEnvironment {
+public class ContainerTestEnvironment implements TestEnvironment {
 
-    private final SoloNetwork network;
+    private final ContainerNetwork network;
     private final RegularTimeManager timeManager = new RegularTimeManager();
-    private final SoloTransactionGenerator transactionGenerator = new SoloTransactionGenerator();
+    private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
-     * Constructor for the {@link SoloTestEnvironment} class.
+     * Constructor for the {@link ContainerTestEnvironment} class.
      */
-    public SoloTestEnvironment() {
-        network = new SoloNetwork(timeManager, transactionGenerator);
+    public ContainerTestEnvironment() {
+        network = new ContainerNetwork(timeManager, transactionGenerator);
     }
 
     /**
@@ -55,7 +56,7 @@ public class SoloTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() throws InterruptedException {
+    public void destroy() throws IOException, InterruptedException {
         network.destroy();
     }
 }

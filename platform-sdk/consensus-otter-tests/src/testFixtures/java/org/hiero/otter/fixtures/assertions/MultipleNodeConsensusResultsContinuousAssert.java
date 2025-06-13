@@ -100,7 +100,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      */
     @NonNull
     public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(@NonNull final Node node) {
-        return startSuppressingNode(node.getSelfId());
+        return startSuppressingNode(node.selfId());
     }
 
     /**
@@ -123,7 +123,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      */
     @NonNull
     public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(@NonNull final Node node) {
-        return stopSuppressingNode(node.getSelfId());
+        return stopSuppressingNode(node.selfId());
     }
 
     /**

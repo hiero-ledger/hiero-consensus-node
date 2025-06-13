@@ -100,4 +100,9 @@ public interface Platform {
      * Start this platform.
      */
     void start();
+
+    /**
+     * Destroy this platform and release all resources. Once this method is called, the platform cannot be used again.
+     */
+    void destroy() throws InterruptedException;
 }

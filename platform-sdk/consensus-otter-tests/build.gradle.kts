@@ -46,8 +46,10 @@ tasks.register<Test>("testTurtle") {
     jvmArgs("-XX:ActiveProcessorCount=6")
 }
 
-// Runs tests against the Solo environment
-tasks.register<Test>("testSolo") {
+// Runs tests against the Container environment
+tasks.register<Test>("testContainer") {
+    dependsOn(":consensus-otter-docker-app:assemble")
+
     useJUnitPlatform {}
 
     // Disable all parallelism
@@ -57,7 +59,7 @@ tasks.register<Test>("testSolo") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
     // Tell our launcher to target a repeatable embedded network
-    systemProperty("otter.env", "solo")
+    systemProperty("otter.env", "container")
 
     // Limit heap and number of processors
     maxHeapSize = "8g"

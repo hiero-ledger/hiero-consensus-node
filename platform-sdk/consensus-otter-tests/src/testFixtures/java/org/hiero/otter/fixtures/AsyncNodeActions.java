@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import java.io.IOException;
+
 /**
  * Interface for performing asynchronous node actions with a specified timeout.
  */
@@ -30,7 +32,8 @@ public interface AsyncNodeActions {
      *
      * @see Node#start()
      *
+     * @throws IOException if an I/O error occurs while starting the node
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start() throws IOException, InterruptedException;
 }
