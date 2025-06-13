@@ -47,13 +47,14 @@ import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAdd
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
@@ -64,6 +65,8 @@ import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -96,7 +99,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
             "signerMintsAndTokenSupplyKeyHasTheSignerPublicKeyAndTheWrongContractId";
     public static final String THRESHOLD_KEY = "Tresh1WithRandomEdKeyAndCorrectContractID";
     private static final String SIGNER = "anybody";
-    private static final String SIGNER2 = "anybody";
+    private static final String SIGNER2 = "anybody2";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
     private static final String SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS = "signerAndTokenHaveNoUpdatedKeys";
@@ -113,8 +116,6 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
     private static final String BURN_TOKEN_WITH_EVENT = "burnTokenWithEvent";
     private static final String FIRST = "First!";
     private static final String SECOND = "Second!";
-    private static final String THIRD = "Third!";
-    private static final String FOURTH = "Fourth!";
     private static final String DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID =
             "FungibleTokenHasTheContractIdOnDelegateCall";
     private static final String DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID =
@@ -127,37 +128,30 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
     private static final String ORDINARY_CALLS_CONTRACT = "HTSCalls";
     private static final String ADMIN_KEY = "ADMIN_KEY";
     private static final String SUPPLY_KEY = "SUPPLY_KEY";
+    private static final Long INITIAL_SUPPLY = 20L;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
-        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+                "atomicBatch.isEnabled", "true",
+                "atomicBatch.maxNumberOfTransactions", "50",
+                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.doAdhoc(
+                uploadInitCode(MIXED_BURN_TOKEN),
+                uploadInitCode(MINT_CONTRACT),
+                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                cryptoCreate(TOKEN_TREASURY));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security004FungibleTokenBurnPositive() {
-        final var initialAmount = 20L;
+    final Stream<DynamicTest> V2Security004FungibleTokenBurnPositiveCase1() {
         final var amountToBurn = 5L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
 
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate(SIGNER2),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(initialAmount)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
-                uploadInitCode(MIXED_BURN_TOKEN),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
                 // Create a key with shape contract and the contractId of MIXED_BURN_TOKEN contract
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MIXED_BURN_TOKEN)),
@@ -167,41 +161,86 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                         // Test Case 1: Signer paying and signing a token burn transaction
                         // SIGNER → call → CONTRACT → call → PRECOMPILE
                         // The signer will have a key with the contractId (key type CONTRACT)
-
                         contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(amountToBurn), new long[0])
                                 .via(SIGNER_BURNS_WITH_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .payingWith(SIGNER)
-                                .signedBy(SIGNER)),
+                                .payingWith(SIGNER)),
                 // Assert that the token is burdned - total supply should be decreased with the amount that was
                 // burned
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - amountToBurn),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY - amountToBurn),
+
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security004FungibleTokenBurnPositiveCase2() {
+        final var amountToBurn = 5L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
+                // Create a key with shape contract and the contractId of MIXED_BURN_TOKEN contract
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MIXED_BURN_TOKEN)),
                 atomicBatchDefaultOperator(
+                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                         // Test Case 2: the Treasury account is paying and signing a token burn transaction,
                         // SIGNER → call → CONTRACT → call → PRECOMPILE
                         contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(amountToBurn), new long[0])
                                 .via(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .payingWith(TOKEN_TREASURY)
-                                .signedBy(TOKEN_TREASURY)),
+                                .payingWith(TOKEN_TREASURY)),
                 // Assert that the token is burned - total supply should be increased with the amount to burn.
-                // NOTE: it is multiplied by 2 because of the burned amount in the previous test
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 2 * amountToBurn),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY - amountToBurn),
+
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security004FungibleTokenBurnPositiveCase3() {
+        final var amountToBurn = 5L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER2),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
+                // Create a key with shape contract and the contractId of MIXED_BURN_TOKEN contract
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MIXED_BURN_TOKEN)),
                 atomicBatchDefaultOperator(
+                        // Update the token supply key to with the created key
+                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                         // Test Case 3: one account  paying and another one signing a token burn transaction
                         // SIGNER → call → CONTRACT → call → PRECOMPILE
                         contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(amountToBurn), new long[0])
                                 .via(SIGNER_AND_PAYER_ARE_DIFFERENT)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
                                 .payingWith(SIGNER2)
                                 .signedBy(SIGNER2, SIGNER)),
                 // Assert that the token is burned - total supply should be increased with the amount to burn.
-                // NOTE: it is multiplied by 3 because of the burned amount in the previous tests
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 3 * amountToBurn),
-                // Create a key with thresh 1/2 with sigs: new ed25519 key, contractId of burnToken contract
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY - amountToBurn),
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security004FungibleTokenBurnPositiveCase4() {
+        final var amountToBurn = 5L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
                 newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
                 atomicBatchDefaultOperator(
@@ -215,159 +254,156 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                         contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(amountToBurn), new long[0])
                                 .via(SIGNER_BURNS_WITH_TRESHOLD_KEY)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .payingWith(SIGNER)
-                                .signedBy(SIGNER)),
+                                .payingWith(SIGNER)),
                 // Assert that the token is burned - total supply should be decreased with the amount that was
                 // burned
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 4 * amountToBurn),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY - amountToBurn),
                 // Verify that each test case has 1 successful child record
-                getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
                 getTxnRecord(SIGNER_BURNS_WITH_TRESHOLD_KEY)
                         .andAllChildRecords()
                         .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security005NonFungibleTokenBurnPositive() {
-        final var amountToBurn = 1L;
+    final Stream<DynamicTest> V2Security005NonFungibleTokenBurnPositiveCase1() {
         final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
         final var serialNumber1 = new long[] {1L};
-        final var serialNumber2 = new long[] {2L};
-        final var serialNumber3 = new long[] {3L};
-
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate(SIGNER2),
-                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(nonFungibleAddress::set),
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(SECOND))),
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(THIRD))),
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FOURTH))),
-                uploadInitCode(MIXED_BURN_TOKEN),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
                 sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
                 // Create a key with shape contract and the contractId of burnToken contract
                 newKeyNamed(DELEGATE_CONTRACT_KEY_NAME)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
+                tokenUpdate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(DELEGATE_CONTRACT_KEY_NAME)
+                        .signedByPayerAnd(TOKEN_TREASURY),
+                // Test Case 1: Treasury account is paying and signing a token burn transaction, where the token
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The signer will have a key with the contractId (key type CONTRACT)
                 atomicBatchDefaultOperator(
-                        tokenUpdate(NON_FUNGIBLE_TOKEN)
-                                .supplyKey(DELEGATE_CONTRACT_KEY_NAME)
-                                .signedByPayerAnd(TOKEN_TREASURY),
-                        // Test Case 1: Treasury account is paying and signing a token burn transaction, where the token
-                        // SIGNER → call → CONTRACT → call → PRECOMPILE
-                        // The signer will have a key with the contractId (key type CONTRACT)
                         contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
                                 .via(SIGNER_BURNS_WITH_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .payingWith(TOKEN_TREASURY)
-                                .signedBy(TOKEN_TREASURY)),
-                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(4 - amountToBurn),
-                atomicBatchDefaultOperator(
-                        // Test Case 2: Signer account is paying and signing a token burn transaction, where the token
-                        // SIGNER → call → CONTRACT → call → PRECOMPILE
-                        // The signer will have a key with the contractId (key type CONTRACT)
-                        contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber2)
-                                .via(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
-                                .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .payingWith(SIGNER)
-                                .signedBy(SIGNER)),
-                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(3 - amountToBurn),
-                atomicBatchDefaultOperator(
-                        // Test Case 3: one account  paying and another one signing a token burn transaction,
-                        // SIGNER → call → CONTRACT → call →PRECOMPILE
-                        contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber3)
-                                .via(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                                .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .payingWith(SIGNER2)
-                                .signedBy(SIGNER2, TOKEN_TREASURY)),
-                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(2 - amountToBurn),
-                // Verify that each test case has 1 successful child record
+                                .payingWith(TOKEN_TREASURY)),
+                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                 getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security005NonFungibleTokenBurnPositiveCase2() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        final var serialNumber1 = new long[] {1L};
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
+                // Create a key with shape contract and the contractId of burnToken contract
+                newKeyNamed(DELEGATE_CONTRACT_KEY_NAME)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
+                tokenUpdate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(DELEGATE_CONTRACT_KEY_NAME)
+                        .signedByPayerAnd(TOKEN_TREASURY),
+                // Test Case 2: Signer account is paying and signing a token burn transaction, where the token
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The signer will have a key with the contractId (key type CONTRACT)
+                atomicBatchDefaultOperator(
+                        contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
+                                .via(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
+                                .gas(GAS_TO_OFFER)
+                                .payingWith(SIGNER)),
+                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                 getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security005NonFungibleTokenBurnPositiveCase3() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        final var serialNumber1 = new long[] {1L};
+        return hapiTest(
+                cryptoCreate(SIGNER2),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
+                // Create a key with shape contract and the contractId of burnToken contract
+                newKeyNamed(DELEGATE_CONTRACT_KEY_NAME)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
+                tokenUpdate(NON_FUNGIBLE_TOKEN)
+                        .supplyKey(DELEGATE_CONTRACT_KEY_NAME)
+                        .signedByPayerAnd(TOKEN_TREASURY),
+                // Test Case 3: one account  paying and another one signing a token burn transaction,
+                // SIGNER → call → CONTRACT → call →PRECOMPILE
+                atomicBatchDefaultOperator(
+                        contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
+                                .via(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                                .gas(GAS_TO_OFFER)
+                                .payingWith(SIGNER2)
+                                .signedBy(SIGNER2, SIGNER)),
+                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                 getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
                         .andAllChildRecords()
                         .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security004FungibleTokenBurnNegative() {
-        final var initialAmount = 20L;
+    final Stream<DynamicTest> V2Security004FungibleTokenBurnNegativeCase1() {
+        final var amountToBurn = 5L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
+                // Test Case 1: Signer paying and signing a token burn transaction,
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The signer and the token don't have updated keys
+                atomicBatchDefaultOperator(contractCall(
+                                        MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(amountToBurn), new long[0])
+                                .via(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                                .gas(GAS_TO_OFFER)
+                                .payingWith(SIGNER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                // verify that the total supply of the tokens is not affected
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
+                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                        .andAllChildRecords()
+                        .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security004FungibleTokenBurnNegativeCase2() {
         final var amountToBurn = 5L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
 
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(initialAmount)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
-                uploadInitCode(MIXED_BURN_TOKEN),
-                uploadInitCode(MINT_CONTRACT),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 sourcing(() -> contractCreate(MINT_CONTRACT, fungibleAddress.get())),
                 sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
-                atomicBatchDefaultOperator(
-                                // Test Case 1: Signer paying and signing a token burn transaction,
-                                // SIGNER → call → CONTRACT → call → PRECOMPILE
-                                // The signer and the token don't have updated keys
-                                contractCall(
-                                                MIXED_BURN_TOKEN,
-                                                "burnToken",
-                                                BigInteger.valueOf(amountToBurn),
-                                                new long[0])
-                                        .via(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                                        .gas(GAS_TO_OFFER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .payingWith(SIGNER)
-                                        .signedBy(SIGNER))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                // verify that the total supply of the tokens is not affected
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount),
-                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                        .andAllChildRecords()
-                        .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged(),
+
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of MINT_CONTRACT
                 // contract. MINT_CONTRACT is used only as a "wrong" contract id
                 newKeyNamed(TRESHOLD_KEY_WITH_SIGNER_KEY)
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_CONTRACT))),
                 // Update the signer of the transaction to have the threshold key with the wrong contract id
                 cryptoUpdate(SIGNER).key(TRESHOLD_KEY_WITH_SIGNER_KEY),
+
+                // Test Case 2: Signer paying and signing a token burn transaction, when the token
+                // is expected to  be burned by the token treasury
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The signer and the token have a threshold key with the signer's public key
+                // and the wrong contract id (MINT_CONTRACT)
                 atomicBatchDefaultOperator(
                                 // Update the token's supply to have the threshold key with the wrong contract id
                                 tokenUpdate(FUNGIBLE_TOKEN)
                                         .supplyKey(TRESHOLD_KEY_WITH_SIGNER_KEY)
                                         .signedByPayerAnd(TOKEN_TREASURY),
-                                // Test Case 2: Signer paying and signing a token burn transaction, when the token
-                                // is expected to  be burned by the token treasury
-                                // SIGNER → call → CONTRACT → call → PRECOMPILE
-                                // The signer and the token have a threshold key with the signer's public key
-                                // and the wrong contract id (MINT_CONTRACT)
                                 contractCall(
                                                 MIXED_BURN_TOKEN,
                                                 "burnToken",
@@ -375,30 +411,40 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                                 new long[0])
                                         .via(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                                         .gas(GAS_TO_OFFER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .signedBy(SIGNER)
                                         .payingWith(SIGNER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                        .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
                         .andAllChildRecords()
-                        .logged(),
+                        .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security004FungibleTokenBurnNegativeCase3() {
+        final var amountToBurn = 5L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
+
                 // Create a key with thresh 1/2 with sigs: new ed25519 key, contractId of MIXED_BURN_TOKEN
                 // contract
                 // Here the key has the contract`id of the correct contract
                 newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
                 // Update the Signer with the correct threshold key
                 cryptoUpdate(SIGNER).key(THRESHOLD_KEY),
+                // Test Case 3: Signer paying and signing a token burn transaction, when the token
+                // is expected to  be burned by the token treasury account
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The token has no updated supply key. The signer has the correct threshold key
                 atomicBatchDefaultOperator(
                                 // Set the token's supply key to the initial one
                                 tokenUpdate(FUNGIBLE_TOKEN)
                                         .supplyKey(TOKEN_TREASURY)
                                         .signedByPayerAnd(TOKEN_TREASURY),
-                                // Test Case 3: Signer paying and signing a token burn transaction, when the token
-                                // is expected to  be burned by the token treasury account
-                                // SIGNER → call → CONTRACT → call → PRECOMPILE
-                                // The token has no updated supply key. The signer has the correct threshold key
                                 contractCall(
                                                 MIXED_BURN_TOKEN,
                                                 "burnToken",
@@ -406,65 +452,50 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                                 new long[0])
                                         .via(TOKEN_HAS_NO_UPDATED_KEY)
                                         .gas(GAS_TO_OFFER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .signedBy(SIGNER)
                                         .payingWith(SIGNER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
-                        .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged(),
-                // Verify that the child records fail with the expected status
-                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
                         .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security004NonFungibleTokenBurnNegative() {
+    final Stream<DynamicTest> V2Security004NonFungibleTokenBurnNegativeCase1() {
         final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
         final var serialNumber1 = new long[] {1L};
-
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(nonFungibleAddress::set),
-                // Mint NFT, so that we can verify that the burn fails as expected
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
-                uploadInitCode(MIXED_BURN_TOKEN),
-                // contractCreate(MIXED_BURN_TOKEN),
-                uploadInitCode(MINT_CONTRACT),
-                sourcing(() -> contractCreate(MINT_CONTRACT, nonFungibleAddress.get())),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
                 sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
+                // Test Case 1: Signer paying and signing a token burn transaction,
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The signer and the token don't have updated keys
                 atomicBatchDefaultOperator(
-                                // Test Case 1: Signer paying and signing a token burn transaction,
-                                // SIGNER → call → CONTRACT → call → PRECOMPILE
-                                // The signer and the token don't have updated keys
                                 contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
                                         .via(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                                         .gas(GAS_TO_OFFER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .payingWith(SIGNER)
-                                        .signedBy(SIGNER))
+                                        .payingWith(SIGNER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged(),
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security004NonFungibleTokenBurnNegativeCase2() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        final var serialNumber1 = new long[] {1L};
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
+                sourcing(() -> contractCreate(MINT_CONTRACT, nonFungibleAddress.get())),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contract id of MINT_CONTRACT
                 // contract. MINT_CONTRACT is only used as a "wrong" contractId
                 // Here the key has the contract`id of the wrong contract
@@ -472,83 +503,72 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                         .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_CONTRACT))),
                 // Update the signer of the transaction to have the threshold key with the wrong contract id
                 cryptoUpdate(SIGNER).key(TRESHOLD_KEY_WITH_SIGNER_KEY),
+                // Test Case 2: Signer paying and signing a token burn transaction, when the token
+                // is expected to  be burned by the token treasury account
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The signer and the token have a threshold key with the signer's public key
+                // and the wrong contract id
                 atomicBatchDefaultOperator(
                                 // Update the token's supply to have the threshold key with the wrong contract id
                                 tokenUpdate(NON_FUNGIBLE_TOKEN)
                                         .supplyKey(TRESHOLD_KEY_WITH_SIGNER_KEY)
                                         .signedByPayerAnd(TOKEN_TREASURY),
-                                // Test Case 2: Signer paying and signing a token burn transaction, when the token
-                                // is expected to  be burned by the token treasury account
-                                // SIGNER → call → CONTRACT → call → PRECOMPILE
-                                // The signer and the token have a threshold key with the signer's public key
-                                // and the wrong contract id
                                 contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
                                         .via(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                                         .gas(GAS_TO_OFFER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .signedBy(SIGNER)
                                         .payingWith(SIGNER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged(),
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security004NonFungibleTokenBurnNegativeCase3() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        final var serialNumber1 = new long[] {1L};
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
                 // Create a key with thresh 1/2 with sigs: new ed25519 key, contractId of MIXED_BURN_TOKEN
                 // contract
                 // Here the key has the contract`id of the correct contract
                 newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
                 // Update the Signer with the correct threshold key
                 cryptoUpdate(SIGNER).key(THRESHOLD_KEY),
+                // Test Case 3: Signer paying and signing a token burn transaction, when the token
+                // is expected to  be burned by the token treasury account
+                // SIGNER → call → CONTRACT → call → PRECOMPILE
+                // The token has no updated supply key. The signer has the correct threshold key
                 atomicBatchDefaultOperator(
                                 // Set the token's supply key to the initial one
                                 tokenUpdate(NON_FUNGIBLE_TOKEN)
                                         .supplyKey(TOKEN_TREASURY)
                                         .signedByPayerAnd(TOKEN_TREASURY),
-                                // Test Case 3: Signer paying and signing a token burn transaction, when the token
-                                // is expected to  be burned by the token treasury account
-                                // SIGNER → call → CONTRACT → call → PRECOMPILE
-                                // The token has no updated supply key. The signer has the correct threshold key
                                 contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.valueOf(0), serialNumber1)
                                         .via(TOKEN_HAS_NO_UPDATED_KEY)
                                         .gas(GAS_TO_OFFER)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .signedBy(SIGNER)
                                         .payingWith(SIGNER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged(),
-                // Verify that the child records fail with the expected status
-                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
-                        .andAllChildRecords()
                         .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security039NonFungibleTokenWithDelegateContractKeyCanNotBurnFromDelegatecall() {
+    final Stream<DynamicTest> V2Security039NftWithContractIdKeyCanNotBurnFromDelegateCallCase1() {
         final var serialNumber1 = new long[] {1L};
         final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(nonFungibleAddress::set),
-                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
-                uploadInitCode(MIXED_BURN_TOKEN),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
                 sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MIXED_BURN_TOKEN)),
                 tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
@@ -563,14 +583,25 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         serialNumber1)
                                 .via(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .signedBy(TOKEN_TREASURY)
                                 .payingWith(TOKEN_TREASURY))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 // Assert the token is NOT burned from the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L),
+                emptyChildRecordsCheck(
+                        DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security039NftWithContractIdKeyCanNotBurnFromDelegateCallCase2() {
+        final var serialNumber1 = new long[] {1L};
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8("1"))),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, nonFungibleAddress.get())),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of
                 // BURN_TOKEN_VIA_DELEGATE_CALL contract
                 newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
@@ -592,37 +623,22 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         serialNumber1)
                                 .via(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .signedBy(SIGNER)
                                 .payingWith(SIGNER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                 // Assert the token is NOT burned from the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L),
-                // Verify that each test case has 1 top level call with the correct status
-                // NOTE: the used contract will revert when the token is not burned.
-                // The receipt has the revert error message.
-                emptyChildRecordsCheck(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
                 emptyChildRecordsCheck(
                         DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security039FungibleTokenWithDelegateContractKeyCanNotBurnFromDelegatecall() {
+    final Stream<DynamicTest> V2Security039FungibleWithContractIdKeyCanNotBurnFromDelegateCallCase1() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
-        final var initialAmount = 20L;
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(initialAmount)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
-                uploadInitCode(MIXED_BURN_TOKEN),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MIXED_BURN_TOKEN)),
                 tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
@@ -637,14 +653,24 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         new long[0])
                                 .via(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .signedBy(TOKEN_TREASURY)
                                 .payingWith(TOKEN_TREASURY))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
                 // Assert the token is NOT burned from the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, initialAmount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, INITIAL_SUPPLY),
+                emptyChildRecordsCheck(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security039FungibleWithContractIdKeyCanNotBurnFromDelegateCallCase2() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                sourcing(() -> contractCreate(MIXED_BURN_TOKEN, fungibleAddress.get())),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MIXED_BURN_TOKEN)),
+                tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 2: A Signer paying and signing a FUNGIBLE token burn transaction
                 // SIGNER → call → CONTRACT → delegatecall → PRECOMPILE
                 // The token and the signer have updated keys
@@ -656,18 +682,12 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         new long[0])
                                 .via(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS)
                                 .gas(GAS_TO_OFFER)
-                                .hasRetryPrecheckFrom(BUSY)
-                                .signedBy(SIGNER)
                                 .payingWith(SIGNER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT burned
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(INITIAL_SUPPLY),
                 // Assert the token is NOT burned from the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, initialAmount),
-                // Verify that each test case has 1 top level call with the correct status
-                // NOTE: the used contract will revert when the token is not burned.
-                // The receipt has the revert error message.
-                emptyChildRecordsCheck(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, INITIAL_SUPPLY),
                 emptyChildRecordsCheck(
                         DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS, CONTRACT_REVERT_EXECUTED));
     }
@@ -682,25 +702,12 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
 
         return hapiTest(
                 newKeyNamed(SIGNER),
-                uploadInitCode(ORDINARY_CALLS_CONTRACT),
                 contractCreate(ORDINARY_CALLS_CONTRACT),
                 newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
                 cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(100)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(SIGNER)
-                        .supplyKey(THRESHOLD_KEY)
-                        .exposingAddressTo(fungibleAddress::set),
-                tokenCreate(FUNGIBLE_TOKEN_2)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(100)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(SIGNER)
-                        .supplyKey(SIGNER)
-                        .exposingAddressTo(fungibleAddress2::set),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN_2, fungibleAddress2),
                 sourcing(() -> atomicBatchDefaultOperator(
                         contractCall(
                                         ORDINARY_CALLS_CONTRACT,
@@ -850,7 +857,6 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                         .gas(GAS_TO_OFFER))),
                 newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
                 tokenUpdate(FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
-                getTxnRecord(CREATION_TX).logged(),
                 atomicBatchDefaultOperator(
                         contractCall(MIXED_BURN_TOKEN, BURN_TOKEN_WITH_EVENT, BigInteger.ZERO, new long[0])
                                 .payingWith(ALICE)
@@ -1025,10 +1031,38 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1));
     }
 
+    /* --------------- Helper methods --------------- */
+
     private HapiAtomicBatch atomicBatchDefaultOperator(HapiTxnOp<?>... ops) {
         return atomicBatch(Arrays.stream(ops)
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))
                 .payingWith(DEFAULT_BATCH_OPERATOR);
+    }
+
+    private HapiTokenCreate createFungibleAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(TOKEN_TREASURY)
+                .supplyKey(TOKEN_TREASURY)
+                .adminKey(TOKEN_TREASURY)
+                .initialSupply(INITIAL_SUPPLY)
+                .exposingAddressTo(addressRef::set);
+    }
+
+    private HapiTokenCreate createNftAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        return tokenCreate(tokenName)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0)
+                .treasury(TOKEN_TREASURY)
+                .supplyKey(TOKEN_TREASURY)
+                .adminKey(TOKEN_TREASURY)
+                .exposingAddressTo(addressRef::set);
+    }
+
+    private HapiCryptoCreate createAccountAndExposeAddr(String accountName, AtomicReference<Address> addressRef) {
+        return cryptoCreate(accountName)
+                .balance(ONE_MILLION_HBARS)
+                .exposingCreatedIdTo(id -> addressRef.set(asHeadlongAddress(asAddress(id))));
     }
 }

@@ -562,6 +562,16 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                 .exposingAddressTo(addressRef::set);
     }
 
+    private HapiTokenCreate createNftAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        return tokenCreate(tokenName)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0)
+                .treasury(TOKEN_TREASURY)
+                .supplyKey(TOKEN_TREASURY)
+                .adminKey(TOKEN_TREASURY)
+                .exposingAddressTo(addressRef::set);
+    }
+
     private HapiTokenCreate createFrozenTokenAndExposeAdr(
             String tokenName, AtomicReference<Address> addressRef, boolean freezeDefault) {
         final var create = createFungibleAndExposeAdr(tokenName, addressRef);
@@ -579,15 +589,5 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
         return cryptoCreate(accountName)
                 .balance(ONE_MILLION_HBARS)
                 .exposingCreatedIdTo(id -> addressRef.set(asHeadlongAddress(asAddress(id))));
-    }
-
-    private HapiTokenCreate createNftAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
-        return tokenCreate(tokenName)
-                .tokenType(NON_FUNGIBLE_UNIQUE)
-                .initialSupply(0)
-                .treasury(TOKEN_TREASURY)
-                .supplyKey(TOKEN_TREASURY)
-                .adminKey(TOKEN_TREASURY)
-                .exposingAddressTo(addressRef::set);
     }
 }
