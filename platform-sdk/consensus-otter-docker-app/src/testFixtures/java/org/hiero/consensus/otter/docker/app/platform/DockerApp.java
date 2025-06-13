@@ -154,6 +154,15 @@ public class DockerApp {
     }
 
     /**
+     * Destroys the application. Once this method is called, the application cannot be used again.
+     *
+     * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
+     */
+    public void destroy() throws InterruptedException {
+        platform.destroy();
+    }
+
+    /**
      * Encodes a {@link StateSignatureTransaction}
      *
      * @param stateSignatureTransaction the transaction to encode

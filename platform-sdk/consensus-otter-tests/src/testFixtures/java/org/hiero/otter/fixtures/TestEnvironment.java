@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 
 /**
  * Interface representing the test environment of an Otter test.
@@ -40,8 +41,9 @@ public interface TestEnvironment {
      * components are no longer usable. This method is idempotent, meaning that it is safe to call
      * multiple times.
      *
+     * @throws IOException if an I/O error occurs during the destruction process
      * @throws InterruptedException if the thread is interrupted while waiting for the destruction
      * process to complete causing the test to fail.
      */
-    void destroy() throws InterruptedException;
+    void destroy() throws IOException, InterruptedException;
 }

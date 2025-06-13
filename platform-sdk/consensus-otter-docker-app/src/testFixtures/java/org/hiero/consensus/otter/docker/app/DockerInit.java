@@ -9,6 +9,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
@@ -29,9 +30,14 @@ public class DockerInit {
 
     private final NettyRestServer server;
 
-    private NodeId selfId;
-    private KeysAndCerts keysAndCerts;
+    @Nullable
     private DockerApp app;
+
+    @Nullable
+    private NodeId selfId;
+
+    @Nullable
+    private KeysAndCerts keysAndCerts;
 
     private DockerInit() {
         server = new NettyRestServer(8080);
@@ -70,6 +76,12 @@ public class DockerInit {
         });
 
         server.addPost("/start-node", (req, body) -> {
+            if (app != null) {
+                throw new IllegalStateException("Node is already started");
+            }
+            if (selfId == null || keysAndCerts == null) {
+                throw new IllegalStateException("SelfID must be set before starting the node");
+            }
             try {
                 final ObjectMapper mapper = new ObjectMapper();
                 final JsonNode json = mapper.readTree(body);
@@ -89,6 +101,19 @@ public class DockerInit {
             } catch (final IOException | ParseException | ClassCastException e) {
                 throw new IllegalArgumentException(e);
             }
+        });
+
+        server.addPost("/destroy-node", (req, body) -> {
+            if (app == null) {
+                throw new IllegalStateException("Node is not started");
+            }
+            try {
+                app.destroy();
+            } catch (final InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            app = null;
+            return Map.of("node", "destroyed");
         });
 
         server.addGet("/logs", req -> InMemoryAppender.getLogs());

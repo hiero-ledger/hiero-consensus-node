@@ -7,6 +7,10 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
@@ -180,8 +184,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-            throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
-            throwIfIn(LifeCycle.DESTROYED, "Node has already been destroyed.");
+            throwIfIn(RUNNING, "Node has already been started.");
+            throwIfIn(DESTROYED, "Node has already been destroyed.");
 
             // Start node from current state
             doStartNode();
@@ -207,9 +211,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
 
-            throwIfIn(LifeCycle.INIT, "Node has not been started yet.");
-            throwIfIn(LifeCycle.SHUTDOWN, "Node has been shut down.");
-            throwIfIn(LifeCycle.DESTROYED, "Node has been destroyed.");
+            throwIfIn(INIT, "Node has not been started yet.");
+            throwIfIn(SHUTDOWN, "Node has been shut down.");
+            throwIfIn(DESTROYED, "Node has been destroyed.");
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
 
             platform.createTransaction(transaction);
@@ -270,7 +274,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      */
     @Override
     public void tick(@NonNull final Instant now) {
-        if (lifeCycle == LifeCycle.RUNNING) {
+        if (lifeCycle == RUNNING) {
             assert model != null; // model must be initialized if lifeCycle is STARTED
             try {
                 ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
@@ -293,7 +297,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             resultsCollector.destroy();
             doShutdownNode();
-            lifeCycle = LifeCycle.DESTROYED;
+            lifeCycle = DESTROYED;
 
             logging.removeNodeLogging(selfId);
 
@@ -303,18 +307,15 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     }
 
     private void doShutdownNode() throws InterruptedException {
-        if (lifeCycle == LifeCycle.RUNNING) {
+        if (lifeCycle == RUNNING) {
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            assert platformWiring != null; // platformWiring must be initialized if lifeCycle is STARTED
-            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
-            platformWiring.stop();
-            platform.getNotificationEngine().unregisterAll();
+            platform.destroy();
             platformStatus = null;
             platform = null;
             platformWiring = null;
             model = null;
         }
-        lifeCycle = LifeCycle.SHUTDOWN;
+        lifeCycle = SHUTDOWN;
     }
 
     private void doStartNode() {
@@ -395,7 +396,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         platform.getNotificationEngine().register(PlatformStatusChangeListener.class, platformStatusChangeListener);
         platform.start();
 
-        lifeCycle = LifeCycle.RUNNING;
+        lifeCycle = RUNNING;
     }
 
     /**

@@ -139,8 +139,11 @@ public class ContainerNetwork extends AbstractNetwork {
     /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
+     *
+     * @throws IOException if an I/O error occurs during the shutdown process
+     * @throws InterruptedException if the thread is interrupted while waiting for the shutdown process to complete
      */
-    void destroy() {
+    void destroy() throws IOException, InterruptedException {
         log.info("Destroying network...");
         transactionGenerator.stop();
         for (final ContainerNode node : nodes) {

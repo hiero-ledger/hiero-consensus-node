@@ -221,9 +221,19 @@ public class ContainerNode extends AbstractNode implements Node {
     /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
+     *
+     * @throws IOException if an I/O error occurs while sending the destroy command
+     * @throws InterruptedException if the thread is interrupted while waiting for the command to complete
      */
-    void destroy() {
-        container.stop();
+    void destroy() throws IOException, InterruptedException {
+        if (lifeCycle == RUNNING) {
+            new PostCommand()
+                    .withPath("destroy-node")
+                    .withErrorMessage("Failed to destroy node")
+                    .send();
+        }
+        platformStatus = null;
+        lifeCycle = DESTROYED;
     }
 
     /**
