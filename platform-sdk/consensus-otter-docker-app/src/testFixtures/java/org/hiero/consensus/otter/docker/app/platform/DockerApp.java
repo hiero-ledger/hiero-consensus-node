@@ -22,6 +22,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -32,10 +33,12 @@ import com.swirlds.platform.util.BootstrapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
@@ -50,6 +53,7 @@ public class DockerApp {
     private static final String SWIRLD_NAME = "123";
 
     private final Platform platform;
+    private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
 
     /**
      * Creates a new DockerApp instance with the specified parameters.
@@ -129,6 +133,9 @@ public class DockerApp {
                 .withKeysAndCerts(keysAndCerts)
                 .withSystemTransactionEncoderCallback(DockerApp::encodeSystemTransaction)
                 .build();
+
+        platform.getNotificationEngine()
+                .register(PlatformStatusChangeListener.class, newStatus -> status.set(newStatus.getNewStatus()));
     }
 
     /**
@@ -136,6 +143,14 @@ public class DockerApp {
      */
     public void start() {
         platform.start();
+    }
+
+    /**
+     * Gets the current value for the {@link PlatformStatus} holder
+     * @return current {@link PlatformStatus} maybe {@code null}
+     */
+    public PlatformStatus getStatus() {
+        return status.get();
     }
 
     /**

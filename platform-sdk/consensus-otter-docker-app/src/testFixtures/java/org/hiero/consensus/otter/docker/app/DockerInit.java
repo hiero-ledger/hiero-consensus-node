@@ -31,6 +31,7 @@ public class DockerInit {
 
     private NodeId selfId;
     private KeysAndCerts keysAndCerts;
+    private DockerApp app;
 
     private DockerInit() {
         server = new NettyRestServer(8080);
@@ -81,7 +82,7 @@ public class DockerInit {
                 final Map<String, String> overriddenProperties =
                         (Map<String, String>) mapper.convertValue(json.get("properties"), Map.class);
 
-                final DockerApp app = new DockerApp(selfId, version, roster, keysAndCerts, overriddenProperties);
+                app = new DockerApp(selfId, version, roster, keysAndCerts, overriddenProperties);
                 app.start();
 
                 return Map.of("node", "started");
@@ -91,6 +92,8 @@ public class DockerInit {
         });
 
         server.addGet("/logs", req -> InMemoryAppender.getLogs());
+
+        server.addGet("/status", req -> app.getStatus());
     }
 
     private static KeysAndCerts generateKeysAndCerts(@NonNull final NodeId selfId) {
