@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
+
+  <Filters>
+    <MarkerFilter marker="SYNC_INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
+    <MarkerFilter marker="OBJECT_STREAM_FILE" onMatch="DENY" onMismatch="NEUTRAL"/>
+  </Filters>
+
   <Properties>
     <Property name="logDir">logs</Property>
   </Properties>

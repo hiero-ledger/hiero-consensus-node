@@ -71,13 +71,13 @@ public class ContainerNode extends AbstractNode implements Node {
     public ContainerNode(@NonNull final NodeId selfId, @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage) throws IOException, InterruptedException {
         super(selfId);
+        final String alias = "node" + selfId;
 
         final Consumer<OutputFrame> logWriter = frame ->
-                log.log(frame.getType() == OutputType.STDERR ? Level.ERROR : Level.INFO, frame.getUtf8String());
+                log.log(frame.getType() == OutputType.STDERR ? Level.ERROR : Level.INFO, "%s: %s".formatted(alias, frame.getUtf8StringWithoutLineEnding()));
         final PlatformStatusLogParser platformStatusLogParser =
                 new PlatformStatusLogParser(newValue -> platformStatus = newValue);
 
-        final String alias = "node" + selfId;
         this.container = new GenericContainer<>(dockerImage)
                 .withNetwork(network)
                 .withNetworkAliases(alias)
