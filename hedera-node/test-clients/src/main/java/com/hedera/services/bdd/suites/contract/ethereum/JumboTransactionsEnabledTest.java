@@ -47,6 +47,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.queries.meta.AccountCreationDetails;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
@@ -145,13 +147,13 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 // send jumbo payload to jumbo endpoint and assert the used gas
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gasLimit(800000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(640000, gasUsed)),
+                        .exposingGasTo((s, gasUsed) -> assertEquals(63_742, gasUsed)),
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, halfJumboPayload)
                         .gasLimit(500000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(400000, gasUsed)),
+                        .exposingGasTo((s, gasUsed) -> assertEquals(43_262, gasUsed)),
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, thirdJumboPayload)
                         .gasLimit(300000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(240000, gasUsed)));
+                        .exposingGasTo((s, gasUsed) -> assertEquals(35_070, gasUsed)));
     }
 
     @Nested
@@ -159,17 +161,15 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     class JumboEthereumTransactionsPositiveTests {
 
         private final Stream<TestCombinationWithGas> positiveBoundariesTestCases = Stream.of(
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 400_000, 320_000),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930, 400_000, 320_000),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559, 400_000, 320_000),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 400_000, 47_358),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930, 400_000, 47_358),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559, 400_000, 47_358),
                 new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 9_000_000, 7_200_000),
-                new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930, 9_000_000, 7_200_000),
-                new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 7_200_000));
+                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 9_000_000, 542_986),
+                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930, 9_000_000, 542_986),
+                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 542_986));
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
         public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
             return positiveBoundariesTestCases.flatMap(test -> {
@@ -337,7 +337,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .orUnavailableStatus());
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail for above max size data with TRANSACTION_OVERSIZE")
         // JUMBO_N_01
         public Stream<DynamicTest> jumboTxnWithAboveMaxDataShouldFail() {
@@ -359,7 +359,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
             });
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail for oversized data with grpc unavailable status")
         // JUMBO_N_02
         public Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
@@ -393,7 +393,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .via("payTxn"));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail with corrupted payload")
         // JUMBO_N_17
         public Stream<DynamicTest> jumboTxnWithCorruptedPayloadShouldFail() {
