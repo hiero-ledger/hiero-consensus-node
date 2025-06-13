@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator.MINT_V2;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -29,29 +28,26 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
-import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -74,9 +70,9 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
     public static final String TRESHOLD_KEY_WITH_SIGNER_KEY =
             "tresholdKeyWithIncorrectContractAndCorrectSignerPublicKey";
     public static final String THRESHOLD_KEY = "Tresh1WithRandomEdKeyAndCorrectContractID";
-    private static final String SIGNER = "anybody";
-    private static final String RECEIVER = "anybody";
-    private static final String SIGNER2 = "anybody";
+    private static final String SIGNER = "anybody1";
+    private static final String RECEIVER = "anybody2";
+    private static final String SIGNER2 = "anybody3";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS = "signerAndTokenHaveNoUpdatedKeys";
     private static final String DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID =
@@ -116,40 +112,33 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
-        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-        testLifecycle.doAdhoc(uploadInitCode(HTS_CALLS, MINT_CONTRACT), contractCreate(HTS_CALLS));
-    }
-
-    // Create keys and accounts FREEZE_KEY, KYC_KEY, TOKEN_TREASURY, SIGNER and ACCOUNT
-    // Create tokens FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN, FROZEN_TOKEN, UNFROZEN_TOKEN and KYC_TOKEN
-    private static HapiSpecOperation[] createEntities() {
-        return List.of(
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(SIGNER2),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS))
-                .toArray(new HapiSpecOperation[0]);
+                "atomicBatch.isEnabled", "true",
+                "atomicBatch.maxNumberOfTransactions", "50",
+                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.doAdhoc(
+                uploadInitCode(
+                        HTS_CALLS,
+                        MINT_CONTRACT,
+                        MINT_TOKEN_VIA_DELEGATE_CALL,
+                        MINT_TOKEN_VIA_STATIC_CALL,
+                        MINT_TOKEN_VIA_NESTED_STATIC_CALL,
+                        SERVICE_CONTRACT,
+                        MINT_TOKEN_VIA_CALLCODE),
+                contractCreate(HTS_CALLS),
+                contractCreate(MINT_TOKEN_VIA_STATIC_CALL),
+                contractCreate(SERVICE_CONTRACT),
+                contractCreate(MINT_TOKEN_VIA_CALLCODE),
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryPositive() {
+    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryPositiveCase1() {
         final var amount = 10L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
-
-        return hapiTest(flattened(
-                createEntities(),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
+        return hapiTest(
+                cryptoCreate(SIGNER),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
 
                 // Create a key with shape contract and the contractId of HTSCalls contract
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
@@ -172,6 +161,23 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount),
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryPositiveCase2() {
+        final var amount = 10L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+
+        return hapiTest(
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                // Create a key with shape contract and the contractId of HTSCalls contract
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
+                // Update the token supply key to with the created threshold key
+                tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 2: the Treasury account is paying and signing a token mint transaction,
                 // where the token will be minted in the token treasury account
                 // SIGNER → call → CONTRACT → call → PRECOMPILE
@@ -187,9 +193,27 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                         .gas(GAS_TO_OFFER)
                         .payingWith(TOKEN_TREASURY))),
                 // Assert that the token is minted - total supply should be increased
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(2 * amount),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 2 * amount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount),
+                getTxnRecord(TREASURY_MINTS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryPositiveCase3() {
+        final var amount = 10L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER),
+                cryptoCreate(SIGNER2).balance(ONE_HUNDRED_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+
+                // Create a key with shape contract and the contractId of HTSCalls contract
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
+                // Update the token supply key to with the created threshold key
+                tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 3: one account  paying and another one signing a token mint transaction,
                 // where the token will be minted in the token treasury account
                 // SIGNER → call → CONTRACT → call → PRECOMPILE
@@ -204,9 +228,23 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                         .signedBy(SIGNER2, TOKEN_TREASURY)
                         .payingWith(SIGNER2))),
                 // Assert that the token is minted - total supply should be increased
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(3 * amount),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 3 * amount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount),
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryPositiveCase4() {
+        final var amount = 10L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoCreate(SIGNER),
+                cryptoCreate(SIGNER2).balance(ONE_HUNDRED_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of HTSCalls contract
                 newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, HTS_CALLS))),
                 tokenUpdate(FUNGIBLE_TOKEN)
@@ -229,38 +267,21 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                         .gas(GAS_TO_OFFER)
                         .payingWith(SIGNER))),
                 // Assert that the token is minted - total supply should be increased
-                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(4 * amount),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 4 * amount),
-                // Verify that each test case has 1 successful child record
-                getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(TREASURY_MINTS)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount),
                 getTxnRecord(SIGNER_MINTS_WITH_THRESHOLD_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS))));
+                        .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryPositive() {
+    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryPositiveCase1() {
         final var amount = 1;
         final AtomicReference<Address> nonFungible = new AtomicReference<>();
-
-        return hapiTest(flattened(
-                createEntities(),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(nonFungible::set),
+        return hapiTest(
+                cryptoCreate(SIGNER),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungible),
                 sourcing(() -> contractCreate(MINT_CONTRACT, nonFungible.get())),
                 // Create a key with shape contract and the contractId of HTSCalls contract
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
@@ -280,6 +301,21 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, amount),
+                getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryPositiveCase2() {
+        final var amount = 1;
+        final AtomicReference<Address> nonFungible = new AtomicReference<>();
+        return hapiTest(
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungible),
+                sourcing(() -> contractCreate(MINT_CONTRACT, nonFungible.get())),
+                // Create a key with shape contract and the contractId of HTSCalls contract
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
+                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 2: Treasury account is paying and signing a token mint transaction,
                 // where the token will be minted in the token treasury account
                 // SIGNER → call → CONTRACT → call → PRECOMPILE
@@ -293,9 +329,26 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                         .gas(GAS_TO_OFFER)
                         .payingWith(TOKEN_TREASURY))),
                 // Assert that the token is minted - total supply should be increased
-                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(2 * amount),
+                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 2 * amount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, amount),
+                getTxnRecord(TREASURY_MINTS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryPositiveCase3() {
+        final var amount = 1;
+        final AtomicReference<Address> nonFungible = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER),
+                cryptoCreate(SIGNER2),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungible),
+                sourcing(() -> contractCreate(MINT_CONTRACT, nonFungible.get())),
+                // Create a key with shape contract and the contractId of HTSCalls contract
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
+                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 3: one account  paying and another one signing a token mint transaction,
                 // where the token will be minted in the token treasury account
                 // SIGNER → call → CONTRACT → call → PRECOMPILE
@@ -307,12 +360,26 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                         .gas(GAS_TO_OFFER)
                         .signedBy(SIGNER2, TOKEN_TREASURY)
                         .payingWith(SIGNER2))),
-                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(3 * amount),
+                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Assert that the token is minted - total supply should be increased
-                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(3 * amount),
+                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 3 * amount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, amount),
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryPositiveCase4() {
+        final var amount = 1;
+        final AtomicReference<Address> nonFungible = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER),
+                cryptoCreate(SIGNER2),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungible),
+                sourcing(() -> contractCreate(MINT_CONTRACT, nonFungible.get())),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of HTSCalls contract
                 newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, HTS_CALLS))),
                 tokenUpdate(NON_FUNGIBLE_TOKEN)
@@ -334,43 +401,21 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                         .gas(GAS_TO_OFFER)
                         .payingWith(SIGNER))),
                 // Assert that the token is minted - total supply should be increased
-                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(4 * amount),
+                getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 // Assert the token is mined in the token treasury account
-                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 4 * amount),
-                // Verify that each test case has 1 successful child record
-                getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(TREASURY_MINTS)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
-                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, amount),
                 getTxnRecord(SIGNER_MINTS_WITH_THRESHOLD_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS))));
+                        .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryNegative() {
+    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryNegativeCase1() {
         final var amount = 10L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
-
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
-                uploadInitCode(HTS_CALLS),
-                contractCreate(HTS_CALLS),
-                uploadInitCode(MINT_CONTRACT),
-                sourcing(() -> contractCreate(MINT_CONTRACT, fungibleAddress.get())),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 // Test Case 1: Signer paying and signing a token mint transaction, when the token
                 // is expected to  be minted in the token treasury account
                 // SIGNER → call → CONTRACT → call → PRECOMPILE
@@ -388,11 +433,25 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0L),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
+                // Verify that each test case has 1 child record with the correct error message
+                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryNegativeCase2() {
+        final var amount = 10L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                sourcing(() -> contractCreate(MINT_CONTRACT, fungibleAddress.get())),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of MINT_CONTRACT
-                // contract
                 // Here the key has the contract`id of the wring contract
                 newKeyNamed(TRESHOLD_KEY_WITH_SIGNER_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_CONTRACT))),
-                // Update the signer of the transaction to have the threshold key with the wotng contract id
+                // Update the signer of the transaction to have the threshold key with the wrong contract id
                 cryptoUpdate(SIGNER).key(TRESHOLD_KEY_WITH_SIGNER_KEY),
                 // Update the token's supply to have the threshold key witht he wrong contract id
                 tokenUpdate(FUNGIBLE_TOKEN)
@@ -416,6 +475,18 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0L),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
+                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security002FungibleTokenMintInTreasuryNegativeCase3() {
+        final var amount = 10L;
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of HTS_CALLS contract
                 // Here the key has the contract`id of the correct contract
                 newKeyNamed(THRESHOLD_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, HTS_CALLS))),
@@ -440,38 +511,18 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0L),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
-                // Verify that each test case has 1 child record with the correct error message
-                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
                         .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryNegative() {
+    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryNegativeCase1() {
         final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
-
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(
-                                idLit -> nonFungibleAddress.set(asHeadlongAddress(asAddress(asToken(idLit))))),
-                uploadInitCode(HTS_CALLS),
-                contractCreate(HTS_CALLS),
-                uploadInitCode(MINT_CONTRACT),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
                 sourcing(() -> contractCreate(MINT_CONTRACT, nonFungibleAddress.get())),
-                newKeyNamed(THRESHOLD_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, HTS_CALLS))),
                 // Test Case 1: Signer paying and signing a token mint transaction, when the token
                 // is expected to  be minted in the token treasury account
                 // SIGNER → call → CONTRACT → call → PRECOMPILE
@@ -489,8 +540,21 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0L),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
+                // Verify that each test case has 1 child record with the correct error message
+                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                        .logged()
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryNegativeCase2() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                sourcing(() -> contractCreate(MINT_CONTRACT, nonFungibleAddress.get())),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of MINT_CONTRACT
-                // contract
                 // Here the key has the contract`id of the wring contract
                 newKeyNamed(TRESHOLD_KEY_WITH_SIGNER_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_CONTRACT))),
                 // Update the signer of the transaction to have the threshold key with the wotng contract id
@@ -517,8 +581,19 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0L),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
-                // Set the token's supply key to the initial one
-                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(TOKEN_TREASURY).signedByPayerAnd(TOKEN_TREASURY),
+                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryNegativeCase3() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                sourcing(() -> contractCreate(MINT_CONTRACT, nonFungibleAddress.get())),
+                newKeyNamed(THRESHOLD_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, HTS_CALLS))),
                 // Update the Signer with the correct threshold key
                 cryptoUpdate(SIGNER).key(THRESHOLD_KEY),
                 // Test Case 3: Signer paying and signing a token mint transaction, when the token
@@ -538,48 +613,22 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0L),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
-                // Verify that each test case has 1 child record with the correct error message
-                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                        .logged()
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
                         .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security035TokenWithDelegateContractKeyCanNotMintFromDelegateCall() {
+    final Stream<DynamicTest> V2Security035TokenWithDelegateContractKeyCanNotMintFromDelegateCallCase1() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
-        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(nonFungibleAddress::set),
-                uploadInitCode(MINT_TOKEN_VIA_DELEGATE_CALL),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 contractCreate(MINT_TOKEN_VIA_DELEGATE_CALL),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MINT_TOKEN_VIA_DELEGATE_CALL)),
                 tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
-                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 1: Treasury account paying and signing a FUNGIBLE token mint transaction, when the
-                // token
-                // is expected to  be minted in the token treasury account
+                // token is expected to  be minted in the token treasury account
                 // SIGNER → call → CONTRACT → delegatecall → PRECOMPILE
                 // The token has updated key
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
@@ -591,15 +640,25 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                 .via(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
                                 .payingWith(TOKEN_TREASURY))
-                        // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
+                childRecordsCheck(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security035TokenWithDelegateContractKeyCanNotMintFromDelegateCallCase2() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                contractCreate(MINT_TOKEN_VIA_DELEGATE_CALL),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MINT_TOKEN_VIA_DELEGATE_CALL)),
+                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 2: Treasury account paying and signing a NON FUNGIBLE token mint transaction, when
-                // the token
-                // is expected to  be minted in the token treasury account
+                // the token is expected to  be minted in the token treasury account
                 // SIGNER → call → CONTRACT → delegatecall → PRECOMPILE
                 // The token has updated key
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
@@ -611,12 +670,21 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                                 .via(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID)
                                 .gas(GAS_TO_OFFER)
                                 .payingWith(TOKEN_TREASURY))
-                        // Verify that the top level status of the transaction is CONTRACT_REVERT_EXECUTED
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Assert that the token is NOT minted - total supply should be 0
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
+                childRecordsCheck(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security035TokenWithDelegateContractKeyCanNotMintFromDelegateCallCase3() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                contractCreate(MINT_TOKEN_VIA_DELEGATE_CALL),
                 // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of
                 // MINT_TOKEN_VIA_DELEGATE_CALL contract
                 newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
@@ -625,11 +693,9 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 tokenUpdate(NON_FUNGIBLE_TOKEN)
                         .supplyKey(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
                         .signedByPayerAnd(TOKEN_TREASURY),
-                // Update the signer of the transaction to have the threshold key with the wotng contract id
                 cryptoUpdate(SIGNER).key(TRESHOLD_KEY_CORRECT_CONTRACT_ID),
                 // Test Case 3: A Signer paying and signing a NON FUNGIBLE token mint transaction, when the
-                // token
-                // is expected to  be minted in the token treasury account
+                // token is expected to  be minted in the token treasury account
                 // SIGNER → call → CONTRACT → delegatecall → PRECOMPILE
                 // The token and the signer have updated keys
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
@@ -647,7 +713,23 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
-                tokenUpdate(NON_FUNGIBLE_TOKEN)
+                childRecordsCheck(
+                        DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS, CONTRACT_REVERT_EXECUTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security035TokenWithDelegateContractKeyCanNotMintFromDelegateCallCase4() {
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
+                contractCreate(MINT_TOKEN_VIA_DELEGATE_CALL),
+                // Create a key with thresh 1/2 with sigs:  new ed25519 key, contractId of
+                // MINT_TOKEN_VIA_DELEGATE_CALL contract
+                newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
+                        .shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_TOKEN_VIA_DELEGATE_CALL))),
+                cryptoUpdate(SIGNER).key(TRESHOLD_KEY_CORRECT_CONTRACT_ID),
+                tokenUpdate(FUNGIBLE_TOKEN)
                         .supplyKey(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
                         .signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 4: A Signer paying and signing a FUNGIBLE token mint transaction, when the token
@@ -670,42 +752,16 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
-                // Verify that each test case has 1 top level call with the correct status
-                // NOTE: the used contract will revert when th token is not mined.
-                // The receipt has the revert error message.
-                childRecordsCheck(DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
-                childRecordsCheck(DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
-                childRecordsCheck(
-                        DELEGATE_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS, CONTRACT_REVERT_EXECUTED),
                 childRecordsCheck(
                         DELEGATE_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID_SIGNER_SIGNS, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security040TokenWithDelegateContractKeyCanNotMintFromStaticCall() {
+    final Stream<DynamicTest> V2Security040TokenWithDelegateContractKeyCanNotMintFromStaticCallCase1() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
-        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
-
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS),
-                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(nonFungibleAddress::set),
-                uploadInitCode(MINT_TOKEN_VIA_STATIC_CALL, MINT_TOKEN_VIA_NESTED_STATIC_CALL, SERVICE_CONTRACT),
-                contractCreate(MINT_TOKEN_VIA_STATIC_CALL),
-                contractCreate(SERVICE_CONTRACT),
+                cryptoCreate(SIGNER),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
@@ -732,6 +788,22 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
+                emptyChildRecordsCheck(STATIC_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security040TokenWithDelegateContractKeyCanNotMintFromStaticCallCase2() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(SIGNER),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                MINT_TOKEN_VIA_NESTED_STATIC_CALL,
+                                asHeadlongAddress(getNestedContractAddress(SERVICE_CONTRACT, spec))))),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MINT_TOKEN_VIA_NESTED_STATIC_CALL)),
+                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 // Test Case 2: Treasury account paying and signing a non fungible TOKEN MINT TRANSACTION,
                 // when the token is expected to be minted in the token treasury account
                 // SIGNER -> call -> CONTRACT -> static call -> PRECOMPILE
@@ -750,37 +822,16 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
-                emptyChildRecordsCheck(STATIC_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
                 emptyChildRecordsCheck(STATIC_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
-    final Stream<DynamicTest> V2Security040TokenWithDelegateContractKeyCanNotMintFromCallcode() {
+    final Stream<DynamicTest> V2Security040TokenWithDelegateContractKeyCanNotMintFromCallcodeCase1() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
-        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
         final String precompileAddress = "0000000000000000000000000000000000000167";
-
         return hapiTest(
-                newKeyNamed(THRESHOLD_KEY),
-                cryptoCreate(TOKEN_TREASURY).key(THRESHOLD_KEY).balance(THOUSAND_HBAR),
-                cryptoCreate(RECEIVER),
-                cryptoCreate(SIGNER).balance(THOUSAND_HBAR),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(fungibleAddress::set),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0)
-                        .treasury(TOKEN_TREASURY)
-                        .adminKey(TOKEN_TREASURY)
-                        .supplyKey(TOKEN_TREASURY)
-                        .exposingAddressTo(nonFungibleAddress::set),
-                uploadInitCode(MINT_TOKEN_VIA_CALLCODE),
-                contractCreate(MINT_TOKEN_VIA_CALLCODE),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS),
+                createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 newKeyNamed(CONTRACT_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_TOKEN_VIA_CALLCODE))),
                 tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 cryptoUpdate(TOKEN_TREASURY).key(CONTRACT_KEY),
@@ -804,16 +855,27 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
-                // `THRESHOLD_KEY` is the already existing admin key for `NON_FUNGIBLE_TOKEN` and we need to
-                // sign with it
-                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(THRESHOLD_KEY),
+                childRecordsCheck(CALLCODE_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> V2Security040TokenWithDelegateContractKeyCanNotMintFromCallcodeCase2() {
+        final AtomicReference<Address> nonFungibleAddress = new AtomicReference<>();
+        final String precompileAddress = "0000000000000000000000000000000000000167";
+
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS),
+                createNftAndExposeAdr(NON_FUNGIBLE_TOKEN, nonFungibleAddress),
+                newKeyNamed(CONTRACT_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_TOKEN_VIA_CALLCODE))),
+                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                cryptoUpdate(TOKEN_TREASURY).key(CONTRACT_KEY),
                 // Test Case 2: Treasury account paying and signing a non fungible TOKEN MINT TRANSACTION,
                 // when the token is expected to be minted in the token treasury account
                 // SIGNER -> call -> CONTRACT -> callcode -> PRECOMPILE
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         MINT_TOKEN_VIA_CALLCODE,
                                         "callCodeToContractWithoutAmount",
-                                        asHeadlongAddress("0000000000000000000000000000000000000167"),
+                                        asHeadlongAddress(precompileAddress),
                                         Bytes.wrap(MINT_V2.encodeCallWithArgs(
                                                                 nonFungibleAddress.get(), 1L, TEST_METADATA_2)
                                                         .array())
@@ -828,14 +890,35 @@ public class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                 // Assert the token is NOT mined in the token treasury account
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
-                childRecordsCheck(CALLCODE_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
                 childRecordsCheck(CALLCODE_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
     }
+
+    /* --------------- Helper methods --------------- */
 
     private HapiAtomicBatch atomicBatchDefaultOperator(HapiTxnOp<?>... ops) {
         return atomicBatch(Arrays.stream(ops)
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))
                 .payingWith(DEFAULT_BATCH_OPERATOR);
+    }
+
+    private HapiTokenCreate createFungibleAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(TOKEN_TREASURY)
+                .supplyKey(TOKEN_TREASURY)
+                .adminKey(TOKEN_TREASURY)
+                .initialSupply(0)
+                .exposingAddressTo(addressRef::set);
+    }
+
+    private HapiTokenCreate createNftAndExposeAdr(String tokenName, AtomicReference<Address> addressRef) {
+        return tokenCreate(tokenName)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .initialSupply(0)
+                .treasury(TOKEN_TREASURY)
+                .supplyKey(TOKEN_TREASURY)
+                .adminKey(TOKEN_TREASURY)
+                .exposingAddressTo(addressRef::set);
     }
 }
