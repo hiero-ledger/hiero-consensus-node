@@ -17,6 +17,7 @@ import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
@@ -35,6 +36,7 @@ import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,6 +45,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.HashMap;
 
 /**
  * This class has the common logic that is executed for a user dispatch and a child dispatch transactions.
@@ -221,6 +225,25 @@ public class DispatchProcessor {
                 .chargeFee(dispatch.creatorInfo().accountId(), dispatch.fees().networkFee(), null);
     }
 
+    private static double tbarToUSD(long tbar, ExchangeRate exchangeRate) {
+        final var tiny_to_hbar = 100_000_000L;
+        var hbar = (1.0*tbar)/tiny_to_hbar;
+        final var hbar_equiv = exchangeRate.hbarEquiv();
+        final var cent_equiv = exchangeRate.centEquiv();
+        final var convert = (1.0*hbar_equiv / cent_equiv) * 100.0;
+        var usd = hbar / convert;
+        return usd;
+    }
+    private static long usdToTiny(double usd, ExchangeRate exchangeRate) {
+        final var tiny_to_hbar = 100_000_000L;
+        final var hbar_equiv = exchangeRate.hbarEquiv();
+        final var cent_equiv = exchangeRate.centEquiv();
+        final var convert = (1.0*hbar_equiv / cent_equiv) * 100.0;
+        final var hbar_new = usd * convert;
+        final var tbar_new = (long)Math.floor(hbar_new * tiny_to_hbar);
+        return tbar_new;
+    }
+
     /**
      * Charges the payer for the fees. If the payer is unable to pay the service fee, the service fee
      * will be charged to the creator. If the transaction is a duplicate, the service fee will be waived.
@@ -245,8 +268,20 @@ public class DispatchProcessor {
         if (hasWaivedFees) {
             return Fees.FREE;
         }
-        final var feesToCharge = waiveServiceFee ? fees.withoutServiceComponent() : fees;
-        return dispatch.feeChargingOrElse(appFeeCharging).charge(dispatch, validation, feesToCharge);
+
+        var feesToCharge = waiveServiceFee ? fees.withoutServiceComponent() : fees;
+        final var feesConfig = dispatch.config().getConfigData(FeesConfig.class);
+        if(feesConfig.simpleFeesCalculatorEnabled()) {
+            return dispatch.feeChargingOrElse(appFeeCharging).charge(dispatch, validation, feesToCharge);
+        }
+        if(feesToCharge.usd() > 0) {
+            final var new_usd = feesToCharge.usd();
+            final var new_tbar = usdToTiny(new_usd, exchangeRateManager.exchangeRates().currentRate());
+            feesToCharge = new Fees(0,0,new_tbar,0, new HashMap<>());
+            return dispatch.feeChargingOrElse(appFeeCharging).charge(dispatch, validation, feesToCharge);
+        } else {
+            return dispatch.feeChargingOrElse(appFeeCharging).charge(dispatch, validation, feesToCharge);
+        }
     }
 
     /**

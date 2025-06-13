@@ -15,6 +15,7 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
+import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -88,6 +89,12 @@ public class FeeContextImpl implements FeeContext {
         // For mono-service compatibility, we treat the sig map size as the number of verifications
         final var numVerifications = txInfo.signatureMap().sigPair().size();
         final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txInfo.signatureMap());
+        if(this.configuration().getConfigData(FeesConfig.class).simpleFeesCalculatorEnabled()) {
+            if (txInfo.txBody().data().kind() == TransactionBody.DataOneOfType.CONSENSUS_CREATE_TOPIC) {
+                final var rate = feeManager.exchangeRateManager.activeRate(consensusTime);
+                return new SimpleFeesCalculatorImpl(txInfo.txBody(), payerKey, numVerifications, signatureMapSize, rate);
+            }
+        }
         return feeManager.createFeeCalculator(
                 txInfo.txBody(),
                 payerKey,

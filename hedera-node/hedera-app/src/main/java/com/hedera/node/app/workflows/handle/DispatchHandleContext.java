@@ -22,6 +22,7 @@ import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.SimpleFeesCalculatorImpl;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
@@ -56,6 +57,7 @@ import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -235,6 +237,18 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
 
     @NonNull
     private FeeCalculator createFeeCalculator(@NonNull final SubType subType) {
+        if(this.configuration().getConfigData(FeesConfig.class).simpleFeesCalculatorEnabled()) {
+            if (txnInfo.txBody().data().kind() == TransactionBody.DataOneOfType.CONSENSUS_CREATE_TOPIC) {
+                final var rate = feeManager.exchangeRateManager.activeRate(consensusNow);
+                return new SimpleFeesCalculatorImpl(
+                        txnInfo.txBody(),
+                        payerKey,
+                        numTxnSignatures(),
+                        SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap()),
+                        rate);
+            }
+        }
+
         return feeManager.createFeeCalculator(
                 ensureTxnId(txnInfo.txBody()),
                 payerKey,
