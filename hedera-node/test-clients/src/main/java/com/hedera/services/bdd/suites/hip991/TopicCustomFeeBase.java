@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.ArrayList;
@@ -125,7 +126,7 @@ public class TopicCustomFeeBase {
     }
 
     // TOPIC_FEE_108
-    protected SpecOperation createTopicWith10Different2layerFees() {
+    protected HapiTopicCreate createTopicWith10Different2layerFees() {
         final var collectorName = "collector_";
         final var topicCreateOp = createTopic(TOPIC);
         for (int i = 0; i < 9; i++) {

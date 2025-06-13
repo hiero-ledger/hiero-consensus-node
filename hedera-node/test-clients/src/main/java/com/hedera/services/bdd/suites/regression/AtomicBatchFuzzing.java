@@ -35,6 +35,12 @@ public class AtomicBatchFuzzing {
     private final AtomicInteger maxPendingOps = new AtomicInteger(Integer.MAX_VALUE);
     private final AtomicInteger backoffSleepSecs = new AtomicInteger(Integer.MAX_VALUE);
 
+    // Note that when running this test there will be an error log indicating that there is a missing
+    // AccountID(or some other entity) from the registry. This is due to the nature of the atomic batch.
+    // The way the fuzz testing framework works is that it will generate a lot of random entities and sometimes
+    // an entity can be deleted from a previous operation, but since all operations are happening in a batch, the
+    // registry is not updated. This is not a problem because we are executed the needed batch operations anyway.
+    // To fix the issue we'll need to rework the framework and I think it's not worth it at this point.
     @HapiTest
     final Stream<DynamicTest> atomicMixedOperations() {
         return hapiTest(flattened(
