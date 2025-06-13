@@ -39,7 +39,7 @@ import java.util.Optional;
  * @param outputs the output of processing the transaction
  */
 public record BlockTransactionParts(
-        @NonNull TransactionParts transactionParts,
+        @Nullable TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
         @NonNull TransactionGroupRole role,
         @Nullable List<TraceData> traces,
@@ -139,6 +139,15 @@ public record BlockTransactionParts(
      */
     public Timestamp parentConsensusTimestamp() {
         return transactionResult.parentConsensusTimestamp();
+    }
+
+    public BlockTransactionParts withParts(final TransactionParts transactionParts) {
+        return new BlockTransactionParts(
+                transactionParts,
+                transactionResult,
+                role,
+                traces,
+                outputs);
     }
 
     /**

@@ -18,6 +18,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockUnitSplit;
+import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.utils.RcDiff;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
@@ -106,7 +107,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .toList();
         final var numStateChanges = new AtomicInteger();
         final List<SingleTransactionRecord> actualSingleTransactionRecords = blocks.stream()
-                .flatMap(block -> blockUnitSplit.split(block).stream())
+                .flatMap(block -> blockUnitSplit.split(block).stream().map(BlockTransactionalUnit::withBatchedTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
                 .flatMap(unit -> translator.translate(unit).stream())
                 .toList();

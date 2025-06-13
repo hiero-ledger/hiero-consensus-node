@@ -3,9 +3,14 @@ package com.hedera.services.bdd.junit.support.translators.inputs;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * A grouping of block stream information used as input to record translation, where all the information is
@@ -23,5 +28,37 @@ public record BlockTransactionalUnit(
                 .filter(BlockTransactionParts::hasTraces)
                 .flatMap(parts -> parts.tracesOrThrow().stream())
                 .toList();
+    }
+
+    public BlockTransactionalUnit withBatchedTransactionParts() {
+        boolean anyUnitMissing = false;
+        for (final BlockTransactionParts parts : blockTransactionParts) {
+            if (parts.transactionParts() == null) {
+                anyUnitMissing = true;
+                break;
+            }
+        }
+        if (!anyUnitMissing) {
+            return this;
+        }
+        // find atomic batch
+        final var batchParts = blockTransactionParts.stream()
+                .filter(parts -> parts.functionality() == HederaFunctionality.ATOMIC_BATCH)
+                .findFirst()
+                .orElseThrow();
+        // get queue of inner txns
+        final var innerTxns = batchParts.body().atomicBatchOrThrow()
+                .transactions()
+                .stream().map(txn -> Transaction.PROTOBUF.toBytes(Transaction.newBuilder().signedTransactionBytes(txn).build()))
+                .map(TransactionParts::from)
+                .toList();
+        for (int i = 0; i < blockTransactionParts.size(); i++) {
+            final var parts = blockTransactionParts.get(i);
+            if (parts.transactionParts() == null) {
+                // replace with inner transaction
+                blockTransactionParts.set(i, parts.withParts(innerTxns.removeFirst()));
+            }
+        }
+        return this;
     }
 }
