@@ -603,64 +603,46 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         return realm;
     }
 
-    public void configureBlockNodeCommunicationLogLevel(HederaNode node) {
+    public void configureBlockNodeCommunicationLogLevel(HederaNode node, String logLevel) {
         final Path loggerConfigPath = node.getExternalPath(LOG4J2_XML);
         try {
             // Read the existing XML file
-            final String xmlContent = Files.readString(loggerConfigPath);
+            String xmlContent = Files.readString(loggerConfigPath);
 
-            // Check if the logger configurations already exist to avoid duplicates
-            if (!xmlContent.contains("com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection")) {
-                // Find the position to insert the new logger configurations (before the closing Loggers tag)
+            // Check if the logger configuration for streaming package exists
+            if (xmlContent.contains("<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=")) {
+                // Update the existing logger configuration
+                xmlContent = xmlContent.replaceAll(
+                        "<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=\"[^\"]*\"",
+                        "<Logger name=\"com.hedera.node.app.blocks.impl.streaming\" level=\"" + logLevel + "\"");
+
+                log.info("Updated existing com.hedera.node.app.blocks.impl.streaming logger to level {}", logLevel);
+            } else {
+                // If the logger configuration doesn't exist, add it
                 final int insertPosition = xmlContent.lastIndexOf("</Loggers>");
                 if (insertPosition != -1) {
-                    // Create the new logger configurations
-                    final StringBuilder newLoggers = new StringBuilder();
-
-                    newLoggers
-                            .append(
-                                    "    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection\" ")
-                            .append("level=\"DEBUG\" additivity=\"false\">\n")
+                    // Create the new logger configuration
+                    final StringBuilder newLogger = new StringBuilder();
+                    newLogger
+                            .append("    <Logger name=\"com.hedera.node.app.blocks.impl.streaming\" ")
+                            .append("level=\"" + logLevel + "\" additivity=\"false\">\n")
                             .append("      <AppenderRef ref=\"Console\"/>\n")
                             .append("      <AppenderRef ref=\"RollingFile\"/>\n")
                             .append("    </Logger>\n\n");
 
-                    newLoggers
-                            .append(
-                                    "    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager\" ")
-                            .append("level=\"DEBUG\" additivity=\"false\">\n")
-                            .append("      <AppenderRef ref=\"Console\"/>\n")
-                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
-                            .append("    </Logger>\n");
-
-                    newLoggers
-                            .append("    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockState\" ")
-                            .append("level=\"DEBUG\" additivity=\"false\">\n")
-                            .append("      <AppenderRef ref=\"Console\"/>\n")
-                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
-                            .append("    </Logger>\n\n");
-
-                    newLoggers
-                            .append(
-                                    "    <Logger name=\"com.hedera.node.app.blocks.impl.streaming.BlockBufferService\" ")
-                            .append("level=\"DEBUG\" additivity=\"false\">\n")
-                            .append("      <AppenderRef ref=\"Console\"/>\n")
-                            .append("      <AppenderRef ref=\"RollingFile\"/>\n")
-                            .append("    </Logger>\n\n");
-
-                    // Insert the new logger configurations
+                    // Insert the new logger configuration
                     final String updatedXmlContent =
-                            xmlContent.substring(0, insertPosition) + newLoggers + xmlContent.substring(insertPosition);
+                            xmlContent.substring(0, insertPosition) + newLogger + xmlContent.substring(insertPosition);
 
                     // Write the updated XML back to the file
                     Files.writeString(loggerConfigPath, updatedXmlContent);
 
-                    log.info("Successfully updated log4j2.xml with block node communication loggers");
+                    log.info(
+                            "Successfully added com.hedera.node.app.blocks.impl.streaming logger at level {}",
+                            logLevel);
                 } else {
                     log.info("Could not find </Loggers> tag in log4j2.xml");
                 }
-            } else {
-                log.info("Block node communication loggers already exist in log4j2.xml");
             }
         } catch (IOException e) {
             log.error("Error updating log4j2.xml: {}", e.getMessage());

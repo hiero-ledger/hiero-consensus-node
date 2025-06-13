@@ -120,7 +120,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                         .add(targetBlockNodeNetwork::configureBlockNodeConnectionInformation);
                 targetNetwork
                         .getPostInitWorkingDirActions()
-                        .add(targetNetwork::configureBlockNodeCommunicationLogLevel);
+                        .add(node -> targetNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
 
                 // Configure block node mode based on annotation
                 for (BlockNodeConfig blockNodeConfig : annotation.blockNodeConfigs()) {
