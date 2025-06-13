@@ -80,7 +80,7 @@ public class AtomicTokenServiceFeesSuite {
 
     private static final double ALLOWED_DIFFERENCE_PERCENTAGE = 0.01;
     private static final double ALLOWED_DIFFERENCE = 5;
-    private static String TOKEN_TREASURY = "treasury";
+    private static final String TOKEN_TREASURY = "treasury";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungible";
     private static final String SUPPLY_KEY = "supplyKey";
     private static final String METADATA_KEY = "metadataKey";
