@@ -40,6 +40,9 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
+/**
+ * The main application class for the container-based consensus node networks.
+ */
 public class DockerApp {
     private static final Logger LOGGER = LogManager.getLogger(DockerApp.class);
 
@@ -48,6 +51,15 @@ public class DockerApp {
 
     private final Platform platform;
 
+    /**
+     * Creates a new DockerApp instance with the specified parameters.
+     *
+     * @param selfId              the unique identifier for this node
+     * @param version             the semantic version of the application
+     * @param genesisRoster       the initial roster of nodes in the network
+     * @param keysAndCerts        the keys and certificates for this node
+     * @param overriddenProperties properties to override in the configuration
+     */
     public DockerApp(
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion version,
@@ -120,10 +132,19 @@ public class DockerApp {
                 .build();
     }
 
+    /**
+     * Starts the application.
+     */
     public void start() {
         platform.start();
     }
 
+    /**
+     * Encodes a {@link StateSignatureTransaction}
+     *
+     * @param stateSignatureTransaction the transaction to encode
+     * @return the encoded transaction as a {@link Bytes} object
+     */
     private static Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         return Bytes.EMPTY; // FIXME
     }

@@ -16,56 +16,55 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.otter.docker.app.netty.NettyRestServer;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 
+/**
+ * A simple REST server that controls the consensus node in a Docker container.
+ */
 public class DockerInit {
-
-    private static final Logger LOGGER = LogManager.getLogger(DockerInit.class);
 
     private final NettyRestServer server;
 
     private NodeId selfId;
     private KeysAndCerts keysAndCerts;
 
-    private DockerInit() throws Exception {
+    private DockerInit() {
         server = new NettyRestServer(8080);
 
         // POST /hello
         server.addPost("/hello", (req, body) -> {
             try {
-                Map<?, ?> json = new ObjectMapper().readValue(body, Map.class);
+                final Map<?, ?> json = new ObjectMapper().readValue(body, Map.class);
                 if (json.containsKey("name")) {
                     final String name = json.get("name").toString();
                     return Map.of("answer", "Hello " + name + "!");
                 }
                 return Map.of("answer", "Hello World!");
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 return Map.of("error", "Invalid JSON");
             }
         });
 
         server.addPost("/self-id", (req, body) -> {
             try {
-                final Map<?, ?> json = new ObjectMapper().readValue(body, Map.class);
-                if (json.containsKey("selfId")) {
-                    selfId = NodeId.of((Integer) json.get("selfId"));
-                    keysAndCerts = generateKeysAndCerts(selfId);
-                    final String content = Base64.getEncoder().encodeToString(keysAndCerts.sigCert().getEncoded());
-                    return Map.of("sigcrt", content);
+                final JsonNode json = new ObjectMapper().readTree(body);
+                selfId = NodeId.of(json.get("selfId").asLong());
+                if (selfId.id() < 1L) {
+                    throw new IllegalArgumentException("selfId must be a positive number");
                 }
+                keysAndCerts = generateKeysAndCerts(selfId);
+                final String content = Base64.getEncoder().encodeToString(keysAndCerts.sigCert().getEncoded());
+                return Map.of("sigcrt", content);
             } catch (final IOException e) {
                 throw new IllegalArgumentException(e);
             } catch (final CertificateEncodingException e) {
                 // This should not happen, as we just generated the certificate
                 throw new RuntimeException(e);
             }
-            return null;
         });
 
         server.addPost("/start-node", (req, body) -> {
@@ -97,12 +96,22 @@ public class DockerInit {
             throw new RuntimeException(e);
         }
     }
+    /**
+     * Starts the web server that listens for requests to control the Docker container.
+     *
+     * @throws InterruptedException if the thread is interrupted while starting the server
+     */
     public void startWebserver() throws InterruptedException {
         server.start();
     }
 
-    public static void main(String[] args) throws Exception {
-
+    /**
+     * Main method to start the DockerInit web server.
+     *
+     * @param args command line arguments (not used)
+     * @throws Exception if an error occurs while starting the web server
+     */
+    public static void main(final String[] args) throws Exception {
         new DockerInit().startWebserver();
     }
 }

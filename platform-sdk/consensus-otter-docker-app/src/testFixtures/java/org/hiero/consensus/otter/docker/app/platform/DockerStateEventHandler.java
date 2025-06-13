@@ -16,7 +16,14 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
+/**
+ * An implementation of {@link ConsensusStateEventHandler} for container-based consensus nodes.
+ */
 public class DockerStateEventHandler implements ConsensusStateEventHandler<MerkleNodeState> {
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void onPreHandle(
             @NonNull final Event event,
@@ -25,6 +32,9 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Merkl
                     final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
                             stateSignatureTransactionCallback) {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
@@ -33,11 +43,17 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Merkl
                     final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
                             stateSignatureTransactionCallback) {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final MerkleNodeState state) {
         return false;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void onStateInitialized(
             @NonNull final MerkleNodeState state,
@@ -45,12 +61,18 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Merkl
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void onUpdateWeight(
             @NonNull final MerkleNodeState state,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext context) {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void onNewRecoveredState(@NonNull final MerkleNodeState recoveredState) {}
 }

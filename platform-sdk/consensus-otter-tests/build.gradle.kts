@@ -48,7 +48,7 @@ tasks.register<Test>("testTurtle") {
 
 // Runs tests against the Container environment
 tasks.register<Test>("testContainer") {
-    // TODO: Define dependency on build of container app
+    dependsOn(":consensus-otter-docker-app:assemble")
 
     useJUnitPlatform {}
 
