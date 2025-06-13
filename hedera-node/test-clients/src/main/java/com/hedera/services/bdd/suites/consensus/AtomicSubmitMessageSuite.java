@@ -231,21 +231,28 @@ public class AtomicSubmitMessageSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> chunkNumberIsValidated() {
+    final Stream<DynamicTest> acceptsChunkNumberLessThanTotalChunks() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 createTopic("testTopic"),
-                atomicBatch(
-                                submitMessageTo("testTopic")
-                                        .message("acceptsChunkNumberLessThanTotalChunks")
-                                        .chunkInfo(3, 2)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .batchKey(BATCH_OPERATOR),
-                                submitMessageTo("testTopic")
-                                        .message("acceptsChunkNumberEqualTotalChunks")
-                                        .chunkInfo(5, 5)
-                                        .hasRetryPrecheckFrom(BUSY)
-                                        .batchKey(BATCH_OPERATOR))
+                atomicBatch(submitMessageTo("testTopic")
+                                .message("acceptsChunkNumberLessThanTotalChunks")
+                                .chunkInfo(3, 2)
+                                .hasRetryPrecheckFrom(BUSY)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> acceptsChunkNumberEqualTotalChunks() {
+        return hapiTest(
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                createTopic("testTopic"),
+                atomicBatch(submitMessageTo("testTopic")
+                                .message("acceptsChunkNumberEqualTotalChunks")
+                                .chunkInfo(5, 5)
+                                .hasRetryPrecheckFrom(BUSY)
+                                .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR));
     }
 
