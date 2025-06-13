@@ -6,6 +6,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
@@ -208,6 +210,52 @@ public class AtomicBatchKeyReqTest {
                                     .batchKey("batchOperator")
                                     .payingWith(DEFAULT_PAYER)
                                     .signedBy(DEFAULT_PAYER, "wipeKey"))
+                            .payingWith("batchOperator"));
+        }
+
+        @HapiTest
+        @DisplayName("KYC requires kyc key")
+        public Stream<DynamicTest> kycRequiresKycKey() {
+            return hapiTest(
+                    newKeyNamed("kycKey"),
+                    cryptoCreate("batchOperator"),
+                    cryptoCreate("toBeKycGranted"),
+                    tokenCreate("testToken").kycKey("kycKey"),
+                    tokenAssociate("toBeKycGranted", "testToken"),
+                    // no kyc key signature, so should fail
+                    atomicBatch(grantTokenKyc("testToken", "toBeKycGranted")
+                                    .batchKey("batchOperator")
+                                    .payingWith(DEFAULT_PAYER)
+                                    .signedBy(DEFAULT_PAYER))
+                            .payingWith("batchOperator")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    // kyc key signature, so should succeed
+                    atomicBatch(grantTokenKyc("testToken", "toBeKycGranted")
+                                    .batchKey("batchOperator")
+                                    .payingWith(DEFAULT_PAYER)
+                                    .signedBy(DEFAULT_PAYER, "kycKey"))
+                            .payingWith("batchOperator"));
+        }
+
+        @HapiTest
+        @DisplayName("Token mint requires supply key")
+        public Stream<DynamicTest> mintRequiresSupplyKey() {
+            return hapiTest(
+                    newKeyNamed("supplyKey"),
+                    cryptoCreate("batchOperator"),
+                    tokenCreate("testToken").supplyKey("supplyKey"),
+                    // no supply key signature, so should fail
+                    atomicBatch(mintToken("testToken", 100)
+                                    .batchKey("batchOperator")
+                                    .payingWith(DEFAULT_PAYER)
+                                    .signedBy(DEFAULT_PAYER))
+                            .payingWith("batchOperator")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    // supply key signature, so should succeed
+                    atomicBatch(mintToken("testToken", 100)
+                                    .batchKey("batchOperator")
+                                    .payingWith(DEFAULT_PAYER)
+                                    .signedBy(DEFAULT_PAYER, "supplyKey"))
                             .payingWith("batchOperator"));
         }
     }
