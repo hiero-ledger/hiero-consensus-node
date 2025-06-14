@@ -94,12 +94,12 @@ public class Utils {
             Map.entry("throttles.json", 123L),
             Map.entry("software-zip", 150L),
             Map.entry("telemetry-zip", 159L));
-	private static final Map<FileID, String> IDS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
-			.filter(entry -> !entry.getKey().contains("."))
-			.collect(Collectors.toMap(
-					(Map.Entry<String, Long> entry) ->
-							FileID.newBuilder().setFileNum(entry.getValue()).build(),
-					Map.Entry::getKey));
+    private static final Map<FileID, String> IDS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
+            .filter(entry -> !entry.getKey().contains("."))
+            .collect(Collectors.toMap(
+                    (Map.Entry<String, Long> entry) ->
+                            FileID.newBuilder().setFileNum(entry.getValue()).build(),
+                    Map.Entry::getKey));
 
     private static final Set<Long> VALID_NUMBERS = new HashSet<>(NAMES_TO_NUMBERS.values());
 
@@ -107,10 +107,12 @@ public class Utils {
         return Optional.ofNullable(IDS_TO_NAMES.get(fid)).orElse("<N/A>");
     }
 
-	public static void mismatchedShardRealmMsg(ConfigManager config, final String entityId) {
-			COMMON_MESSAGES.warn("Configured shard/realm for entity ID " + entityId + " does not match " +
-					"the target network's configured shard/realm of " + config.shard().getShardNum() + "." + config.realm().getRealmNum() + "! Using shard/realm configured for network instead.");
-	}
+    public static void mismatchedShardRealmMsg(ConfigManager config, final String entityId) {
+        COMMON_MESSAGES.warn("Configured shard/realm for entity ID " + entityId + " does not match "
+                + "the target network's configured shard/realm of "
+                + config.shard().getShardNum() + "." + config.realm().getRealmNum()
+                + "! Using shard/realm configured for network instead.");
+    }
 
     public static EnumSet<ServiceType> rationalizedServices(final String[] services) {
         if (Arrays.asList(services).contains("all")) {

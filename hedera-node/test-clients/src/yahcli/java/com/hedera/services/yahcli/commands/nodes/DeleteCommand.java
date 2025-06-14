@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.nodes;
 
-import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigUtils;
@@ -35,7 +35,7 @@ public class DeleteCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
-		var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
+        var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
         final var targetId = validatedNodeId(normalizedNodeId);
 
         if (adminKeyPath == null) {

@@ -7,10 +7,8 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.SysFileDownloadSuite;
 import com.hedera.services.yahcli.util.ParseUtils;
-
 import java.util.Arrays;
 import java.util.concurrent.Callable;
-
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ParentCommand;
@@ -38,12 +36,14 @@ public class SysFileDownloadCommand implements Callable<Integer> {
                     + "{ 101, 102, 111, 112, 121, 122, 123, 150, 159 })---or 'all'")
     private String[] sysFiles;
 
-	@Override
+    @Override
     public Integer call() throws Exception {
         var config = ConfigUtils.configFrom(sysFilesCommand.getYahcli());
         destDir = SysFilesCommand.resolvedDir(destDir, config);
 
-		final var normalizedSysFiles = Arrays.stream(sysFiles).map(s -> ParseUtils.normalizePossibleIdLiteral(config, s)).toArray(String[]::new);
+        final var normalizedSysFiles = Arrays.stream(sysFiles)
+                .map(s -> ParseUtils.normalizePossibleIdLiteral(config, s))
+                .toArray(String[]::new);
         var delegate = new SysFileDownloadSuite(destDir, config, normalizedSysFiles);
         delegate.runSuiteSync();
 

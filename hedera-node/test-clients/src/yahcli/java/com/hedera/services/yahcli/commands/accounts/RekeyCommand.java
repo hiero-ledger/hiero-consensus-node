@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
-import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.google.common.io.Files;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -59,7 +59,7 @@ public class RekeyCommand implements Callable<Integer> {
                     "Must set --gen-new-key if no --replacement-key given");
         }
 
-		final var normalizedAcct = normalizePossibleIdLiteral(config, accountNum);
+        final var normalizedAcct = normalizePossibleIdLiteral(config, accountNum);
 
         final var optKeyFile = backupCurrentAssets(config, normalizedAcct);
         final String replTarget = optKeyFile
@@ -73,9 +73,11 @@ public class RekeyCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - account " + config.shard() + "." + config.realm() + "." + normalizedAcct + " has been re-keyed");
+            COMMON_MESSAGES.info("SUCCESS - account " + config.shard() + "." + config.realm() + "." + normalizedAcct
+                    + " has been re-keyed");
         } else {
-            COMMON_MESSAGES.warn("FAILED to re-key account " + config.shard() + "." + config.realm() + "." + normalizedAcct);
+            COMMON_MESSAGES.warn(
+                    "FAILED to re-key account " + config.shard() + "." + config.realm() + "." + normalizedAcct);
             return 1;
         }
 

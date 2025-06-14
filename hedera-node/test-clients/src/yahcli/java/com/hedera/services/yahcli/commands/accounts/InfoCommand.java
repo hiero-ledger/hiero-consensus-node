@@ -5,7 +5,6 @@ import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLite
 
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.InfoSuite;
-
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
@@ -36,7 +35,9 @@ public class InfoCommand implements Callable<Integer> {
 
         printTable(balanceRegister);
 
-		var normalizedAccounts = Arrays.stream(accounts).map(s -> normalizePossibleIdLiteral(config, s)).toArray(String[]::new);
+        final var normalizedAccounts = Arrays.stream(accounts)
+                .map(s -> normalizePossibleIdLiteral(config, s))
+                .toArray(String[]::new);
         var delegate = new InfoSuite(config.asSpecConfig(), normalizedAccounts);
         delegate.runSuiteSync();
 

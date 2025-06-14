@@ -2,8 +2,8 @@
 package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigManager;
@@ -50,7 +50,7 @@ public class StakeCommand implements Callable<Integer> {
         assertValidParams(config);
         final String target;
         final StakeSuite.TargetType type;
-		final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
+        final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
         if (normalizedElectedAccountNum != null) {
             type = StakeSuite.TargetType.NODE;
             target = normalizedElectedAccountNum;
@@ -67,19 +67,19 @@ public class StakeCommand implements Callable<Integer> {
         } else if (stopDecliningRewards != null) {
             declineReward = Boolean.FALSE;
         }
-		var normalizedStakedAccountNum = normalizePossibleIdLiteral(config, stakedAccountNum);
+        var normalizedStakedAccountNum = normalizePossibleIdLiteral(config, stakedAccountNum);
         final var delegate =
                 new StakeSuite(config, config.asSpecConfig(), target, type, normalizedStakedAccountNum, declineReward);
         delegate.runSuiteSync();
 
         if (normalizedStakedAccountNum == null) {
-			normalizedStakedAccountNum = asEntityString(config.getDefaultPayer());
+            normalizedStakedAccountNum = asEntityString(config.getDefaultPayer());
         }
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             final var msgSb = new StringBuilder("SUCCESS - account ")
                     .append(Utils.extractAccount(normalizedStakedAccountNum))
                     .append(" updated");
-			final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
+            final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
             if (type != StakeSuite.TargetType.NONE) {
                 msgSb.append(", now staked to ")
                         .append(type.name())
@@ -94,8 +94,8 @@ public class StakeCommand implements Callable<Integer> {
             }
             COMMON_MESSAGES.info(msgSb.toString());
         } else {
-            COMMON_MESSAGES.warn(
-                    "FAILED to change staking election for account " + Utils.extractAccount(normalizedStakedAccountNum));
+            COMMON_MESSAGES.warn("FAILED to change staking election for account "
+                    + Utils.extractAccount(normalizedStakedAccountNum));
             return 1;
         }
 
@@ -109,14 +109,15 @@ public class StakeCommand implements Callable<Integer> {
                     accountsCommand.getYahcli().getSpec().commandLine(),
                     "Cannot both start and stop declining rewards");
         }
-		final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
-		final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
+        final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
+        final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
         final var changedDeclineRewards = startDecliningRewards != null || stopDecliningRewards != null;
         if (normalizedElectedNodeId != null) {
             if (normalizedElectedAccountNum != null) {
                 throw new CommandLine.ParameterException(
                         accountsCommand.getYahcli().getSpec().commandLine(),
-                        "Cannot stake to both node (" + normalizedElectedNodeId + ") and account (" + normalizedElectedAccountNum + ")");
+                        "Cannot stake to both node (" + normalizedElectedNodeId + ") and account ("
+                                + normalizedElectedAccountNum + ")");
             }
             try {
                 Long.parseLong(normalizedElectedNodeId);
@@ -138,11 +139,12 @@ public class StakeCommand implements Callable<Integer> {
             } catch (final Exception any) {
                 throw new CommandLine.ParameterException(
                         accountsCommand.getYahcli().getSpec().commandLine(),
-                        "--account-num value '" + normalizedElectedAccountNum + "' is un-parseable (" + any.getMessage() + ")");
+                        "--account-num value '" + normalizedElectedAccountNum + "' is un-parseable (" + any.getMessage()
+                                + ")");
             }
         }
 
-		final var normalizedStakedAccountNum = normalizePossibleIdLiteral(config, stakedAccountNum);
+        final var normalizedStakedAccountNum = normalizePossibleIdLiteral(config, stakedAccountNum);
         if (normalizedStakedAccountNum != null) {
             try {
                 Utils.extractAccount(normalizedStakedAccountNum);

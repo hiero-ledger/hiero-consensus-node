@@ -9,7 +9,6 @@ import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.SysFileUploadSuite;
 import com.hedera.services.yahcli.util.ParseUtils;
-
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import picocli.CommandLine;
@@ -100,7 +99,7 @@ public class SysFileUploadCommand implements Callable<Integer> {
             }
         }
 
-		final String normalizedSysFile = ParseUtils.normalizePossibleIdLiteral(config, sysFile);
+        final String normalizedSysFile = ParseUtils.normalizePossibleIdLiteral(config, sysFile);
         var delegate = isSpecialFile(config)
                 ? new SysFileUploadSuite(
                         bytesPerAppend, appendsPerBurst, restartFromFailure, srcDir, config, normalizedSysFile, dryRun)
@@ -122,7 +121,7 @@ public class SysFileUploadCommand implements Callable<Integer> {
     }
 
     private boolean isSpecialFile(ConfigManager config) {
-		final var normalizedSysFile = ParseUtils.normalizePossibleIdLiteral(config, sysFile);
+        final var normalizedSysFile = ParseUtils.normalizePossibleIdLiteral(config, sysFile);
         return "software-zip".equals(normalizedSysFile)
                 || "150".equals(normalizedSysFile)
                 || "telemetry-zip".equals(normalizedSysFile)

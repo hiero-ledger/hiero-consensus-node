@@ -5,12 +5,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
-import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 import static com.hedera.services.yahcli.commands.nodes.CreateCommand.allBytesAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -110,7 +110,7 @@ public class UpdateCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
-		final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
+        final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
         final var targetNodeId = validatedNodeId(normalizedNodeId);
         final AccountID newAccountId;
         final String feeAccountKeyLoc;
@@ -119,7 +119,7 @@ public class UpdateCommand implements Callable<Integer> {
         final byte[] newGossipCaCertificate;
         final byte[] newHapiCertificateHash;
         final ServiceEndpoint newGrpcProxyEndpoint;
-		final var normalizedAccountId = normalizePossibleIdLiteral(config, accountId);
+        final var normalizedAccountId = normalizePossibleIdLiteral(config, accountId);
         if (normalizedAccountId == null) {
             newAccountId = null;
             feeAccountKeyLoc = null;

@@ -220,13 +220,13 @@ public class ConfigManager {
     }
 
     private void assertDefaultNodeAccountIsKnown() {
-		final var normalizedNodeAccount = normalizePossibleIdLiteral(this, yahcli.getNodeAccount());
+        final var normalizedNodeAccount = normalizePossibleIdLiteral(this, yahcli.getNodeAccount());
         defaultNodeAccount =
                 Optional.ofNullable(normalizedNodeAccount).orElse(String.valueOf(targetNet.getDefaultNodeAccount()));
     }
 
     private void assertDefaultPayerIsKnown() {
-		final var normalizedPayer = normalizePossibleIdLiteral(this, yahcli.getPayer());
+        final var normalizedPayer = normalizePossibleIdLiteral(this, yahcli.getPayer());
         if (normalizedPayer == null && targetNet.getDefaultPayer() == null) {
             fail(String.format(
                     "No payer was specified, and no default is available in %s for network" + " '%s'",
@@ -258,7 +258,7 @@ public class ConfigManager {
         targetNet = global.getNetworks().get(targetName);
         if (yahcli.getNodeIpv4Addr() != null) {
             final var ip = yahcli.getNodeIpv4Addr();
-			final var normalizedNodeAccount = normalizePossibleIdLiteral(this, yahcli.getNodeAccount());
+            final var normalizedNodeAccount = normalizePossibleIdLiteral(this, yahcli.getNodeAccount());
             var nodeAccount =
                     (normalizedNodeAccount == null) ? MISSING_NODE_ACCOUNT : Long.parseLong(normalizedNodeAccount);
             final var nodes = targetNet.getNodes();
