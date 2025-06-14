@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.Yahcli;
@@ -65,10 +66,11 @@ public class SendCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         var config = ConfigUtils.configFrom(accountsCommand.getYahcli());
 
-        if (!config.isAllowListEmptyOrContainsAccount(Long.parseLong(beneficiary))) {
+        var normalizedBeneficiary = normalizePossibleIdLiteral(config, beneficiary);
+        if (!config.isAllowListEmptyOrContainsAccount(Long.parseLong(normalizedBeneficiary))) {
             throw new CommandLine.ParameterException(
                     accountsCommand.getYahcli().getSpec().commandLine(),
-                    "Beneficiary " + beneficiary + " supposed to be in allow list");
+                    "Beneficiary " + normalizedBeneficiary + " supposed to be in allow list");
         }
 
         long amount;
@@ -82,7 +84,7 @@ public class SendCommand implements Callable<Integer> {
         final var effectiveMemo = memo != null ? memo : "";
         var delegate = new SendSuite(
                 config,
-                beneficiary,
+                normalizedBeneficiary,
                 amount,
                 effectiveMemo,
                 denomination,
@@ -98,7 +100,7 @@ public class SendCommand implements Callable<Integer> {
                     + " "
                     + originalDenomination
                     + " to account "
-                    + asEntityString(firstSpec.shard(), firstSpec.realm(), beneficiary)
+                    + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
                     + " with memo: '"
                     + memo
                     + "'");
@@ -109,7 +111,7 @@ public class SendCommand implements Callable<Integer> {
                     + " "
                     + originalDenomination
                     + " to account "
-                    + beneficiary
+                    + normalizedBeneficiary
                     + " with memo: '"
                     + memo
                     + "'");

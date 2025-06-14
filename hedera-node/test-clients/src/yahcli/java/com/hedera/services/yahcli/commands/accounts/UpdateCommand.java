@@ -2,6 +2,7 @@
 package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.google.common.collect.Lists;
 import com.google.common.io.Files;
@@ -53,7 +54,8 @@ public class UpdateCommand implements Callable<Integer> {
         var config = ConfigUtils.configFrom(accountsCommand.getYahcli());
 
         final var effectiveMemo = memo != null ? memo : "";
-        final var effectiveTargetAccount = targetAccount != null ? targetAccount : "";
+        final var normalizedTargetAccount = normalizePossibleIdLiteral(config, targetAccount);
+        final var effectiveTargetAccount = normalizedTargetAccount != null ? normalizedTargetAccount : "";
         final var keysPath = pathKeys != null ? pathKeys : "";
 
         final var effectivePublicKeys = unHexListOfKeys(readPublicKeyFromFile(keysPath));
@@ -70,7 +72,7 @@ public class UpdateCommand implements Callable<Integer> {
                 accountsCommand.getYahcli().isScheduled());
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - "
                     + "Scheduled update account "
                     + effectiveTargetAccount

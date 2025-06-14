@@ -10,6 +10,7 @@ import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKey
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -109,7 +110,8 @@ public class UpdateCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
-        final var targetNodeId = validatedNodeId(nodeId);
+        final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
+        final var targetNodeId = validatedNodeId(normalizedNodeId);
         final AccountID newAccountId;
         final String feeAccountKeyLoc;
         final List<ServiceEndpoint> newGossipEndpoints;
@@ -117,12 +119,13 @@ public class UpdateCommand implements Callable<Integer> {
         final byte[] newGossipCaCertificate;
         final byte[] newHapiCertificateHash;
         final ServiceEndpoint newGrpcProxyEndpoint;
-        if (accountId == null) {
+        final var normalizedAccountId = normalizePossibleIdLiteral(config, accountId);
+        if (normalizedAccountId == null) {
             newAccountId = null;
             feeAccountKeyLoc = null;
         } else {
             newAccountId = validatedAccountId(
-                    config.shard().getShardNum(), config.realm().getRealmNum(), accountId);
+                    config.shard().getShardNum(), config.realm().getRealmNum(), normalizedAccountId);
             final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + newAccountId.getAccountNum());
             feeAccountKeyLoc = feeAccountKeyFile.map(File::getPath).orElse(null);
             if (feeAccountKeyLoc == null) {

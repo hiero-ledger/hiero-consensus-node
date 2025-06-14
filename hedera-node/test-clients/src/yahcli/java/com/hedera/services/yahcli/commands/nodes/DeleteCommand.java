@@ -2,6 +2,7 @@
 package com.hedera.services.yahcli.commands.nodes;
 
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigUtils;
@@ -34,7 +35,8 @@ public class DeleteCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
-        final var targetId = validatedNodeId(nodeId);
+        var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
+        final var targetId = validatedNodeId(normalizedNodeId);
 
         if (adminKeyPath == null) {
             COMMON_MESSAGES.warn("No --adminKey option, payer signature alone must meet signing requirements");
@@ -46,9 +48,9 @@ public class DeleteCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - node" + nodeId + " has been deleted");
+            COMMON_MESSAGES.info("SUCCESS - node" + normalizedNodeId + " has been deleted");
         } else {
-            COMMON_MESSAGES.warn("FAILED to delete node" + nodeId);
+            COMMON_MESSAGES.warn("FAILED to delete node" + normalizedNodeId);
             return 1;
         }
 

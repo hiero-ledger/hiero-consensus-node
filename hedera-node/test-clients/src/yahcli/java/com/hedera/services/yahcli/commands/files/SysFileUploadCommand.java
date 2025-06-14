@@ -5,8 +5,10 @@ import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.SysFileUploadSuite;
+import com.hedera.services.yahcli.util.ParseUtils;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
 import picocli.CommandLine;
@@ -69,7 +71,7 @@ public class SysFileUploadCommand implements Callable<Integer> {
         srcDir = SysFilesCommand.resolvedDir(srcDir, config);
         activeSrcDir.set(srcDir);
 
-        if (isSpecialFile()) {
+        if (isSpecialFile(config)) {
             if (bytesPerAppend == null) {
                 bytesPerAppend = TxnUtils.BYTES_4K;
             }
@@ -97,10 +99,11 @@ public class SysFileUploadCommand implements Callable<Integer> {
             }
         }
 
-        var delegate = isSpecialFile()
+        final String normalizedSysFile = ParseUtils.normalizePossibleIdLiteral(config, sysFile);
+        var delegate = isSpecialFile(config)
                 ? new SysFileUploadSuite(
-                        bytesPerAppend, appendsPerBurst, restartFromFailure, srcDir, config, sysFile, dryRun)
-                : new SysFileUploadSuite(srcDir, config, sysFile, dryRun);
+                        bytesPerAppend, appendsPerBurst, restartFromFailure, srcDir, config, normalizedSysFile, dryRun)
+                : new SysFileUploadSuite(srcDir, config, normalizedSysFile, dryRun);
 
         delegate.runSuiteSync();
 
@@ -117,10 +120,11 @@ public class SysFileUploadCommand implements Callable<Integer> {
         return 0;
     }
 
-    private boolean isSpecialFile() {
-        return "software-zip".equals(sysFile)
-                || "150".equals(sysFile)
-                || "telemetry-zip".equals(sysFile)
-                || "159".equals(sysFile);
+    private boolean isSpecialFile(ConfigManager config) {
+        final var normalizedSysFile = ParseUtils.normalizePossibleIdLiteral(config, sysFile);
+        return "software-zip".equals(normalizedSysFile)
+                || "150".equals(normalizedSysFile)
+                || "telemetry-zip".equals(normalizedSysFile)
+                || "159".equals(normalizedSysFile);
     }
 }

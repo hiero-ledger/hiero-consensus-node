@@ -6,10 +6,11 @@ import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.SysFileDownloadSuite;
+import com.hedera.services.yahcli.util.ParseUtils;
+import java.util.Arrays;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParentCommand;
 
 @Command(
@@ -26,7 +27,7 @@ public class SysFileDownloadCommand implements Callable<Integer> {
             defaultValue = "{network}/sysfiles/")
     private String destDir;
 
-    @Parameters(
+    @CommandLine.Parameters(
             arity = "1..*",
             paramLabel = "<sysfiles>",
             description = "one or more from "
@@ -40,7 +41,10 @@ public class SysFileDownloadCommand implements Callable<Integer> {
         var config = ConfigUtils.configFrom(sysFilesCommand.getYahcli());
         destDir = SysFilesCommand.resolvedDir(destDir, config);
 
-        var delegate = new SysFileDownloadSuite(destDir, config, sysFiles);
+        final var normalizedSysFiles = Arrays.stream(sysFiles)
+                .map(s -> ParseUtils.normalizePossibleIdLiteral(config, s))
+                .toArray(String[]::new);
+        var delegate = new SysFileDownloadSuite(destDir, config, normalizedSysFiles);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
