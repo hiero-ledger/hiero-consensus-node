@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static java.util.Objects.requireNonNull;
 
@@ -17,18 +16,22 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
+import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.hedera.pbj.runtime.OneOf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -58,6 +61,8 @@ public class IsAuthorizedRawCall extends AbstractCall {
 
     private final CustomGasCalculator customGasCalculator;
 
+    private final SignatureVerifier signatureVerifier;
+
     public enum SignatureType {
         INVALID,
         EC,
@@ -65,7 +70,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
     }
 
     // From Ethereum yellow paper (for reference only):
-    private static BigInteger secp256k1n =
+    private static final BigInteger secp256k1n =
             new BigInteger("115792089237316195423570985008687907852837564279074904382605163141518161494337");
 
     public IsAuthorizedRawCall(
@@ -79,7 +84,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         this.messageHash = requireNonNull(messageHash);
         this.signature = requireNonNull(signature);
         this.customGasCalculator = requireNonNull(customGasCalculator);
-        requireNonNull(attempt.signatureVerifier());
+        signatureVerifier = requireNonNull(attempt.signatureVerifier());
     }
 
     @NonNull
@@ -94,9 +99,10 @@ public class IsAuthorizedRawCall extends AbstractCall {
                 switch (signatureType) {
                     case EC -> customGasCalculator.getEcrecPrecompiledContractGasCost();
                     case ED -> customGasCalculator.getEdSignatureVerificationSystemContractGasCost();
-                    case INVALID -> Math.min(
-                            customGasCalculator.getEcrecPrecompiledContractGasCost(),
-                            customGasCalculator.getEdSignatureVerificationSystemContractGasCost());
+                    case INVALID ->
+                        Math.min(
+                                customGasCalculator.getEcrecPrecompiledContractGasCost(),
+                                customGasCalculator.getEdSignatureVerificationSystemContractGasCost());
                 };
 
         // Prepare the short-circuit error status returns
@@ -131,15 +137,13 @@ public class IsAuthorizedRawCall extends AbstractCall {
             if (key.isEmpty()) return bail.apply(INVALID_TRANSACTION_BODY /* should be: "account must have key" */);
         } else key = Optional.empty();
 
-        // Key must be simple (for isAuthorizedRaw)
         if (key.isPresent()) {
+            // Key must be simple (for isAuthorizedRaw)
             final Key ky = key.get();
             final boolean keyIsSimple = !ky.hasKeyList() && !ky.hasThresholdKey();
             if (!keyIsSimple) return bail.apply(INVALID_TRANSACTION_BODY /* should be: "account key must be simple" */);
-        }
 
-        // Key must match signature type
-        if (key.isPresent()) {
+            // Key must match signature type
             if (!switch (signatureType) {
                 case EC -> key.get().hasEcdsa384();
                 case ED -> key.get().hasEd25519();
@@ -150,7 +154,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         // Finally: Do the signature validation we came here for!
         final boolean authorized =
                 switch (signatureType) {
-                    case EC -> validateEcSignature(address, frame);
+                    case EC -> validateEcSignature(account);
                     case ED -> validateEdSignature(account, key.get());
                     case INVALID -> false;
                 };
@@ -160,28 +164,31 @@ public class IsAuthorizedRawCall extends AbstractCall {
         return result;
     }
 
-    /** Validate EVM signature - EC key - via the ECRECOVER precompile */
-    public boolean validateEcSignature(@NonNull final Address address, @NonNull final MessageFrame frame) {
-        requireNonNull(address, "address");
-        requireNonNull(frame, "frame");
+    /**
+     * Validate EVM signature - EC key
+     */
+    public boolean validateEcSignature(final Account account) {
+        requireNonNull(account, "account");
 
         // Call the ECRECOVER precompile directly (meaning, not by executing EVM bytecode, just by
         // using the class provided by Besu).
-
         final var input = formatEcrecoverInput(messageHash, signature);
         if (input.isEmpty()) return false;
-        final var ecrecoverResult = ecPrecompile.computePrecompile(Bytes.wrap(input.get()), frame);
 
-        // ECRECOVER's output always has status SUCCESS but the result Bytes are either empty or the recovered address.
-        if (ecrecoverResult.getOutput().isEmpty()) return false;
-        final var recoveredAddress =
-                ecrecoverResult.getOutput().slice(12).toArray(); // LAST 20 bytes are where the EVM address is
+        var signatureMap = SignatureMap.newBuilder()
+                .sigPair(SignaturePair.newBuilder()
+                        .pubKeyPrefix(account.key().ecdsaSecp256k1OrThrow())
+                        .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(signature))
+                        .build())
+                .build();
 
-        // ECRECOVER produced an address:  Must match our account's alias address
-        final var givenAddress = explicitFromHeadlong(address);
-        final boolean addressesMatch = 0 == Arrays.compare(recoveredAddress, givenAddress);
-
-        return addressesMatch;
+        signatureMap = fixEcSignaturesInMap(signatureMap);
+        return signatureVerifier.verifySignature(
+                account.key(),
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash),
+                SignatureVerifier.MessageType.KECCAK_256_HASH,
+                signatureMap,
+                ky -> SignatureVerifier.SimpleKeyStatus.ONLY_IF_CRYPTO_SIG_VALID);
     }
 
     /** Validate (native Hedera) ED25519 signature */
@@ -189,11 +196,19 @@ public class IsAuthorizedRawCall extends AbstractCall {
         requireNonNull(account, "account");
         requireNonNull(key, "key");
 
-        // Use of `com.swirlds.common.crypto.CryptographyHolder` straight from the Platform is deprecated:
-        // FUTURE: Get the `Cryptography` engine from the services app via the context (needs to be invented)
+        final var signatureMap = SignatureMap.newBuilder()
+                .sigPair(SignaturePair.newBuilder()
+                        .pubKeyPrefix(key.ed25519OrThrow())
+                        .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(signature))
+                        .build())
+                .build();
 
-        return CRYPTOGRAPHY.verifySync(
-                messageHash, signature, key.ed25519OrThrow().toByteArray());
+        return signatureVerifier.verifySignature(
+                key,
+                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash),
+                SignatureVerifier.MessageType.RAW,
+                signatureMap,
+                ky -> SignatureVerifier.SimpleKeyStatus.ONLY_IF_CRYPTO_SIG_VALID);
     }
 
     /** Encode the _output_ of our system contract: it's a boolean */
@@ -256,7 +271,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
         if (BIG_35.compareTo(v) > 0) return Optional.empty(); // invalid
 
         // v = {0,1} + (chainid * 2) + 35 thus parity is the opposite of the low order bit
-        var parity = !v.testBit(0);
+        final var parity = !v.testBit(0);
         return Optional.of((byte) (parity ? 28 : 27));
     }
 
@@ -285,5 +300,33 @@ public class IsAuthorizedRawCall extends AbstractCall {
         else if (ED_SIGNATURE_LENGTH == len) return SignatureType.ED;
 
         return SignatureType.INVALID;
+    }
+
+    /**
+     * The Ethereum world uses 65+ byte EC signatures, our cryptography library uses 64 byte EC signatures.  The
+     * difference is the addition of an extra "parity" field at the end of the 64 byte signature (used so that
+     * `ECRECOVER` can recover the public key (== Ethereum address) from the signature.  And, the chain id can
+     * be encoded in that field (per EIP-155) and if the chain id is large enough (like Hedera mainnet/testnet
+     * chain ids) that last field can be more than one byte.
+     * <p>
+     * This method is a shim for that mismatch. It strips the extra bytes off any 65+ byte EC signatures it finds.
+     *
+     * @param sigMap Signature map from user - possibly contains 65+ byte EC signatures
+     * @return Signature map with only 64 byte EC signatures (and all else unchanged)
+     */
+    public @NonNull SignatureMap fixEcSignaturesInMap(@NonNull final SignatureMap sigMap) {
+        final List<SignaturePair> newPairs = new ArrayList<>();
+        for (var spair : sigMap.sigPair()) {
+            if (spair.hasEcdsaSecp256k1()) {
+                final var ecSig = requireNonNull(spair.ecdsaSecp256k1());
+                if (ecSig.length() > 64) {
+                    spair = new SignaturePair(
+                            spair.pubKeyPrefix(),
+                            new OneOf<>(SignaturePair.SignatureOneOfType.ECDSA_SECP256K1, ecSig.slice(0, 64)));
+                }
+            }
+            newPairs.add(spair);
+        }
+        return new SignatureMap(newPairs);
     }
 }
