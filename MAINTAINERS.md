@@ -6,25 +6,25 @@ The general handling of Maintainer rights and all groups in this GitHub org is d
 
 Maintainers are assigned the following scopes in this repository:
 
-|   Scope    |        Definition        | GitHub Role |            GitHub Team             |
-|------------|--------------------------|-------------|------------------------------------|
-| Maintainer | The GitHub Maintain role | Maintain    | `hiero-consensus-node-maintainers` |
+|        Scope        |             Definition             | GitHub Role |             GitHub Team             |
+|---------------------|------------------------------------|-------------|-------------------------------------|
+| project-maintainers | The Maintainers of the project     | Maintain    | `hiero-consensus-node-maintainers`  |
+| tsc                 | The Hiero TSC                      | Maintain    | `tsc`                               |
+| github-maintainers  | The Maintainers of the github org  | Maintain    | `github-maintainers`                |
 
 ## Active Maintainers
-
-<!-- Please keep this sorted alphabetically by github -->
 
 |         Name          |     GitHub ID      | Scope | LFID | Discord ID | Email | Company Affiliation |
 |-----------------------|--------------------|-------|------|------------|-------|---------------------|
 | Lyuben Ivanov         | bubo               |       |      |            |       |                     |
 | Fernando Paris        | Ferparishuertas    |       |      |            |       | Hashgraph           |
-| Michael Heinrichs     | netopyr            |       |      |            |       |                     |
+| Michael Heinrichs     | netopyr            |       |      |            |       | Hashgraph           |
 | Nathan Klick          | nathanklick        |       |      |            |       | Hashgraph           |
-| Stanimir Stoyanov     | stoyanov-st        |       |      |            |       |                     |
+| Stanimir Stoyanov     | stoyanov-st        |       |      |            |       | Hashgraph           |
 | Lazar Petrovic        | lpetrovic05        |       |      |            |       | Hashgraph           |
-| Oleg Mazurov          | OlegMazurov        |       |      |            |       |                     |
+| Oleg Mazurov          | OlegMazurov        |       |      |            |       | Hashgraph           |
 | Artem Ananev          | artemananiev       |       |      |            |       | Hashgraph           |
-| Michael Tinker        | tinker-michaelj    |       |      |            |       |                     |
+| Michael Tinker        | tinker-michaelj    |       |      |            |       | Hashgraph           |
 | Neeharika Sompalli    | Neeharika-Sompalli |       |      |            |       | Hashgraph           |
 | Nana Essilfie-Conduah | Nana-EC            |       |      |            |       | Hashgraph           |
 | Kelly Greco           | poulok             |       |      |            |       | Hashgraph           |
