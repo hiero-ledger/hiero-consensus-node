@@ -3,6 +3,8 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -39,8 +41,23 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                             .map(TransactionOutput::contractCreateOrThrow)
                             .ifPresent(createContractOutput -> {
-                                final var result = createContractOutput.contractCreateResultOrThrow();
-                                recordBuilder.contractCreateResult(result);
+                                final var resultBuilder = createContractOutput
+                                        .contractCreateResultOrThrow()
+                                        .copyBuilder();
+                                if (parts.status() == SUCCESS) {
+                                    // If all sidecars are disabled and there were no logs for a top-level creation,
+                                    // for parity we still need to fill in the result with empty logs and implied bloom
+                                    if (!parts.hasTraces()
+                                            && parts.transactionIdOrThrow().nonce() == 0) {
+                                        resultBuilder
+                                                .logInfo(List.of())
+                                                .bloom(bloomForAll(List.of()))
+                                                .build();
+                                    } else {
+                                        mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                    }
+                                }
+                                recordBuilder.contractCreateResult(resultBuilder.build());
                             });
                     if (parts.status() == SUCCESS) {
                         final var output = parts.createContractOutputOrThrow();

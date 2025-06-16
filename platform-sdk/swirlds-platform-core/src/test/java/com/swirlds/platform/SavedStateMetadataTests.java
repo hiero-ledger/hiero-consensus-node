@@ -6,6 +6,7 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.HASH_MNEMONIC;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.LEGACY_RUNNING_EVENT_HASH_MNEMONIC;
+import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_BIRTH_ROUND_NON_ANCIENT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.MINIMUM_GENERATION_NON_ANCIENT;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NODE_ID;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.NUMBER_OF_CONSENSUS_EVENTS;
@@ -28,7 +29,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
@@ -39,6 +39,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -90,7 +91,7 @@ class SavedStateMetadataTests {
         final long numberOfConsensusEvents = random.nextLong();
         final Instant timestamp = RandomUtils.randomInstant(random);
         final Hash legacyRunningEventHash = randomHash(random);
-        final long minimumGenerationNonAncient = random.nextLong();
+        final long minimumBirthRoundNonAncient = random.nextLong();
         final SemanticVersion softwareVersion =
                 SemanticVersion.newBuilder().major(random.nextInt()).build();
         final Instant wallClockTime = RandomUtils.randomInstant(random);
@@ -110,7 +111,7 @@ class SavedStateMetadataTests {
                 timestamp,
                 legacyRunningEventHash,
                 Mnemonics.generateMnemonic(legacyRunningEventHash),
-                minimumGenerationNonAncient,
+                minimumBirthRoundNonAncient,
                 softwareVersion.toString(),
                 wallClockTime,
                 nodeId,
@@ -127,7 +128,7 @@ class SavedStateMetadataTests {
         assertEquals(timestamp, deserialized.consensusTimestamp());
         assertEquals(legacyRunningEventHash, deserialized.legacyRunningEventHash());
         assertEquals(Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
+        assertEquals(minimumBirthRoundNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
@@ -178,7 +179,7 @@ class SavedStateMetadataTests {
         assertEquals(Mnemonics.generateMnemonic(hash), deserialized.hashMnemonic());
         assertEquals(numberOfConsensusEvents, deserialized.numberOfConsensusEvents());
         assertEquals(timestamp, deserialized.consensusTimestamp());
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
+        assertEquals(minimumGenerationNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
@@ -198,7 +199,6 @@ class SavedStateMetadataTests {
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         final ConsensusSnapshot consensusSnapshot = mock(ConsensusSnapshot.class);
         when(state.getHash()).thenReturn(randomHash(random));
-        final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
         when(state.getHash()).thenReturn(randomHash(random));
         when(platformStateFacade.legacyRunningEventHashOf(state)).thenReturn(randomHash(random));
         when(platformStateFacade.consensusSnapshotOf(state)).thenReturn(consensusSnapshot);
@@ -238,8 +238,6 @@ class SavedStateMetadataTests {
         }
         final long signingWeightSum = random.nextLong();
         final long totalWeight = random.nextLong();
-        final Hash epochHash = random.nextBoolean() ? randomHash(random) : null;
-        final String epochHashString = epochHash == null ? "null" : Mnemonics.generateMnemonic(epochHash);
 
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
@@ -264,13 +262,27 @@ class SavedStateMetadataTests {
         assertEquals(hashMnemonic, deserialized.hashMnemonic());
         assertEquals(numberOfConsensusEvents, deserialized.numberOfConsensusEvents());
         assertEquals(timestamp, deserialized.consensusTimestamp());
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
+        assertEquals(minimumGenerationNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals("why//are//there//newlines//here//please//stop//", deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
         assertEquals(signingNodes, deserialized.signingNodes());
         assertEquals(signingWeightSum, deserialized.signingWeightSum());
         assertEquals(totalWeight, deserialized.totalWeight());
+    }
+
+    @Test
+    @DisplayName("Parse Files With Old Generation Key Test")
+    void testParseFileWithOldGenerationKey() throws IOException {
+        final Path resourceDir = Paths.get("src", "test", "resources");
+        final Path metadataFile = resourceDir
+                .resolve("com")
+                .resolve("swirlds")
+                .resolve("platform")
+                .resolve("state")
+                .resolve("metadata_with_generation_key.txt");
+        final SavedStateMetadata metadata = SavedStateMetadata.parse(metadataFile);
+        assertEquals(123456789, metadata.minimumBirthRoundNonAncient());
     }
 
     private interface FileUpdater {
@@ -281,7 +293,7 @@ class SavedStateMetadataTests {
             ROUND,
             NUMBER_OF_CONSENSUS_EVENTS,
             CONSENSUS_TIMESTAMP,
-            MINIMUM_GENERATION_NON_ANCIENT,
+            MINIMUM_BIRTH_ROUND_NON_ANCIENT,
             SOFTWARE_VERSION,
             WALL_CLOCK_TIME,
             NODE_ID,
@@ -318,7 +330,6 @@ class SavedStateMetadataTests {
         }
         final long signingWeightSum = random.nextLong();
         final long totalWeight = random.nextLong();
-        final Hash epochHash = randomHash(random);
 
         final SavedStateMetadata metadata = new SavedStateMetadata(
                 round,
@@ -383,7 +394,7 @@ class SavedStateMetadataTests {
             assertEquals(
                     Mnemonics.generateMnemonic(legacyRunningEventHash), deserialized.legacyRunningEventHashMnemonic());
         }
-        assertEquals(minimumGenerationNonAncient, deserialized.minimumGenerationNonAncient());
+        assertEquals(minimumGenerationNonAncient, deserialized.minimumBirthRoundNonAncient());
         assertEquals(softwareVersion.toString(), deserialized.softwareVersion());
         assertEquals(wallClockTime, deserialized.wallClockTime());
         assertEquals(nodeId, deserialized.nodeId());
@@ -557,6 +568,10 @@ class SavedStateMetadataTests {
                 random,
                 (s, m) -> s.replace(MINIMUM_GENERATION_NON_ANCIENT.name(), "notARealKey"),
                 Set.of(MINIMUM_GENERATION_NON_ANCIENT));
+        testMalformedFile(
+                random,
+                (s, m) -> s.replace(MINIMUM_BIRTH_ROUND_NON_ANCIENT.name(), "notARealKey"),
+                Set.of(MINIMUM_BIRTH_ROUND_NON_ANCIENT));
         testMalformedFile(
                 random, (s, m) -> s.replace(SOFTWARE_VERSION.name(), "notARealKey"), Set.of(SOFTWARE_VERSION));
         testMalformedFile(random, (s, m) -> s.replace(WALL_CLOCK_TIME.name(), "notARealKey"), Set.of(WALL_CLOCK_TIME));

@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
 
@@ -135,10 +136,9 @@ public final class RosterRetriever {
                     .nodeId(address.getNodeId().id())
                     .weight(address.getWeight())
                     .gossipCaCertificate(cert)
-                    .gossipEndpoint(List.of(
+                    .gossipEndpoint(Stream.of(
                                     Pair.of(address.getHostnameExternal(), address.getPortExternal()),
                                     Pair.of(address.getHostnameInternal(), address.getPortInternal()))
-                            .stream()
                             .filter(pair -> pair.left() != null && !pair.left().isBlank() && pair.right() != 0)
                             .distinct()
                             .map(pair -> {

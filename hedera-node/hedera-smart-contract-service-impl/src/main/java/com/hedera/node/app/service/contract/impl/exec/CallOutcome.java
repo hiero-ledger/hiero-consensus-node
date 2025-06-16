@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
@@ -26,7 +27,7 @@ import java.util.List;
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
  * @param slotUsages any contract slot usages that should be externalized in trace data
- * @param hederaOpsDuration the duration of the evm ops performed during the transaction
+ * @param logs
  */
 public record CallOutcome(
         @NonNull ContractFunctionResult result,
@@ -35,11 +36,12 @@ public record CallOutcome(
         @Nullable List<ContractAction> actions,
         @Nullable @Deprecated ContractStateChanges stateChanges,
         @Nullable List<ContractSlotUsage> slotUsages,
-        long hederaOpsDuration) {
+        @Nullable List<EvmTransactionLog> logs) {
 
     /**
      * @return whether some state changes appeared from the execution of the contract
      */
+    @Deprecated
     public boolean hasStateChanges() {
         return stateChanges != null && !stateChanges.contractStateChanges().isEmpty();
     }
@@ -52,10 +54,24 @@ public record CallOutcome(
     }
 
     /**
+     * @return whether some logs appeared from the execution of the contract.
+     */
+    public boolean hasLogs() {
+        return logs != null && !logs.isEmpty();
+    }
+
+    /**
      * Return the slot usages.
      */
     public @NonNull List<ContractSlotUsage> slotUsagesOrThrow() {
         return requireNonNull(slotUsages);
+    }
+
+    /**
+     * Return the slot usages.
+     */
+    public @NonNull List<EvmTransactionLog> logsOrThrow() {
+        return requireNonNull(logs);
     }
 
     /**
@@ -72,7 +88,7 @@ public record CallOutcome(
                 hevmResult.actions(),
                 hevmResult.stateChanges(),
                 hevmResult.slotUsages(),
-                hevmResult.opsDuration());
+                hevmResult.evmLogs());
     }
 
     /**
@@ -83,7 +99,7 @@ public record CallOutcome(
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
-                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, null, hevmResult.opsDuration());
+                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, null, hevmResult.evmLogs());
     }
 
     /**
@@ -93,6 +109,7 @@ public record CallOutcome(
      * @param actions any contract actions that should be externalized in a sidecar
      * @param stateChanges any contract state changes that should be externalized in a sidecar
      * @param slotUsages any contract slot usages that should be externalized in trace data
+     * @param logs
      */
     public CallOutcome {
         requireNonNull(result);
@@ -138,7 +155,7 @@ public record CallOutcome(
      */
     public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
         requireNonNull(recordBuilder);
-        recordBuilder.contractID(recipientIdIfCreated());
+        recordBuilder.createdContractID(recipientIdIfCreated());
         recordBuilder.contractCreateResult(result);
         recordBuilder.withCommonFieldsSetFrom(this);
     }

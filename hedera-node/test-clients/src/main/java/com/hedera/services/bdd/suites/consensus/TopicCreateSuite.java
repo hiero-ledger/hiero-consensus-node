@@ -293,6 +293,7 @@ public class TopicCreateSuite {
                         .autoRenewAccountId("autoRenewAccount")
                         /* SigMap missing signature from auto-renew account's key. */
                         .signedBy("payer", "adminKey")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "adminKey"))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 createTopic("testTopic")
                         .payingWith("payer")
@@ -300,6 +301,7 @@ public class TopicCreateSuite {
                         .autoRenewAccountId("autoRenewAccount")
                         /* SigMap missing signature from adminKey. */
                         .signedBy("payer", "autoRenewAccount")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "autoRenewAccount"))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 // In hedera-app, we'll allow contracts with admin keys to be auto-renew accounts
                 createTopic("withContractAutoRenew").adminKeyName("adminKey").autoRenewAccountId(contractWithAdminKey),

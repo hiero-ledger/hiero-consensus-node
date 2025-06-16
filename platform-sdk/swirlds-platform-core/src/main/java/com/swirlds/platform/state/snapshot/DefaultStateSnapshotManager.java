@@ -132,9 +132,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             signedState.stateSavedToDisk();
-            final long minGen = deleteOldStates();
+            final long minBirthRound = deleteOldStates();
             stateSavingResult = new StateSavingResult(
-                    signedState.getRound(), signedState.isFreezeState(), signedState.getConsensusTimestamp(), minGen);
+                    signedState.getRound(),
+                    signedState.isFreezeState(),
+                    signedState.getConsensusTimestamp(),
+                    minBirthRound);
         }
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
@@ -257,7 +260,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Purge old states on the disk.
      *
-     * @return the minimum generation non-ancient of the oldest state that was not deleted
+     * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
         final List<SavedStateInfo> savedStates =
@@ -280,6 +283,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             return EventConstants.GENERATION_UNDEFINED;
         }
         final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
-        return oldestStateMetadata.minimumGenerationNonAncient();
+        return oldestStateMetadata.minimumBirthRoundNonAncient();
     }
 }

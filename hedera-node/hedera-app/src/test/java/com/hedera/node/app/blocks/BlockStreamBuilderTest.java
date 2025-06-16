@@ -57,7 +57,6 @@ public class BlockStreamBuilderTest {
             .build();
     private @Mock TransactionID transactionID;
     private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
-    private @Mock ContractFunctionResult contractCallResult;
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
     private @Mock ScheduleID scheduleRef;
@@ -121,6 +120,7 @@ public class BlockStreamBuilderTest {
     void testBlockItemsWithTraceAndOutput() {
         final var usages =
                 List.of(new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
+        final var contractCallResult = ContractFunctionResult.DEFAULT;
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
                 .contractCallResult(contractCallResult)
