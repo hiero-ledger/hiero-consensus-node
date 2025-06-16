@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.function.Function;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -149,6 +150,8 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull BlockItem item);
+
+    void writeItem(@NonNull Function<Instant, BlockItem> itemSpec);
 
     /**
      * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should

@@ -78,6 +78,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -130,6 +131,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Bytes lastBlockHash;
     private Instant blockTimestamp;
     private Instant consensusTimeLastRound;
+    private Instant lastExecutionTime;
     private BlockItemWriter writer;
     // stream hashers
     private StreamingTreeHasher inputTreeHasher;
@@ -272,6 +274,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             writer = writerSupplier.get();
             blockTimestamp = round.getConsensusTimestamp();
             boundaryStateChangeListener.setBoundaryTimestamp(blockTimestamp);
+            lastExecutionTime = round.getConsensusTimestamp();
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
@@ -525,7 +528,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
+        // advance the latest execution-assigned time
+        final var stateChanges = requireNonNull(item.stateChanges());
+        lastExecutionTime = asInstant(stateChanges.consensusTimestamp());
+
         worker.addItem(item);
+    }
+
+    @Override
+    public void writeItem(@NonNull Function<Instant, BlockItem> itemSpec) {
+        itemSpec.apply(lastExecutionTime);
     }
 
     @Override

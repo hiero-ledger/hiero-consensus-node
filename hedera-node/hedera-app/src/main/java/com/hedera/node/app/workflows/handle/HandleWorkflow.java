@@ -255,13 +255,9 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
-        // Pick the timestamp we will use for non-transactional state changes due to system work
-        final var systemWorkTime = blockHashSigner.isReady()
-                ? boundaryStateChangeListener.lastConsensusTimeOrThrow()
-                : round.getConsensusTimestamp();
         configureTssCallbacks(state);
         try {
-            reconcileTssState(state, systemWorkTime);
+            reconcileTssState(state, round.getConsensusTimestamp());
         } catch (Exception e) {
             logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
@@ -292,12 +288,7 @@ public class HandleWorkflow {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitRoundReceipts(
-                    state,
-                    systemWorkTime,
-                    round.getConsensusTimestamp(),
-                    immediateStateChangeListener,
-                    blockStreamManager,
-                    streamMode);
+                    state, round.getConsensusTimestamp(), immediateStateChangeListener, blockStreamManager, streamMode);
         }
     }
 
@@ -960,9 +951,9 @@ public class HandleWorkflow {
      * since we don't create block boundaries until we can sign them.
      *
      * @param state the state to use when reconciling the TSS system state with the active rosters
-     * @param roundTimestamp the current round timestamp
+     * @param systemWorkTime the current work time
      */
-    private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
+    private void reconcileTssState(@NonNull final State state, @NonNull final Instant systemWorkTime) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var boundaryTimestamp = boundaryStateChangeListener.lastConsensusTimeOrThrow();
@@ -972,22 +963,23 @@ public class HandleWorkflow {
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var workTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
                 doStreamingKVChanges(
                         crsWritableStates,
                         null,
-                        workTime,
+                        systemWorkTime,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
+                                systemWorkTime,
+                                isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
-                        workTime,
+                        systemWorkTime,
                         () -> hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
-                                workTime,
+                                systemWorkTime,
                                 tssConfig,
                                 isActive));
             }

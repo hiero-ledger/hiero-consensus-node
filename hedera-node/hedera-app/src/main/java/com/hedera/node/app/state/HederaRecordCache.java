@@ -91,7 +91,6 @@ public interface HederaRecordCache extends RecordCache {
      * </ol>
      *
      * @param state                        The state to commit the transaction receipts to
-     * @param stateChangesTime             The state changes time
      * @param consensusNow                 The current consensus time
      * @param immediateStateChangeListener The listener to capture the state changes
      * @param blockStreamManager           The block stream manager
@@ -99,7 +98,6 @@ public interface HederaRecordCache extends RecordCache {
      */
     void commitRoundReceipts(
             @NonNull State state,
-            @NonNull Instant stateChangesTime,
             @NonNull Instant consensusNow,
             @NonNull ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull BlockStreamManager blockStreamManager,
