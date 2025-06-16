@@ -951,9 +951,9 @@ public class HandleWorkflow {
      * since we don't create block boundaries until we can sign them.
      *
      * @param state the state to use when reconciling the TSS system state with the active rosters
-     * @param systemWorkTime the current work time
+     * @param roundTimestamp the current round timestamp
      */
-    private void reconcileTssState(@NonNull final State state, @NonNull final Instant systemWorkTime) {
+    private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var boundaryTimestamp = boundaryStateChangeListener.lastConsensusTimeOrThrow();
@@ -963,23 +963,22 @@ public class HandleWorkflow {
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
+                final var workTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
                 doStreamingKVChanges(
                         crsWritableStates,
                         null,
-                        systemWorkTime,
+                        workTime,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
-                                systemWorkTime,
-                                isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
-                        systemWorkTime,
+                        workTime,
                         () -> hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
-                                systemWorkTime,
+                                workTime,
                                 tssConfig,
                                 isActive));
             }
