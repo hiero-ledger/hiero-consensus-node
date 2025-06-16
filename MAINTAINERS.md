@@ -6,11 +6,11 @@ The general handling of Maintainer rights and all groups in this GitHub org is d
 
 Maintainers are assigned the following scopes in this repository:
 
-|        Scope        |             Definition             | GitHub Role |             GitHub Team             |
-|---------------------|------------------------------------|-------------|-------------------------------------|
-| project-maintainers | The Maintainers of the project     | Maintain    | `hiero-consensus-node-maintainers`  |
-| tsc                 | The Hiero TSC                      | Maintain    | `tsc`                               |
-| github-maintainers  | The Maintainers of the github org  | Maintain    | `github-maintainers`                |
+|        Scope        |            Definition             | GitHub Role |            GitHub Team             |
+|---------------------|-----------------------------------|-------------|------------------------------------|
+| project-maintainers | The Maintainers of the project    | Maintain    | `hiero-consensus-node-maintainers` |
+| tsc                 | The Hiero TSC                     | Maintain    | `tsc`                              |
+| github-maintainers  | The Maintainers of the github org | Maintain    | `github-maintainers`               |
 
 ## Active Maintainers
 
