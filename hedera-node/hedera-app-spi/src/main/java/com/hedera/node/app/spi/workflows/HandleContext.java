@@ -159,6 +159,10 @@ public interface HandleContext {
              * Whether a contract dispatch should externalize explicit writes with its slot usage traces.
              */
             EXPLICIT_WRITE_TRACING,
+            /**
+             * Batch inner transaction bytes. Used to prehandle inner transaction while dispatching them.
+             */
+            INNER_TRANSACTION_BYTES,
         }
     }
 

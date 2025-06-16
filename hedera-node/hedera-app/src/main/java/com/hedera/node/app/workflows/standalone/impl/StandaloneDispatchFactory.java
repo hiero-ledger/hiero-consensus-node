@@ -24,6 +24,7 @@ import com.hedera.node.app.ids.EntityNumGeneratorImpl;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
@@ -47,6 +48,7 @@ import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
 import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
+import com.hedera.node.app.workflows.prehandle.BatchInnerTxnPreHandle;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.ConfigProvider;
@@ -159,6 +161,19 @@ public class StandaloneDispatchFactory {
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
         final var blockRecordInfo = BlockRecordInfoImpl.from(state);
+
+        BatchInnerTxnPreHandle innerTxnPreHandler = (txn) -> {
+            final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
+            return preHandleWorkflow.preHandleTransaction(
+                    creatorInfo,
+                    readableStoreFactory,
+                    accountStore,
+                    txn,
+                    null,
+                    null,
+                    PreHandleWorkflow.InnerTransaction.YES);
+        };
+
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -184,7 +199,7 @@ public class StandaloneDispatchFactory {
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
-                preHandleResult.innerResults(),
+                innerTxnPreHandler,
                 HandleContext.TransactionCategory.USER);
         final var fees = transactionDispatcher.dispatchComputeFees(dispatchHandleContext);
         return new RecordDispatch(

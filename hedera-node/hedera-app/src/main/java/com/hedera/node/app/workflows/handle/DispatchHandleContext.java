@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.workflows.handle.stack.SavepointStackImpl.castBuilder;
 import static java.util.Collections.emptyMap;
@@ -53,9 +54,11 @@ import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
+import com.hedera.node.app.workflows.prehandle.BatchInnerTxnPreHandle;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
@@ -63,7 +66,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -98,10 +100,9 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final DispatchMetadata dispatchMetaData;
     private final TransactionChecker transactionChecker;
     private final TransactionCategory transactionCategory;
-    // This is used to store the pre-handle results for the inner transactions
-    // in an atomic batch, null otherwise
-    @Nullable
-    private final List<PreHandleResult> preHandleResults;
+
+    @NonNull
+    private final BatchInnerTxnPreHandle innerTxnPreHandler;
 
     public DispatchHandleContext(
             @NonNull final Instant consensusNow,
@@ -128,7 +129,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final FeeAccumulator feeAccumulator,
             @NonNull final DispatchMetadata handleMetaData,
             @NonNull final TransactionChecker transactionChecker,
-            @Nullable final List<PreHandleResult> preHandleResults,
+            @Nullable final BatchInnerTxnPreHandle innerTxnPreHandler,
             @NonNull final TransactionCategory transactionCategory) {
         this.consensusNow = requireNonNull(consensusNow);
         this.creatorInfo = requireNonNull(creatorInfo);
@@ -156,8 +157,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.networkInfo = requireNonNull(networkInfo);
         this.dispatchMetaData = requireNonNull(handleMetaData);
         this.transactionChecker = requireNonNull(transactionChecker);
-        this.preHandleResults = preHandleResults;
         this.transactionCategory = requireNonNull(transactionCategory);
+        this.innerTxnPreHandler = innerTxnPreHandler;
     }
 
     @NonNull
@@ -380,10 +381,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     public <T extends StreamBuilder> T dispatch(@NonNull final DispatchOptions<T> options) {
         requireNonNull(options);
         PreHandleResult childPreHandleResult = null;
-        // If we have pre-computed pre-handle results for the inner transactions, pass them to the child
-        // dispatch instead of computing a synthetic pre-handle result for child dispatch.
-        if (options.category() == BATCH_INNER && preHandleResults != null && !preHandleResults.isEmpty()) {
-            childPreHandleResult = preHandleResults.removeFirst();
+
+        // Compute pre-handle results for the inner transactions and pass them to the child dispatch.
+        final var batchInnerTxnBytes = options.dispatchMetadata().getMetadata(INNER_TRANSACTION_BYTES, Bytes.class);
+        if (options.category() == BATCH_INNER && batchInnerTxnBytes.isPresent()) {
+            childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get());
         }
         final var childDispatch = childDispatchFactory.createChildDispatch(
                 config,

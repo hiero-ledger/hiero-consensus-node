@@ -26,6 +26,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
@@ -789,5 +791,43 @@ public class AtomicBatchTest {
                             .signedByPayerAnd(batchOperator),
                     getAccountBalance(receiver).hasTinyBars(FIVE_HBARS * 2));
         }
+    }
+
+    @HapiTest
+    @DisplayName("Updated required key in batch")
+    public Stream<DynamicTest> useUpdatedKeyInBatch() {
+        final var batchOperator = "batchOperator";
+
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                newKeyNamed("newAdminKey"),
+                newKeyNamed("kycKey"),
+                newKeyNamed("newKycKey"),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury"),
+                tokenCreate("testToken")
+                        .initialSupply(1000L)
+                        .treasury("treasury")
+                        .kycKey("kycKey")
+                        .supplyKey("treasury")
+                        .adminKey("adminKey"),
+                atomicBatch(
+                                // update admin key
+                                tokenUpdate("testToken")
+                                        .adminKey("newAdminKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .signedBy("adminKey", "newAdminKey", batchOperator),
+
+                                // update kyc key
+                                tokenUpdate("testToken")
+                                        .kycKey("newKycKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .via("updateKyc")
+                                        .sigMapPrefixes(uniqueWithFullPrefixesFor("newAdminKey", batchOperator))
+                                        .signedBy("newAdminKey", batchOperator))
+                        .payingWith(batchOperator),
+                getTxnRecord("updateKyc").logged());
     }
 }
