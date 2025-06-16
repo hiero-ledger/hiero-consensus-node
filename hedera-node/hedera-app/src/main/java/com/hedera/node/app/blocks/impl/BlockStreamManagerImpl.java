@@ -529,15 +529,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public void writeItem(@NonNull final BlockItem item) {
         // advance the latest execution-assigned time
-        final var stateChanges = requireNonNull(item.stateChanges());
-        lastExecutionTime = asInstant(stateChanges.consensusTimestamp());
+        final var stateChanges = item.stateChanges();
+        if (stateChanges != null) {
+            lastExecutionTime = asInstant(stateChanges.consensusTimestamp());
+        }
 
         worker.addItem(item);
     }
 
     @Override
     public void writeItem(@NonNull Function<Instant, BlockItem> itemSpec) {
-        itemSpec.apply(lastExecutionTime);
+        worker.addItem(itemSpec.apply(lastExecutionTime));
     }
 
     @Override
