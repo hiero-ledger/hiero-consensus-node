@@ -24,6 +24,7 @@ import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -60,7 +61,12 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * This latch counts down when the view is fully initialized and ready for use.
      */
-    private final CountDownLatch ready = new CountDownLatch(1);
+    private final CountDownLatch readyLatch = new CountDownLatch(1);
+
+    /**
+     * Indicates whether this teacher view is ready after {@link #readyLatch} is released.
+     */
+    private final AtomicBoolean ready = new AtomicBoolean(false);
 
     /**
      * Create a new {@link TeacherPullVirtualTreeView}.
@@ -85,8 +91,12 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
         this.reconnectConfig = reconnectConfig;
         new ThreadConfiguration(threadManager)
                 .setRunnable(() -> {
-                    records = pipeline.pausePipelineAndRun("copy", root::detach);
-                    ready.countDown();
+                    try {
+                        records = pipeline.pausePipelineAndRun("copy", root::detach);
+                        ready.set(true);
+                    } finally {
+                        readyLatch.countDown();
+                    }
                 })
                 .setComponent("virtualmap")
                 .setThreadName("detacher")
@@ -156,7 +166,10 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     @Override
     public void waitUntilReady() throws InterruptedException {
-        ready.await();
+        readyLatch.await();
+        if (!ready.get()) {
+            throw new RuntimeException("Failed to wait until teacher view is ready");
+        }
     }
 
     /**
