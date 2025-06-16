@@ -32,7 +32,6 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsHolder;
 import com.swirlds.platform.test.fixtures.turtle.consensus.ConsensusRoundsListContainer;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedGossip;
@@ -161,7 +160,7 @@ public class TurtleNode {
                         initialState,
                         TURTLE_CONSENSUS_STATE_EVENT_HANDLER,
                         nodeId,
-                        AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
+                        String.valueOf(nodeId),
                         RosterUtils.createRosterHistory(initialState.get().getState()),
                         platformStateFacade)
                 .withModel(model)
