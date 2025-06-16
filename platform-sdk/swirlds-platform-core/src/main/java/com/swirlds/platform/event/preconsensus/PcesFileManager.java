@@ -80,9 +80,33 @@ public class PcesFileManager {
             @NonNull final NodeId selfId,
             final long startingRound)
             throws IOException {
+        this(
+                platformContext,
+                files,
+                getDatabaseDirectory(platformContext, selfId),
+                selfId,
+                startingRound
+        );
+    }
+
+    /**
+     * Constructor
+     *
+     * @param platformContext the platform context for this node
+     * @param files           the files to track
+     * @param selfId          the ID of this node
+     * @param startingRound   the round number of the initial state of the system
+     * @throws IOException if there is an error reading the files
+     */
+    public PcesFileManager(
+            @NonNull final PlatformContext platformContext,
+            @NonNull final PcesFileTracker files,
+            @NonNull final Path databaseDirectory,
+            @NonNull final NodeId selfId,//TODO
+            final long startingRound)
+            throws IOException {
 
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(selfId);
 
         if (startingRound < 0) {
             throw new IllegalArgumentException("starting round must be non-negative");
@@ -95,7 +119,7 @@ public class PcesFileManager {
         this.files = Objects.requireNonNull(files);
         this.metrics = new PcesMetrics(platformContext.getMetrics());
         this.minimumRetentionPeriod = preconsensusEventStreamConfig.minimumRetentionPeriod();
-        this.databaseDirectory = getDatabaseDirectory(platformContext, selfId);
+        this.databaseDirectory = Objects.requireNonNull(databaseDirectory);
 
         this.currentOrigin = PcesUtilities.getInitialOrigin(files, startingRound);
 
