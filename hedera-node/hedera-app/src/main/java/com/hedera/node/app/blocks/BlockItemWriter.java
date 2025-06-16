@@ -15,7 +15,7 @@ public interface BlockItemWriter {
      *
      * @param blockNumber the number of the block to open
      */
-    void openBlock(long blockNumber);
+    void openBlock(final long blockNumber);
 
     /**
      * Writes an item and/or its serialized bytes to the destination stream.
@@ -42,5 +42,10 @@ public interface BlockItemWriter {
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
 
-    void jumpToBlockAfterFreeze(long blockNumber);
+    /**
+     * Jumps to a specific block number after a freeze event.
+     *
+     * @param blockNumber the block number to jump to after freeze
+     */
+    void jumpToBlockAfterFreeze(final long blockNumber);
 }

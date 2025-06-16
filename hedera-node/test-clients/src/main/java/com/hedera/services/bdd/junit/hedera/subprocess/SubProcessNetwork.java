@@ -603,7 +603,17 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         return realm;
     }
 
-    public void configureBlockNodeCommunicationLogLevel(HederaNode node, String logLevel) {
+    /**
+     * Configures the log level for the block node communication package in the node's log4j2.xml file.
+     * This allows for more detailed logging of block streaming operations during tests.
+     *
+     * @param node the node whose logging configuration should be updated
+     * @param logLevel the log level to set (e.g., "DEBUG", "INFO", "WARN")
+     */
+    public void configureBlockNodeCommunicationLogLevel(
+            @NonNull final HederaNode node, @NonNull final String logLevel) {
+        requireNonNull(node, "Node cannot be null");
+        requireNonNull(logLevel, "Log level cannot be null");
         final Path loggerConfigPath = node.getExternalPath(LOG4J2_XML);
         try {
             // Read the existing XML file
@@ -649,7 +659,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
     }
 
-    public BlockNodeMode getBlockNodeMode() {
+    /**
+     * Gets the current block node mode for this network.
+     *
+     * @return the current block node mode
+     */
+    public @NonNull BlockNodeMode getBlockNodeMode() {
         return blockNodeMode;
     }
 
@@ -657,7 +672,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * Configure the block node mode for this network.
      * @param mode the block node mode to use
      */
-    public void setBlockNodeMode(BlockNodeMode mode) {
+    public void setBlockNodeMode(@NonNull final BlockNodeMode mode) {
+        requireNonNull(mode, "Block node mode cannot be null");
         log.info("Setting block node mode from {} to {}", this.blockNodeMode, mode);
         this.blockNodeMode = mode;
     }

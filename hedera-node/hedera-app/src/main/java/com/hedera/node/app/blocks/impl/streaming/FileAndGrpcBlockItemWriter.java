@@ -38,13 +38,15 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void openBlock(long blockNumber) {
+    public void openBlock(final long blockNumber) {
         this.fileBlockItemWriter.openBlock(blockNumber);
         this.grpcBlockItemWriter.openBlock(blockNumber);
     }
 
     @Override
-    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull Bytes bytes) {
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(item, "item cannot be null");
+        requireNonNull(bytes, "bytes cannot be null");
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
         this.grpcBlockItemWriter.writePbjItem(item);
     }
@@ -63,12 +65,18 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull BlockItem item) {
+    public void writePbjItem(@NonNull final BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }
 
+    /**
+     * Jumps to a specific block number after a freeze event.
+     * This method only affects the gRPC writer, not the file writer.
+     *
+     * @param blockNumber the block number to jump to after freeze
+     */
     @Override
-    public void jumpToBlockAfterFreeze(long blockNumber) {
+    public void jumpToBlockAfterFreeze(final long blockNumber) {
         this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
     }
 }
