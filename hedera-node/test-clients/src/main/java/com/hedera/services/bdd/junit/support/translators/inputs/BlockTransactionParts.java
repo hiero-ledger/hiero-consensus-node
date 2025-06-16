@@ -142,12 +142,7 @@ public record BlockTransactionParts(
     }
 
     public BlockTransactionParts withParts(final TransactionParts transactionParts) {
-        return new BlockTransactionParts(
-                transactionParts,
-                transactionResult,
-                role,
-                traces,
-                outputs);
+        return new BlockTransactionParts(transactionParts, transactionResult, role, traces, outputs);
     }
 
     /**

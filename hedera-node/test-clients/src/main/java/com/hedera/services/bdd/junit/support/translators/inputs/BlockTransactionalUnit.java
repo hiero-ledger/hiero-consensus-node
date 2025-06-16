@@ -7,10 +7,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * A grouping of block stream information used as input to record translation, where all the information is
@@ -47,9 +44,9 @@ public record BlockTransactionalUnit(
                 .findFirst()
                 .orElseThrow();
         // get queue of inner txns
-        final var innerTxns = batchParts.body().atomicBatchOrThrow()
-                .transactions()
-                .stream().map(txn -> Transaction.PROTOBUF.toBytes(Transaction.newBuilder().signedTransactionBytes(txn).build()))
+        final var innerTxns = batchParts.body().atomicBatchOrThrow().transactions().stream()
+                .map(txn -> Transaction.PROTOBUF.toBytes(
+                        Transaction.newBuilder().signedTransactionBytes(txn).build()))
                 .map(TransactionParts::from)
                 .toList();
         for (int i = 0; i < blockTransactionParts.size(); i++) {

@@ -85,7 +85,7 @@ public class BlockUnitSplit {
 
         BlockTransactionParts toBlockTransactionParts() {
             requireNonNull(role);
-//            requireNonNull(parts);
+            //            requireNonNull(parts);
             requireNonNull(result);
             return new BlockTransactionParts(parts, result, role, traces, outputs);
         }
