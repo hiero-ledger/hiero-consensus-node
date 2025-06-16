@@ -108,7 +108,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final var numStateChanges = new AtomicInteger();
         final List<SingleTransactionRecord> actualSingleTransactionRecords = blocks.stream()
                 .flatMap(block ->
-                        blockUnitSplit.split(block).stream().map(BlockTransactionalUnit::withBatchedTransactionParts))
+                        blockUnitSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
                 .flatMap(unit -> translator.translate(unit).stream())
                 .toList();

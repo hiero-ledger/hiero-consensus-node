@@ -85,7 +85,6 @@ public class BlockUnitSplit {
 
         BlockTransactionParts toBlockTransactionParts() {
             requireNonNull(role);
-            //            requireNonNull(parts);
             requireNonNull(result);
             return new BlockTransactionParts(parts, result, role, traces, outputs);
         }
@@ -133,7 +132,14 @@ public class BlockUnitSplit {
                         pendingParts.parts = nextParts;
                     }
                 }
-                case TRANSACTION_RESULT -> pendingParts.result = item.transactionResultOrThrow();
+                case TRANSACTION_RESULT -> {
+                    if (pendingParts.result != null) {
+                        unitParts.add(pendingParts.toBlockTransactionParts());
+                        pendingParts.clear();
+                        pendingParts.role = STANDALONE;
+                    }
+                    pendingParts.result = item.transactionResultOrThrow();
+                }
                 case TRANSACTION_OUTPUT -> pendingParts.addOutput(item.transactionOutputOrThrow());
                 case TRACE_DATA -> pendingParts.addTrace(item.traceDataOrThrow());
                 case STATE_CHANGES -> {

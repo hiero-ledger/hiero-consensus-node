@@ -141,7 +141,7 @@ public record BlockTransactionParts(
         return transactionResult.parentConsensusTimestamp();
     }
 
-    public BlockTransactionParts withParts(final TransactionParts transactionParts) {
+    public BlockTransactionParts withTransactionParts(final TransactionParts transactionParts) {
         return new BlockTransactionParts(transactionParts, transactionResult, role, traces, outputs);
     }
 
