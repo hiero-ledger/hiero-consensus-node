@@ -133,7 +133,7 @@ public class TransactionProcessor {
         final var result = frameRunner.runToCompletion(
                 transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
         // Record the metrics data for the transaction
-        metrics.recordTransactionDuration(transaction, getHederaOpsDuration(initialFrame));
+        metrics.recordTxnTotalOpsDuration(getHederaOpsDuration(initialFrame));
         // Maybe refund some of the charged fees before committing
         gasCharging.maybeRefundGiven(
                 transaction.unusedGas(result.gasUsed()),

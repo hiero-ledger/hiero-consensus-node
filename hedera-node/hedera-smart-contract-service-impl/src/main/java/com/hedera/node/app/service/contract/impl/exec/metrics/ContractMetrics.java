@@ -12,7 +12,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
-import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.platform.prometheus.NameConverter;
 import com.swirlds.metrics.api.Counter;
@@ -419,20 +418,10 @@ public class ContractMetrics {
 
     /**
      * Records the duration of a transaction in nanoseconds
-     * @param transaction the transaction to be recorded
-     * @param durationNanos the duration in nanoseconds
+     * @param opsDurationNanos the duration in nanoseconds
      */
-    public void recordTransactionDuration(@NonNull final HederaEvmTransaction transaction, final long durationNanos) {
-        opsDurationPerTransactionMetrics.recordTransactionDuration(transaction, durationNanos);
-    }
-
-    /**
-     * Gets the current duration for a specific transaction
-     * @param transaction the transaction to get duration for
-     * @return the duration in nanoseconds
-     */
-    public long getTransactionDuration(@NonNull final HederaEvmTransaction transaction) {
-        return opsDurationPerTransactionMetrics.getOpsDuration(transaction);
+    public void recordTxnTotalOpsDuration(final long opsDurationNanos) {
+        opsDurationPerTransactionMetrics.recordTxnTotalOpsDuration(opsDurationNanos);
     }
 
     private final ConcurrentHashMap<SystemContractMethod, SystemContractMethod> methodsThatHaveCallsWithNullMethod =
