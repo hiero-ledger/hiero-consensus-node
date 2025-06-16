@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_I
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REVOKE_APPROVAL_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -89,8 +88,6 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());
@@ -125,8 +122,6 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());
@@ -246,8 +241,6 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 100L)).willReturn(nft);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         given(nativeOperations.readableAccountStore()).willReturn(accountStore);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(updater.entityIdFactory()).willReturn(entityIdFactory);
         given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
         given(account.accountIdOrThrow())
                 .willReturn(AccountID.newBuilder().accountNum(1).build());

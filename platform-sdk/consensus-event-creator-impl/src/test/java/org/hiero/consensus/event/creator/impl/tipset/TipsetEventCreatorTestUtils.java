@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static java.util.Objects.nonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -177,20 +175,6 @@ public class TipsetEventCreatorTestUtils {
             }
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }
-
-        // Generation should be max of parents plus one
-        final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
-        assertEquals(expectedGeneration, newEvent.getNGen());
-
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
-                        || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
-                "Parent's birth round should never be higher to the event's birth round.");
-
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getGeneration() >= newEvent.getGeneration())
-                        || (nonNull(otherParent) && otherParent.getGeneration() >= newEvent.getGeneration()),
-                "Parent's generation should never be higher or equal to the event's generation.");
 
         // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
         // with nanosecond precision for transaction.

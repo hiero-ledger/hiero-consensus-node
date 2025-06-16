@@ -15,6 +15,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_A
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -76,9 +77,13 @@ public class TokenClaimAirdropDecoderTest {
         given(attempt.configuration()).willReturn(configuration);
         given(attempt.enhancement()).willReturn(enhancement);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxAllowedPendingAirdropsToClaim()).willReturn(10);
         given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(FUNGIBLE_TOKEN);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(asHeadlongAddress(OWNER_ID.accountNum())))
                 .willReturn(OWNER_ID);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
@@ -182,9 +187,12 @@ public class TokenClaimAirdropDecoderTest {
         given(attempt.configuration()).willReturn(configuration);
         given(attempt.enhancement()).willReturn(enhancement);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxAllowedPendingAirdropsToClaim()).willReturn(10);
         given(nativeOperations.getToken(FUNGIBLE_TOKEN_ID)).willReturn(null);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(asHeadlongAddress(SENDER_ID.accountNum())))
                 .willReturn(SENDER_ID);
         given(addressIdConverter.convert(OWNER_ACCOUNT_AS_ADDRESS)).willReturn(OWNER_ID);
@@ -230,6 +238,8 @@ public class TokenClaimAirdropDecoderTest {
         given(attempt.configuration()).willReturn(configuration);
         given(attempt.enhancement()).willReturn(enhancement);
         given(enhancement.nativeOperations()).willReturn(nativeOperations);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(configuration.getConfigData(TokensConfig.class)).willReturn(tokensConfig);
         given(tokensConfig.maxAllowedPendingAirdropsToClaim()).willReturn(10);
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(NON_FUNGIBLE_TOKEN);

@@ -31,7 +31,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import dagger.BindsInstance;
 import dagger.Component;
-import java.util.function.Consumer;
 import javax.inject.Singleton;
 
 /**
@@ -95,7 +94,7 @@ public interface ExecutorComponent {
         ExecutorComponent build();
     }
 
-    Consumer<State> initializer();
+    FacilityInitModule.FacilityInitializer initializer();
 
     AppFeeCharging appFeeCharging();
 

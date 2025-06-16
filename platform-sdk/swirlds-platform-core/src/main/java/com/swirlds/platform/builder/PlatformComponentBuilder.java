@@ -345,9 +345,7 @@ public class PlatformComponentBuilder {
             eventSignatureValidator = new DefaultEventSignatureValidator(
                     blocks.platformContext(),
                     CryptoStatic::verifySignature,
-                    blocks.appVersion(),
-                    blocks.rosterHistory().getPreviousRoster(),
-                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.rosterHistory(),
                     blocks.intakeEventCounter());
         }
         return eventSignatureValidator;
@@ -845,8 +843,7 @@ public class PlatformComponentBuilder {
     public StaleEventDetector buildStaleEventDetector() {
         if (staleEventDetector == null) {
             final PlatformContext context = blocks.platformContext();
-            staleEventDetector =
-                    new DefaultStaleEventDetector(context.getConfiguration(), context.getMetrics(), blocks.selfId());
+            staleEventDetector = new DefaultStaleEventDetector(context.getMetrics(), blocks.selfId());
         }
         return staleEventDetector;
     }

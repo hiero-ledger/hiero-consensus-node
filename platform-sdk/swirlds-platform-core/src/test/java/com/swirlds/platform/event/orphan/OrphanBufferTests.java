@@ -48,11 +48,6 @@ class OrphanBufferTests {
      */
     private List<PlatformEvent> intakeEvents;
 
-    /**
-     * The maximum generation of any event that has been created
-     */
-    private long maxGeneration;
-
     private Random random;
 
     /**
@@ -102,10 +97,6 @@ class OrphanBufferTests {
 
         final PlatformEvent selfParent = tips.get(eventCreator);
         final PlatformEvent otherParent = chooseOtherParent(parentCandidates);
-
-        final long maxParentGeneration = Math.max(selfParent.getGeneration(), otherParent.getGeneration());
-        final long eventGeneration = maxParentGeneration + 1;
-        maxGeneration = Math.max(maxGeneration, eventGeneration);
 
         return new TestingEventBuilder(random)
                 .setCreatorId(eventCreator)
@@ -395,8 +386,6 @@ class OrphanBufferTests {
     @DisplayName("Verify the assignment of nGen for events one ancient and one non-ancient parent")
     @Test
     void testNGenValueWithAncientAndNonAncientParents() {
-        // Pick some values to use. These are arbitrary.
-        final long minimumGenerationNonAncient = 100;
         final long latestConsensusRound = 30;
         final long minimumBirthRoundNonAncient = latestConsensusRound - 26 + 1;
         final EventWindow eventWindow = EventWindowBuilder.builder()
@@ -413,15 +402,11 @@ class OrphanBufferTests {
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
 
         // A non-ancient event with all ancient parents.
-        // The parent generations must be overridden in order to set the generation of
-        // this event to a non-ancient value, whereas the birthround can be set outright.
         final PlatformEvent node1NonAncientEvent = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(1))
                 .setOtherParent(node0AncientEvent)
                 .setSelfParent(node1AncientEvent)
                 .setBirthRound(minimumBirthRoundNonAncient)
-                .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
-                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
                 .build();
 
         // An event that is non-ancient with a barely ancient self-parent and a barely non-ancient other-parent
@@ -429,8 +414,6 @@ class OrphanBufferTests {
                 .setSelfParent(node0AncientEvent)
                 .setOtherParent(node1NonAncientEvent)
                 .setBirthRound(minimumBirthRoundNonAncient)
-                .overrideOtherParentGeneration(minimumGenerationNonAncient)
-                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
                 .build();
 
         final DefaultOrphanBuffer orphanBuffer =
@@ -498,8 +481,6 @@ class OrphanBufferTests {
                 .setOtherParent(node0AncientEvent)
                 .setSelfParent(node1AncientEvent)
                 .setBirthRound(minimumBirthRoundNonAncient)
-                .overrideOtherParentGeneration(minimumGenerationNonAncient - 1)
-                .overrideSelfParentGeneration(minimumGenerationNonAncient - 1)
                 .build();
         final PlatformEvent node0NonAncientEvent = new TestingEventBuilder(random)
                 .setSelfParent(node0AncientEvent)

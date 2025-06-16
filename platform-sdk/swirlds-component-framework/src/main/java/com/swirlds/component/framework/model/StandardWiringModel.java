@@ -8,8 +8,10 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.diagram.HyperlinkBuilder;
 import com.swirlds.component.framework.model.internal.monitor.HealthMonitor;
+import com.swirlds.component.framework.model.internal.standard.AbstractHeartbeatScheduler;
 import com.swirlds.component.framework.model.internal.standard.HeartbeatScheduler;
 import com.swirlds.component.framework.model.internal.standard.JvmAnchor;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.builders.internal.StandardTaskSchedulerBuilder;
@@ -25,6 +27,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ForkJoinPool;
 
 /**
@@ -151,7 +154,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     public OutputWire<Instant> buildHeartbeatWire(@NonNull final Duration period) {
         throwIfStarted();
-        return getHeartbeatScheduler().buildHeartbeatWire(period);
+        return getHeartbeatScheduler().buildHeartbeatWire(period, getHeartbeatExceptionHandler());
     }
 
     /**
@@ -180,7 +183,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
         throwIfStarted();
-        return getHeartbeatScheduler().buildHeartbeatWire(frequency);
+        return getHeartbeatScheduler().buildHeartbeatWire(frequency, getHeartbeatExceptionHandler());
     }
 
     /**
@@ -192,6 +195,17 @@ public class StandardWiringModel extends TraceableWiringModel {
         if (scheduler.getType() == SEQUENTIAL_THREAD) {
             threadSchedulers.add((SequentialThreadTaskScheduler<?>) scheduler);
         }
+    }
+
+    /**
+     * Get the uncaught exception handler for the heartbeat scheduler if it has been set, otherwise return a default
+     *
+     * @return the uncaught exception handler
+     */
+    @NonNull
+    private UncaughtExceptionHandler getHeartbeatExceptionHandler() {
+        return Optional.ofNullable(taskSchedulerExceptionHandler)
+                .orElse(ExceptionHandlers.defaultExceptionHandler(AbstractHeartbeatScheduler.HEARTBEAT_SCHEDULER_NAME));
     }
 
     /**
@@ -254,7 +268,7 @@ public class StandardWiringModel extends TraceableWiringModel {
     @NonNull
     private HeartbeatScheduler getHeartbeatScheduler() {
         if (heartbeatScheduler == null) {
-            heartbeatScheduler = new HeartbeatScheduler(this, time, "Heartbeat");
+            heartbeatScheduler = new HeartbeatScheduler(this, time);
         }
         return heartbeatScheduler;
     }

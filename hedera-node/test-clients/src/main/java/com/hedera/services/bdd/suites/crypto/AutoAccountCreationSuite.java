@@ -1262,7 +1262,7 @@ public class AutoAccountCreationSuite {
                     allRunFor(spec, op1, op2, txnRequiringHollowAccountSignature);
                 }),
                 getTxnRecord(HBAR_XFER)
-                        .hasChildRecordCount(1)
+                        .hasNonStakingChildRecordCount(1)
                         .hasChildRecords(recordWith().status(SUCCESS).memo(LAZY_MEMO)),
                 // and transfers to the 0.0.ECDSA_BYTES alias should succeed.
                 cryptoTransfer(tinyBarsFromToWithAlias(PARTY, SECP_256K1_SOURCE_KEY, ONE_HBAR))
@@ -1545,7 +1545,7 @@ public class AutoAccountCreationSuite {
                     final var evmAddressStr = ByteString.copyFrom(evmAddress.get());
                     getTxnRecord("failedTxn").logged();
                     getTxnRecord("passedTxn")
-                            .hasChildRecordCount(1)
+                            .hasNonStakingChildRecordCount(1)
                             .hasChildRecords(
                                     recordWith().status(SUCCESS).memo(LAZY_MEMO).alias(evmAddressStr));
                 }));
